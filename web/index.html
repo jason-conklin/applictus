@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Applictus</title>
+    <link rel="icon" href="/public/Applictus_logo.png" type="image/png" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="noise"></div>
+    <header class="topbar hidden" id="topbar">
+      <a class="brand" id="brand-link" href="#dashboard" aria-label="Applictus dashboard">
+        <span class="logo-wrap brand-mark" aria-hidden="true">
+          <span class="logo-fallback">A</span>
+          <img
+            src="/public/Applictus_logo.png"
+            alt="Applictus logo"
+            class="brand-logo"
+            data-logo
+          />
+        </span>
+        <div>
+          <div class="brand-name">Applictus</div>
+          <div class="brand-sub">Desktop-first job application tracker</div>
+        </div>
+      </a>
+      <nav class="nav" id="nav">
+        <a href="#dashboard" class="nav-link">Dashboard</a>
+        <a href="#archive" class="nav-link">Archive</a>
+        <a href="#unsorted" class="nav-link">Unsorted Events</a>
+      </nav>
+      <div class="topbar-actions" id="session-actions">
+        <button class="ghost" id="logout-btn" type="button">Log out</button>
+        <a href="#account" class="avatar" id="account-avatar" aria-label="Account">
+          <span class="avatar-mark" aria-hidden="true">
+            <svg
+              class="avatar-icon"
+              xmlns="http://www.w3.org/2000/svg"
+              width="96"
+              height="96"
+              viewBox="0 0 96 96"
+              role="img"
+              aria-label="Profile"
+            >
+              <circle cx="48" cy="48" r="46" fill="#ECECEC" />
+              <circle cx="48" cy="34" r="18" fill="#BFC4C4" />
+              <defs>
+                <clipPath id="avatar-clip">
+                  <circle cx="48" cy="48" r="46" />
+                </clipPath>
+              </defs>
+              <g clip-path="url(#avatar-clip)">
+                <circle cx="48" cy="78" r="30" fill="#BFC4C4" />
+              </g>
+            </svg>
+          </span>
+        </a>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="card auth" id="auth-view">
+        <div class="auth-brand">
+          <span class="logo-wrap auth-logo" aria-hidden="true">
+            <span class="logo-fallback">A</span>
+            <img
+              src="/public/Applictus_logo.png"
+              alt="Applictus logo"
+              class="auth-logo-image"
+              data-logo
+            />
+          </span>
+          <div>
+            <div class="brand-name">Applictus</div>
+            <div class="brand-sub">Desktop-first job application tracker</div>
+          </div>
+        </div>
+        <div class="auth-switch">
+          <button class="ghost" data-auth="signin" type="button">Sign in</button>
+          <button class="ghost" data-auth="signup" type="button">Create account</button>
+        </div>
+        <div class="auth-social">
+          <button class="google-btn" id="google-auth" type="button">Continue with Google</button>
+          <div class="auth-divider">or</div>
+        </div>
+        <div class="auth-panel" data-panel="signin">
+          <h2>Welcome back</h2>
+          <p class="muted">Sign in to your Applictus workspace.</p>
+          <form id="login-form" class="form-grid">
+            <label>
+              Email
+              <input type="email" name="email" required placeholder="you@domain.com" />
+            </label>
+            <label>
+              Password
+              <input type="password" name="password" required placeholder="Enter your password" />
+            </label>
+            <button type="submit">Sign in</button>
+          </form>
+        </div>
+        <div class="auth-panel hidden" data-panel="signup">
+          <h2>Create your workspace</h2>
+          <p class="muted">We only store the metadata needed to track applications.</p>
+          <form id="signup-form" class="form-grid">
+            <label>
+              Name
+              <input type="text" name="name" placeholder="Jane Doe" />
+            </label>
+            <label>
+              Email
+              <input type="email" name="email" required placeholder="you@domain.com" />
+            </label>
+            <label>
+              Password
+              <input type="password" name="password" required placeholder="Minimum 12 characters" />
+            </label>
+            <button type="submit">Create account</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="view" id="account-view" hidden>
+        <div class="page-header">
+          <h2>Account</h2>
+          <p class="muted">Manage your workspace and connected services.</p>
+        </div>
+        <div class="account-grid">
+          <div class="card">
+            <h3>Signed in</h3>
+            <div class="account-row">
+              <div>
+                <div class="muted small">Email</div>
+                <div class="account-email" id="account-email">—</div>
+                <div class="muted small">Auth methods</div>
+                <div class="account-auth" id="account-auth">—</div>
+              </div>
+              <button class="ghost" id="account-logout" type="button">Log out</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Gmail connection</h3>
+            <div class="stack">
+              <div class="gmail-panel">
+                <button type="button" id="email-connect">Connect Gmail</button>
+                <div class="pill" id="account-gmail-status">Not connected</div>
+              </div>
+              <div class="muted" id="account-gmail-email">—</div>
+              <div class="callout hidden" id="gmail-hint">
+                <div class="callout-title">Why is this disabled?</div>
+                <div class="muted small" id="gmail-hint-text">Add Gmail OAuth env vars to enable.</div>
+              </div>
+              <div class="muted small">
+                We only read job-related emails; we do not send email; we store minimal metadata.
+              </div>
+              <div class="sync-panel">
+                <label>
+                  Sync range (days)
+                  <input type="number" id="account-sync-days" min="1" max="365" value="30" />
+                </label>
+                <button type="button" id="account-email-sync">Sync now</button>
+                <div class="muted" id="account-sync-status">Idle</div>
+              </div>
+              <div class="muted small" id="account-sync-result"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard" id="dashboard-view" hidden>
+        <div class="page-header">
+          <h2>Dashboard</h2>
+          <p class="muted">Track pipeline activity and suggested next steps.</p>
+        </div>
+        <section class="card gmail-sync">
+          <div class="card-header">
+            <div>
+              <h3>Gmail sync</h3>
+              <div class="muted">Sync job-related emails on demand.</div>
+            </div>
+            <button class="ghost" type="button" data-action="manage-gmail">Manage Gmail connection</button>
+          </div>
+          <div class="sync-panel">
+            <label>
+              Sync range (days)
+              <input type="number" id="sync-days" min="1" max="365" value="30" />
+            </label>
+            <button type="button" id="email-sync">Sync now</button>
+            <div class="muted" id="sync-status">Ready</div>
+          </div>
+          <div class="muted small" id="sync-result"></div>
+        </section>
+        <section class="card">
+          <div class="card-header">
+            <div class="header-left">
+              <div>
+                <h3>Applications</h3>
+                <div class="muted" id="app-count">0 tracked</div>
+              </div>
+              <div class="header-actions">
+                <button class="btn-primary" id="add-toggle" type="button">Add application</button>
+                <button class="ghost" id="filter-toggle" type="button">
+                  <span>Filters</span>
+                  <span class="count-badge hidden" id="filter-count">0</span>
+                </button>
+              </div>
+            </div>
+            <div class="header-right">
+              <div class="view-toggle segmented" id="view-toggle">
+                <button class="active" type="button" data-view="pipeline">Pipeline</button>
+                <button type="button" data-view="table">Table</button>
+              </div>
+            </div>
+          </div>
+          <div class="filters-summary hidden" id="filters-summary"></div>
+          <div class="panel hidden" id="add-panel">
+            <form id="quick-add" class="form-grid inline">
+              <label>
+                Company
+                <input type="text" name="company_name" required placeholder="Company name" />
+              </label>
+              <label>
+                Role
+                <input type="text" name="job_title" required placeholder="Role title" />
+              </label>
+              <label>
+                Status
+                <select name="current_status">
+                  <option value="UNKNOWN">Unknown</option>
+                  <option value="APPLIED">Applied</option>
+                  <option value="UNDER_REVIEW">Under review</option>
+                  <option value="INTERVIEW_REQUESTED">Interview requested</option>
+                  <option value="INTERVIEW_COMPLETED">Interview completed</option>
+                  <option value="OFFER_RECEIVED">Offer received</option>
+                  <option value="REJECTED">Rejected</option>
+                  <option value="GHOSTED">Ghosted</option>
+                </select>
+              </label>
+              <button type="submit">Add</button>
+            </form>
+          </div>
+          <div class="panel hidden" id="filters-panel">
+            <form id="filters" class="filter-bar">
+              <label>
+                Status
+                <select id="filter-status">
+                  <option value="">Any status</option>
+                  <option value="APPLIED">Applied</option>
+                  <option value="UNDER_REVIEW">Under review</option>
+                  <option value="INTERVIEW_REQUESTED">Interview requested</option>
+                  <option value="INTERVIEW_COMPLETED">Interview completed</option>
+                  <option value="OFFER_RECEIVED">Offer received</option>
+                  <option value="REJECTED">Rejected</option>
+                  <option value="GHOSTED">Ghosted</option>
+                  <option value="UNKNOWN">Unknown</option>
+                </select>
+              </label>
+              <label>
+                Company
+                <input type="text" id="filter-company" placeholder="Filter by company" />
+              </label>
+              <label>
+                Recency
+                <select id="filter-recency">
+                  <option value="">Any time</option>
+                  <option value="7">Last 7 days</option>
+                  <option value="14">Last 14 days</option>
+                  <option value="30">Last 30 days</option>
+                  <option value="60">Last 60 days</option>
+                  <option value="90">Last 90 days</option>
+                </select>
+              </label>
+              <label>
+                Min confidence
+                <select id="filter-confidence">
+                  <option value="">Any</option>
+                  <option value="0.7">70%+</option>
+                  <option value="0.9">90%+</option>
+                </select>
+              </label>
+              <label class="filter-checkbox">
+                <input type="checkbox" id="filter-suggestions" />
+                Only suggestions
+              </label>
+              <label>
+                Sort by
+                <select id="filter-sort">
+                  <option value="last_activity_at">Last activity</option>
+                  <option value="company_name">Company</option>
+                  <option value="job_title">Role</option>
+                  <option value="status">Status</option>
+                  <option value="confidence">Confidence</option>
+                  <option value="created_at">Created</option>
+                </select>
+              </label>
+              <label>
+                Order
+                <select id="filter-dir">
+                  <option value="desc">Newest</option>
+                  <option value="asc">Oldest</option>
+                </select>
+              </label>
+              <div class="filter-actions">
+                <button type="submit">Apply</button>
+                <button type="button" class="ghost" id="filter-reset">Reset</button>
+              </div>
+            </form>
+          </div>
+          <div class="pipeline-view" id="pipeline-view"></div>
+          <div class="table" id="applications-table"></div>
+          <div class="pagination" id="table-pagination">
+            <button class="ghost" type="button" id="table-prev">Prev</button>
+            <div class="muted" id="table-page-info">Page 1</div>
+            <button class="ghost" type="button" id="table-next">Next</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="archive-view" hidden>
+        <div class="page-header">
+          <h2>Archive</h2>
+          <p class="muted">Archived applications stay here until restored.</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3>Archived applications</h3>
+              <div class="muted" id="archived-count">0 archived</div>
+            </div>
+          </div>
+          <div class="table" id="archived-table"></div>
+          <div class="pagination" id="archived-pagination">
+            <button class="ghost" type="button" id="archived-prev">Prev</button>
+            <div class="muted" id="archived-page-info">Page 1</div>
+            <button class="ghost" type="button" id="archived-next">Next</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="unsorted-view" hidden>
+        <div class="page-header">
+          <h2>Unsorted Events</h2>
+          <p class="muted">Review and attach job-related emails.</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3>Unsorted events</h3>
+              <div class="muted">Review and attach job-related emails.</div>
+            </div>
+          </div>
+          <div class="table" id="unsorted-table"></div>
+        </div>
+      </section>
+    </main>
+
+    <div class="drawer hidden" id="detail-drawer">
+      <div class="drawer-backdrop" data-action="close"></div>
+      <aside class="drawer-panel">
+        <div class="drawer-header">
+          <div>
+            <div class="drawer-title" id="detail-company">—</div>
+            <div class="drawer-subtitle" id="detail-title">—</div>
+          </div>
+          <button class="ghost" type="button" data-action="close">Close</button>
+        </div>
+        <div class="drawer-badges">
+          <div class="pill" id="detail-status">Unknown</div>
+          <div class="pill subtle" id="detail-source">Inferred</div>
+          <div class="pill subtle" id="detail-confidence">—</div>
+        </div>
+        <div class="drawer-meta" id="detail-meta"></div>
+        <div class="drawer-section">
+          <h3>Status explanation</h3>
+          <div class="explanation" id="detail-explanation">No explanation yet.</div>
+          <div class="suggestion-callout hidden" id="detail-suggestion">
+            <div class="explanation" id="detail-suggestion-label">Suggestion</div>
+            <div class="explanation" id="detail-suggestion-explanation">—</div>
+            <div class="suggestion-actions">
+              <button class="ghost" type="button" data-action="accept-suggestion" id="detail-suggestion-accept">
+                Accept
+              </button>
+              <button class="ghost" type="button" data-action="dismiss-suggestion" id="detail-suggestion-dismiss">
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="drawer-section">
+          <h3>Timeline</h3>
+          <div class="timeline" id="detail-timeline"></div>
+        </div>
+        <div class="drawer-section">
+          <h3>Actions</h3>
+          <div class="action-group" id="detail-actions">
+            <button class="ghost" type="button" data-action="edit">Edit</button>
+            <button class="ghost" type="button" data-action="override">Override status</button>
+            <button class="ghost" type="button" data-action="merge">Merge</button>
+            <button class="ghost" type="button" data-action="archive">Archive</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="modal hidden" id="modal-root" aria-hidden="true">
+      <div class="modal-backdrop" data-action="backdrop"></div>
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <button class="ghost modal-close" type="button" data-action="close" aria-label="Close">
+          x
+        </button>
+        <div class="modal-header">
+          <h3 id="modal-title">Modal</h3>
+          <p class="muted" id="modal-description"></p>
+        </div>
+        <div class="modal-body" id="modal-body"></div>
+        <div class="modal-footer" id="modal-footer"></div>
+      </div>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
