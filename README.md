@@ -76,6 +76,32 @@ Migrations run automatically on server start. To run them manually:
 node server/src/index.js
 ```
 
+## Deploy to Render (Express + SQLite)
+Render setup:
+- Build Command: `npm install`
+- Start Command: `npm start`
+
+Provision a Render Disk and mount it at `/var/data`, then set:
+```
+JOBTRACK_DB_PATH=/var/data/applictus.sqlite
+```
+
+Required env vars:
+- `JOBTRACK_TOKEN_ENC_KEY=...` (base64 32-byte key)
+- `JOBTRACK_DB_PATH=/var/data/applictus.sqlite`
+- `GMAIL_CLIENT_ID=...` (if Gmail sync is enabled)
+- `GMAIL_CLIENT_SECRET=...`
+- `GMAIL_REDIRECT_URI=https://<your-render-url>/api/email/callback`
+
+If you use Google Sign-In:
+- `GOOGLE_CLIENT_ID=...`
+- `GOOGLE_CLIENT_SECRET=...`
+- `GOOGLE_REDIRECT_URI=https://<your-render-url>/api/auth/google/callback`
+
+Notes:
+- The app listens on `process.env.PORT` (Render-provided).
+- The local default DB path is used when `JOBTRACK_DB_PATH` is not set.
+
 ### Gmail sync
 Use the Gmail screen in the UI to run "Sync now", or call:
 ```

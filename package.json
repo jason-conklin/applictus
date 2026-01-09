@@ -5,6 +5,7 @@
   "type": "commonjs",
   "scripts": {
     "dev": "node server/src/index.js",
+    "start": "node server/src/index.js",
     "seed": "node server/scripts/seed.js",
     "test": "node server/scripts/run-tests.js"
   },
