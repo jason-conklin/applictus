@@ -914,6 +914,42 @@ async function refreshEmailEvents() {
   }
 }
 
+function formatSyncSummary(result) {
+  const reasons = result.reasons || {};
+  const matched = result.matchedExisting ?? reasons.matched_existing ?? 0;
+  const createdApps = result.createdApplications ?? reasons.auto_created ?? 0;
+  const unsorted = result.unsortedCreated ?? reasons.unsorted_created ?? 0;
+  const denylisted = reasons.denylisted || 0;
+  const notJob = reasons.classified_not_job_related ?? result.skippedNotJob ?? 0;
+  const missingIdentity = reasons.missing_identity || 0;
+  const lowConfidence = (reasons.low_confidence || 0) + (reasons.not_confident_for_create || 0);
+  const duplicates = reasons.duplicate ?? result.skippedDuplicate ?? 0;
+  const skippedTotal = denylisted + notJob + missingIdentity + lowConfidence + duplicates;
+
+  const skippedParts = [];
+  if (denylisted) {
+    skippedParts.push(`denylist ${denylisted}`);
+  }
+  if (notJob) {
+    skippedParts.push(`not job related ${notJob}`);
+  }
+  if (missingIdentity) {
+    skippedParts.push(`missing identity ${missingIdentity}`);
+  }
+  if (lowConfidence) {
+    skippedParts.push(`low confidence ${lowConfidence}`);
+  }
+  if (duplicates) {
+    skippedParts.push(`duplicates ${duplicates}`);
+  }
+
+  const skippedLabel = skippedParts.length
+    ? `skipped ${skippedTotal}: ${skippedParts.join(', ')}`
+    : `skipped ${skippedTotal}`;
+
+  return `Created ${result.created} events (matched ${matched}, new apps ${createdApps}, unsorted ${unsorted}, ${skippedLabel}).`;
+}
+
 async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
   if (buttonEl?.disabled) {
     return;
@@ -944,7 +980,7 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
         statusEl.textContent = 'Complete';
       }
       if (resultEl) {
-        resultEl.textContent = `Created ${result.created} events (matched ${result.matchedExisting}, new apps ${result.createdApplications}, skipped ${result.skippedNotJob}, duplicates ${result.skippedDuplicate}).`;
+        resultEl.textContent = formatSyncSummary(result);
       }
     }
     await loadActiveApplications();
@@ -978,7 +1014,7 @@ async function runQuickSync() {
       if (result.status === 'not_connected') {
         statusEl.textContent = 'Connect Gmail first.';
       } else {
-        statusEl.textContent = `Created ${result.created} events.`;
+        statusEl.textContent = formatSyncSummary(result);
       }
     }
     await loadActiveApplications();

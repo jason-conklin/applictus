@@ -30,6 +30,15 @@ test('classifyEmail detects interview request', () => {
   assert.equal(result.detectedType, 'interview');
 });
 
+test('classifyEmail detects under review updates', () => {
+  const result = classifyEmail({
+    subject: 'Application status: Under review',
+    snippet: 'Your application is under review.'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'under_review');
+});
+
 test('classifyEmail detects rejection', () => {
   const result = classifyEmail({
     subject: 'Application update',

@@ -112,7 +112,7 @@ with JSON `{ "days": 30 }` (defaults to 30 days, max 365).
 ### Unsorted events
 Job-related messages that cannot be confidently matched are kept in the "Unsorted Events" list.
 Use the UI to attach them to an existing application or create a new one.
-Auto-created applications require >= 0.90 confidence in company + role + sender domain.
+Auto-created applications require >= 0.90 confidence in company + sender domain. For known ATS senders, high-confidence company matches can auto-create even if the role is unknown.
 API helpers:
 ```
 GET /api/email/unsorted

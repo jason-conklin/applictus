@@ -2,7 +2,14 @@ const crypto = require('crypto');
 const { ApplicationStatus } = require('../../shared/types');
 const { extractThreadIdentity } = require('../../shared/matching');
 
-const AUTO_CREATE_TYPES = new Set(['confirmation', 'interview', 'offer', 'rejection']);
+const AUTO_CREATE_TYPES = new Set([
+  'confirmation',
+  'interview',
+  'offer',
+  'rejection',
+  'under_review'
+]);
+const UNKNOWN_ROLE = 'Unknown role';
 
 function toIsoFromInternalDate(internalDate, fallback = new Date()) {
   if (!internalDate) {
@@ -29,31 +36,49 @@ function shouldAutoCreate(event, identity) {
   if (!event || !identity) {
     return false;
   }
-  const threadConfidence = Math.min(identity.matchConfidence || 0, event.confidence_score || 0);
-  if (threadConfidence < 0.9) {
+  if (!AUTO_CREATE_TYPES.has(event.detected_type)) {
     return false;
   }
-  if (!AUTO_CREATE_TYPES.has(event.detected_type)) {
+  if ((identity.companyConfidence || 0) < 0.9) {
+    return false;
+  }
+  const threadConfidence = Math.min(identity.matchConfidence || 0, event.confidence_score || 0);
+  if (threadConfidence < 0.9) {
     return false;
   }
   return true;
 }
 
 function findMatchingApplication(db, userId, identity) {
-  if (!identity.companyName || !identity.jobTitle || !identity.senderDomain) {
+  if (!identity.companyName || !identity.senderDomain) {
     return null;
   }
-  return db
+  if (identity.jobTitle) {
+    return db
+      .prepare(
+        `SELECT * FROM job_applications
+         WHERE user_id = ?
+           AND company_name = ?
+           AND job_title = ?
+           AND source = ?
+           AND archived = 0
+         LIMIT 1`
+      )
+      .get(userId, identity.companyName, identity.jobTitle, identity.senderDomain);
+  }
+  const matches = db
     .prepare(
       `SELECT * FROM job_applications
        WHERE user_id = ?
          AND company_name = ?
-         AND job_title = ?
          AND source = ?
-         AND archived = 0
-       LIMIT 1`
+         AND archived = 0`
     )
-    .get(userId, identity.companyName, identity.jobTitle, identity.senderDomain);
+    .all(userId, identity.companyName, identity.senderDomain);
+  if (matches.length === 1) {
+    return matches[0];
+  }
+  return null;
 }
 
 function updateApplicationActivity(db, application, event) {
@@ -86,6 +111,7 @@ function createApplicationFromEvent(db, userId, identity, event) {
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   const eventTimestamp = toIsoFromInternalDate(event.internal_date, new Date(event.created_at));
+  const jobTitle = identity.jobTitle || UNKNOWN_ROLE;
 
   const { status, statusConfidence, appliedAt } = inferInitialStatus(event, eventTimestamp);
   const statusExplanation =
@@ -103,11 +129,11 @@ function createApplicationFromEvent(db, userId, identity, event) {
     id,
     userId,
     identity.companyName,
-    identity.jobTitle,
+    jobTitle,
     status,
     'inferred',
     identity.companyName,
-    identity.jobTitle,
+    jobTitle,
     null,
     identity.senderDomain,
     appliedAt,
@@ -131,7 +157,7 @@ function attachEventToApplication(db, eventId, applicationId) {
 
 function matchAndAssignEvent({ db, userId, event }) {
   const identity = extractThreadIdentity({ subject: event.subject, sender: event.sender });
-  if (!identity.companyName || !identity.jobTitle || !identity.senderDomain) {
+  if (!identity.companyName || !identity.senderDomain) {
     return { action: 'unassigned', reason: 'missing_identity', identity };
   }
 

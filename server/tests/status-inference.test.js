@@ -52,6 +52,18 @@ test('inferStatus detects interview completed via pattern', () => {
   assert.equal(result.suggested_only, false);
 });
 
+test('inferStatus handles under review updates', () => {
+  const result = inferStatus(baseApplication(), [
+    event({
+      detected_type: 'under_review',
+      confidence_score: 0.92,
+      subject: 'Application status: Under review'
+    })
+  ]);
+  assert.equal(result.inferred_status, ApplicationStatus.UNDER_REVIEW);
+  assert.equal(result.suggested_only, false);
+});
+
 test('inferStatus prefers terminal statuses over lower priority', () => {
   const result = inferStatus(baseApplication(), [
     event({

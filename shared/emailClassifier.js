@@ -52,6 +52,16 @@ const RULES = [
     ]
   },
   {
+    name: 'under_review',
+    detectedType: 'under_review',
+    confidence: 0.9,
+    patterns: [
+      /application (?:is )?under review/i,
+      /application status[: ]+under review/i,
+      /your application is in review/i
+    ]
+  },
+  {
     name: 'recruiter_outreach',
     detectedType: 'recruiter_outreach',
     confidence: 0.8,
@@ -88,24 +98,26 @@ function classifyEmail({ subject, snippet }) {
     if (pattern.test(text)) {
       return {
         isJobRelated: false,
-        explanation: `Denied by ${pattern}.`
+        explanation: `Denied by ${pattern}.`,
+        reason: 'denylisted'
       };
     }
   }
 
   for (const rule of RULES) {
     const matched = rule.patterns.find((pattern) => pattern.test(text));
-    if (matched) {
-      return {
-        isJobRelated: true,
-        detectedType: rule.detectedType,
-        confidenceScore: rule.confidence,
-        explanation: `Matched ${rule.name} via ${matched}.`
-      };
+      if (matched) {
+        return {
+          isJobRelated: true,
+          detectedType: rule.detectedType,
+          confidenceScore: rule.confidence,
+          explanation: `Matched ${rule.name} via ${matched}.`,
+          reason: rule.name
+        };
+      }
     }
-  }
 
-  return { isJobRelated: false, explanation: 'No allowlist match.' };
+  return { isJobRelated: false, explanation: 'No allowlist match.', reason: 'no_allowlist' };
 }
 
 module.exports = {

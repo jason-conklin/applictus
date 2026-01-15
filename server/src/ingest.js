@@ -6,6 +6,25 @@ const { matchAndAssignEvent } = require('./matching');
 const { runStatusInferenceForApplication } = require('./statusInferenceRunner');
 const { logInfo, logDebug } = require('./logger');
 
+const REASON_KEYS = [
+  'classified_not_job_related',
+  'denylisted',
+  'missing_identity',
+  'low_confidence',
+  'not_confident_for_create',
+  'duplicate',
+  'matched_existing',
+  'auto_created',
+  'unsorted_created'
+];
+
+function initReasonCounters() {
+  return REASON_KEYS.reduce((acc, key) => {
+    acc[key] = 0;
+    return acc;
+  }, {});
+}
+
 function truncateSnippet(snippet, max = 140) {
   if (!snippet) {
     return null;
@@ -37,6 +56,8 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
   let skippedNotJob = 0;
   let matchedExisting = 0;
   let createdApplications = 0;
+  let unsortedCreated = 0;
+  const reasons = initReasonCounters();
 
   const queryDays = Math.max(1, Math.min(days, 365));
   const limit = Math.max(1, Math.min(maxResults, 500));
@@ -64,6 +85,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         .get(userId, message.id, message.id);
       if (existing) {
         skippedDuplicate += 1;
+        reasons.duplicate += 1;
         fetched += 1;
         logDebug('ingest.skip_duplicate', { userId, messageId: message.id });
         continue;
@@ -85,6 +107,11 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       const classification = classifyEmail({ subject, snippet, sender });
       if (!classification.isJobRelated) {
         skippedNotJob += 1;
+        if (classification.reason === 'denylisted') {
+          reasons.denylisted += 1;
+        } else {
+          reasons.classified_not_job_related += 1;
+        }
         fetched += 1;
         logDebug('ingest.skip_not_job', {
           userId,
@@ -137,16 +164,30 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         eventId,
         detectedType: classification.detectedType,
         confidenceScore: classification.confidenceScore,
-        matchAction: matchResult.action
+        matchAction: matchResult.action,
+        matchReason: matchResult.reason || null
       });
 
       if (matchResult.action === 'matched_existing') {
         matchedExisting += 1;
+        reasons.matched_existing += 1;
         runStatusInferenceForApplication(db, userId, matchResult.applicationId);
       }
       if (matchResult.action === 'created_application') {
         createdApplications += 1;
+        reasons.auto_created += 1;
         runStatusInferenceForApplication(db, userId, matchResult.applicationId);
+      }
+      if (matchResult.action === 'unassigned') {
+        unsortedCreated += 1;
+        reasons.unsorted_created += 1;
+        if (matchResult.reason === 'missing_identity') {
+          reasons.missing_identity += 1;
+        } else if (matchResult.reason === 'low_confidence') {
+          reasons.low_confidence += 1;
+        } else if (matchResult.reason === 'not_confident_for_create') {
+          reasons.not_confident_for_create += 1;
+        }
       }
       created += 1;
       fetched += 1;
@@ -163,6 +204,8 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
     skippedNotJob,
     matchedExisting,
     createdApplications,
+    unsortedCreated,
+    reasons,
     days: queryDays
   });
 
@@ -174,10 +217,14 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
     skippedNotJob,
     matchedExisting,
     createdApplications,
+    unsortedCreated,
+    reasons,
     days: queryDays
   };
 }
 
 module.exports = {
-  syncGmailMessages
+  syncGmailMessages,
+  REASON_KEYS,
+  initReasonCounters
 };

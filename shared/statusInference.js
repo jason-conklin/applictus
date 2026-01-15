@@ -71,6 +71,15 @@ function buildCandidateFromEvent(event) {
     };
   }
 
+  if (event.detected_type === 'under_review') {
+    return {
+      status: ApplicationStatus.UNDER_REVIEW,
+      confidence: event.confidence_score || 0,
+      explanation: buildExplanation('Application under review detected.', event),
+      eventIds: [event.id]
+    };
+  }
+
   if (event.detected_type === 'interview') {
     const completed = detectInterviewCompleted(event);
     if (completed.matched) {
