@@ -10,6 +10,27 @@ const AUTO_CREATE_TYPES = new Set([
   'under_review'
 ]);
 const UNKNOWN_ROLE = 'Unknown role';
+const MIN_COMPANY_CONFIDENCE = 0.85;
+const MIN_CLASSIFICATION_CONFIDENCE = 0.85;
+const MIN_MATCH_CONFIDENCE = 0.85;
+const MIN_DOMAIN_CONFIDENCE = 0.4;
+
+function getClassificationConfidence(event) {
+  if (!event) {
+    return 0;
+  }
+  const value =
+    event.classification_confidence ??
+    event.confidence_score ??
+    event.confidenceScore ??
+    event.confidence;
+  return Number.isFinite(value) ? value : 0;
+}
+
+function formatConfidence(value) {
+  const numeric = Number.isFinite(value) ? value : 0;
+  return numeric.toFixed(2);
+}
 
 function toIsoFromInternalDate(internalDate, fallback = new Date()) {
   if (!internalDate) {
@@ -24,10 +45,11 @@ function toIsoFromInternalDate(internalDate, fallback = new Date()) {
 
 function inferInitialStatus(event, eventTimestamp) {
   const timestamp = eventTimestamp || toIsoFromInternalDate(event.internal_date, new Date(event.created_at));
-  const isApplied = event.detected_type === 'confirmation' && event.confidence_score >= 0.9;
+  const classificationConfidence = getClassificationConfidence(event);
+  const isApplied = event.detected_type === 'confirmation' && classificationConfidence >= 0.9;
   return {
     status: isApplied ? ApplicationStatus.APPLIED : ApplicationStatus.UNKNOWN,
-    statusConfidence: isApplied ? event.confidence_score : null,
+    statusConfidence: isApplied ? classificationConfidence : null,
     appliedAt: isApplied ? timestamp : null
   };
 }
@@ -39,21 +61,28 @@ function shouldAutoCreate(event, identity) {
   if (!AUTO_CREATE_TYPES.has(event.detected_type)) {
     return false;
   }
-  if ((identity.companyConfidence || 0) < 0.9) {
+  const classificationConfidence = getClassificationConfidence(event);
+  if (classificationConfidence < MIN_CLASSIFICATION_CONFIDENCE) {
     return false;
   }
-  const threadConfidence = Math.min(identity.matchConfidence || 0, event.confidence_score || 0);
-  if (threadConfidence < 0.9) {
+  if (!identity.companyName) {
+    return false;
+  }
+  if ((identity.companyConfidence || 0) < MIN_COMPANY_CONFIDENCE) {
+    return false;
+  }
+  const domainConfidence = identity.domainConfidence || 0;
+  if (!identity.isAtsDomain && domainConfidence < MIN_DOMAIN_CONFIDENCE) {
     return false;
   }
   return true;
 }
 
 function findMatchingApplication(db, userId, identity) {
-  if (!identity.companyName || !identity.senderDomain) {
+  if (!identity.companyName) {
     return null;
   }
-  if (identity.jobTitle) {
+  if (identity.senderDomain && identity.jobTitle) {
     return db
       .prepare(
         `SELECT * FROM job_applications
@@ -66,15 +95,44 @@ function findMatchingApplication(db, userId, identity) {
       )
       .get(userId, identity.companyName, identity.jobTitle, identity.senderDomain);
   }
+  if (identity.senderDomain) {
+    const matches = db
+      .prepare(
+        `SELECT * FROM job_applications
+         WHERE user_id = ?
+           AND company_name = ?
+           AND source = ?
+           AND archived = 0`
+      )
+      .all(userId, identity.companyName, identity.senderDomain);
+    if (matches.length === 1) {
+      return matches[0];
+    }
+    return null;
+  }
+  if (identity.jobTitle) {
+    const matches = db
+      .prepare(
+        `SELECT * FROM job_applications
+         WHERE user_id = ?
+           AND company_name = ?
+           AND job_title = ?
+           AND archived = 0`
+      )
+      .all(userId, identity.companyName, identity.jobTitle);
+    if (matches.length === 1) {
+      return matches[0];
+    }
+    return null;
+  }
   const matches = db
     .prepare(
       `SELECT * FROM job_applications
        WHERE user_id = ?
          AND company_name = ?
-         AND source = ?
          AND archived = 0`
     )
-    .all(userId, identity.companyName, identity.senderDomain);
+    .all(userId, identity.companyName);
   if (matches.length === 1) {
     return matches[0];
   }
@@ -84,6 +142,7 @@ function findMatchingApplication(db, userId, identity) {
 function updateApplicationActivity(db, application, event) {
   const updates = {};
   const eventTimestamp = toIsoFromInternalDate(event.internal_date, new Date(event.created_at));
+  const classificationConfidence = getClassificationConfidence(event);
 
   if (!application.last_activity_at || eventTimestamp > application.last_activity_at) {
     updates.last_activity_at = eventTimestamp;
@@ -91,7 +150,7 @@ function updateApplicationActivity(db, application, event) {
 
   if (
     event.detected_type === 'confirmation' &&
-    event.confidence_score >= 0.9 &&
+    classificationConfidence >= 0.9 &&
     (!application.applied_at || eventTimestamp < application.applied_at)
   ) {
     updates.applied_at = eventTimestamp;
@@ -155,25 +214,72 @@ function attachEventToApplication(db, eventId, applicationId) {
   db.prepare('UPDATE email_events SET application_id = ? WHERE id = ?').run(applicationId, eventId);
 }
 
-function matchAndAssignEvent({ db, userId, event }) {
-  const identity = extractThreadIdentity({ subject: event.subject, sender: event.sender });
-  if (!identity.companyName || !identity.senderDomain) {
-    return { action: 'unassigned', reason: 'missing_identity', identity };
+function buildUnassignedReason(event, identity) {
+  const classificationConfidence = getClassificationConfidence(event);
+  const companyConfidence = identity.companyConfidence || 0;
+  const domainConfidence = identity.domainConfidence || 0;
+  const matchConfidence = identity.matchConfidence || 0;
+
+  if (!identity.companyName) {
+    return { reason: 'missing_identity', detail: 'Missing company.' };
+  }
+  if (companyConfidence < MIN_COMPANY_CONFIDENCE) {
+    return {
+      reason: 'low_confidence',
+      detail: `Company confidence ${formatConfidence(companyConfidence)} (< ${formatConfidence(
+        MIN_COMPANY_CONFIDENCE
+      )}).`
+    };
+  }
+  if (classificationConfidence < MIN_CLASSIFICATION_CONFIDENCE) {
+    return {
+      reason: 'not_confident_for_create',
+      detail: `Classification confidence ${formatConfidence(
+        classificationConfidence
+      )} (< ${formatConfidence(MIN_CLASSIFICATION_CONFIDENCE)}).`
+    };
+  }
+  if (!identity.isAtsDomain && domainConfidence < MIN_DOMAIN_CONFIDENCE) {
+    return { reason: 'ambiguous_sender', detail: 'Ambiguous sender domain.' };
+  }
+  if (matchConfidence < MIN_MATCH_CONFIDENCE) {
+    return {
+      reason: 'low_confidence',
+      detail: `Identity confidence ${formatConfidence(matchConfidence)} (< ${formatConfidence(
+        MIN_MATCH_CONFIDENCE
+      )}).`
+    };
+  }
+  if (!AUTO_CREATE_TYPES.has(event.detected_type)) {
+    return {
+      reason: 'not_confident_for_create',
+      detail: `Event type ${event.detected_type || 'unknown'} not eligible for auto-create.`
+    };
+  }
+  return { reason: 'not_confident_for_create', detail: 'Not confident enough to auto-create.' };
+}
+
+function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) {
+  const identity =
+    providedIdentity || extractThreadIdentity({ subject: event.subject, sender: event.sender });
+  if (!identity.companyName) {
+    const unassigned = buildUnassignedReason(event, identity);
+    return { action: 'unassigned', reason: unassigned.reason, reasonDetail: unassigned.detail, identity };
   }
 
-  if (identity.matchConfidence < 0.9) {
-    return { action: 'unassigned', reason: 'low_confidence', identity };
-  }
-
-  const existing = findMatchingApplication(db, userId, identity);
-  if (existing) {
-    attachEventToApplication(db, event.id, existing.id);
-    updateApplicationActivity(db, existing, event);
-    return { action: 'matched_existing', applicationId: existing.id, identity };
+  const matchConfidence = identity.matchConfidence || 0;
+  if (matchConfidence >= MIN_MATCH_CONFIDENCE) {
+    const existing = findMatchingApplication(db, userId, identity);
+    if (existing) {
+      attachEventToApplication(db, event.id, existing.id);
+      updateApplicationActivity(db, existing, event);
+      return { action: 'matched_existing', applicationId: existing.id, identity };
+    }
   }
 
   if (!shouldAutoCreate(event, identity)) {
-    return { action: 'unassigned', reason: 'not_confident_for_create', identity };
+    const unassigned = buildUnassignedReason(event, identity);
+    return { action: 'unassigned', reason: unassigned.reason, reasonDetail: unassigned.detail, identity };
   }
 
   const application = createApplicationFromEvent(db, userId, identity, event);

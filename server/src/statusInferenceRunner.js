@@ -73,7 +73,8 @@ function runStatusInferenceForApplication(db, userId, applicationId) {
   }
   const events = db
     .prepare(
-      `SELECT id, detected_type, confidence_score, subject, snippet, internal_date, created_at
+      `SELECT id, detected_type, confidence_score, classification_confidence, subject, snippet,
+              internal_date, created_at
        FROM email_events
        WHERE application_id = ?
        ORDER BY internal_date DESC`

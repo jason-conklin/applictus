@@ -112,13 +112,20 @@ with JSON `{ "days": 30 }` (defaults to 30 days, max 365).
 ### Unsorted events
 Job-related messages that cannot be confidently matched are kept in the "Unsorted Events" list.
 Use the UI to attach them to an existing application or create a new one.
-Auto-created applications require >= 0.90 confidence in company + sender domain. For known ATS senders, high-confidence company matches can auto-create even if the role is unknown.
+Auto-created applications require classification confidence >= 0.85 and company confidence >= 0.85.
+Known ATS senders can auto-create even if the role is unknown, but ambiguous sender domains stay unsorted.
 API helpers:
 ```
 GET /api/email/unsorted
 POST /api/email/events/:id/attach
 POST /api/email/events/:id/create-application
 ```
+
+Debug helpers (dev/admin only):
+```
+GET /api/email/sync-debug?limit=20&reason=classified_not_job_related
+```
+Set `JOBTRACK_DEV_MODE=1` or `JOBTRACK_ADMIN_EMAIL` to enable.
 
 Suggestion actions:
 ```

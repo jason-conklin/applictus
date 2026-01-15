@@ -11,7 +11,9 @@ const ATS_BASE_DOMAINS = new Set([
   'taleo',
   'workday',
   'myworkday',
+  'myworkdayjobs',
   'greenhouse',
+  'greenhouse-mail',
   'lever',
   'smartrecruiters',
   'adp',
@@ -23,13 +25,37 @@ const ATS_SENDER_HINTS = new Set([
   'icims',
   'taleo',
   'workday',
+  'myworkday',
+  'myworkdayjobs',
   'greenhouse',
+  'greenhouse-mail',
   'lever',
   'smartrecruiters',
   'adp',
   'bamboohr',
   'talemetry'
 ]);
+
+const GENERIC_SENDER_NAMES = [
+  'no reply',
+  'noreply',
+  'do not reply',
+  'notifications',
+  'notification',
+  'jobs',
+  'careers',
+  'recruiting',
+  'talent acquisition',
+  'talent team',
+  'hiring',
+  'hiring team',
+  'hr',
+  'human resources',
+  'application',
+  'applications',
+  'support',
+  'info'
+];
 
 const ROLE_COMPANY_PATTERNS = [
   {
@@ -123,7 +149,34 @@ function extractSenderName(sender) {
     return null;
   }
   const withoutEmail = text.replace(/<[^>]+>/g, '').replace(/"/g, '').trim();
+  if (!withoutEmail) {
+    return null;
+  }
+  if (withoutEmail.includes('@') && !text.includes('<')) {
+    return null;
+  }
   return withoutEmail || null;
+}
+
+function isGenericSenderName(name) {
+  const text = normalize(name).toLowerCase();
+  if (!text) {
+    return true;
+  }
+  return GENERIC_SENDER_NAMES.some((term) => text === term || text.startsWith(`${term} `));
+}
+
+function companyFromDomain(senderDomain) {
+  const base = baseDomain(senderDomain);
+  if (!base || GENERIC_DOMAINS.has(base) || ATS_BASE_DOMAINS.has(base)) {
+    return null;
+  }
+  const words = base
+    .split(/[-_.]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1));
+  const candidate = cleanCompanyCandidate(words.join(' '));
+  return candidate || null;
 }
 
 function cleanCompanyCandidate(value) {
@@ -132,6 +185,10 @@ function cleanCompanyCandidate(value) {
   }
   const cleaned = cleanEntity(value)
     .replace(/\s+for\s+.*$/i, '')
+    .replace(
+      /\s+(?:careers|jobs|recruiting|hiring|hiring team|talent acquisition|talent team|hr|human resources|applications?)$/i,
+      ''
+    )
     .replace(/^(?:no[-\s]?reply|noreply|do not reply)\b[: ]*/i, '')
     .trim();
   return cleaned || null;
@@ -254,6 +311,16 @@ function extractCompanyFromSender(sender) {
       explanation: `Matched ${rule.name} sender pattern.`
     };
   }
+  if (!isGenericSenderName(name)) {
+    const company = cleanCompanyCandidate(name);
+    if (company) {
+      return {
+        companyName: company,
+        companyConfidence: 0.9,
+        explanation: 'Used sender display name as company.'
+      };
+    }
+  }
   return null;
 }
 
@@ -291,6 +358,14 @@ function extractThreadIdentity({ subject, sender }) {
   const roleMatch = extractCompanyRole(subject);
   const subjectCompany = extractCompanyFromSubject(subject);
   const senderCompany = extractCompanyFromSender(sender);
+  const senderDomain = extractSenderDomain(sender);
+  const domainCompany = companyFromDomain(senderDomain)
+    ? {
+        companyName: companyFromDomain(senderDomain),
+        companyConfidence: 0.85,
+        explanation: 'Derived company from sender domain.'
+      }
+    : null;
   const companyMatch = pickBestCompany([
     roleMatch.companyName
       ? {
@@ -300,14 +375,14 @@ function extractThreadIdentity({ subject, sender }) {
         }
       : null,
     subjectCompany,
-    senderCompany
+    senderCompany,
+    domainCompany
   ]);
 
   const companyName = companyMatch?.companyName || null;
   const jobTitle = roleMatch.jobTitle || null;
   const companyConfidence = companyMatch?.companyConfidence || 0;
   const roleConfidence = jobTitle ? roleMatch.roleConfidence : null;
-  const senderDomain = extractSenderDomain(sender);
   const domainResult = domainConfidence(companyName, senderDomain);
   const baseConfidence = Math.min(companyConfidence || 0, domainResult.score || 0);
   const matchConfidence = jobTitle

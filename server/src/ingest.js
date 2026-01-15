@@ -3,6 +3,7 @@ const { google } = require('googleapis');
 const { getAuthorizedClient } = require('./email');
 const { classifyEmail } = require('../../shared/emailClassifier');
 const { matchAndAssignEvent } = require('./matching');
+const { extractThreadIdentity } = require('../../shared/matching');
 const { runStatusInferenceForApplication } = require('./statusInferenceRunner');
 const { logInfo, logDebug } = require('./logger');
 
@@ -12,6 +13,7 @@ const REASON_KEYS = [
   'missing_identity',
   'low_confidence',
   'not_confident_for_create',
+  'ambiguous_sender',
   'duplicate',
   'matched_existing',
   'auto_created',
@@ -38,6 +40,27 @@ function parseHeader(headers, name) {
     (entry) => entry.name && entry.name.toLowerCase() === name.toLowerCase()
   );
   return header?.value || '';
+}
+
+function recordSkipSample({ db, userId, provider, messageId, sender, subject, reasonCode }) {
+  try {
+    db.prepare(
+      `INSERT INTO email_skip_samples
+       (id, user_id, provider, provider_message_id, sender, subject, reason_code, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      crypto.randomUUID(),
+      userId,
+      provider,
+      messageId,
+      sender || null,
+      subject || null,
+      reasonCode,
+      new Date().toISOString()
+    );
+  } catch (err) {
+    logDebug('ingest.skip_sample_failed', { userId, messageId, reasonCode });
+  }
 }
 
 async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
@@ -107,11 +130,21 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       const classification = classifyEmail({ subject, snippet, sender });
       if (!classification.isJobRelated) {
         skippedNotJob += 1;
-        if (classification.reason === 'denylisted') {
+        const reasonCode = classification.reason === 'denylisted' ? 'denylisted' : 'classified_not_job_related';
+        if (reasonCode === 'denylisted') {
           reasons.denylisted += 1;
         } else {
           reasons.classified_not_job_related += 1;
         }
+        recordSkipSample({
+          db,
+          userId,
+          provider: 'gmail',
+          messageId: message.id,
+          sender,
+          subject,
+          reasonCode
+        });
         fetched += 1;
         logDebug('ingest.skip_not_job', {
           userId,
@@ -121,13 +154,20 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         continue;
       }
 
+      const identity = extractThreadIdentity({ subject, sender });
       const eventId = crypto.randomUUID();
       const createdAt = new Date().toISOString();
+      const classificationConfidence = Number.isFinite(classification.confidenceScore)
+        ? classification.confidenceScore
+        : 0;
+      const identityConfidence = identity.matchConfidence || 0;
       db.prepare(
         `INSERT INTO email_events
          (id, user_id, provider, message_id, provider_message_id, sender, subject, internal_date, snippet,
-          detected_type, confidence_score, explanation, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          detected_type, confidence_score, classification_confidence, identity_confidence, identity_company_name,
+          identity_job_title, identity_company_confidence, identity_explanation, explanation, reason_code, reason_detail,
+          created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         eventId,
         userId,
@@ -139,8 +179,16 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         internalDate,
         truncateSnippet(snippet),
         classification.detectedType,
-        classification.confidenceScore,
+        classificationConfidence,
+        classificationConfidence,
+        identityConfidence,
+        identity.companyName || null,
+        identity.jobTitle || null,
+        identity.companyConfidence || null,
+        identity.explanation || null,
         classification.explanation,
+        null,
+        null,
         createdAt
       );
 
@@ -154,9 +202,11 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
           snippet,
           internal_date: internalDate,
           detected_type: classification.detectedType,
-          confidence_score: classification.confidenceScore,
+          confidence_score: classificationConfidence,
+          classification_confidence: classificationConfidence,
           created_at: createdAt
-        }
+        },
+        identity
       });
 
       logDebug('ingest.event_classified', {
@@ -181,12 +231,21 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       if (matchResult.action === 'unassigned') {
         unsortedCreated += 1;
         reasons.unsorted_created += 1;
+        if (matchResult.reason || matchResult.reasonDetail) {
+          db.prepare('UPDATE email_events SET reason_code = ?, reason_detail = ? WHERE id = ?').run(
+            matchResult.reason || null,
+            matchResult.reasonDetail || null,
+            eventId
+          );
+        }
         if (matchResult.reason === 'missing_identity') {
           reasons.missing_identity += 1;
         } else if (matchResult.reason === 'low_confidence') {
           reasons.low_confidence += 1;
         } else if (matchResult.reason === 'not_confident_for_create') {
           reasons.not_confident_for_create += 1;
+        } else if (matchResult.reason === 'ambiguous_sender') {
+          reasons.ambiguous_sender += 1;
         }
       }
       created += 1;

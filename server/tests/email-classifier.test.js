@@ -21,6 +21,15 @@ test('classifyEmail detects application confirmation', () => {
   assert.ok(result.confidenceScore >= 0.85);
 });
 
+test('classifyEmail detects generic thanks for applying', () => {
+  const result = classifyEmail({
+    subject: 'Thank you for applying!',
+    snippet: ''
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'confirmation');
+});
+
 test('classifyEmail detects interview request', () => {
   const result = classifyEmail({
     subject: 'Interview invitation',
@@ -34,6 +43,15 @@ test('classifyEmail detects under review updates', () => {
   const result = classifyEmail({
     subject: 'Application status: Under review',
     snippet: 'Your application is under review.'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'under_review');
+});
+
+test('classifyEmail detects under consideration updates', () => {
+  const result = classifyEmail({
+    subject: 'Application update',
+    snippet: 'Your application is under consideration.'
   });
   assert.equal(result.isJobRelated, true);
   assert.equal(result.detectedType, 'under_review');

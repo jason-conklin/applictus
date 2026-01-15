@@ -923,8 +923,10 @@ function formatSyncSummary(result) {
   const notJob = reasons.classified_not_job_related ?? result.skippedNotJob ?? 0;
   const missingIdentity = reasons.missing_identity || 0;
   const lowConfidence = (reasons.low_confidence || 0) + (reasons.not_confident_for_create || 0);
+  const ambiguousSender = reasons.ambiguous_sender || 0;
   const duplicates = reasons.duplicate ?? result.skippedDuplicate ?? 0;
-  const skippedTotal = denylisted + notJob + missingIdentity + lowConfidence + duplicates;
+  const skippedTotal =
+    denylisted + notJob + missingIdentity + lowConfidence + ambiguousSender + duplicates;
 
   const skippedParts = [];
   if (denylisted) {
@@ -938,6 +940,9 @@ function formatSyncSummary(result) {
   }
   if (lowConfidence) {
     skippedParts.push(`low confidence ${lowConfidence}`);
+  }
+  if (ambiguousSender) {
+    skippedParts.push(`ambiguous sender ${ambiguousSender}`);
   }
   if (duplicates) {
     skippedParts.push(`duplicates ${duplicates}`);
@@ -1423,7 +1428,7 @@ async function openAttachModal(eventId) {
   });
 }
 
-async function openCreateModal(eventId) {
+async function openCreateModal(eventId, defaults = {}) {
   const form = document.createElement('form');
   form.className = 'modal-form form-grid';
   form.id = `create-form-${eventId}`;
@@ -1431,14 +1436,14 @@ async function openCreateModal(eventId) {
   const companyField = createTextField({
     label: 'Company name',
     name: 'company_name',
-    value: '',
+    value: defaults.company_name || '',
     required: true,
     placeholder: 'Company'
   });
   const titleField = createTextField({
     label: 'Job title',
     name: 'job_title',
-    value: '',
+    value: defaults.job_title || '',
     required: true,
     placeholder: 'Role title'
   });
@@ -1686,28 +1691,60 @@ function renderUnsortedEvents(events) {
     return;
   }
 
+  function formatUnsortedReason(event) {
+    if (event.reason_detail) {
+      return event.reason_detail;
+    }
+    if (event.reason_code === 'missing_identity') {
+      return 'Missing company';
+    }
+    if (event.reason_code === 'low_confidence') {
+      return 'Low identity confidence';
+    }
+    if (event.reason_code === 'not_confident_for_create') {
+      return 'Not confident enough to auto-create';
+    }
+    if (event.reason_code === 'ambiguous_sender') {
+      return 'Ambiguous sender';
+    }
+    return '—';
+  }
+
   const header = `
     <div class="table-header">
       <div>Sender</div>
       <div>Subject</div>
       <div>Type</div>
       <div>Confidence</div>
+      <div>Reason</div>
       <div>Actions</div>
     </div>
   `;
 
   const rows = events
     .map((event, index) => {
-      const confidence = event.confidence_score ? Math.round(event.confidence_score * 100) + '%' : '—';
+      const classificationConfidence =
+        event.classification_confidence ?? event.confidence_score ?? null;
+      const confidence = classificationConfidence
+        ? Math.round(classificationConfidence * 100) + '%'
+        : '—';
+      const companyPrefill = event.identity_company_name || '';
+      const titlePrefill =
+        event.identity_job_title || (companyPrefill ? 'Unknown role' : '');
       return `
         <div class="table-row" style="--stagger: ${index}">
           <div>${event.sender || '—'}</div>
           <div>${event.subject || '—'}</div>
           <div>${event.detected_type || '—'}</div>
           <div>${confidence}</div>
+          <div>${formatUnsortedReason(event)}</div>
           <div class="action-group">
             <button class="ghost" data-action="attach" data-id="${event.id}">Attach</button>
-            <button class="ghost" data-action="create" data-id="${event.id}">Create</button>
+            <button class="ghost" data-action="create" data-id="${event.id}"
+              data-company="${encodeURIComponent(companyPrefill)}"
+              data-title="${encodeURIComponent(titlePrefill)}">
+              Create (prefilled)
+            </button>
           </div>
         </div>
       `;
@@ -1734,7 +1771,11 @@ function renderEmailEvents(events) {
 
   const rows = events
     .map((event, index) => {
-      const confidence = event.confidence_score ? Math.round(event.confidence_score * 100) + '%' : '—';
+      const classificationConfidence =
+        event.classification_confidence ?? event.confidence_score ?? null;
+      const confidence = classificationConfidence
+        ? Math.round(classificationConfidence * 100) + '%'
+        : '—';
       return `
         <div class=\"table-row\" style=\"--stagger: ${index}\">
           <div>${event.sender || '—'}</div>
@@ -1841,9 +1882,11 @@ function renderDetail(application, events) {
           const eventDate = eventItem.internal_date
             ? new Date(Number(eventItem.internal_date)).toISOString()
             : eventItem.created_at;
+          const classificationConfidence =
+            eventItem.classification_confidence ?? eventItem.confidence_score ?? null;
           const confidence =
-            eventItem.confidence_score !== null && eventItem.confidence_score !== undefined
-              ? `${Math.round(eventItem.confidence_score * 100)}%`
+            classificationConfidence !== null && classificationConfidence !== undefined
+              ? `${Math.round(classificationConfidence * 100)}%`
               : '—';
           const typeLabel = eventItem.detected_type || 'other';
           return `
@@ -2217,7 +2260,12 @@ unsortedTable?.addEventListener('click', async (event) => {
     await openAttachModal(eventId);
   }
   if (action === 'create') {
-    await openCreateModal(eventId);
+    const company = button.dataset.company ? decodeURIComponent(button.dataset.company) : '';
+    const title = button.dataset.title ? decodeURIComponent(button.dataset.title) : '';
+    await openCreateModal(eventId, {
+      company_name: company,
+      job_title: title
+    });
   }
 });
 

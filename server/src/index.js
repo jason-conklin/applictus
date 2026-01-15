@@ -271,9 +271,24 @@ function hasDevAccess(req) {
   return false;
 }
 
+function hashSampleId(value) {
+  if (!value) {
+    return null;
+  }
+  return crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 12);
+}
+
 function getEventTimestamp(event) {
   const fallback = event.created_at ? new Date(event.created_at) : new Date();
   return toIsoFromInternalDate(event.internal_date, fallback);
+}
+
+function getClassificationConfidence(event) {
+  if (!event) {
+    return 0;
+  }
+  const value = event.classification_confidence ?? event.confidence_score;
+  return Number.isFinite(value) ? value : 0;
 }
 
 function applyEventToApplication(application, event) {
@@ -282,6 +297,7 @@ function applyEventToApplication(application, event) {
   }
   const updates = {};
   const eventTimestamp = getEventTimestamp(event);
+  const classificationConfidence = getClassificationConfidence(event);
 
   if (!application.last_activity_at || eventTimestamp > application.last_activity_at) {
     updates.last_activity_at = eventTimestamp;
@@ -289,7 +305,7 @@ function applyEventToApplication(application, event) {
 
   if (
     event.detected_type === 'confirmation' &&
-    event.confidence_score >= 0.9 &&
+    classificationConfidence >= 0.9 &&
     (!application.applied_at || eventTimestamp < application.applied_at)
   ) {
     updates.applied_at = eventTimestamp;
@@ -707,7 +723,9 @@ app.post('/api/email/sync', requireAuth, async (req, res) => {
 app.get('/api/email/unsorted', requireAuth, (req, res) => {
   const events = db
     .prepare(
-      `SELECT id, sender, subject, internal_date, snippet, detected_type, confidence_score, explanation
+      `SELECT id, sender, subject, internal_date, snippet, detected_type, confidence_score, classification_confidence,
+              identity_confidence, identity_company_name, identity_job_title, identity_company_confidence,
+              reason_code, reason_detail, explanation
        FROM email_events
        WHERE user_id = ? AND application_id IS NULL AND detected_type IS NOT NULL
        ORDER BY internal_date DESC
@@ -958,7 +976,7 @@ app.get('/api/applications/:id', requireAuth, (req, res) => {
   const events = db
     .prepare(
       `SELECT id, sender, subject, internal_date, snippet,
-              detected_type, confidence_score, explanation, created_at
+              detected_type, confidence_score, classification_confidence, explanation, created_at
        FROM email_events
        WHERE application_id = ?
        ORDER BY internal_date DESC
@@ -1253,7 +1271,9 @@ app.get('/api/email/events', requireAuth, (req, res) => {
   const events = db
     .prepare(
       `SELECT provider_message_id, sender, subject, internal_date, snippet,
-              detected_type, confidence_score, explanation, created_at
+              detected_type, confidence_score, classification_confidence, identity_confidence,
+              identity_company_name, identity_job_title, identity_company_confidence, reason_code, reason_detail,
+              explanation, created_at
        FROM email_events
        WHERE user_id = ?
        ORDER BY internal_date DESC
@@ -1261,6 +1281,77 @@ app.get('/api/email/events', requireAuth, (req, res) => {
     )
     .all(req.user.id);
   return res.json({ events });
+});
+
+app.get('/api/email/sync-debug', requireAuth, (req, res) => {
+  if (!hasDevAccess(req)) {
+    return res.status(403).json({ error: 'FORBIDDEN' });
+  }
+  const limit = clampNumber(Number(req.query.limit) || 20, 1, 100);
+  const reason = req.query.reason ? String(req.query.reason) : null;
+  const samples = {};
+
+  function addSample(reasonCode, sample) {
+    if (!samples[reasonCode]) {
+      samples[reasonCode] = [];
+    }
+    samples[reasonCode].push(sample);
+  }
+
+  const skipReasons = new Set(['classified_not_job_related', 'denylisted']);
+  const eventReasons = new Set([
+    'missing_identity',
+    'low_confidence',
+    'not_confident_for_create',
+    'ambiguous_sender'
+  ]);
+
+  if (!reason || skipReasons.has(reason)) {
+    const rows = db
+      .prepare(
+        `SELECT provider_message_id, sender, subject, reason_code, created_at
+         FROM email_skip_samples
+         WHERE user_id = ?
+           ${reason ? 'AND reason_code = ?' : ''}
+         ORDER BY created_at DESC
+         LIMIT ?`
+      )
+      .all(req.user.id, ...(reason ? [reason] : []), limit);
+    for (const row of rows) {
+      addSample(row.reason_code, {
+        id: hashSampleId(row.provider_message_id),
+        sender: row.sender || null,
+        subject: row.subject || null,
+        created_at: row.created_at
+      });
+    }
+  }
+
+  if (!reason || eventReasons.has(reason)) {
+    const rows = db
+      .prepare(
+        `SELECT id, provider_message_id, sender, subject, reason_code, reason_detail, created_at
+         FROM email_events
+         WHERE user_id = ?
+           AND application_id IS NULL
+           AND reason_code IS NOT NULL
+           ${reason ? 'AND reason_code = ?' : ''}
+         ORDER BY created_at DESC
+         LIMIT ?`
+      )
+      .all(req.user.id, ...(reason ? [reason] : []), limit);
+    for (const row of rows) {
+      addSample(row.reason_code, {
+        id: hashSampleId(row.provider_message_id || row.id),
+        sender: row.sender || null,
+        subject: row.subject || null,
+        detail: row.reason_detail || null,
+        created_at: row.created_at
+      });
+    }
+  }
+
+  return res.json({ samples });
 });
 
 app.get('*', (req, res) => {

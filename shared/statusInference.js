@@ -29,6 +29,11 @@ function normalize(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
+function getEventConfidence(event) {
+  const value = event?.classification_confidence ?? event?.confidence_score;
+  return Number.isFinite(value) ? value : 0;
+}
+
 function formatEventDate(internalDate, createdAt) {
   const date = internalDate ? new Date(Number(internalDate)) : new Date(createdAt);
   if (Number.isNaN(date.getTime())) {
@@ -65,7 +70,7 @@ function buildCandidateFromEvent(event) {
   if (event.detected_type === 'confirmation') {
     return {
       status: ApplicationStatus.APPLIED,
-      confidence: event.confidence_score || 0,
+      confidence: getEventConfidence(event),
       explanation: buildExplanation('Application confirmation detected.', event),
       eventIds: [event.id]
     };
@@ -74,7 +79,7 @@ function buildCandidateFromEvent(event) {
   if (event.detected_type === 'under_review') {
     return {
       status: ApplicationStatus.UNDER_REVIEW,
-      confidence: event.confidence_score || 0,
+      confidence: getEventConfidence(event),
       explanation: buildExplanation('Application under review detected.', event),
       eventIds: [event.id]
     };
@@ -83,7 +88,7 @@ function buildCandidateFromEvent(event) {
   if (event.detected_type === 'interview') {
     const completed = detectInterviewCompleted(event);
     if (completed.matched) {
-      const confidence = Math.min(event.confidence_score || 0, completed.confidence);
+      const confidence = Math.min(getEventConfidence(event), completed.confidence);
       return {
         status: ApplicationStatus.INTERVIEW_COMPLETED,
         confidence,
@@ -96,7 +101,7 @@ function buildCandidateFromEvent(event) {
     }
     return {
       status: ApplicationStatus.INTERVIEW_REQUESTED,
-      confidence: event.confidence_score || 0,
+      confidence: getEventConfidence(event),
       explanation: buildExplanation('Interview request detected.', event),
       eventIds: [event.id]
     };
@@ -105,7 +110,7 @@ function buildCandidateFromEvent(event) {
   if (event.detected_type === 'rejection') {
     return {
       status: ApplicationStatus.REJECTED,
-      confidence: event.confidence_score || 0,
+      confidence: getEventConfidence(event),
       explanation: buildExplanation('Rejection detected.', event),
       eventIds: [event.id]
     };
@@ -114,7 +119,7 @@ function buildCandidateFromEvent(event) {
   if (event.detected_type === 'offer') {
     return {
       status: ApplicationStatus.OFFER_RECEIVED,
-      confidence: event.confidence_score || 0,
+      confidence: getEventConfidence(event),
       explanation: buildExplanation('Offer detected.', event),
       eventIds: [event.id]
     };

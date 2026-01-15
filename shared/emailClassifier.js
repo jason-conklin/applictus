@@ -15,7 +15,8 @@ const RULES = [
     patterns: [
       /offer (?:letter|extended|of employment)/i,
       /we (?:are|re) pleased to offer/i,
-      /congratulations.+offer/i
+      /congratulations.+offer/i,
+      /offer(?:ing)? you the (?:position|role)/i
     ]
   },
   {
@@ -24,7 +25,10 @@ const RULES = [
     confidence: 0.95,
     patterns: [
       /not moving forward/i,
+      /no longer under consideration/i,
+      /not selected/i,
       /regret to inform/i,
+      /we (?:have )?decided to move forward with other candidates/i,
       /position has been filled/i,
       /application (?:was|has been) rejected/i
     ]
@@ -36,6 +40,9 @@ const RULES = [
     patterns: [
       /schedule (?:an|your) interview/i,
       /interview (?:invite|invitation|confirmed|availability)/i,
+      /interview (?:schedule|scheduled|scheduling)/i,
+      /phone screen/i,
+      /video interview/i,
       /thank you for interviewing/i,
       /thank you for (?:the )?interview/i,
       /select (?:a|your) time for an interview/i
@@ -47,7 +54,10 @@ const RULES = [
     confidence: 0.92,
     patterns: [
       /application (?:received|confirmation)/i,
+      /application (?:submitted|submission received)/i,
       /thank you for applying/i,
+      /thanks for applying/i,
+      /we (?:have )?received your application/i,
       /we received your application/i
     ]
   },
@@ -58,7 +68,9 @@ const RULES = [
     patterns: [
       /application (?:is )?under review/i,
       /application status[: ]+under review/i,
-      /your application is in review/i
+      /your application is in review/i,
+      /application (?:is )?under consideration/i,
+      /application (?:is )?being reviewed/i
     ]
   },
   {
@@ -78,7 +90,12 @@ const RULES = [
     patterns: [
       /job application/i,
       /application status/i,
+      /application received/i,
+      /application was viewed/i,
+      /your candidacy/i,
       /candidate portal/i,
+      /assessment/i,
+      /next steps/i,
       /position you applied/i
     ]
   }
@@ -88,8 +105,8 @@ function normalize(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
-function classifyEmail({ subject, snippet }) {
-  const text = `${normalize(subject)} ${normalize(snippet)}`.trim();
+function classifyEmail({ subject, snippet, sender }) {
+  const text = `${normalize(subject)} ${normalize(snippet)} ${normalize(sender)}`.trim();
   if (!text) {
     return { isJobRelated: false, explanation: 'Empty subject/snippet.' };
   }
