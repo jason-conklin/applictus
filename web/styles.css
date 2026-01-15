@@ -1195,6 +1195,19 @@ details summary {
   margin-top: 16px;
 }
 
+.sync-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.sync-mode input {
+  accent-color: var(--color-accent);
+}
+
 .events-panel {
   margin-top: 24px;
 }

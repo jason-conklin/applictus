@@ -709,11 +709,18 @@ app.get('/api/email/callback', requireAuth, async (req, res) => {
 app.post('/api/email/sync', requireAuth, async (req, res) => {
   const days = Number(req.body.days) || 30;
   const maxResults = Number(req.body.maxResults) || 100;
+  const mode = req.body.mode ? String(req.body.mode) : null;
   if (!isEncryptionReady()) {
     return res.status(400).json({ error: 'TOKEN_ENC_KEY_REQUIRED' });
   }
   try {
-    const result = await syncGmailMessages({ db, userId: req.user.id, days, maxResults });
+    const result = await syncGmailMessages({
+      db,
+      userId: req.user.id,
+      days,
+      maxResults,
+      mode
+    });
     return res.json(result);
   } catch (err) {
     return res.status(500).json({ error: 'SYNC_FAILED' });
@@ -725,7 +732,7 @@ app.get('/api/email/unsorted', requireAuth, (req, res) => {
     .prepare(
       `SELECT id, sender, subject, internal_date, snippet, detected_type, confidence_score, classification_confidence,
               identity_confidence, identity_company_name, identity_job_title, identity_company_confidence,
-              reason_code, reason_detail, explanation
+              reason_code, reason_detail, ingest_decision, explanation
        FROM email_events
        WHERE user_id = ? AND application_id IS NULL AND detected_type IS NOT NULL
        ORDER BY internal_date DESC
@@ -980,7 +987,7 @@ app.get('/api/applications/:id', requireAuth, (req, res) => {
   const events = db
     .prepare(
       `SELECT id, sender, subject, internal_date, snippet,
-              detected_type, confidence_score, classification_confidence, explanation, created_at
+              detected_type, confidence_score, classification_confidence, ingest_decision, explanation, created_at
        FROM email_events
        WHERE application_id = ?
        ORDER BY internal_date DESC
@@ -1277,7 +1284,7 @@ app.get('/api/email/events', requireAuth, (req, res) => {
       `SELECT provider_message_id, sender, subject, internal_date, snippet,
               detected_type, confidence_score, classification_confidence, identity_confidence,
               identity_company_name, identity_job_title, identity_company_confidence, reason_code, reason_detail,
-              explanation, created_at
+              ingest_decision, explanation, created_at
        FROM email_events
        WHERE user_id = ?
        ORDER BY internal_date DESC
@@ -1285,6 +1292,62 @@ app.get('/api/email/events', requireAuth, (req, res) => {
     )
     .all(req.user.id);
   return res.json({ events });
+});
+
+function parseSenderFields(sender) {
+  if (!sender) {
+    return { senderName: null, senderEmail: null };
+  }
+  const match = String(sender).match(/^(.*)<([^>]+)>/);
+  if (match) {
+    return {
+      senderName: match[1].replace(/"/g, '').trim() || null,
+      senderEmail: match[2].trim() || null
+    };
+  }
+  const emailMatch = String(sender).match(/([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i);
+  if (emailMatch) {
+    return { senderName: null, senderEmail: emailMatch[1] };
+  }
+  return { senderName: sender.trim() || null, senderEmail: null };
+}
+
+app.get('/api/email/skipped-sample', requireAuth, (req, res) => {
+  if (!hasDevAccess(req)) {
+    return res.status(403).json({ error: 'FORBIDDEN' });
+  }
+  const limit = clampNumber(Number(req.query.limit) || 50, 1, 200);
+  const days = clampNumber(Number(req.query.days) || 30, 1, 365);
+  let reason = req.query.reason ? String(req.query.reason) : null;
+  if (reason === 'not_job_related') {
+    reason = 'classified_not_job_related';
+  }
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const rows = db
+    .prepare(
+      `SELECT provider_message_id, sender, subject, reason_code, created_at
+       FROM email_skip_samples
+       WHERE user_id = ?
+         AND created_at >= ?
+         ${reason ? 'AND reason_code = ?' : ''}
+       ORDER BY created_at DESC
+       LIMIT ?`
+    )
+    .all(req.user.id, ...(reason ? [since, reason, limit] : [since, limit]));
+  const samples = rows.map((row) => {
+    const senderFields = parseSenderFields(row.sender || '');
+    return {
+      id: hashSampleId(row.provider_message_id),
+      date: row.created_at,
+      from: row.sender || null,
+      senderName: senderFields.senderName,
+      senderEmail: senderFields.senderEmail,
+      subject: row.subject || null,
+      decision: 'skipped',
+      reason: row.reason_code
+    };
+  });
+  return res.json({ samples });
 });
 
 app.get('/api/email/sync-debug', requireAuth, (req, res) => {

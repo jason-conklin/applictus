@@ -108,6 +108,12 @@ Use the Gmail screen in the UI to run "Sync now", or call:
 POST /api/email/sync
 ```
 with JSON `{ "days": 30 }` (defaults to 30 days, max 365).
+Optional classifier mode:
+```
+{ "mode": "balanced" }
+```
+`balanced` captures more job-related emails; `strict` is the default. You can also set
+`JOBTRACK_CLASSIFIER_MODE=strict|balanced` as a server default.
 
 ### Unsorted events
 Job-related messages that cannot be confidently matched are kept in the "Unsorted Events" list.
@@ -124,6 +130,7 @@ POST /api/email/events/:id/create-application
 Debug helpers (dev/admin only):
 ```
 GET /api/email/sync-debug?limit=20&reason=classified_not_job_related
+GET /api/email/skipped-sample?days=30&limit=50&reason=not_job_related
 ```
 Set `JOBTRACK_DEV_MODE=1` or `JOBTRACK_ADMIN_EMAIL` to enable.
 

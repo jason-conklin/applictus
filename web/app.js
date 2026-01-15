@@ -65,10 +65,12 @@ const emailSync = document.getElementById('email-sync');
 const syncDays = document.getElementById('sync-days');
 const syncStatus = document.getElementById('sync-status');
 const syncResult = document.getElementById('sync-result');
+const syncModeToggle = document.getElementById('sync-mode-toggle');
 const accountEmailSync = document.getElementById('account-email-sync');
 const accountSyncDays = document.getElementById('account-sync-days');
 const accountSyncStatus = document.getElementById('account-sync-status');
 const accountSyncResult = document.getElementById('account-sync-result');
+const accountSyncModeToggle = document.getElementById('account-sync-mode-toggle');
 const gmailHint = document.getElementById('gmail-hint');
 const gmailHintText = document.getElementById('gmail-hint-text');
 const emailEventsPanel = document.getElementById('email-events-panel');
@@ -101,6 +103,7 @@ const STATUS_OPTIONS = Object.keys(STATUS_LABELS);
 const PAGE_SIZE = 25;
 const PIPELINE_LIMIT = 15;
 const VIEW_MODE_KEY = 'applictus:viewMode';
+const CLASSIFIER_MODE_KEY = 'applictus:classifierMode';
 
 function getInitialViewMode() {
   try {
@@ -114,8 +117,21 @@ function getInitialViewMode() {
   return 'table';
 }
 
+function getInitialClassifierMode() {
+  try {
+    const stored = localStorage.getItem(CLASSIFIER_MODE_KEY);
+    if (stored === 'balanced' || stored === 'strict') {
+      return stored;
+    }
+  } catch (err) {
+    return 'strict';
+  }
+  return 'strict';
+}
+
 const state = {
   viewMode: getInitialViewMode(),
+  classifierMode: getInitialClassifierMode(),
   filters: {
     status: '',
     company: '',
@@ -596,6 +612,27 @@ function syncViewToggle() {
   });
 }
 
+function updateClassifierToggles() {
+  const isBalanced = state.classifierMode === 'balanced';
+  if (syncModeToggle) {
+    syncModeToggle.checked = isBalanced;
+  }
+  if (accountSyncModeToggle) {
+    accountSyncModeToggle.checked = isBalanced;
+  }
+}
+
+function setClassifierMode(mode) {
+  const next = mode === 'balanced' ? 'balanced' : 'strict';
+  state.classifierMode = next;
+  updateClassifierToggles();
+  try {
+    localStorage.setItem(CLASSIFIER_MODE_KEY, next);
+  } catch (err) {
+    // Ignore storage errors.
+  }
+}
+
 function toggleSection(section, isVisible) {
   if (!section) {
     return;
@@ -937,9 +974,16 @@ function formatSyncSummary(result) {
   const missingIdentity = reasons.missing_identity || 0;
   const lowConfidence = (reasons.low_confidence || 0) + (reasons.not_confident_for_create || 0);
   const ambiguousSender = reasons.ambiguous_sender || 0;
+  const belowThreshold = reasons.below_threshold || 0;
   const duplicates = reasons.duplicate ?? result.skippedDuplicate ?? 0;
   const skippedTotal =
-    denylisted + notJob + missingIdentity + lowConfidence + ambiguousSender + duplicates;
+    denylisted +
+    notJob +
+    missingIdentity +
+    lowConfidence +
+    ambiguousSender +
+    belowThreshold +
+    duplicates;
 
   const skippedParts = [];
   if (denylisted) {
@@ -957,6 +1001,9 @@ function formatSyncSummary(result) {
   if (ambiguousSender) {
     skippedParts.push(`ambiguous sender ${ambiguousSender}`);
   }
+  if (belowThreshold) {
+    skippedParts.push(`below threshold ${belowThreshold}`);
+  }
   if (duplicates) {
     skippedParts.push(`duplicates ${duplicates}`);
   }
@@ -965,7 +1012,15 @@ function formatSyncSummary(result) {
     ? `skipped ${skippedTotal}: ${skippedParts.join(', ')}`
     : `skipped ${skippedTotal}`;
 
-  return `Created ${result.created} events (matched ${matched}, new apps ${createdApps}, unsorted ${unsorted}, ${skippedLabel}).`;
+  const scanned = result.totalScanned ?? result.fetched ?? null;
+  const jobRelated = result.jobRelatedCandidates ?? null;
+  const createdEvents = result.created ?? 0;
+  if (scanned !== null) {
+    const candidatesLabel =
+      jobRelated !== null ? `job-related ${jobRelated}; ` : '';
+    return `Scanned ${scanned} messages; ${candidatesLabel}created events ${createdEvents} (new apps ${createdApps}, matched ${matched}, unsorted ${unsorted}, ${skippedLabel}).`;
+  }
+  return `Created ${createdEvents} events (matched ${matched}, new apps ${createdApps}, unsorted ${unsorted}, ${skippedLabel}).`;
 }
 
 async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
@@ -984,7 +1039,7 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
   try {
     const result = await api('/api/email/sync', {
       method: 'POST',
-      body: JSON.stringify({ days })
+      body: JSON.stringify({ days, mode: state.classifierMode })
     });
     if (result.status === 'not_connected') {
       if (statusEl) {
@@ -2256,6 +2311,10 @@ emailSync?.addEventListener('click', async () => {
   });
 });
 
+syncModeToggle?.addEventListener('change', () => {
+  setClassifierMode(syncModeToggle.checked ? 'balanced' : 'strict');
+});
+
 accountEmailSync?.addEventListener('click', async () => {
   const days = Number(accountSyncDays?.value) || 30;
   await runEmailSync({
@@ -2264,6 +2323,10 @@ accountEmailSync?.addEventListener('click', async () => {
     resultEl: accountSyncResult,
     buttonEl: accountEmailSync
   });
+});
+
+accountSyncModeToggle?.addEventListener('change', () => {
+  setClassifierMode(accountSyncModeToggle.checked ? 'balanced' : 'strict');
 });
 
 unsortedTable?.addEventListener('click', async (event) => {
@@ -2354,6 +2417,7 @@ window.addEventListener('hashchange', route);
 (async () => {
   setAuthPanel('signin');
   setupLogoFallback();
+  updateClassifierToggles();
   await loadCsrfToken();
   await loadSession();
   route();

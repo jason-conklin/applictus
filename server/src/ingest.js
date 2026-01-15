@@ -14,6 +14,9 @@ const REASON_KEYS = [
   'low_confidence',
   'not_confident_for_create',
   'ambiguous_sender',
+  'below_threshold',
+  'provider_filtered',
+  'parse_error',
   'duplicate',
   'matched_existing',
   'auto_created',
@@ -63,7 +66,12 @@ function recordSkipSample({ db, userId, provider, messageId, sender, subject, re
   }
 }
 
-async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
+function normalizeClassifierMode(mode) {
+  const value = String(mode || '').toLowerCase();
+  return value === 'balanced' ? 'balanced' : 'strict';
+}
+
+async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, mode }) {
   const authClient = await getAuthorizedClient(db, userId);
   if (!authClient) {
     return { status: 'not_connected' };
@@ -80,10 +88,14 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
   let matchedExisting = 0;
   let createdApplications = 0;
   let unsortedCreated = 0;
+  let jobRelatedCandidates = 0;
   const reasons = initReasonCounters();
 
   const queryDays = Math.max(1, Math.min(days, 365));
   const limit = Math.max(1, Math.min(maxResults, 500));
+  const classifierMode = normalizeClassifierMode(
+    mode || process.env.JOBTRACK_CLASSIFIER_MODE || 'strict'
+  );
 
   do {
     if (fetched >= limit) {
@@ -127,12 +139,19 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       const snippet = details.data.snippet || '';
       const internalDate = details.data.internalDate ? Number(details.data.internalDate) : null;
 
-      const classification = classifyEmail({ subject, snippet, sender });
+      const classification = classifyEmail({ subject, snippet, sender, mode: classifierMode });
       if (!classification.isJobRelated) {
         skippedNotJob += 1;
-        const reasonCode = classification.reason === 'denylisted' ? 'denylisted' : 'classified_not_job_related';
+        let reasonCode = 'classified_not_job_related';
+        if (classification.reason === 'denylisted') {
+          reasonCode = 'denylisted';
+        } else if (classification.reason === 'below_threshold') {
+          reasonCode = 'below_threshold';
+        }
         if (reasonCode === 'denylisted') {
           reasons.denylisted += 1;
+        } else if (reasonCode === 'below_threshold') {
+          reasons.below_threshold += 1;
         } else {
           reasons.classified_not_job_related += 1;
         }
@@ -153,6 +172,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         });
         continue;
       }
+      jobRelatedCandidates += 1;
 
       const identity = extractThreadIdentity({ subject, sender, snippet });
       const eventId = crypto.randomUUID();
@@ -166,8 +186,8 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
          (id, user_id, provider, message_id, provider_message_id, sender, subject, internal_date, snippet,
           detected_type, confidence_score, classification_confidence, identity_confidence, identity_company_name,
           identity_job_title, identity_company_confidence, identity_explanation, explanation, reason_code, reason_detail,
-          created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ingest_decision, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         eventId,
         userId,
@@ -187,6 +207,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         identity.companyConfidence || null,
         identity.explanation || null,
         classification.explanation,
+        null,
         null,
         null,
         createdAt
@@ -221,16 +242,28 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       if (matchResult.action === 'matched_existing') {
         matchedExisting += 1;
         reasons.matched_existing += 1;
+        db.prepare('UPDATE email_events SET ingest_decision = ? WHERE id = ?').run(
+          'matched',
+          eventId
+        );
         runStatusInferenceForApplication(db, userId, matchResult.applicationId);
       }
       if (matchResult.action === 'created_application') {
         createdApplications += 1;
         reasons.auto_created += 1;
+        db.prepare('UPDATE email_events SET ingest_decision = ? WHERE id = ?').run(
+          'auto_created',
+          eventId
+        );
         runStatusInferenceForApplication(db, userId, matchResult.applicationId);
       }
       if (matchResult.action === 'unassigned') {
         unsortedCreated += 1;
         reasons.unsorted_created += 1;
+        db.prepare('UPDATE email_events SET ingest_decision = ? WHERE id = ?').run(
+          'unsorted',
+          eventId
+        );
         if (matchResult.reason || matchResult.reasonDetail) {
           db.prepare('UPDATE email_events SET reason_code = ?, reason_detail = ? WHERE id = ?').run(
             matchResult.reason || null,
@@ -265,12 +298,15 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
     createdApplications,
     unsortedCreated,
     reasons,
-    days: queryDays
+    days: queryDays,
+    classifierMode
   });
 
   return {
     status: 'ok',
     fetched,
+    totalScanned: fetched,
+    jobRelatedCandidates,
     created,
     skippedDuplicate,
     skippedNotJob,
@@ -278,7 +314,8 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
     createdApplications,
     unsortedCreated,
     reasons,
-    days: queryDays
+    days: queryDays,
+    classifierMode
   };
 }
 

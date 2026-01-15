@@ -107,14 +107,86 @@ const RULES = [
   }
 ];
 
+const BALANCED_RULES = [
+  {
+    name: 'candidate_updates',
+    detectedType: 'other_job_related',
+    confidence: 0.6,
+    patterns: [
+      /candidate/i,
+      /candidacy/i,
+      /requisition/i,
+      /job id[: ]*\d+/i,
+      /position id[: ]*\d+/i
+    ]
+  },
+  {
+    name: 'assessments',
+    detectedType: 'other_job_related',
+    confidence: 0.6,
+    patterns: [
+      /assessment/i,
+      /coding challenge/i,
+      /take[- ]home/i,
+      /hirevue/i,
+      /skill survey/i
+    ]
+  },
+  {
+    name: 'application_updates',
+    detectedType: 'other_job_related',
+    confidence: 0.6,
+    patterns: [
+      /application update/i,
+      /update on your application/i,
+      /next steps/i,
+      /application progress/i
+    ]
+  }
+];
+
 function normalize(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
-function classifyEmail({ subject, snippet, sender }) {
+function normalizeMode(mode) {
+  const value = String(mode || '').toLowerCase();
+  return value === 'balanced' ? 'balanced' : 'strict';
+}
+
+function findRuleMatch(rules, text, minConfidence) {
+  for (const rule of rules) {
+    if (rule.confidence < minConfidence) {
+      continue;
+    }
+    const matched = rule.patterns.find((pattern) => pattern.test(text));
+    if (matched) {
+      return { rule, matched };
+    }
+  }
+  return null;
+}
+
+function classifyEmail({ subject, snippet, sender, mode }) {
   const text = `${normalize(subject)} ${normalize(snippet)} ${normalize(sender)}`.trim();
   if (!text) {
     return { isJobRelated: false, explanation: 'Empty subject/snippet.' };
+  }
+
+  const classifierMode = normalizeMode(mode);
+  const minConfidence = classifierMode === 'balanced' ? 0.6 : 0.7;
+  const rules = classifierMode === 'balanced' ? [...RULES, ...BALANCED_RULES] : RULES;
+
+  const rejectionRules = rules.filter((rule) => rule.detectedType === 'rejection');
+  const rejectionMatch = findRuleMatch(rejectionRules, text, 0.9);
+  if (rejectionMatch) {
+    return {
+      isJobRelated: true,
+      detectedType: rejectionMatch.rule.detectedType,
+      confidenceScore: rejectionMatch.rule.confidence,
+      explanation: `Matched ${rejectionMatch.rule.name} via ${rejectionMatch.matched}.`,
+      reason: rejectionMatch.rule.name
+    };
   }
 
   for (const pattern of DENYLIST) {
@@ -127,18 +199,25 @@ function classifyEmail({ subject, snippet, sender }) {
     }
   }
 
-  for (const rule of RULES) {
-    const matched = rule.patterns.find((pattern) => pattern.test(text));
-      if (matched) {
-        return {
-          isJobRelated: true,
-          detectedType: rule.detectedType,
-          confidenceScore: rule.confidence,
-          explanation: `Matched ${rule.name} via ${matched}.`,
-          reason: rule.name
-        };
-      }
-    }
+  const match = findRuleMatch(rules, text, minConfidence);
+  if (match) {
+    return {
+      isJobRelated: true,
+      detectedType: match.rule.detectedType,
+      confidenceScore: match.rule.confidence,
+      explanation: `Matched ${match.rule.name} via ${match.matched}.`,
+      reason: match.rule.name
+    };
+  }
+
+  const lowMatch = findRuleMatch(rules, text, 0);
+  if (lowMatch) {
+    return {
+      isJobRelated: false,
+      explanation: `Matched ${lowMatch.rule.name} below threshold.`,
+      reason: 'below_threshold'
+    };
+  }
 
   return { isJobRelated: false, explanation: 'No allowlist match.', reason: 'no_allowlist' };
 }
@@ -146,5 +225,6 @@ function classifyEmail({ subject, snippet, sender }) {
 module.exports = {
   classifyEmail,
   RULES,
+  BALANCED_RULES,
   DENYLIST
 };

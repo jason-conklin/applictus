@@ -157,38 +157,36 @@ function findLooseMatchingApplication(db, userId, identity) {
     return null;
   }
   if (identity.jobTitle) {
-    const matches = db
+    const match = db
       .prepare(
         `SELECT * FROM job_applications
          WHERE user_id = ?
            AND (company_name = ? OR company = ?)
            AND (job_title = ? OR role = ?)
-           AND archived = 0`
+           AND archived = 0
+         ORDER BY COALESCE(last_activity_at, updated_at, created_at) DESC
+         LIMIT 1`
       )
-      .all(
+      .get(
         userId,
         identity.companyName,
         identity.companyName,
         identity.jobTitle,
         identity.jobTitle
       );
-    if (matches.length === 1) {
-      return matches[0];
-    }
-    return null;
+    return match || null;
   }
-  const matches = db
+  const match = db
     .prepare(
       `SELECT * FROM job_applications
        WHERE user_id = ?
          AND (company_name = ? OR company = ?)
-         AND archived = 0`
+         AND archived = 0
+       ORDER BY COALESCE(last_activity_at, updated_at, created_at) DESC
+       LIMIT 1`
     )
-    .all(userId, identity.companyName, identity.companyName);
-  if (matches.length === 1) {
-    return matches[0];
-  }
-  return null;
+    .get(userId, identity.companyName, identity.companyName);
+  return match || null;
 }
 
 function updateApplicationActivity(db, application, event) {

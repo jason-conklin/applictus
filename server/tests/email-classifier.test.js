@@ -110,6 +110,32 @@ test('classifyEmail denylist overrides allowlist', () => {
   assert.equal(result.isJobRelated, false);
 });
 
+test('classifyEmail allows strong rejection even with unsubscribe', () => {
+  const result = classifyEmail({
+    subject: 'Not moving forward',
+    snippet: 'Unsubscribe'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'rejection');
+});
+
+test('classifyEmail balanced mode captures job id signals', () => {
+  const strictResult = classifyEmail({
+    subject: 'Job ID 12345',
+    snippet: '',
+    mode: 'strict'
+  });
+  assert.equal(strictResult.isJobRelated, false);
+
+  const balancedResult = classifyEmail({
+    subject: 'Job ID 12345',
+    snippet: '',
+    mode: 'balanced'
+  });
+  assert.equal(balancedResult.isJobRelated, true);
+  assert.equal(balancedResult.detectedType, 'other_job_related');
+});
+
 test('classifyEmail stays conservative with neutral content', () => {
   const result = classifyEmail({
     subject: 'Hello there',
