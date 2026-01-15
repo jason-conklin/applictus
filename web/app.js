@@ -100,9 +100,22 @@ let csrfToken = null;
 const STATUS_OPTIONS = Object.keys(STATUS_LABELS);
 const PAGE_SIZE = 25;
 const PIPELINE_LIMIT = 15;
+const VIEW_MODE_KEY = 'applictus:viewMode';
+
+function getInitialViewMode() {
+  try {
+    const stored = localStorage.getItem(VIEW_MODE_KEY);
+    if (stored === 'pipeline' || stored === 'table') {
+      return stored;
+    }
+  } catch (err) {
+    return 'table';
+  }
+  return 'table';
+}
 
 const state = {
-  viewMode: 'pipeline',
+  viewMode: getInitialViewMode(),
   filters: {
     status: '',
     company: '',
@@ -2073,6 +2086,11 @@ viewToggle?.addEventListener('click', async (event) => {
   state.viewMode = nextView;
   if (nextView === 'table') {
     state.table.offset = 0;
+  }
+  try {
+    localStorage.setItem(VIEW_MODE_KEY, nextView);
+  } catch (err) {
+    // Ignore storage errors (private mode, etc).
   }
   viewToggle.querySelectorAll('button[data-view]').forEach((el) => {
     el.classList.toggle('active', el.dataset.view === nextView);

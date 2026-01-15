@@ -354,9 +354,12 @@ function domainConfidence(companyName, senderDomain) {
   return { score: 0.4, isAtsDomain: false };
 }
 
-function extractThreadIdentity({ subject, sender }) {
-  const roleMatch = extractCompanyRole(subject);
-  const subjectCompany = extractCompanyFromSubject(subject);
+function extractThreadIdentity({ subject, sender, snippet }) {
+  const subjectText = normalize(subject);
+  const snippetText = normalize(snippet);
+  const roleMatch = extractCompanyRole(subjectText);
+  const subjectCompany =
+    extractCompanyFromSubject(subjectText) || extractCompanyFromSubject(snippetText);
   const senderCompany = extractCompanyFromSender(sender);
   const senderDomain = extractSenderDomain(sender);
   const domainCompany = companyFromDomain(senderDomain)

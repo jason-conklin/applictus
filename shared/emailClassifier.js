@@ -29,6 +29,12 @@ const RULES = [
       /not selected/i,
       /regret to inform/i,
       /we (?:have )?decided to move forward with other candidates/i,
+      /decided to pursue other candidates/i,
+      /will not be moving forward/i,
+      /we will not be moving forward/i,
+      /unfortunately.+(?:application|candidacy|role|position)/i,
+      /thank you for your interest in the (?:position|role|opportunity)/i,
+      /we appreciate your interest in the (?:position|role|opportunity)/i,
       /position has been filled/i,
       /application (?:was|has been) rejected/i
     ]

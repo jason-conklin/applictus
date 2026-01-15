@@ -154,7 +154,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         continue;
       }
 
-      const identity = extractThreadIdentity({ subject, sender });
+      const identity = extractThreadIdentity({ subject, sender, snippet });
       const eventId = crypto.randomUUID();
       const createdAt = new Date().toISOString();
       const classificationConfidence = Number.isFinite(classification.confidenceScore)

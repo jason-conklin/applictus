@@ -791,7 +791,11 @@ app.post('/api/email/events/:id/create-application', requireAuth, (req, res) => 
     return res.status(400).json({ error: 'EVENT_ALREADY_ASSIGNED' });
   }
 
-  const identity = extractThreadIdentity({ subject: event.subject, sender: event.sender });
+  const identity = extractThreadIdentity({
+    subject: event.subject,
+    sender: event.sender,
+    snippet: event.snippet
+  });
   const source = sourceInput || identity.senderDomain || null;
   const eventTimestamp = getEventTimestamp(event);
   const initialStatus = inferInitialStatus(event, eventTimestamp);

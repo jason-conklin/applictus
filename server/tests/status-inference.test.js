@@ -39,6 +39,16 @@ test('inferStatus suggests when confidence is mid-range', () => {
   assert.ok(result.confidence >= 0.7);
 });
 
+test('inferStatus prefers classification confidence when provided', () => {
+  const result = inferStatus(
+    baseApplication(),
+    [event({ confidence_score: 0.3, classification_confidence: 0.92 })]
+  );
+  assert.equal(result.inferred_status, ApplicationStatus.APPLIED);
+  assert.equal(result.suggested_only, false);
+  assert.ok(result.confidence >= 0.9);
+});
+
 test('inferStatus detects interview completed via pattern', () => {
   const result = inferStatus(baseApplication(), [
     event({

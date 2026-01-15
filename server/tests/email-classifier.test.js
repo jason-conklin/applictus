@@ -66,6 +66,15 @@ test('classifyEmail detects rejection', () => {
   assert.equal(result.detectedType, 'rejection');
 });
 
+test('classifyEmail detects rejection via moving forward language', () => {
+  const result = classifyEmail({
+    subject: 'Application update',
+    snippet: 'We will not be moving forward with your application.'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'rejection');
+});
+
 test('classifyEmail detects offer', () => {
   const result = classifyEmail({
     subject: 'Offer letter',

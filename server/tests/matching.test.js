@@ -143,7 +143,17 @@ test('matchAndAssignEvent returns reason detail for ambiguous sender', () => {
   };
   const db = {
     prepare() {
-      throw new Error('DB should not be called for unassigned reason tests.');
+      return {
+        all() {
+          return [];
+        },
+        get() {
+          return null;
+        },
+        run() {
+          return null;
+        }
+      };
     }
   };
   const result = matchAndAssignEvent({ db, userId: 'user-1', event, identity });

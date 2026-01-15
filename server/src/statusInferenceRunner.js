@@ -21,12 +21,21 @@ function logUserAction(db, { userId, applicationId, actionType, payload }) {
   );
 }
 
-function shouldBlockAuto(application, nextStatus) {
+function shouldBlockAuto(application, nextStatus, confidence) {
   const current = application.current_status || ApplicationStatus.UNKNOWN;
   if (application.user_override && nextStatus !== current) {
     return 'user_override';
   }
   if (TERMINAL_STATUSES.has(current) && nextStatus !== current) {
+    if (
+      current === ApplicationStatus.OFFER_RECEIVED &&
+      nextStatus === ApplicationStatus.REJECTED
+    ) {
+      const currentConfidence = application.status_confidence || 0;
+      if ((confidence || 0) >= currentConfidence) {
+        return null;
+      }
+    }
     return 'terminal';
   }
   const currentOrder = STATUS_PRIORITY[current] || 0;
@@ -119,7 +128,7 @@ function runStatusInferenceForApplication(db, userId, applicationId) {
       suggested = true;
     }
   } else if (result.confidence >= 0.9 && result.inferred_status !== ApplicationStatus.UNKNOWN) {
-    blocked = shouldBlockAuto(application, result.inferred_status);
+    blocked = shouldBlockAuto(application, result.inferred_status, result.confidence);
     if (!blocked) {
       updates.current_status = result.inferred_status;
       updates.status = result.inferred_status;

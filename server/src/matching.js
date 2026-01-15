@@ -87,24 +87,31 @@ function findMatchingApplication(db, userId, identity) {
       .prepare(
         `SELECT * FROM job_applications
          WHERE user_id = ?
-           AND company_name = ?
-           AND job_title = ?
+           AND (company_name = ? OR company = ?)
+           AND (job_title = ? OR role = ?)
            AND source = ?
            AND archived = 0
          LIMIT 1`
       )
-      .get(userId, identity.companyName, identity.jobTitle, identity.senderDomain);
+      .get(
+        userId,
+        identity.companyName,
+        identity.companyName,
+        identity.jobTitle,
+        identity.jobTitle,
+        identity.senderDomain
+      );
   }
   if (identity.senderDomain) {
     const matches = db
       .prepare(
         `SELECT * FROM job_applications
          WHERE user_id = ?
-           AND company_name = ?
+           AND (company_name = ? OR company = ?)
            AND source = ?
            AND archived = 0`
       )
-      .all(userId, identity.companyName, identity.senderDomain);
+      .all(userId, identity.companyName, identity.companyName, identity.senderDomain);
     if (matches.length === 1) {
       return matches[0];
     }
@@ -115,11 +122,17 @@ function findMatchingApplication(db, userId, identity) {
       .prepare(
         `SELECT * FROM job_applications
          WHERE user_id = ?
-           AND company_name = ?
-           AND job_title = ?
+           AND (company_name = ? OR company = ?)
+           AND (job_title = ? OR role = ?)
            AND archived = 0`
       )
-      .all(userId, identity.companyName, identity.jobTitle);
+      .all(
+        userId,
+        identity.companyName,
+        identity.companyName,
+        identity.jobTitle,
+        identity.jobTitle
+      );
     if (matches.length === 1) {
       return matches[0];
     }
@@ -129,10 +142,49 @@ function findMatchingApplication(db, userId, identity) {
     .prepare(
       `SELECT * FROM job_applications
        WHERE user_id = ?
-         AND company_name = ?
+         AND (company_name = ? OR company = ?)
          AND archived = 0`
     )
-    .all(userId, identity.companyName);
+    .all(userId, identity.companyName, identity.companyName);
+  if (matches.length === 1) {
+    return matches[0];
+  }
+  return null;
+}
+
+function findLooseMatchingApplication(db, userId, identity) {
+  if (!identity.companyName) {
+    return null;
+  }
+  if (identity.jobTitle) {
+    const matches = db
+      .prepare(
+        `SELECT * FROM job_applications
+         WHERE user_id = ?
+           AND (company_name = ? OR company = ?)
+           AND (job_title = ? OR role = ?)
+           AND archived = 0`
+      )
+      .all(
+        userId,
+        identity.companyName,
+        identity.companyName,
+        identity.jobTitle,
+        identity.jobTitle
+      );
+    if (matches.length === 1) {
+      return matches[0];
+    }
+    return null;
+  }
+  const matches = db
+    .prepare(
+      `SELECT * FROM job_applications
+       WHERE user_id = ?
+         AND (company_name = ? OR company = ?)
+         AND archived = 0`
+    )
+    .all(userId, identity.companyName, identity.companyName);
   if (matches.length === 1) {
     return matches[0];
   }
@@ -261,20 +313,38 @@ function buildUnassignedReason(event, identity) {
 
 function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) {
   const identity =
-    providedIdentity || extractThreadIdentity({ subject: event.subject, sender: event.sender });
+    providedIdentity ||
+    extractThreadIdentity({ subject: event.subject, sender: event.sender, snippet: event.snippet });
   if (!identity.companyName) {
     const unassigned = buildUnassignedReason(event, identity);
     return { action: 'unassigned', reason: unassigned.reason, reasonDetail: unassigned.detail, identity };
   }
 
   const matchConfidence = identity.matchConfidence || 0;
+  let existing = null;
   if (matchConfidence >= MIN_MATCH_CONFIDENCE) {
-    const existing = findMatchingApplication(db, userId, identity);
-    if (existing) {
-      attachEventToApplication(db, event.id, existing.id);
-      updateApplicationActivity(db, existing, event);
-      return { action: 'matched_existing', applicationId: existing.id, identity };
+    existing = findMatchingApplication(db, userId, identity);
+    if (
+      !existing &&
+      AUTO_CREATE_TYPES.has(event.detected_type) &&
+      identity.companyName &&
+      (identity.companyConfidence || 0) >= MIN_COMPANY_CONFIDENCE &&
+      getClassificationConfidence(event) >= MIN_CLASSIFICATION_CONFIDENCE
+    ) {
+      existing = findLooseMatchingApplication(db, userId, identity);
     }
+  } else if (
+    AUTO_CREATE_TYPES.has(event.detected_type) &&
+    identity.companyName &&
+    (identity.companyConfidence || 0) >= MIN_COMPANY_CONFIDENCE &&
+    getClassificationConfidence(event) >= MIN_CLASSIFICATION_CONFIDENCE
+  ) {
+    existing = findLooseMatchingApplication(db, userId, identity);
+  }
+  if (existing) {
+    attachEventToApplication(db, event.id, existing.id);
+    updateApplicationActivity(db, existing, event);
+    return { action: 'matched_existing', applicationId: existing.id, identity };
   }
 
   if (!shouldAutoCreate(event, identity)) {
