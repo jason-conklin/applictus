@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { extractThreadIdentity, shouldAutoCreate, matchAndAssignEvent } = require('../src/matching');
+const { extractJobTitle } = require('../../shared/matching');
 
 test('extractThreadIdentity requires company, role, and matching domain', () => {
   const identity = extractThreadIdentity({
@@ -199,4 +200,58 @@ test('matchAndAssignEvent returns reason detail for ambiguous sender', () => {
   assert.equal(result.action, 'unassigned');
   assert.equal(result.reason, 'ambiguous_sender');
   assert.ok(result.reasonDetail);
+});
+
+test('matchAndAssignEvent auto-creates for Workday confirmation with body company', () => {
+  const subject = 'Thank you for applying!';
+  const sender = 'Workday <pru@myworkday.com>';
+  const bodyText =
+    'Thank you for applying.\n\nBest Regards,\nRecruiting Team\nPrudential and its affiliates';
+  const identity = extractThreadIdentity({ subject, sender, bodyText });
+  assert.equal(identity.companyName, 'Prudential');
+
+  const roleResult = extractJobTitle({
+    subject,
+    snippet: '',
+    bodyText: 'We received your application for the Associate Software Engineer position.',
+    sender,
+    companyName: identity.companyName
+  });
+  assert.equal(roleResult.jobTitle, 'Associate Software Engineer');
+
+  const db = {
+    lastId: null,
+    prepare(sql) {
+      return {
+        all() {
+          return [];
+        },
+        get(id) {
+          if (sql.startsWith('SELECT * FROM job_applications')) {
+            return id === db.lastId ? { id } : null;
+          }
+          return null;
+        },
+        run(...args) {
+          if (sql.startsWith('INSERT INTO job_applications')) {
+            db.lastId = args[0];
+          }
+          return null;
+        }
+      };
+    }
+  };
+
+  const event = {
+    id: 'evt-1',
+    detected_type: 'confirmation',
+    classification_confidence: 0.92,
+    created_at: new Date().toISOString(),
+    role_title: roleResult.jobTitle,
+    role_confidence: roleResult.confidence,
+    role_source: roleResult.source,
+    role_explanation: roleResult.explanation
+  };
+  const result = matchAndAssignEvent({ db, userId: 'user-1', event, identity });
+  assert.equal(result.action, 'created_application');
 });

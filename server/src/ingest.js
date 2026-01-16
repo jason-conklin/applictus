@@ -5,9 +5,7 @@ const { classifyEmail } = require('../../shared/emailClassifier');
 const { matchAndAssignEvent } = require('./matching');
 const {
   extractThreadIdentity,
-  extractJobTitle,
-  isProviderName,
-  isInvalidCompanyCandidate
+  extractJobTitle
 } = require('../../shared/matching');
 const { runStatusInferenceForApplication } = require('./statusInferenceRunner');
 const { logInfo, logDebug } = require('./logger');
@@ -106,14 +104,6 @@ function parseHeader(headers, name) {
   return header?.value || '';
 }
 
-function extractSenderName(sender) {
-  const text = String(sender || '').replace(/<[^>]+>/g, '').replace(/"/g, '').trim();
-  if (!text || text.includes('@')) {
-    return null;
-  }
-  return text;
-}
-
 function recordSkipSample({ db, userId, provider, messageId, sender, subject, reasonCode }) {
   try {
     db.prepare(
@@ -189,8 +179,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       const details = await gmail.users.messages.get({
         userId: 'me',
         id: message.id,
-        format: 'metadata',
-        metadataHeaders: ['From', 'Subject', 'Date']
+        format: 'full'
       });
 
       const headers = details.data.payload?.headers || [];
@@ -198,6 +187,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       const subject = parseHeader(headers, 'Subject');
       const snippet = details.data.snippet || '';
       const internalDate = details.data.internalDate ? Number(details.data.internalDate) : null;
+      const bodyText = truncateBodyText(extractPlainTextFromPayload(details.data.payload));
 
       const classification = classifyEmail({ subject, snippet, sender });
       if (!classification.isJobRelated) {
@@ -234,69 +224,14 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       }
       jobRelatedCandidates += 1;
 
-      let identity = extractThreadIdentity({ subject, sender, snippet });
-      let roleResult = extractJobTitle({
+      const identity = extractThreadIdentity({ subject, sender, snippet, bodyText });
+      const roleResult = extractJobTitle({
         subject,
         snippet,
-        bodyText: null,
+        bodyText,
         sender,
         companyName: identity.companyName
       });
-      let bodyText = '';
-      const senderName = extractSenderName(sender);
-      const providerSender = senderName ? isProviderName(senderName) : false;
-      const needsBodyIdentity =
-        !identity.companyName ||
-        isInvalidCompanyCandidate(identity.companyName) ||
-        providerSender ||
-        identity.isAtsDomain;
-      let bodyFetched = false;
-      if (!roleResult.jobTitle) {
-        try {
-          const fullMessage = await gmail.users.messages.get({
-            userId: 'me',
-            id: message.id,
-            format: 'full'
-          });
-          bodyText = truncateBodyText(extractPlainTextFromPayload(fullMessage.data.payload));
-          bodyFetched = true;
-          if (bodyText) {
-            roleResult = extractJobTitle({
-              subject,
-              snippet,
-              bodyText,
-              sender,
-              companyName: identity.companyName
-            });
-          }
-        } catch (err) {
-          logDebug('ingest.body_fetch_failed', { userId, messageId: message.id });
-        }
-      }
-      if (!bodyText && needsBodyIdentity && !bodyFetched) {
-        try {
-          const fullMessage = await gmail.users.messages.get({
-            userId: 'me',
-            id: message.id,
-            format: 'full'
-          });
-          bodyText = truncateBodyText(extractPlainTextFromPayload(fullMessage.data.payload));
-          bodyFetched = true;
-        } catch (err) {
-          logDebug('ingest.body_fetch_failed', { userId, messageId: message.id });
-        }
-      }
-      if (bodyText && needsBodyIdentity) {
-        const bodyIdentity = extractThreadIdentity({
-          subject,
-          sender,
-          snippet,
-          bodyText
-        });
-        if (bodyIdentity.companyName) {
-          identity = bodyIdentity;
-        }
-      }
       const rolePayload = roleResult && roleResult.jobTitle ? roleResult : null;
       const eventId = crypto.randomUUID();
       const createdAt = new Date().toISOString();
