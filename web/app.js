@@ -65,6 +65,10 @@ const emailSync = document.getElementById('email-sync');
 const syncDays = document.getElementById('sync-days');
 const syncStatus = document.getElementById('sync-status');
 const syncResult = document.getElementById('sync-result');
+const kpiTotal = document.getElementById('kpi-total');
+const kpiApplied = document.getElementById('kpi-applied');
+const kpiUnderReview = document.getElementById('kpi-under-review');
+const kpiRejected = document.getElementById('kpi-rejected');
 const accountEmailSync = document.getElementById('account-email-sync');
 const accountSyncDays = document.getElementById('account-sync-days');
 const accountSyncStatus = document.getElementById('account-sync-status');
@@ -288,10 +292,10 @@ function getDashboardEmptyStateHtml() {
   return `
     <div class="empty-state">
       <h3>No applications yet</h3>
-      <p class="muted">Manage Gmail to import applications automatically, or add one manually.</p>
+      <p class="muted">Sync Gmail to import applications automatically, or add one manually.</p>
       <div class="empty-state-actions">
-        <button type="button" data-action="manage-gmail">Manage Gmail connection</button>
-        <button class="ghost" type="button" data-action="add-application">Add application</button>
+        <button type="button" data-action="add-application">Add application</button>
+        <button class="ghost" type="button" data-action="manage-gmail">Sync Gmail</button>
       </div>
     </div>
   `;
@@ -687,6 +691,51 @@ function updateDashboardMeta(total) {
   }
 }
 
+function updateKpiCounts({ total = 0, applied = 0, underReview = 0, rejected = 0 } = {}) {
+  if (kpiTotal) {
+    kpiTotal.textContent = String(total);
+  }
+  if (kpiApplied) {
+    kpiApplied.textContent = String(applied);
+  }
+  if (kpiUnderReview) {
+    kpiUnderReview.textContent = String(underReview);
+  }
+  if (kpiRejected) {
+    kpiRejected.textContent = String(rejected);
+  }
+}
+
+function getKpiCountsFromColumns(columns) {
+  const counts = { total: 0, applied: 0, underReview: 0, rejected: 0 };
+  (columns || []).forEach((column) => {
+    const count = column.count || 0;
+    counts.total += count;
+    if (column.status === 'APPLIED') {
+      counts.applied += count;
+    } else if (column.status === 'UNDER_REVIEW') {
+      counts.underReview += count;
+    } else if (column.status === 'REJECTED') {
+      counts.rejected += count;
+    }
+  });
+  return counts;
+}
+
+async function refreshKpisFromPipeline() {
+  if (!kpiTotal) {
+    return;
+  }
+  try {
+    const params = buildListParams();
+    params.set('per_status_limit', '1');
+    const data = await api(`/api/applications/pipeline?${params.toString()}`);
+    updateKpiCounts(getKpiCountsFromColumns(data.columns || []));
+  } catch (err) {
+    // Keep existing counts on fetch failure.
+  }
+}
+
 function refreshDashboardEmptyStateIfNeeded() {
   if (!sessionUser || state.lastTotal !== 0) {
     return;
@@ -795,6 +844,7 @@ async function refreshPipeline() {
   const columns = data.columns || [];
   const total = columns.reduce((sum, col) => sum + (col.count || 0), 0);
   updateDashboardMeta(total);
+  updateKpiCounts(getKpiCountsFromColumns(columns));
   state.lastTotal = total;
   renderPipeline(columns, total);
 }
@@ -820,6 +870,7 @@ async function refreshTable() {
   state.lastTotal = state.table.total;
   renderApplicationsTable(data.applications || []);
   updateTablePagination();
+  await refreshKpisFromPipeline();
 }
 
 async function refreshArchivedApplications() {

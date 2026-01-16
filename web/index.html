@@ -172,23 +172,40 @@
           <h2>Dashboard</h2>
           <p class="muted">Track pipeline activity and suggested next steps.</p>
         </div>
-        <section class="card gmail-sync">
-          <div class="card-header">
-            <div>
-              <h3>Gmail sync</h3>
-              <div class="muted">Sync job-related emails on demand.</div>
+        <section class="sync-banner">
+          <div class="sync-banner-row">
+            <div class="sync-banner-info">
+              <div class="sync-banner-title">Gmail sync</div>
+              <div class="muted" id="sync-status">Ready</div>
             </div>
-            <button class="ghost" type="button" data-action="manage-gmail">Manage Gmail connection</button>
-          </div>
-          <div class="sync-panel">
-            <label>
-              Sync range (days)
+            <label class="sync-banner-input">
+              <span>Sync range (days)</span>
               <input type="number" id="sync-days" min="1" max="365" value="30" />
             </label>
-            <button type="button" id="email-sync">Sync now</button>
-            <div class="muted" id="sync-status">Ready</div>
+            <div class="sync-banner-actions">
+              <button class="btn-primary" type="button" id="email-sync">Sync now</button>
+              <button class="ghost" type="button" data-action="manage-gmail">Manage Gmail</button>
+            </div>
           </div>
           <div class="muted small" id="sync-result"></div>
+        </section>
+        <section class="kpi-row" aria-label="Application stats">
+          <div class="kpi-card">
+            <div class="kpi-label">Total tracked</div>
+            <div class="kpi-value" id="kpi-total">0</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Applied</div>
+            <div class="kpi-value" id="kpi-applied">0</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Under review</div>
+            <div class="kpi-value" id="kpi-under-review">0</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Rejected</div>
+            <div class="kpi-value" id="kpi-rejected">0</div>
+          </div>
         </section>
         <section class="card">
           <div class="card-header">
