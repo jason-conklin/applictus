@@ -722,7 +722,6 @@ app.get('/api/email/callback', requireAuth, async (req, res) => {
 app.post('/api/email/sync', requireAuth, async (req, res) => {
   const days = Number(req.body.days) || 30;
   const maxResults = Number(req.body.maxResults) || 100;
-  const mode = req.body.mode ? String(req.body.mode) : null;
   if (!isEncryptionReady()) {
     return res.status(400).json({ error: 'TOKEN_ENC_KEY_REQUIRED' });
   }
@@ -731,8 +730,7 @@ app.post('/api/email/sync', requireAuth, async (req, res) => {
       db,
       userId: req.user.id,
       days,
-      maxResults,
-      mode
+      maxResults
     });
     return res.json(result);
   } catch (err) {

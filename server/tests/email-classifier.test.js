@@ -119,21 +119,13 @@ test('classifyEmail allows strong rejection even with unsubscribe', () => {
   assert.equal(result.detectedType, 'rejection');
 });
 
-test('classifyEmail balanced mode captures job id signals', () => {
-  const strictResult = classifyEmail({
+test('classifyEmail captures job id signals', () => {
+  const result = classifyEmail({
     subject: 'Job ID 12345',
-    snippet: '',
-    mode: 'strict'
+    snippet: ''
   });
-  assert.equal(strictResult.isJobRelated, false);
-
-  const balancedResult = classifyEmail({
-    subject: 'Job ID 12345',
-    snippet: '',
-    mode: 'balanced'
-  });
-  assert.equal(balancedResult.isJobRelated, true);
-  assert.equal(balancedResult.detectedType, 'other_job_related');
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'other_job_related');
 });
 
 test('classifyEmail stays conservative with neutral content', () => {

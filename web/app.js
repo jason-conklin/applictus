@@ -65,12 +65,10 @@ const emailSync = document.getElementById('email-sync');
 const syncDays = document.getElementById('sync-days');
 const syncStatus = document.getElementById('sync-status');
 const syncResult = document.getElementById('sync-result');
-const syncModeToggle = document.getElementById('sync-mode-toggle');
 const accountEmailSync = document.getElementById('account-email-sync');
 const accountSyncDays = document.getElementById('account-sync-days');
 const accountSyncStatus = document.getElementById('account-sync-status');
 const accountSyncResult = document.getElementById('account-sync-result');
-const accountSyncModeToggle = document.getElementById('account-sync-mode-toggle');
 const gmailHint = document.getElementById('gmail-hint');
 const gmailHintText = document.getElementById('gmail-hint-text');
 const emailEventsPanel = document.getElementById('email-events-panel');
@@ -103,8 +101,6 @@ const STATUS_OPTIONS = Object.keys(STATUS_LABELS);
 const PAGE_SIZE = 25;
 const PIPELINE_LIMIT = 15;
 const VIEW_MODE_KEY = 'applictus:viewMode';
-const CLASSIFIER_MODE_KEY = 'applictus:classifierMode';
-
 function formatRoleSource(application) {
   const source = application?.role_source;
   if (!source) {
@@ -137,21 +133,8 @@ function getInitialViewMode() {
   return 'table';
 }
 
-function getInitialClassifierMode() {
-  try {
-    const stored = localStorage.getItem(CLASSIFIER_MODE_KEY);
-    if (stored === 'balanced' || stored === 'strict') {
-      return stored;
-    }
-  } catch (err) {
-    return 'strict';
-  }
-  return 'strict';
-}
-
 const state = {
   viewMode: getInitialViewMode(),
-  classifierMode: getInitialClassifierMode(),
   filters: {
     status: '',
     company: '',
@@ -632,27 +615,6 @@ function syncViewToggle() {
   });
 }
 
-function updateClassifierToggles() {
-  const isBalanced = state.classifierMode === 'balanced';
-  if (syncModeToggle) {
-    syncModeToggle.checked = isBalanced;
-  }
-  if (accountSyncModeToggle) {
-    accountSyncModeToggle.checked = isBalanced;
-  }
-}
-
-function setClassifierMode(mode) {
-  const next = mode === 'balanced' ? 'balanced' : 'strict';
-  state.classifierMode = next;
-  updateClassifierToggles();
-  try {
-    localStorage.setItem(CLASSIFIER_MODE_KEY, next);
-  } catch (err) {
-    // Ignore storage errors.
-  }
-}
-
 function toggleSection(section, isVisible) {
   if (!section) {
     return;
@@ -1059,7 +1021,7 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
   try {
     const result = await api('/api/email/sync', {
       method: 'POST',
-      body: JSON.stringify({ days, mode: state.classifierMode })
+      body: JSON.stringify({ days })
     });
     if (result.status === 'not_connected') {
       if (statusEl) {
@@ -1660,8 +1622,6 @@ function renderApplicationsTable(applications) {
       <div>Role</div>
       <div>Status</div>
       <div>Last activity</div>
-      <div>Confidence</div>
-      <div>Source</div>
     </div>
   `;
 
@@ -1669,10 +1629,7 @@ function renderApplicationsTable(applications) {
     .map((app, index) => {
       const statusValue = app.current_status || 'UNKNOWN';
       const statusLabel = STATUS_LABELS[statusValue] || statusValue;
-      const confidenceValue = getConfidence(app);
-      const confidence = confidenceValue !== null ? `${Math.round(confidenceValue * 100)}%` : '—';
       const activity = formatDate(getActivityDate(app));
-      const sourceLabel = statusSourceLabel(getStatusSource(app));
       const suggestionLabel = app.suggested_status
         ? STATUS_LABELS[app.suggested_status] || app.suggested_status
         : null;
@@ -1685,8 +1642,6 @@ function renderApplicationsTable(applications) {
             ${suggestionLabel ? `<div class="explanation">Suggestion: ${suggestionLabel}</div>` : ''}
           </div>
           <div>${activity}</div>
-          <div><span class="badge">${confidence}</span></div>
-          <div>${sourceLabel}</div>
         </div>
       `;
     })
@@ -2335,10 +2290,6 @@ emailSync?.addEventListener('click', async () => {
   });
 });
 
-syncModeToggle?.addEventListener('change', () => {
-  setClassifierMode(syncModeToggle.checked ? 'balanced' : 'strict');
-});
-
 accountEmailSync?.addEventListener('click', async () => {
   const days = Number(accountSyncDays?.value) || 30;
   await runEmailSync({
@@ -2347,10 +2298,6 @@ accountEmailSync?.addEventListener('click', async () => {
     resultEl: accountSyncResult,
     buttonEl: accountEmailSync
   });
-});
-
-accountSyncModeToggle?.addEventListener('change', () => {
-  setClassifierMode(accountSyncModeToggle.checked ? 'balanced' : 'strict');
 });
 
 unsortedTable?.addEventListener('click', async (event) => {
@@ -2441,7 +2388,6 @@ window.addEventListener('hashchange', route);
 (async () => {
   setAuthPanel('signin');
   setupLogoFallback();
-  updateClassifierToggles();
   await loadCsrfToken();
   await loadSession();
   route();

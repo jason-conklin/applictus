@@ -129,9 +129,19 @@ const SENDER_COMPANY_PATTERNS = [
 
 const ROLE_PATTERNS = [
   {
+    name: 'thank_you_applying_for_role',
+    regex: /thank you for applying(?:\s+to\s+[^,.\n]+)?\s+for\s+([^,.\n]+)/i,
+    confidence: 0.92
+  },
+  {
     name: 'position_of',
     regex: /position of\s+([^,.\n]+)/i,
     confidence: 0.92
+  },
+  {
+    name: 'interest_in_position_of',
+    regex: /interest in the position of\s+([^,.\n]+)/i,
+    confidence: 0.9
   },
   {
     name: 'role_of',
@@ -142,6 +152,16 @@ const ROLE_PATTERNS = [
     name: 'for_role_position',
     regex: /for the\s+([^,.\n]+?)\s+position/i,
     confidence: 0.9
+  },
+  {
+    name: 'applied_for_role',
+    regex: /applied for the\s+([^,.\n]+?)\s+role/i,
+    confidence: 0.9
+  },
+  {
+    name: 'moving_forward_with_role',
+    regex: /with (?:the )?([^,.\n]+?)\s+role/i,
+    confidence: 0.86
   },
   {
     name: 'applied_for_position_of',
@@ -159,6 +179,11 @@ const ROLE_PATTERNS = [
     confidence: 0.88
   },
   {
+    name: 'application_received_dash_role',
+    regex: /([^,.\n]+)\s+[-–—]\s+application received/i,
+    confidence: 0.9
+  },
+  {
     name: 're_role_application',
     regex: /re:\s*([^,.\n]+?)\s+application/i,
     confidence: 0.92
@@ -169,13 +194,33 @@ const ROLE_PATTERNS = [
     confidence: 0.88
   },
   {
+    name: 'interview_role',
+    regex: /interview[:\-]\s*([^,.\n]+)/i,
+    confidence: 0.9
+  },
+  {
     name: 'next_steps_role',
     regex: /next steps[:\-]\s*([^,.\n]+)/i,
     confidence: 0.86
   },
   {
+    name: 'position_label',
+    regex: /position[:\-]\s*([^,.\n]+)/i,
+    confidence: 0.88
+  },
+  {
+    name: 'role_label',
+    regex: /role[:\-]\s*([^,.\n]+)/i,
+    confidence: 0.86
+  },
+  {
     name: 'position_title_role',
     regex: /position title[:\-]\s*([^,.\n]+)/i,
+    confidence: 0.88
+  },
+  {
+    name: 'for_role_requisition',
+    regex: /for\s+([^,.\n]+?)\s*\((?:job|requisition|req)\b/i,
     confidence: 0.88
   }
 ];
@@ -307,15 +352,38 @@ function scoreForSource(base, source) {
   if (source === 'body') {
     return Math.max(0, base - 0.06);
   }
+  if (source === 'sender') {
+    return Math.max(0, base - 0.08);
+  }
   return base;
 }
 
-function extractJobTitle({ subject, snippet, bodyText, companyName }) {
+function extractRoleFromSenderName(senderName, companyName) {
+  const text = normalize(senderName);
+  if (!text) {
+    return null;
+  }
+  const match = text.match(
+    /^(.+?)\s+(?:hiring team|recruiting|recruiting team|talent acquisition|talent team|careers)$/i
+  );
+  if (!match) {
+    return null;
+  }
+  const candidate = normalizeRoleCandidate(match[1], companyName);
+  if (!candidate || isGenericRole(candidate)) {
+    return null;
+  }
+  return candidate;
+}
+
+function extractJobTitle({ subject, snippet, bodyText, senderName, sender, companyName }) {
   const sources = [
     { label: 'subject', text: normalize(subject) },
     { label: 'snippet', text: normalize(snippet) },
     { label: 'body', text: normalize(bodyText) }
   ];
+
+  const candidates = [];
 
   for (const source of sources) {
     if (!source.text) {
@@ -343,13 +411,35 @@ function extractJobTitle({ subject, snippet, bodyText, companyName }) {
           continue;
         }
       }
-      return {
+      candidates.push({
         jobTitle: candidate,
         confidence: scoreForSource(pattern.confidence, source.label),
         source: source.label,
         explanation: `Matched ${pattern.name} pattern in ${source.label}.`
-      };
+      });
     }
+  }
+
+  const resolvedSender = senderName || extractSenderName(sender);
+  const senderCandidate = extractRoleFromSenderName(resolvedSender, companyName);
+  if (senderCandidate) {
+    candidates.push({
+      jobTitle: senderCandidate,
+      confidence: scoreForSource(0.78, 'sender'),
+      source: 'sender',
+      explanation: 'Derived role from sender display name.'
+    });
+  }
+
+  if (candidates.length) {
+    candidates.sort((a, b) => {
+      if (b.confidence !== a.confidence) {
+        return b.confidence - a.confidence;
+      }
+      const order = { subject: 3, snippet: 2, body: 1, sender: 0 };
+      return (order[b.source] || 0) - (order[a.source] || 0);
+    });
+    return candidates[0];
   }
 
   return {

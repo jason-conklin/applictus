@@ -100,46 +100,20 @@ const RULES = [
       /application was viewed/i,
       /your candidacy/i,
       /candidate portal/i,
-      /assessment/i,
-      /next steps/i,
-      /position you applied/i
-    ]
-  }
-];
-
-const BALANCED_RULES = [
-  {
-    name: 'candidate_updates',
-    detectedType: 'other_job_related',
-    confidence: 0.6,
-    patterns: [
       /candidate/i,
       /candidacy/i,
       /requisition/i,
       /job id[: ]*\d+/i,
-      /position id[: ]*\d+/i
-    ]
-  },
-  {
-    name: 'assessments',
-    detectedType: 'other_job_related',
-    confidence: 0.6,
-    patterns: [
+      /position id[: ]*\d+/i,
       /assessment/i,
       /coding challenge/i,
       /take[- ]home/i,
       /hirevue/i,
-      /skill survey/i
-    ]
-  },
-  {
-    name: 'application_updates',
-    detectedType: 'other_job_related',
-    confidence: 0.6,
-    patterns: [
+      /skill survey/i,
+      /next steps/i,
+      /position you applied/i,
       /application update/i,
       /update on your application/i,
-      /next steps/i,
       /application progress/i
     ]
   }
@@ -147,11 +121,6 @@ const BALANCED_RULES = [
 
 function normalize(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
-}
-
-function normalizeMode(mode) {
-  const value = String(mode || '').toLowerCase();
-  return value === 'balanced' ? 'balanced' : 'strict';
 }
 
 function findRuleMatch(rules, text, minConfidence) {
@@ -167,15 +136,14 @@ function findRuleMatch(rules, text, minConfidence) {
   return null;
 }
 
-function classifyEmail({ subject, snippet, sender, mode }) {
+function classifyEmail({ subject, snippet, sender }) {
   const text = `${normalize(subject)} ${normalize(snippet)} ${normalize(sender)}`.trim();
   if (!text) {
     return { isJobRelated: false, explanation: 'Empty subject/snippet.' };
   }
 
-  const classifierMode = normalizeMode(mode);
-  const minConfidence = classifierMode === 'balanced' ? 0.6 : 0.7;
-  const rules = classifierMode === 'balanced' ? [...RULES, ...BALANCED_RULES] : RULES;
+  const minConfidence = 0.6;
+  const rules = RULES;
 
   const rejectionRules = rules.filter((rule) => rule.detectedType === 'rejection');
   const rejectionMatch = findRuleMatch(rejectionRules, text, 0.9);
@@ -225,6 +193,5 @@ function classifyEmail({ subject, snippet, sender, mode }) {
 module.exports = {
   classifyEmail,
   RULES,
-  BALANCED_RULES,
   DENYLIST
 };

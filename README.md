@@ -108,13 +108,7 @@ Use the Gmail screen in the UI to run "Sync now", or call:
 POST /api/email/sync
 ```
 with JSON `{ "days": 30 }` (defaults to 30 days, max 365).
-Optional classifier mode:
-```
-{ "mode": "balanced" }
-```
-`balanced` captures more job-related emails; `strict` is the default. You can also set
-`JOBTRACK_CLASSIFIER_MODE=strict|balanced` as a server default.
-
+Sync uses a high-recall classifier while keeping auto-create thresholds conservative.
 ### Unsorted events
 Job-related messages that cannot be confidently matched are kept in the "Unsorted Events" list.
 Use the UI to attach them to an existing application or create a new one.

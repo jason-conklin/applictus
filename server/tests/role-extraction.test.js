@@ -30,11 +30,84 @@ test('extractJobTitle pulls role from subject patterns', () => {
   assert.equal(result.source, 'subject');
 });
 
+test('extractJobTitle pulls role from snippet position pattern', () => {
+  const result = extractJobTitle({
+    subject: 'Thanks for applying!',
+    snippet: 'We received your application for the Data Analyst position.',
+    bodyText: '',
+    companyName: 'Acme'
+  });
+
+  assert.equal(result.jobTitle, 'Data Analyst');
+  assert.ok(result.confidence >= 0.8);
+});
+
+test('extractJobTitle handles interview subject role', () => {
+  const result = extractJobTitle({
+    subject: 'Interview: Product Manager',
+    snippet: '',
+    bodyText: '',
+    companyName: 'Acme'
+  });
+
+  assert.equal(result.jobTitle, 'Product Manager');
+  assert.ok(result.confidence >= 0.85);
+});
+
+test('extractJobTitle handles application received dash pattern', () => {
+  const result = extractJobTitle({
+    subject: 'UX Designer — application received',
+    snippet: '',
+    bodyText: '',
+    companyName: 'Acme'
+  });
+
+  assert.equal(result.jobTitle, 'UX Designer');
+  assert.ok(result.confidence >= 0.85);
+});
+
+test('extractJobTitle uses sender role hints when subject/snippet are generic', () => {
+  const result = extractJobTitle({
+    subject: 'Application update',
+    snippet: '',
+    bodyText: '',
+    senderName: 'Data Analyst Hiring Team',
+    companyName: 'Acme'
+  });
+
+  assert.equal(result.jobTitle, 'Data Analyst');
+  assert.ok(result.confidence >= 0.7);
+});
+
+test('extractJobTitle extracts role from rejection snippet', () => {
+  const result = extractJobTitle({
+    subject: 'Application update',
+    snippet: 'We will not be moving forward with the Senior QA Engineer role.',
+    bodyText: '',
+    companyName: 'Acme'
+  });
+
+  assert.equal(result.jobTitle, 'Senior QA Engineer');
+  assert.ok(result.confidence >= 0.8);
+});
+
 test('extractJobTitle rejects generic role strings', () => {
   const result = extractJobTitle({
     subject: 'Application received: Position',
     snippet: '',
     bodyText: '',
+    companyName: 'Acme'
+  });
+
+  assert.equal(result.jobTitle, null);
+});
+
+test('extractJobTitle ignores generic sender name', () => {
+  const result = extractJobTitle({
+    subject: 'Update',
+    snippet: '',
+    bodyText: '',
+    senderName: 'Careers Team',
     companyName: 'Acme'
   });
 

@@ -745,6 +745,11 @@ button.ghost:hover {
   align-items: center;
 }
 
+#applications-table .table-header,
+#applications-table .table-row {
+  grid-template-columns: 1.4fr 1.2fr 0.9fr 1fr;
+}
+
 #unsorted-table .table-header,
 #unsorted-table .table-row {
   grid-template-columns: 1.1fr 1.4fr 0.8fr 0.6fr 1fr 0.9fr;
@@ -1195,19 +1200,6 @@ details summary {
   margin-top: 16px;
 }
 
-.sync-mode {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  font-size: 12px;
-  color: var(--color-muted);
-}
-
-.sync-mode input {
-  accent-color: var(--color-accent);
-}
-
 .events-panel {
   margin-top: 24px;
 }
@@ -1302,7 +1294,13 @@ details summary {
   }
 
   #applications-table .table-header,
-  #applications-table .table-row,
+  #applications-table .table-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      'company role'
+      'status activity';
+  }
+
   #archived-table .table-header,
   #archived-table .table-row {
     grid-template-columns: 1fr 1fr;
@@ -1337,12 +1335,10 @@ details summary {
     grid-area: activity;
   }
 
-  #applications-table .table-row > div:nth-child(5),
   #archived-table .table-row > div:nth-child(5) {
     grid-area: confidence;
   }
 
-  #applications-table .table-row > div:nth-child(6),
   #archived-table .table-row > div:nth-child(6) {
     grid-area: source;
   }

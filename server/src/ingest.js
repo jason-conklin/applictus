@@ -122,12 +122,7 @@ function recordSkipSample({ db, userId, provider, messageId, sender, subject, re
   }
 }
 
-function normalizeClassifierMode(mode) {
-  const value = String(mode || '').toLowerCase();
-  return value === 'balanced' ? 'balanced' : 'strict';
-}
-
-async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, mode }) {
+async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
   const authClient = await getAuthorizedClient(db, userId);
   if (!authClient) {
     return { status: 'not_connected' };
@@ -149,10 +144,6 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, mode
 
   const queryDays = Math.max(1, Math.min(days, 365));
   const limit = Math.max(1, Math.min(maxResults, 500));
-  const classifierMode = normalizeClassifierMode(
-    mode || process.env.JOBTRACK_CLASSIFIER_MODE || 'strict'
-  );
-
   do {
     if (fetched >= limit) {
       break;
@@ -195,7 +186,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, mode
       const snippet = details.data.snippet || '';
       const internalDate = details.data.internalDate ? Number(details.data.internalDate) : null;
 
-      const classification = classifyEmail({ subject, snippet, sender, mode: classifierMode });
+      const classification = classifyEmail({ subject, snippet, sender });
       if (!classification.isJobRelated) {
         skippedNotJob += 1;
         let reasonCode = 'classified_not_job_related';
@@ -235,6 +226,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, mode
         subject,
         snippet,
         bodyText: null,
+        sender,
         companyName: identity.companyName
       });
       if (!roleResult.jobTitle) {
@@ -252,6 +244,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, mode
               subject,
               snippet,
               bodyText,
+              sender,
               companyName: identity.companyName
             });
           }
@@ -391,8 +384,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, mode
     createdApplications,
     unsortedCreated,
     reasons,
-    days: queryDays,
-    classifierMode
+    days: queryDays
   });
 
   return {
@@ -407,8 +399,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, mode
     createdApplications,
     unsortedCreated,
     reasons,
-    days: queryDays,
-    classifierMode
+    days: queryDays
   };
 }
 
