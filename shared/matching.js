@@ -83,6 +83,10 @@ const INVALID_COMPANY_TERMS = new Set([
   'hey',
   'thanks',
   'thank you',
+  'regards',
+  'best regards',
+  'kind regards',
+  'sincerely',
   'team',
   'recruiting',
   'recruiting team',
@@ -419,17 +423,77 @@ function cleanCompanyCandidate(value) {
     return null;
   }
   const cleaned = cleanEntity(value)
+    .replace(/\b(?:and|&)\s+its\s+affiliates\b/i, '')
     .replace(/\s+for\s+.*$/i, '')
     .replace(
       /\s+(?:careers|jobs|recruiting|hiring|hiring team|talent acquisition|talent team|hr|human resources|applications?)$/i,
       ''
     )
     .replace(/^(?:no[-\s]?reply|noreply|do not reply)\b[: ]*/i, '')
+    .replace(/[,:;|]+$/g, '')
     .trim();
   if (!cleaned || isProviderName(cleaned) || isInvalidCompanyCandidate(cleaned)) {
     return null;
   }
   return cleaned || null;
+}
+
+function isSignatureNoise(line) {
+  const text = normalize(line).toLowerCase();
+  if (!text) {
+    return true;
+  }
+  if (/^(hi|hello|dear|hey)\b/.test(text)) {
+    return true;
+  }
+  if (/^(thanks|thank you)\b/.test(text)) {
+    return true;
+  }
+  if (/^(best regards|kind regards|regards|sincerely|cheers)\b/.test(text)) {
+    return true;
+  }
+  if (text.includes('unsubscribe') || text.includes('view in browser')) {
+    return true;
+  }
+  if (INVALID_COMPANY_TERMS.has(text)) {
+    return true;
+  }
+  return false;
+}
+
+function extractCompanyFromBodyText(bodyText) {
+  const raw = String(bodyText || '');
+  if (!raw.trim()) {
+    return null;
+  }
+  const lines = raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const scan = lines.slice(-20);
+  for (let i = scan.length - 1; i >= 0; i -= 1) {
+    const line = scan[i];
+    if (isSignatureNoise(line)) {
+      continue;
+    }
+    let candidate = line.replace(/\b(?:and|&)\s+its\s+affiliates\b/i, '');
+    const teamMatch = candidate.match(
+      /^(.+?)\s+(?:recruiting|recruiting team|hiring team|talent acquisition|talent team|careers)$/i
+    );
+    if (teamMatch) {
+      candidate = teamMatch[1];
+    }
+    candidate = cleanCompanyCandidate(candidate);
+    if (!candidate) {
+      continue;
+    }
+    return {
+      companyName: candidate,
+      companyConfidence: 0.88,
+      explanation: 'Derived company from email signature.'
+    };
+  }
+  return null;
 }
 
 function normalizeRoleCandidate(value, companyName) {
@@ -743,14 +807,24 @@ function domainConfidence(companyName, senderDomain) {
   return { score: 0.4, isAtsDomain: false };
 }
 
-function extractThreadIdentity({ subject, sender, snippet }) {
+function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   const subjectText = normalize(subject);
   const snippetText = normalize(snippet);
+  const bodyTextNormalized = String(bodyText || '');
+  const senderName = extractSenderName(sender);
   const roleMatch = extractCompanyRole(subjectText);
   const subjectCompany =
-    extractCompanyFromSubject(subjectText) || extractCompanyFromSubject(snippetText);
+    extractCompanyFromSubject(subjectText) ||
+    extractCompanyFromSubject(snippetText) ||
+    (bodyTextNormalized ? extractCompanyFromSubject(bodyTextNormalized) : null);
   const senderCompany = extractCompanyFromSender(sender);
   const senderDomain = extractSenderDomain(sender);
+  const providerSender = senderName ? isProviderName(senderName) : false;
+  const atsSender = isAtsDomain(senderDomain);
+  const bodyCompany =
+    bodyTextNormalized && (atsSender || providerSender)
+      ? extractCompanyFromBodyText(bodyTextNormalized)
+      : null;
   const domainCompany = companyFromDomain(senderDomain)
     ? {
         companyName: companyFromDomain(senderDomain),
@@ -768,6 +842,7 @@ function extractThreadIdentity({ subject, sender, snippet }) {
       : null,
     subjectCompany,
     senderCompany,
+    bodyCompany,
     domainCompany
   ]);
 
@@ -816,5 +891,6 @@ module.exports = {
   extractJobTitle,
   buildMatchKey,
   isProviderName,
-  isInvalidCompanyCandidate
+  isInvalidCompanyCandidate,
+  extractCompanyFromBodyText
 };

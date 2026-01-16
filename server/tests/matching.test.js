@@ -74,6 +74,17 @@ test('extractThreadIdentity ignores provider sender name in favor of subject com
   assert.ok(identity.companyConfidence >= 0.88);
 });
 
+test('extractThreadIdentity derives company from Workday body signature', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Thank you for applying!',
+    sender: 'Workday <pru@myworkday.com>',
+    bodyText:
+      'Thank you for applying.\n\nBest Regards,\nRecruiting Team\nPrudential and its affiliates'
+  });
+  assert.equal(identity.companyName, 'Prudential');
+  assert.ok(identity.companyConfidence >= 0.85);
+});
+
 test('extractThreadIdentity extracts company from Talemetry sender', () => {
   const identity = extractThreadIdentity({
     subject: 'Application Status',
@@ -89,6 +100,15 @@ test('extractThreadIdentity rejects greeting as company name', () => {
     subject: 'Hi Shane',
     sender: 'Hi Shane <noreply@gmail.com>',
     snippet: 'Just checking in.'
+  });
+  assert.equal(identity.companyName, null);
+});
+
+test('extractThreadIdentity ignores signature labels without company', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Thank you for applying!',
+    sender: 'Workday <pru@myworkday.com>',
+    bodyText: 'Best Regards,\nRecruiting Team'
   });
   assert.equal(identity.companyName, null);
 });

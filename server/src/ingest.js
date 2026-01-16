@@ -3,7 +3,12 @@ const { google } = require('googleapis');
 const { getAuthorizedClient } = require('./email');
 const { classifyEmail } = require('../../shared/emailClassifier');
 const { matchAndAssignEvent } = require('./matching');
-const { extractThreadIdentity, extractJobTitle } = require('../../shared/matching');
+const {
+  extractThreadIdentity,
+  extractJobTitle,
+  isProviderName,
+  isInvalidCompanyCandidate
+} = require('../../shared/matching');
 const { runStatusInferenceForApplication } = require('./statusInferenceRunner');
 const { logInfo, logDebug } = require('./logger');
 
@@ -99,6 +104,14 @@ function parseHeader(headers, name) {
     (entry) => entry.name && entry.name.toLowerCase() === name.toLowerCase()
   );
   return header?.value || '';
+}
+
+function extractSenderName(sender) {
+  const text = String(sender || '').replace(/<[^>]+>/g, '').replace(/"/g, '').trim();
+  if (!text || text.includes('@')) {
+    return null;
+  }
+  return text;
 }
 
 function recordSkipSample({ db, userId, provider, messageId, sender, subject, reasonCode }) {
@@ -221,7 +234,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       }
       jobRelatedCandidates += 1;
 
-      const identity = extractThreadIdentity({ subject, sender, snippet });
+      let identity = extractThreadIdentity({ subject, sender, snippet });
       let roleResult = extractJobTitle({
         subject,
         snippet,
@@ -229,6 +242,15 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         sender,
         companyName: identity.companyName
       });
+      let bodyText = '';
+      const senderName = extractSenderName(sender);
+      const providerSender = senderName ? isProviderName(senderName) : false;
+      const needsBodyIdentity =
+        !identity.companyName ||
+        isInvalidCompanyCandidate(identity.companyName) ||
+        providerSender ||
+        identity.isAtsDomain;
+      let bodyFetched = false;
       if (!roleResult.jobTitle) {
         try {
           const fullMessage = await gmail.users.messages.get({
@@ -236,9 +258,8 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
             id: message.id,
             format: 'full'
           });
-          const bodyText = truncateBodyText(
-            extractPlainTextFromPayload(fullMessage.data.payload)
-          );
+          bodyText = truncateBodyText(extractPlainTextFromPayload(fullMessage.data.payload));
+          bodyFetched = true;
           if (bodyText) {
             roleResult = extractJobTitle({
               subject,
@@ -250,6 +271,30 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
           }
         } catch (err) {
           logDebug('ingest.body_fetch_failed', { userId, messageId: message.id });
+        }
+      }
+      if (!bodyText && needsBodyIdentity && !bodyFetched) {
+        try {
+          const fullMessage = await gmail.users.messages.get({
+            userId: 'me',
+            id: message.id,
+            format: 'full'
+          });
+          bodyText = truncateBodyText(extractPlainTextFromPayload(fullMessage.data.payload));
+          bodyFetched = true;
+        } catch (err) {
+          logDebug('ingest.body_fetch_failed', { userId, messageId: message.id });
+        }
+      }
+      if (bodyText && needsBodyIdentity) {
+        const bodyIdentity = extractThreadIdentity({
+          subject,
+          sender,
+          snippet,
+          bodyText
+        });
+        if (bodyIdentity.companyName) {
+          identity = bodyIdentity;
         }
       }
       const rolePayload = roleResult && roleResult.jobTitle ? roleResult : null;
