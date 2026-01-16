@@ -143,6 +143,46 @@ function recordSkipSample({ db, userId, provider, messageId, sender, subject, re
   }
 }
 
+function insertEmailEventRecord(db, payload) {
+  db.prepare(
+    `INSERT INTO email_events
+     (id, user_id, provider, message_id, provider_message_id, rfc_message_id, sender, subject, internal_date, snippet,
+      detected_type, confidence_score, classification_confidence, identity_confidence, identity_company_name,
+      identity_job_title, identity_company_confidence, identity_explanation, explanation, reason_code, reason_detail,
+      role_title, role_confidence, role_source, role_explanation, external_req_id, ingest_decision, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    payload.id,
+    payload.userId,
+    payload.provider,
+    payload.messageId,
+    payload.providerMessageId,
+    payload.rfcMessageId,
+    payload.sender,
+    payload.subject,
+    payload.internalDate,
+    payload.snippet,
+    payload.detectedType,
+    payload.confidenceScore,
+    payload.classificationConfidence,
+    payload.identityConfidence,
+    payload.identityCompanyName,
+    payload.identityJobTitle,
+    payload.identityCompanyConfidence,
+    payload.identityExplanation,
+    payload.explanation,
+    payload.reasonCode,
+    payload.reasonDetail,
+    payload.roleTitle,
+    payload.roleConfidence,
+    payload.roleSource,
+    payload.roleExplanation,
+    payload.externalReqId,
+    payload.ingestDecision,
+    payload.createdAt
+  );
+}
+
 async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
   const authClient = await getAuthorizedClient(db, userId);
   if (!authClient) {
@@ -284,43 +324,36 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         ? classification.confidenceScore
         : 0;
       const identityConfidence = identity.matchConfidence || 0;
-      db.prepare(
-        `INSERT INTO email_events
-         (id, user_id, provider, message_id, provider_message_id, rfc_message_id, sender, subject, internal_date, snippet,
-          detected_type, confidence_score, classification_confidence, identity_confidence, identity_company_name,
-          identity_job_title, identity_company_confidence, identity_explanation, explanation, reason_code, reason_detail,
-          role_title, role_confidence, role_source, role_explanation, external_req_id, ingest_decision, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(
-        eventId,
+      insertEmailEventRecord(db, {
+        id: eventId,
         userId,
-        'gmail',
-        message.id,
-        message.id,
-        rfcMessageId || null,
-        sender || null,
-        subject || null,
+        provider: 'gmail',
+        messageId: message.id,
+        providerMessageId: message.id,
+        rfcMessageId: rfcMessageId || null,
+        sender: sender || null,
+        subject: subject || null,
         internalDate,
-        truncateSnippet(snippet),
-        classification.detectedType,
-        classificationConfidence,
+        snippet: truncateSnippet(snippet),
+        detectedType: classification.detectedType,
+        confidenceScore: classificationConfidence,
         classificationConfidence,
         identityConfidence,
-        identity.companyName || null,
-        identity.jobTitle || null,
-        identity.companyConfidence || null,
-        identity.explanation || null,
-        classification.explanation,
-        null,
-        null,
-        rolePayload?.jobTitle || null,
-        Number.isFinite(rolePayload?.confidence) ? rolePayload.confidence : null,
-        rolePayload?.source || null,
-        rolePayload?.explanation || null,
+        identityCompanyName: identity.companyName || null,
+        identityJobTitle: identity.jobTitle || null,
+        identityCompanyConfidence: identity.companyConfidence || null,
+        identityExplanation: identity.explanation || null,
+        explanation: classification.explanation,
+        reasonCode: null,
+        reasonDetail: null,
+        roleTitle: rolePayload?.jobTitle || null,
+        roleConfidence: Number.isFinite(rolePayload?.confidence) ? rolePayload.confidence : null,
+        roleSource: rolePayload?.source || null,
+        roleExplanation: rolePayload?.explanation || null,
         externalReqId,
-        null,
+        ingestDecision: null,
         createdAt
-      );
+      });
 
       const matchResult = matchAndAssignEvent({
         db,
@@ -435,5 +468,6 @@ module.exports = {
   syncGmailMessages,
   REASON_KEYS,
   initReasonCounters,
-  extractMessageMetadata
+  extractMessageMetadata,
+  insertEmailEventRecord
 };
