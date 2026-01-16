@@ -19,6 +19,7 @@ const {
 } = require('./email');
 const { getGoogleOAuthClient, getGoogleAuthUrl, getGoogleProfileFromCode } = require('./googleAuth');
 const { syncGmailMessages } = require('./ingest');
+const { logError } = require('./logger');
 const {
   extractThreadIdentity,
   inferInitialStatus,
@@ -731,6 +732,7 @@ app.post('/api/email/sync', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'TOKEN_ENC_KEY_REQUIRED' });
   }
   try {
+    migrate(db);
     const result = await syncGmailMessages({
       db,
       userId: req.user.id,
@@ -739,7 +741,20 @@ app.post('/api/email/sync', requireAuth, async (req, res) => {
     });
     return res.json(result);
   } catch (err) {
-    return res.status(500).json({ error: 'SYNC_FAILED' });
+    const code = err && typeof err === 'object' ? err.code || err.name : null;
+    const message = err && typeof err === 'object' ? err.message : null;
+    const detail = message ? String(message).replace(/(access_token|refresh_token|authorization)=\S+/gi, '$1=[REDACTED]') : null;
+    logError('sync.failed', {
+      userId: req.user.id,
+      code: code || 'UNKNOWN',
+      detail: detail || 'Unknown error',
+      stack: err && err.stack ? String(err.stack) : null
+    });
+    return res.status(500).json({
+      error: 'SYNC_FAILED',
+      code: code || 'UNKNOWN',
+      detail: detail || 'Sync failed unexpectedly.'
+    });
   }
 });
 

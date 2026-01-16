@@ -203,7 +203,11 @@ async function api(path, options = {}) {
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     const message = body.error || `Request failed (${response.status})`;
-    throw new Error(message);
+    const error = new Error(message);
+    error.code = body.code || response.status;
+    error.detail = body.detail || null;
+    error.status = response.status;
+    throw error;
   }
   return response.json();
 }
@@ -1097,7 +1101,17 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
       statusEl.textContent = 'Failed';
     }
     if (resultEl) {
-      resultEl.textContent = 'Sync failed.';
+      const code = err?.code ? ` (${err.code})` : '';
+      resultEl.innerHTML = '';
+      const summary = document.createElement('div');
+      summary.textContent = `Sync failed: ${err?.message || 'Unexpected error'}${code}`;
+      resultEl.appendChild(summary);
+      if (err?.detail) {
+        const detail = document.createElement('pre');
+        detail.className = 'sync-error-detail';
+        detail.textContent = err.detail;
+        resultEl.appendChild(detail);
+      }
     }
   } finally {
     if (buttonEl) {
@@ -1128,7 +1142,11 @@ async function runQuickSync() {
     await refreshUnsortedEvents();
   } catch (err) {
     if (statusEl) {
-      statusEl.textContent = 'Sync failed.';
+      const code = err?.code ? ` (${err.code})` : '';
+      statusEl.textContent = `Sync failed: ${err?.message || 'Unexpected error'}${code}`;
+      if (err?.detail) {
+        statusEl.textContent += ` — ${err.detail}`;
+      }
     }
   }
 }

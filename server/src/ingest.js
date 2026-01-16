@@ -104,6 +104,17 @@ function truncateBodyText(text, max = 4000) {
   return clean.length > max ? clean.slice(0, max) : clean;
 }
 
+function extractMessageMetadata(details) {
+  const headers = details?.payload?.headers || [];
+  const sender = parseHeader(headers, 'From');
+  const subject = parseHeader(headers, 'Subject');
+  const rfcMessageId = parseHeader(headers, 'Message-ID') || null;
+  const snippet = details?.snippet || '';
+  const internalDate = details?.internalDate ? Number(details.internalDate) : null;
+  const bodyText = truncateBodyText(extractPlainTextFromPayload(details?.payload));
+  return { sender, subject, rfcMessageId, snippet, internalDate, bodyText };
+}
+
 function parseHeader(headers, name) {
   const header = (headers || []).find(
     (entry) => entry.name && entry.name.toLowerCase() === name.toLowerCase()
@@ -194,13 +205,14 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         format: 'full'
       });
 
-      const headers = details.data.payload?.headers || [];
-      const sender = parseHeader(headers, 'From');
-      const subject = parseHeader(headers, 'Subject');
-      const rfcMessageId = parseHeader(headers, 'Message-ID');
-      const snippet = details.data.snippet || '';
-      const internalDate = details.data.internalDate ? Number(details.data.internalDate) : null;
-      const bodyText = truncateBodyText(extractPlainTextFromPayload(details.data.payload));
+      const {
+        sender,
+        subject,
+        rfcMessageId,
+        snippet,
+        internalDate,
+        bodyText
+      } = extractMessageMetadata(details.data);
 
       if (rfcMessageId) {
         const existingRfc = db
@@ -422,5 +434,6 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
 module.exports = {
   syncGmailMessages,
   REASON_KEYS,
-  initReasonCounters
+  initReasonCounters,
+  extractMessageMetadata
 };

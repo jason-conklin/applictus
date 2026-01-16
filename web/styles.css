@@ -592,6 +592,19 @@ textarea:focus-visible {
   flex-wrap: wrap;
 }
 
+.sync-error-detail {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--color-panel-bg);
+  color: var(--color-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
 .kpi-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
