@@ -26,7 +26,8 @@ const {
   applyRoleCandidate,
   selectRoleCandidate,
   applyCompanyCandidate,
-  selectCompanyCandidate
+  selectCompanyCandidate,
+  applyExternalReqId
 } = require('./matching');
 const { runStatusInferenceForApplication } = require('./statusInferenceRunner');
 const { createUserAction } = require('./userActions');
@@ -335,6 +336,7 @@ function applyEventToApplication(application, event) {
   });
   applyCompanyCandidate(db, application, selectCompanyCandidate(identity));
   applyRoleCandidate(db, application, selectRoleCandidate(identity, event));
+  applyExternalReqId(db, application, event.external_req_id);
 }
 
 const SORTABLE_FIELDS = {
@@ -837,10 +839,10 @@ app.post('/api/email/events/:id/create-application', requireAuth, (req, res) => 
   db.prepare(
     `INSERT INTO job_applications
      (id, user_id, company, role, status, status_source, company_name, job_title, job_location, source,
-      applied_at, current_status, status_confidence, status_explanation, status_updated_at,
+      external_req_id, applied_at, current_status, status_confidence, status_explanation, status_updated_at,
       company_confidence, company_source, company_explanation, role_confidence, role_source, role_explanation,
       last_activity_at, archived, user_override, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     req.user.id,
@@ -852,6 +854,7 @@ app.post('/api/email/events/:id/create-application', requireAuth, (req, res) => 
     jobTitle,
     jobLocation,
     source,
+    event.external_req_id || null,
     initialStatus.appliedAt,
     initialStatus.status,
     initialStatus.statusConfidence,

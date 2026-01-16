@@ -3,7 +3,8 @@ const { ApplicationStatus } = require('../../shared/types');
 const {
   extractThreadIdentity,
   isProviderName,
-  isInvalidCompanyCandidate
+  isInvalidCompanyCandidate,
+  normalizeExternalReqId
 } = require('../../shared/matching');
 
 const AUTO_CREATE_TYPES = new Set([
@@ -35,6 +36,14 @@ function getClassificationConfidence(event) {
 function formatConfidence(value) {
   const numeric = Number.isFinite(value) ? value : 0;
   return numeric.toFixed(2);
+}
+
+function getExternalReqId(event) {
+  if (!event) {
+    return null;
+  }
+  const value = event.external_req_id ?? event.externalReqId ?? null;
+  return normalizeExternalReqId(value);
 }
 
 function getRoleConfidence(value) {
@@ -175,6 +184,22 @@ function applyRoleCandidate(db, application, candidate) {
   return true;
 }
 
+function applyExternalReqId(db, application, externalReqId) {
+  const normalized = normalizeExternalReqId(externalReqId);
+  if (!normalized) {
+    return false;
+  }
+  if (application.external_req_id) {
+    return false;
+  }
+  db.prepare(
+    `UPDATE job_applications
+     SET external_req_id = ?, updated_at = ?
+     WHERE id = ?`
+  ).run(normalized, new Date().toISOString(), application.id);
+  return true;
+}
+
 function toIsoFromInternalDate(internalDate, fallback = new Date()) {
   if (!internalDate) {
     return fallback.toISOString();
@@ -221,9 +246,21 @@ function shouldAutoCreate(event, identity) {
   return true;
 }
 
-function findMatchingApplication(db, userId, identity) {
+function findMatchingApplication(db, userId, identity, externalReqId) {
   if (!identity.companyName) {
     return null;
+  }
+  if (externalReqId) {
+    return db
+      .prepare(
+        `SELECT * FROM job_applications
+         WHERE user_id = ?
+           AND (company_name = ? OR company = ?)
+           AND external_req_id = ?
+           AND archived = 0
+         LIMIT 1`
+      )
+      .get(userId, identity.companyName, identity.companyName, externalReqId);
   }
   if (identity.senderDomain && identity.jobTitle) {
     return db
@@ -295,8 +332,11 @@ function findMatchingApplication(db, userId, identity) {
   return null;
 }
 
-function findLooseMatchingApplication(db, userId, identity) {
+function findLooseMatchingApplication(db, userId, identity, externalReqId) {
   if (!identity.companyName) {
+    return null;
+  }
+  if (externalReqId) {
     return null;
   }
   if (identity.jobTitle) {
@@ -365,6 +405,7 @@ function createApplicationFromEvent(db, userId, identity, event) {
   const eventTimestamp = toIsoFromInternalDate(event.internal_date, new Date(event.created_at));
   const companyCandidate = selectCompanyCandidate(identity);
   const roleCandidate = selectRoleCandidate(identity, event);
+  const externalReqId = getExternalReqId(event);
   const jobTitle = roleCandidate?.title || UNKNOWN_ROLE;
 
   const { status, statusConfidence, appliedAt } = inferInitialStatus(event, eventTimestamp);
@@ -376,10 +417,10 @@ function createApplicationFromEvent(db, userId, identity, event) {
   db.prepare(
     `INSERT INTO job_applications
       (id, user_id, company, role, status, status_source, company_name, company_confidence,
-       company_source, company_explanation, job_title, job_location, source, applied_at,
+       company_source, company_explanation, job_title, job_location, source, external_req_id, applied_at,
        current_status, status_confidence, status_explanation, status_updated_at, role_confidence,
        role_source, role_explanation, last_activity_at, archived, user_override, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     userId,
@@ -394,6 +435,7 @@ function createApplicationFromEvent(db, userId, identity, event) {
     jobTitle,
     null,
     identity.senderDomain,
+    externalReqId,
     appliedAt,
     status,
     statusConfidence,
@@ -483,31 +525,35 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
   }
 
   const matchConfidence = identity.matchConfidence || 0;
+  const externalReqId = getExternalReqId(event);
   let existing = null;
   if (matchConfidence >= MIN_MATCH_CONFIDENCE) {
-    existing = findMatchingApplication(db, userId, identity);
+    existing = findMatchingApplication(db, userId, identity, externalReqId);
     if (
       !existing &&
+      !externalReqId &&
       AUTO_CREATE_TYPES.has(event.detected_type) &&
       identity.companyName &&
       (identity.companyConfidence || 0) >= MIN_COMPANY_CONFIDENCE &&
       getClassificationConfidence(event) >= MIN_CLASSIFICATION_CONFIDENCE
     ) {
-      existing = findLooseMatchingApplication(db, userId, identity);
+      existing = findLooseMatchingApplication(db, userId, identity, externalReqId);
     }
   } else if (
+    !externalReqId &&
     AUTO_CREATE_TYPES.has(event.detected_type) &&
     identity.companyName &&
     (identity.companyConfidence || 0) >= MIN_COMPANY_CONFIDENCE &&
     getClassificationConfidence(event) >= MIN_CLASSIFICATION_CONFIDENCE
   ) {
-    existing = findLooseMatchingApplication(db, userId, identity);
+    existing = findLooseMatchingApplication(db, userId, identity, externalReqId);
   }
   if (existing) {
     attachEventToApplication(db, event.id, existing.id);
     updateApplicationActivity(db, existing, event);
     applyCompanyCandidate(db, existing, selectCompanyCandidate(identity));
     applyRoleCandidate(db, existing, selectRoleCandidate(identity, event));
+    applyExternalReqId(db, existing, externalReqId);
     return { action: 'matched_existing', applicationId: existing.id, identity };
   }
 
@@ -530,5 +576,6 @@ module.exports = {
   applyRoleCandidate,
   selectRoleCandidate,
   applyCompanyCandidate,
-  selectCompanyCandidate
+  selectCompanyCandidate,
+  applyExternalReqId
 };

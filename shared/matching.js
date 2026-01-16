@@ -159,6 +159,24 @@ const BODY_COMPANY_PATTERNS = [
   }
 ];
 
+const EXTERNAL_REQ_PATTERNS = [
+  {
+    name: 'workday_r_code',
+    regex: /\bR-\d{4,}\b/i,
+    confidence: 0.95
+  },
+  {
+    name: 'requisition_id',
+    regex: /\b(?:requisition|req(?:uisition)?)\s*(?:id)?[:#\s-]*([A-Z0-9-]{3,})\b/i,
+    confidence: 0.9
+  },
+  {
+    name: 'job_id',
+    regex: /\bjob\s*id[:#\s-]*([A-Z0-9-]{3,})\b/i,
+    confidence: 0.9
+  }
+];
+
 const COMPANY_ONLY_PATTERNS = [
   {
     name: 'thank_you_applying_to',
@@ -355,6 +373,15 @@ function escapeRegExp(text) {
 
 function slugify(text) {
   return normalize(text).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function normalizeExternalReqId(value) {
+  const text = normalize(value);
+  if (!text) {
+    return null;
+  }
+  const cleaned = text.replace(/[^A-Za-z0-9-]/g, '').toUpperCase();
+  return cleaned || null;
 }
 
 function isProviderName(name) {
@@ -574,6 +601,44 @@ function extractCompanyFromBodyPatterns(bodyText) {
   return null;
 }
 
+function extractExternalReqId({ subject, snippet, bodyText }) {
+  const sources = [
+    { label: 'subject', text: normalize(subject) },
+    { label: 'snippet', text: normalize(snippet) },
+    { label: 'body', text: normalize(bodyText) }
+  ];
+
+  for (const source of sources) {
+    if (!source.text) {
+      continue;
+    }
+    for (const pattern of EXTERNAL_REQ_PATTERNS) {
+      const match = source.text.match(pattern.regex);
+      if (!match) {
+        continue;
+      }
+      const raw = match[1] || match[0];
+      const externalReqId = normalizeExternalReqId(raw);
+      if (!externalReqId) {
+        continue;
+      }
+      return {
+        externalReqId,
+        source: source.label,
+        confidence: pattern.confidence,
+        explanation: `Matched ${pattern.name} pattern in ${source.label}.`
+      };
+    }
+  }
+
+  return {
+    externalReqId: null,
+    source: 'none',
+    confidence: 0,
+    explanation: 'No requisition id pattern matched.'
+  };
+}
+
 function normalizeRoleCandidate(value, companyName) {
   if (!value) {
     return null;
@@ -588,6 +653,10 @@ function normalizeRoleCandidate(value, companyName) {
     text = text.replace(new RegExp(`\\s+-\\s+${escaped}.*$`, 'i'), '');
   }
   text = text.replace(/\s+(?:position|role|opportunity|job)\b$/i, '');
+  text = text.replace(
+    /\b(?:best regards|kind regards|regards|sincerely|cheers|recruiting team|hiring team|talent acquisition|talent team|people team)\b.*$/i,
+    ''
+  );
   text = text.replace(/[\s,:;\-|]+$/g, '');
   text = normalize(text);
   return text || null;
@@ -1017,8 +1086,10 @@ function buildMatchKey({ companyName, jobTitle, senderDomain }) {
 module.exports = {
   extractThreadIdentity,
   extractJobTitle,
+  extractExternalReqId,
   buildMatchKey,
   isProviderName,
   isInvalidCompanyCandidate,
-  extractCompanyFromBodyText
+  extractCompanyFromBodyText,
+  normalizeExternalReqId
 };

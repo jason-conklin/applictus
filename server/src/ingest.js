@@ -5,7 +5,8 @@ const { classifyEmail } = require('../../shared/emailClassifier');
 const { matchAndAssignEvent } = require('./matching');
 const {
   extractThreadIdentity,
-  extractJobTitle
+  extractJobTitle,
+  extractExternalReqId
 } = require('../../shared/matching');
 const { runStatusInferenceForApplication } = require('./statusInferenceRunner');
 const { logInfo, logDebug } = require('./logger');
@@ -21,6 +22,8 @@ const REASON_KEYS = [
   'provider_filtered',
   'parse_error',
   'duplicate',
+  'duplicate_provider_message_id',
+  'duplicate_rfc_message_id',
   'matched_existing',
   'auto_created',
   'unsorted_created'
@@ -167,16 +170,21 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       if (fetched >= limit) {
         break;
       }
-      const existing = db
+      const existingProvider = db
         .prepare(
           'SELECT id FROM email_events WHERE user_id = ? AND (provider_message_id = ? OR message_id = ?)'
         )
         .get(userId, message.id, message.id);
-      if (existing) {
+      if (existingProvider) {
         skippedDuplicate += 1;
         reasons.duplicate += 1;
+        reasons.duplicate_provider_message_id += 1;
         fetched += 1;
-        logDebug('ingest.skip_duplicate', { userId, messageId: message.id });
+        logDebug('ingest.skip_duplicate', {
+          userId,
+          messageId: message.id,
+          reason: 'duplicate_provider_message_id'
+        });
         continue;
       }
 
@@ -189,9 +197,28 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       const headers = details.data.payload?.headers || [];
       const sender = parseHeader(headers, 'From');
       const subject = parseHeader(headers, 'Subject');
+      const rfcMessageId = parseHeader(headers, 'Message-ID');
       const snippet = details.data.snippet || '';
       const internalDate = details.data.internalDate ? Number(details.data.internalDate) : null;
       const bodyText = truncateBodyText(extractPlainTextFromPayload(details.data.payload));
+
+      if (rfcMessageId) {
+        const existingRfc = db
+          .prepare('SELECT id FROM email_events WHERE user_id = ? AND rfc_message_id = ?')
+          .get(userId, rfcMessageId);
+        if (existingRfc) {
+          skippedDuplicate += 1;
+          reasons.duplicate += 1;
+          reasons.duplicate_rfc_message_id += 1;
+          fetched += 1;
+          logDebug('ingest.skip_duplicate', {
+            userId,
+            messageId: message.id,
+            reason: 'duplicate_rfc_message_id'
+          });
+          continue;
+        }
+      }
 
       const classification = classifyEmail({ subject, snippet, sender });
       if (!classification.isJobRelated) {
@@ -237,6 +264,8 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         companyName: identity.companyName
       });
       const rolePayload = roleResult && roleResult.jobTitle ? roleResult : null;
+      const reqResult = extractExternalReqId({ subject, snippet, bodyText });
+      const externalReqId = reqResult.externalReqId || null;
       const eventId = crypto.randomUUID();
       const createdAt = new Date().toISOString();
       const classificationConfidence = Number.isFinite(classification.confidenceScore)
@@ -245,17 +274,18 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       const identityConfidence = identity.matchConfidence || 0;
       db.prepare(
         `INSERT INTO email_events
-         (id, user_id, provider, message_id, provider_message_id, sender, subject, internal_date, snippet,
+         (id, user_id, provider, message_id, provider_message_id, rfc_message_id, sender, subject, internal_date, snippet,
           detected_type, confidence_score, classification_confidence, identity_confidence, identity_company_name,
           identity_job_title, identity_company_confidence, identity_explanation, explanation, reason_code, reason_detail,
-          role_title, role_confidence, role_source, role_explanation, ingest_decision, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          role_title, role_confidence, role_source, role_explanation, external_req_id, ingest_decision, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         eventId,
         userId,
         'gmail',
         message.id,
         message.id,
+        rfcMessageId || null,
         sender || null,
         subject || null,
         internalDate,
@@ -275,6 +305,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         Number.isFinite(rolePayload?.confidence) ? rolePayload.confidence : null,
         rolePayload?.source || null,
         rolePayload?.explanation || null,
+        externalReqId,
         null,
         createdAt
       );
@@ -295,6 +326,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
           role_confidence: Number.isFinite(rolePayload?.confidence) ? rolePayload.confidence : null,
           role_source: rolePayload?.source || null,
           role_explanation: rolePayload?.explanation || null,
+          external_req_id: externalReqId,
           created_at: createdAt
         },
         identity
