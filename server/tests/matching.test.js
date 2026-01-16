@@ -49,7 +49,7 @@ test('extractThreadIdentity handles generic thanks subject with sender name', ()
     subject: 'Thank you for applying!',
     sender: 'Network Temp Inc <no-reply@networktemp.com>'
   });
-  assert.equal(identity.companyName, 'Network Temp Inc');
+  assert.equal(identity.companyName, 'Network Temp');
   assert.equal(identity.jobTitle, null);
   assert.ok(identity.companyConfidence >= 0.9);
 });
@@ -70,7 +70,7 @@ test('extractThreadIdentity ignores provider sender name in favor of subject com
     subject: 'Thanks for applying to CubX Inc.',
     sender: 'Workable <noreply@candidates.workablemail.com>'
   });
-  assert.equal(identity.companyName, 'CubX Inc.');
+  assert.equal(identity.companyName, 'CubX');
   assert.notEqual(identity.companyName, 'Workable');
   assert.ok(identity.companyConfidence >= 0.88);
 });
@@ -81,6 +81,16 @@ test('extractThreadIdentity derives company from Workday body signature', () => 
     sender: 'Workday <pru@myworkday.com>',
     bodyText:
       'Thank you for applying.\n\nBest Regards,\nRecruiting Team\nPrudential and its affiliates'
+  });
+  assert.equal(identity.companyName, 'Prudential');
+  assert.ok(identity.companyConfidence >= 0.85);
+});
+
+test('extractThreadIdentity handles inline Workday signature company', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Thank you for applying!',
+    sender: 'Workday <pru@myworkday.com>',
+    bodyText: 'Best Regards, Recruiting Team Prudential'
   });
   assert.equal(identity.companyName, 'Prudential');
   assert.ok(identity.companyConfidence >= 0.85);
@@ -112,6 +122,16 @@ test('extractThreadIdentity ignores signature labels without company', () => {
     bodyText: 'Best Regards,\nRecruiting Team'
   });
   assert.equal(identity.companyName, null);
+});
+
+test('extractThreadIdentity uses sender alias mapping for platform sender', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Thank you for applying!',
+    sender: 'Workday <pru@myworkday.com>',
+    bodyText: ''
+  });
+  assert.equal(identity.companyName, 'Prudential');
+  assert.ok(identity.companyConfidence >= 0.85);
 });
 
 test('shouldAutoCreate requires high confidence and allowed type', () => {

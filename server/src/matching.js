@@ -423,6 +423,18 @@ function buildUnassignedReason(event, identity) {
   const matchConfidence = identity.matchConfidence || 0;
 
   if (!identity.companyName) {
+    if (identity.isPlatformEmail) {
+      if (identity.bodyTextAvailable) {
+        return {
+          reason: 'missing_identity',
+          detail: 'Missing company (platform sender, signature/body parse failed).'
+        };
+      }
+      return {
+        reason: 'missing_identity',
+        detail: 'Missing company (platform sender, body unavailable).'
+      };
+    }
     return { reason: 'missing_identity', detail: 'Missing company.' };
   }
   if (companyConfidence < MIN_COMPANY_CONFIDENCE) {

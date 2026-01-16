@@ -9,6 +9,7 @@ const GENERIC_DOMAINS = new Set([
 const ATS_BASE_DOMAINS = new Set([
   'icims',
   'taleo',
+  'talemetry',
   'workday',
   'myworkday',
   'myworkdayjobs',
@@ -18,14 +19,16 @@ const ATS_BASE_DOMAINS = new Set([
   'workablemail',
   'lever',
   'smartrecruiters',
+  'ashbyhq',
+  'successfactors',
   'adp',
-  'bamboohr',
-  'talemetry'
+  'bamboohr'
 ]);
 
 const ATS_SENDER_HINTS = new Set([
   'icims',
   'taleo',
+  'talemetry',
   'workday',
   'myworkday',
   'myworkdayjobs',
@@ -35,13 +38,15 @@ const ATS_SENDER_HINTS = new Set([
   'workablemail',
   'lever',
   'smartrecruiters',
+  'ashbyhq',
+  'successfactors',
   'adp',
-  'bamboohr',
-  'talemetry'
+  'bamboohr'
 ]);
 
 const PROVIDER_DISPLAY_NAMES = new Set([
   'workable',
+  'workablemail',
   'greenhouse',
   'icims',
   'workday',
@@ -49,11 +54,18 @@ const PROVIDER_DISPLAY_NAMES = new Set([
   'myworkdayjobs',
   'lever',
   'smartrecruiters',
+  'ashby',
+  'ashbyhq',
   'taleo',
   'talemetry',
+  'successfactors',
   'adp',
   'bamboohr'
 ]);
+
+const ATS_LOCALPART_COMPANY_MAP = {
+  pru: 'Prudential'
+};
 
 const GENERIC_SENDER_NAMES = [
   'no reply',
@@ -126,6 +138,24 @@ const ROLE_COMPANY_PATTERNS = [
     roleIndex: 1,
     companyIndex: 2,
     confidence: 0.93
+  }
+];
+
+const BODY_COMPANY_PATTERNS = [
+  {
+    name: 'body_thank_you_applying_to',
+    regex: /thank you for applying to\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})/i,
+    confidence: 0.9
+  },
+  {
+    name: 'body_thanks_for_applying_to',
+    regex: /thanks for applying to\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})/i,
+    confidence: 0.9
+  },
+  {
+    name: 'body_applying_to',
+    regex: /applying to\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})/i,
+    confidence: 0.86
   }
 ];
 
@@ -319,6 +349,10 @@ function normalize(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
+function escapeRegExp(text) {
+  return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function slugify(text) {
   return normalize(text).toLowerCase().replace(/[^a-z0-9]/g, '');
 }
@@ -424,6 +458,7 @@ function cleanCompanyCandidate(value) {
   }
   const cleaned = cleanEntity(value)
     .replace(/\b(?:and|&)\s+its\s+affiliates\b/i, '')
+    .replace(/\s+(?:inc|inc\.|llc|llc\.|ltd|ltd\.|corp|corp\.|corporation|co|co\.)$/i, '')
     .replace(/\s+for\s+.*$/i, '')
     .replace(
       /\s+(?:careers|jobs|recruiting|hiring|hiring team|talent acquisition|talent team|hr|human resources|applications?)$/i,
@@ -438,18 +473,28 @@ function cleanCompanyCandidate(value) {
   return cleaned || null;
 }
 
+function stripSignatureNoise(line) {
+  if (!line) {
+    return '';
+  }
+  let text = String(line);
+  text = text.replace(/^(best regards|kind regards|regards|sincerely|cheers)[,:\s-]*/i, '');
+  text = text.replace(/^(thanks|thank you)[,:\s-]*/i, '');
+  text = text.replace(/^(hi|hello|dear|hey)[,:\s-]*/i, '');
+  text = text.replace(
+    /\b(recruiting team|talent acquisition|talent team|hiring team|people team|recruiting)\b/gi,
+    ''
+  );
+  return normalize(text);
+}
+
 function isSignatureNoise(line) {
   const text = normalize(line).toLowerCase();
   if (!text) {
     return true;
   }
-  if (/^(hi|hello|dear|hey)\b/.test(text)) {
-    return true;
-  }
-  if (/^(thanks|thank you)\b/.test(text)) {
-    return true;
-  }
-  if (/^(best regards|kind regards|regards|sincerely|cheers)\b/.test(text)) {
+  const stripped = stripSignatureNoise(text);
+  if (!stripped) {
     return true;
   }
   if (text.includes('unsubscribe') || text.includes('view in browser')) {
@@ -474,9 +519,16 @@ function extractCompanyFromBodyText(bodyText) {
   for (let i = scan.length - 1; i >= 0; i -= 1) {
     const line = scan[i];
     if (isSignatureNoise(line)) {
+      const stripped = stripSignatureNoise(line);
+      if (!stripped) {
+        continue;
+      }
+    }
+    let candidate = stripSignatureNoise(line);
+    if (!candidate) {
       continue;
     }
-    let candidate = line.replace(/\b(?:and|&)\s+its\s+affiliates\b/i, '');
+    candidate = candidate.replace(/\b(?:and|&)\s+its\s+affiliates\b/i, '');
     const teamMatch = candidate.match(
       /^(.+?)\s+(?:recruiting|recruiting team|hiring team|talent acquisition|talent team|careers)$/i
     );
@@ -491,6 +543,32 @@ function extractCompanyFromBodyText(bodyText) {
       companyName: candidate,
       companyConfidence: 0.88,
       explanation: 'Derived company from email signature.'
+    };
+  }
+  return null;
+}
+
+function extractCompanyFromBodyPatterns(bodyText) {
+  const text = normalize(bodyText);
+  if (!text) {
+    return null;
+  }
+  for (const rule of BODY_COMPANY_PATTERNS) {
+    const match = text.match(rule.regex);
+    if (!match) {
+      continue;
+    }
+    const company = cleanCompanyCandidate(match[1]);
+    if (!company) {
+      continue;
+    }
+    if (/\b(position|role|job)\b/i.test(company)) {
+      continue;
+    }
+    return {
+      companyName: company,
+      companyConfidence: rule.confidence,
+      explanation: `Matched ${rule.name} pattern in body.`
     };
   }
   return null;
@@ -657,6 +735,18 @@ function extractEmailAddress(sender) {
   return direct ? direct[1] : null;
 }
 
+function extractSenderLocalPart(sender) {
+  const email = extractEmailAddress(sender);
+  if (!email) {
+    return null;
+  }
+  const parts = email.split('@');
+  if (parts.length !== 2) {
+    return null;
+  }
+  return parts[0] || null;
+}
+
 function extractSenderDomain(sender) {
   const email = extractEmailAddress(sender);
   if (!email) {
@@ -777,6 +867,36 @@ function extractCompanyFromSender(sender) {
   return null;
 }
 
+function extractCompanyFromSenderLocalPart(sender, bodyText) {
+  const localPart = extractSenderLocalPart(sender);
+  if (!localPart) {
+    return null;
+  }
+  const key = localPart.toLowerCase();
+  const mapped = ATS_LOCALPART_COMPANY_MAP[key];
+  if (!mapped) {
+    return null;
+  }
+  const candidate = cleanCompanyCandidate(mapped);
+  if (!candidate) {
+    return null;
+  }
+  const body = String(bodyText || '');
+  const matchesBody = body
+    ? new RegExp(`\\b${escapeRegExp(candidate)}\\b`, 'i').test(body)
+    : false;
+  if (body.trim() && !matchesBody) {
+    return null;
+  }
+  return {
+    companyName: candidate,
+    companyConfidence: matchesBody ? 0.9 : 0.86,
+    explanation: matchesBody
+      ? 'Derived company from sender alias confirmed in body.'
+      : 'Derived company from sender alias.'
+  };
+}
+
 function pickBestCompany(candidates) {
   const available = candidates.filter(Boolean);
   if (!available.length) {
@@ -810,21 +930,26 @@ function domainConfidence(companyName, senderDomain) {
 function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   const subjectText = normalize(subject);
   const snippetText = normalize(snippet);
-  const bodyTextNormalized = String(bodyText || '');
+  const bodyTextRaw = String(bodyText || '');
   const senderName = extractSenderName(sender);
   const roleMatch = extractCompanyRole(subjectText);
   const subjectCompany =
-    extractCompanyFromSubject(subjectText) ||
-    extractCompanyFromSubject(snippetText) ||
-    (bodyTextNormalized ? extractCompanyFromSubject(bodyTextNormalized) : null);
+    extractCompanyFromSubject(subjectText) || extractCompanyFromSubject(snippetText);
   const senderCompany = extractCompanyFromSender(sender);
   const senderDomain = extractSenderDomain(sender);
   const providerSender = senderName ? isProviderName(senderName) : false;
   const atsSender = isAtsDomain(senderDomain);
-  const bodyCompany =
-    bodyTextNormalized && (atsSender || providerSender)
-      ? extractCompanyFromBodyText(bodyTextNormalized)
+  const bodySignatureCompany =
+    bodyTextRaw && (atsSender || providerSender)
+      ? extractCompanyFromBodyText(bodyTextRaw)
       : null;
+  const bodyPatternCompany =
+    bodyTextRaw && (atsSender || providerSender)
+      ? extractCompanyFromBodyPatterns(bodyTextRaw)
+      : null;
+  const localPartCompany =
+    atsSender || providerSender ? extractCompanyFromSenderLocalPart(sender, bodyTextRaw) : null;
+  const bodyCompany = bodySignatureCompany || bodyPatternCompany;
   const domainCompany = companyFromDomain(senderDomain)
     ? {
         companyName: companyFromDomain(senderDomain),
@@ -843,6 +968,7 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
     subjectCompany,
     senderCompany,
     bodyCompany,
+    localPartCompany,
     domainCompany
   ]);
 
@@ -875,6 +1001,8 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
     domainConfidence: domainResult.score,
     matchConfidence,
     isAtsDomain: domainResult.isAtsDomain,
+    isPlatformEmail: providerSender || atsSender,
+    bodyTextAvailable: Boolean(bodyTextRaw && bodyTextRaw.trim()),
     explanation: explanationParts.length ? explanationParts.join(' ') : 'No identity match.'
   };
 }

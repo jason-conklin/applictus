@@ -93,7 +93,11 @@ function truncateBodyText(text, max = 4000) {
   if (!text) {
     return '';
   }
-  const clean = String(text).replace(/\s+/g, ' ').trim();
+  const clean = String(text)
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
   return clean.length > max ? clean.slice(0, max) : clean;
 }
 
