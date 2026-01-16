@@ -24,7 +24,9 @@ const {
   inferInitialStatus,
   toIsoFromInternalDate,
   applyRoleCandidate,
-  selectRoleCandidate
+  selectRoleCandidate,
+  applyCompanyCandidate,
+  selectCompanyCandidate
 } = require('./matching');
 const { runStatusInferenceForApplication } = require('./statusInferenceRunner');
 const { createUserAction } = require('./userActions');
@@ -331,6 +333,7 @@ function applyEventToApplication(application, event) {
     sender: event.sender,
     snippet: event.snippet
   });
+  applyCompanyCandidate(db, application, selectCompanyCandidate(identity));
   applyRoleCandidate(db, application, selectRoleCandidate(identity, event));
 }
 
@@ -822,6 +825,9 @@ app.post('/api/email/events/:id/create-application', requireAuth, (req, res) => 
     initialStatus.status === ApplicationStatus.APPLIED
       ? `User created from confirmation event ${event.id}.`
       : 'User created from email event.';
+  const companyConfidence = companyName ? 1 : null;
+  const companySource = companyName ? 'manual' : null;
+  const companyExplanation = companyName ? 'Manual entry.' : null;
   const roleConfidence = jobTitle ? 1 : null;
   const roleSource = jobTitle ? 'manual' : null;
   const roleExplanation = jobTitle ? 'Manual entry.' : null;
@@ -832,9 +838,9 @@ app.post('/api/email/events/:id/create-application', requireAuth, (req, res) => 
     `INSERT INTO job_applications
      (id, user_id, company, role, status, status_source, company_name, job_title, job_location, source,
       applied_at, current_status, status_confidence, status_explanation, status_updated_at,
-      role_confidence, role_source, role_explanation, last_activity_at, archived, user_override,
-      created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      company_confidence, company_source, company_explanation, role_confidence, role_source, role_explanation,
+      last_activity_at, archived, user_override, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     req.user.id,
@@ -851,6 +857,9 @@ app.post('/api/email/events/:id/create-application', requireAuth, (req, res) => 
     initialStatus.statusConfidence,
     statusExplanation,
     createdAt,
+    companyConfidence,
+    companySource,
+    companyExplanation,
     roleConfidence,
     roleSource,
     roleExplanation,
@@ -1037,6 +1046,9 @@ app.post('/api/applications', requireAuth, (req, res) => {
   const statusConfidence = status !== ApplicationStatus.UNKNOWN ? 1.0 : null;
   const statusExplanation =
     status !== ApplicationStatus.UNKNOWN ? 'User set initial status.' : null;
+  const companyConfidence = companyName ? 1 : null;
+  const companySource = companyName ? 'manual' : null;
+  const companyExplanation = companyName ? 'Manual entry.' : null;
   const roleConfidence = jobTitle ? 1 : null;
   const roleSource = jobTitle ? 'manual' : null;
   const roleExplanation = jobTitle ? 'Manual entry.' : null;
@@ -1044,9 +1056,9 @@ app.post('/api/applications', requireAuth, (req, res) => {
     `INSERT INTO job_applications
      (id, user_id, company, role, status, status_source, company_name, job_title, job_location, source,
       applied_at, current_status, status_confidence, status_explanation, status_updated_at,
-      role_confidence, role_source, role_explanation, last_activity_at, archived, user_override,
-      created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      company_confidence, company_source, company_explanation, role_confidence, role_source, role_explanation,
+      last_activity_at, archived, user_override, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     req.user.id,
@@ -1063,6 +1075,9 @@ app.post('/api/applications', requireAuth, (req, res) => {
     statusConfidence,
     statusExplanation,
     timestamp,
+    companyConfidence,
+    companySource,
+    companyExplanation,
     roleConfidence,
     roleSource,
     roleExplanation,
@@ -1101,6 +1116,9 @@ app.patch('/api/applications/:id', requireAuth, (req, res) => {
   if (req.body.company_name || req.body.company) {
     updates.company_name = String(req.body.company_name || req.body.company).trim();
     updates.company = updates.company_name;
+    updates.company_confidence = 1;
+    updates.company_source = 'manual';
+    updates.company_explanation = 'Manual edit.';
     payload.company_name = updates.company_name;
     metadataChanges.company_name = {
       previous_value: application.company_name || null,

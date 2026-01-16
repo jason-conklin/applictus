@@ -42,6 +42,43 @@ test('extractJobTitle pulls role from snippet position pattern', () => {
   assert.ok(result.confidence >= 0.8);
 });
 
+test('extractJobTitle handles Greenhouse application role', () => {
+  const result = extractJobTitle({
+    subject: 'Thank you for applying to Affirm',
+    snippet: 'We have received your application for our Software Engineer, Early Career position.',
+    bodyText: '',
+    companyName: 'Affirm'
+  });
+
+  assert.equal(result.jobTitle, 'Software Engineer, Early Career');
+  assert.ok(result.confidence >= 0.9);
+});
+
+test('extractJobTitle handles iCIMS application role', () => {
+  const result = extractJobTitle({
+    subject: 'Thank you for applying to Lord Abbett',
+    snippet:
+      'We received your application to the Technology Associate Rotational Program, Full-Time - Summer 2026 position.',
+    bodyText: '',
+    companyName: 'Lord Abbett'
+  });
+
+  assert.equal(result.jobTitle, 'Technology Associate Rotational Program, Full-Time - Summer 2026');
+  assert.ok(result.confidence >= 0.9);
+});
+
+test('extractJobTitle handles Workable application role', () => {
+  const result = extractJobTitle({
+    subject: 'Thanks for applying to CubX Inc.',
+    snippet: 'Your application for the Full Stack Software Developer job was submitted successfully.',
+    bodyText: '',
+    companyName: 'CubX Inc.'
+  });
+
+  assert.equal(result.jobTitle, 'Full Stack Software Developer');
+  assert.ok(result.confidence >= 0.9);
+});
+
 test('extractJobTitle handles interview subject role', () => {
   const result = extractJobTitle({
     subject: 'Interview: Product Manager',

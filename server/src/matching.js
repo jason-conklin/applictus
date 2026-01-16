@@ -1,6 +1,10 @@
 const crypto = require('crypto');
 const { ApplicationStatus } = require('../../shared/types');
-const { extractThreadIdentity } = require('../../shared/matching');
+const {
+  extractThreadIdentity,
+  isProviderName,
+  isInvalidCompanyCandidate
+} = require('../../shared/matching');
 
 const AUTO_CREATE_TYPES = new Set([
   'confirmation',
@@ -72,6 +76,62 @@ function selectRoleCandidate(identity, event) {
     };
   }
   return null;
+}
+
+function selectCompanyCandidate(identity) {
+  if (!identity?.companyName) {
+    return null;
+  }
+  return {
+    name: identity.companyName,
+    confidence: Number.isFinite(identity.companyConfidence) ? identity.companyConfidence : null,
+    source: 'email',
+    explanation: identity.explanation || 'Derived company from email.'
+  };
+}
+
+function shouldUpdateCompany(application, candidate) {
+  if (!candidate?.name) {
+    return false;
+  }
+  if (application.company_source === 'manual') {
+    return false;
+  }
+  const currentName = application.company_name || application.company || null;
+  const currentConfidence = Number.isFinite(application.company_confidence)
+    ? application.company_confidence
+    : 0;
+  const nextConfidence = Number.isFinite(candidate.confidence) ? candidate.confidence : 0;
+  const currentInvalid =
+    !currentName || isProviderName(currentName) || isInvalidCompanyCandidate(currentName);
+
+  if (currentInvalid) {
+    return true;
+  }
+  if (candidate.name === currentName) {
+    return nextConfidence > currentConfidence;
+  }
+  return nextConfidence > currentConfidence + 0.05;
+}
+
+function applyCompanyCandidate(db, application, candidate) {
+  if (!shouldUpdateCompany(application, candidate)) {
+    return false;
+  }
+  db.prepare(
+    `UPDATE job_applications
+     SET company_name = ?, company = ?, company_confidence = ?, company_source = ?, company_explanation = ?, updated_at = ?
+     WHERE id = ?`
+  ).run(
+    candidate.name,
+    candidate.name,
+    Number.isFinite(candidate.confidence) ? candidate.confidence : null,
+    candidate.source || null,
+    candidate.explanation || null,
+    new Date().toISOString(),
+    application.id
+  );
+  return true;
 }
 
 function shouldUpdateRole(application, candidate) {
@@ -303,6 +363,7 @@ function createApplicationFromEvent(db, userId, identity, event) {
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   const eventTimestamp = toIsoFromInternalDate(event.internal_date, new Date(event.created_at));
+  const companyCandidate = selectCompanyCandidate(identity);
   const roleCandidate = selectRoleCandidate(identity, event);
   const jobTitle = roleCandidate?.title || UNKNOWN_ROLE;
 
@@ -314,11 +375,11 @@ function createApplicationFromEvent(db, userId, identity, event) {
 
   db.prepare(
     `INSERT INTO job_applications
-      (id, user_id, company, role, status, status_source, company_name, job_title, job_location,
-       source, applied_at, current_status, status_confidence, status_explanation, status_updated_at,
-       role_confidence, role_source, role_explanation, last_activity_at, archived, user_override,
-       created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      (id, user_id, company, role, status, status_source, company_name, company_confidence,
+       company_source, company_explanation, job_title, job_location, source, applied_at,
+       current_status, status_confidence, status_explanation, status_updated_at, role_confidence,
+       role_source, role_explanation, last_activity_at, archived, user_override, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     userId,
@@ -327,6 +388,9 @@ function createApplicationFromEvent(db, userId, identity, event) {
     status,
     'inferred',
     identity.companyName,
+    Number.isFinite(companyCandidate?.confidence) ? companyCandidate.confidence : null,
+    companyCandidate?.source || null,
+    companyCandidate?.explanation || null,
     jobTitle,
     null,
     identity.senderDomain,
@@ -430,6 +494,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
   if (existing) {
     attachEventToApplication(db, event.id, existing.id);
     updateApplicationActivity(db, existing, event);
+    applyCompanyCandidate(db, existing, selectCompanyCandidate(identity));
     applyRoleCandidate(db, existing, selectRoleCandidate(identity, event));
     return { action: 'matched_existing', applicationId: existing.id, identity };
   }
@@ -451,5 +516,7 @@ module.exports = {
   inferInitialStatus,
   toIsoFromInternalDate,
   applyRoleCandidate,
-  selectRoleCandidate
+  selectRoleCandidate,
+  applyCompanyCandidate,
+  selectCompanyCandidate
 };

@@ -64,6 +64,16 @@ test('extractThreadIdentity handles greenhouse sender and subject company', () =
   assert.equal(identity.isAtsDomain, true);
 });
 
+test('extractThreadIdentity ignores provider sender name in favor of subject company', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Thanks for applying to CubX Inc.',
+    sender: 'Workable <noreply@candidates.workablemail.com>'
+  });
+  assert.equal(identity.companyName, 'CubX Inc.');
+  assert.notEqual(identity.companyName, 'Workable');
+  assert.ok(identity.companyConfidence >= 0.88);
+});
+
 test('extractThreadIdentity extracts company from Talemetry sender', () => {
   const identity = extractThreadIdentity({
     subject: 'Application Status',
@@ -72,6 +82,15 @@ test('extractThreadIdentity extracts company from Talemetry sender', () => {
   assert.equal(identity.companyName, 'Metropolitan Transportation Authority');
   assert.ok(identity.companyConfidence >= 0.88);
   assert.ok(identity.matchConfidence >= 0.9);
+});
+
+test('extractThreadIdentity rejects greeting as company name', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Hi Shane',
+    sender: 'Hi Shane <noreply@gmail.com>',
+    snippet: 'Just checking in.'
+  });
+  assert.equal(identity.companyName, null);
 });
 
 test('shouldAutoCreate requires high confidence and allowed type', () => {

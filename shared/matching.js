@@ -14,6 +14,8 @@ const ATS_BASE_DOMAINS = new Set([
   'myworkdayjobs',
   'greenhouse',
   'greenhouse-mail',
+  'workable',
+  'workablemail',
   'lever',
   'smartrecruiters',
   'adp',
@@ -29,11 +31,28 @@ const ATS_SENDER_HINTS = new Set([
   'myworkdayjobs',
   'greenhouse',
   'greenhouse-mail',
+  'workable',
+  'workablemail',
   'lever',
   'smartrecruiters',
   'adp',
   'bamboohr',
   'talemetry'
+]);
+
+const PROVIDER_DISPLAY_NAMES = new Set([
+  'workable',
+  'greenhouse',
+  'icims',
+  'workday',
+  'myworkday',
+  'myworkdayjobs',
+  'lever',
+  'smartrecruiters',
+  'taleo',
+  'talemetry',
+  'adp',
+  'bamboohr'
 ]);
 
 const GENERIC_SENDER_NAMES = [
@@ -56,6 +75,31 @@ const GENERIC_SENDER_NAMES = [
   'support',
   'info'
 ];
+
+const INVALID_COMPANY_TERMS = new Set([
+  'hi',
+  'hello',
+  'dear',
+  'hey',
+  'thanks',
+  'thank you',
+  'team',
+  'recruiting',
+  'recruiting team',
+  'hiring team',
+  'talent team',
+  'talent acquisition',
+  'careers',
+  'applications',
+  'application',
+  'candidate',
+  'candidates',
+  'opportunity',
+  'position',
+  'job',
+  'hr',
+  'human resources'
+]);
 
 const ROLE_COMPANY_PATTERNS = [
   {
@@ -86,6 +130,16 @@ const COMPANY_ONLY_PATTERNS = [
     name: 'thank_you_applying_to',
     regex: /thank you for applying to\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})/i,
     confidence: 0.92
+  },
+  {
+    name: 'thanks_for_applying_to',
+    regex: /thanks for applying to\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})/i,
+    confidence: 0.92
+  },
+  {
+    name: 'applying_to_company',
+    regex: /applying to\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})/i,
+    confidence: 0.88
   },
   {
     name: 'your_application_to',
@@ -130,97 +184,117 @@ const SENDER_COMPANY_PATTERNS = [
 const ROLE_PATTERNS = [
   {
     name: 'thank_you_applying_for_role',
-    regex: /thank you for applying(?:\s+to\s+[^,.\n]+)?\s+for\s+([^,.\n]+)/i,
+    regex: /thank you for applying(?:\s+to\s+[^,.\n]+)?\s+for\s+([^.\n]+)/i,
     confidence: 0.92
   },
   {
+    name: 'application_for_role_position',
+    regex: /application for (?:our|the)?\s*(.+?)\s+position\b/i,
+    confidence: 0.96
+  },
+  {
+    name: 'application_for_role_job',
+    regex: /application for (?:the )?\s*(.+?)\s+job\b/i,
+    confidence: 0.96
+  },
+  {
+    name: 'application_to_role_position',
+    regex: /application to (?:the )?\s*(.+?)\s+position\b/i,
+    confidence: 0.95
+  },
+  {
+    name: 'submitting_application_to_role_position',
+    regex: /submitting your application to (?:the )?\s*(.+?)\s+position\b/i,
+    confidence: 0.95
+  },
+  {
     name: 'position_of',
-    regex: /position of\s+([^,.\n]+)/i,
+    regex: /position of\s+([^.\n]+)/i,
     confidence: 0.92
   },
   {
     name: 'interest_in_position_of',
-    regex: /interest in the position of\s+([^,.\n]+)/i,
+    regex: /interest in the position of\s+([^.\n]+)/i,
     confidence: 0.9
   },
   {
     name: 'role_of',
-    regex: /role of\s+([^,.\n]+)/i,
+    regex: /role of\s+([^.\n]+)/i,
     confidence: 0.9
   },
   {
     name: 'for_role_position',
-    regex: /for the\s+([^,.\n]+?)\s+position/i,
+    regex: /for the\s+([^.\n]+?)\s+position/i,
     confidence: 0.9
   },
   {
     name: 'applied_for_role',
-    regex: /applied for the\s+([^,.\n]+?)\s+role/i,
+    regex: /applied for the\s+([^.\n]+?)\s+role/i,
     confidence: 0.9
   },
   {
     name: 'moving_forward_with_role',
-    regex: /with (?:the )?([^,.\n]+?)\s+role/i,
+    regex: /with (?:the )?([^.\n]+?)\s+role/i,
     confidence: 0.86
   },
   {
     name: 'applied_for_position_of',
-    regex: /applied for the position of\s+([^,.\n]+)/i,
+    regex: /applied for the position of\s+([^.\n]+)/i,
     confidence: 0.9
   },
   {
     name: 'application_for_role',
-    regex: /application for\s+([^,.\n]+?)(?:\s+(?:at|with)\s+[A-Z].*)?$/i,
+    regex: /application for\s+([^.\n]+?)(?:\s+(?:at|with)\s+[A-Z].*)?$/i,
     confidence: 0.9
   },
   {
     name: 'application_received_role',
-    regex: /application received[:\-]\s*([^,.\n]+)/i,
+    regex: /application received[:\-]\s*([^.\n]+)/i,
     confidence: 0.88
   },
   {
     name: 'application_received_dash_role',
-    regex: /([^,.\n]+)\s+[-–—]\s+application received/i,
+    regex: /([^.\n]+)\s+[-–—]\s+application received/i,
     confidence: 0.9
   },
   {
     name: 're_role_application',
-    regex: /re:\s*([^,.\n]+?)\s+application/i,
+    regex: /re:\s*([^.\n]+?)\s+application/i,
     confidence: 0.92
   },
   {
     name: 'interview_for_role',
-    regex: /interview (?:for|with)\s+([^,.\n]+)/i,
+    regex: /interview (?:for|with)\s+([^.\n]+)/i,
     confidence: 0.88
   },
   {
     name: 'interview_role',
-    regex: /interview[:\-]\s*([^,.\n]+)/i,
+    regex: /interview[:\-]\s*([^.\n]+)/i,
     confidence: 0.9
   },
   {
     name: 'next_steps_role',
-    regex: /next steps[:\-]\s*([^,.\n]+)/i,
+    regex: /next steps[:\-]\s*([^.\n]+)/i,
     confidence: 0.86
   },
   {
     name: 'position_label',
-    regex: /position[:\-]\s*([^,.\n]+)/i,
+    regex: /position[:\-]\s*([^.\n]+)/i,
     confidence: 0.88
   },
   {
     name: 'role_label',
-    regex: /role[:\-]\s*([^,.\n]+)/i,
+    regex: /role[:\-]\s*([^.\n]+)/i,
     confidence: 0.86
   },
   {
     name: 'position_title_role',
-    regex: /position title[:\-]\s*([^,.\n]+)/i,
+    regex: /position title[:\-]\s*([^.\n]+)/i,
     confidence: 0.88
   },
   {
     name: 'for_role_requisition',
-    regex: /for\s+([^,.\n]+?)\s*\((?:job|requisition|req)\b/i,
+    regex: /for\s+([^.\n]+?)\s*\((?:job|requisition|req)\b/i,
     confidence: 0.88
   }
 ];
@@ -243,6 +317,53 @@ function normalize(text) {
 
 function slugify(text) {
   return normalize(text).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function isProviderName(name) {
+  const slug = slugify(name);
+  if (!slug) {
+    return false;
+  }
+  for (const provider of PROVIDER_DISPLAY_NAMES) {
+    if (!provider) {
+      continue;
+    }
+    if (slug === provider || slug.startsWith(provider) || slug.includes(provider)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isInvalidCompanyCandidate(value) {
+  const text = normalize(value);
+  if (!text) {
+    return true;
+  }
+  if (text.length < 3) {
+    return true;
+  }
+  if (!/[A-Za-z]/.test(text)) {
+    return true;
+  }
+  const lower = text.toLowerCase();
+  if (/^(hi|hello|dear|hey)\b/.test(lower)) {
+    return true;
+  }
+  if (/^(thanks|thank you)\b/.test(lower)) {
+    return true;
+  }
+  if (/unsubscribe|view in browser/i.test(lower)) {
+    return true;
+  }
+  if (INVALID_COMPANY_TERMS.has(lower)) {
+    return true;
+  }
+  const words = lower.split(/\s+/).filter(Boolean);
+  if (words.length && words.every((word) => INVALID_COMPANY_TERMS.has(word))) {
+    return true;
+  }
+  return false;
 }
 
 function cleanEntity(value) {
@@ -305,6 +426,9 @@ function cleanCompanyCandidate(value) {
     )
     .replace(/^(?:no[-\s]?reply|noreply|do not reply)\b[: ]*/i, '')
     .trim();
+  if (!cleaned || isProviderName(cleaned) || isInvalidCompanyCandidate(cleaned)) {
+    return null;
+  }
   return cleaned || null;
 }
 
@@ -321,8 +445,8 @@ function normalizeRoleCandidate(value, companyName) {
     text = text.replace(new RegExp(`\\s+(?:at|with|for)\\s+${escaped}.*$`, 'i'), '');
     text = text.replace(new RegExp(`\\s+-\\s+${escaped}.*$`, 'i'), '');
   }
-  text = text.replace(/\s+(?:position|role|opportunity)\b/i, '');
-  text = text.replace(/[,:;\-|]+$/g, '');
+  text = text.replace(/\s+(?:position|role|opportunity|job)\b$/i, '');
+  text = text.replace(/[\s,:;\-|]+$/g, '');
   text = normalize(text);
   return text || null;
 }
@@ -330,6 +454,12 @@ function normalizeRoleCandidate(value, companyName) {
 function isGenericRole(value) {
   const text = normalize(value).toLowerCase();
   if (!text) {
+    return true;
+  }
+  if (/^(hi|hello|dear|hey)\b/.test(text)) {
+    return true;
+  }
+  if (/^(thanks|thank you)\b/.test(text)) {
     return true;
   }
   if (GENERIC_ROLE_TERMS.has(text)) {
@@ -398,10 +528,13 @@ function extractJobTitle({ subject, snippet, bodyText, senderName, sender, compa
       if (!candidate) {
         continue;
       }
+      if (candidate.length < 3) {
+        continue;
+      }
       if (isGenericRole(candidate)) {
         continue;
       }
-      if (candidate.length > 80 && !candidate.includes('(')) {
+      if (candidate.length > 90 && !candidate.includes('(')) {
         continue;
       }
       if (companyName) {
@@ -499,7 +632,7 @@ function extractCompanyRole(subject) {
       continue;
     }
     const role = cleanEntity(match[rule.roleIndex]);
-    const company = cleanEntity(match[rule.companyIndex]);
+    const company = cleanCompanyCandidate(match[rule.companyIndex]);
     if (!role || !company) {
       continue;
     }
@@ -681,5 +814,7 @@ function buildMatchKey({ companyName, jobTitle, senderDomain }) {
 module.exports = {
   extractThreadIdentity,
   extractJobTitle,
-  buildMatchKey
+  buildMatchKey,
+  isProviderName,
+  isInvalidCompanyCandidate
 };
