@@ -3,7 +3,7 @@ const { google } = require('googleapis');
 const { getAuthorizedClient } = require('./email');
 const { classifyEmail } = require('../../shared/emailClassifier');
 const { matchAndAssignEvent } = require('./matching');
-const { extractThreadIdentity } = require('../../shared/matching');
+const { extractThreadIdentity, extractJobTitle } = require('../../shared/matching');
 const { runStatusInferenceForApplication } = require('./statusInferenceRunner');
 const { logInfo, logDebug } = require('./logger');
 
@@ -35,6 +35,62 @@ function truncateSnippet(snippet, max = 140) {
     return null;
   }
   const clean = String(snippet).replace(/\s+/g, ' ').trim();
+  return clean.length > max ? clean.slice(0, max) : clean;
+}
+
+function decodeBase64Url(value) {
+  if (!value) {
+    return '';
+  }
+  const normalized = String(value).replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+  return Buffer.from(padded, 'base64').toString('utf8');
+}
+
+function stripHtml(value) {
+  return String(value || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function findPayloadPart(payload, predicate) {
+  if (!payload) {
+    return null;
+  }
+  const mimeType = String(payload.mimeType || '').toLowerCase();
+  if (predicate(mimeType) && payload.body?.data) {
+    return payload;
+  }
+  const parts = payload.parts || [];
+  for (const part of parts) {
+    const found = findPayloadPart(part, predicate);
+    if (found) {
+      return found;
+    }
+  }
+  return null;
+}
+
+function extractPlainTextFromPayload(payload) {
+  const textPart = findPayloadPart(payload, (mime) => mime.startsWith('text/plain'));
+  if (textPart) {
+    return decodeBase64Url(textPart.body.data);
+  }
+  const htmlPart = findPayloadPart(payload, (mime) => mime.startsWith('text/html'));
+  if (htmlPart) {
+    return stripHtml(decodeBase64Url(htmlPart.body.data));
+  }
+  return '';
+}
+
+function truncateBodyText(text, max = 4000) {
+  if (!text) {
+    return '';
+  }
+  const clean = String(text).replace(/\s+/g, ' ').trim();
   return clean.length > max ? clean.slice(0, max) : clean;
 }
 
@@ -175,6 +231,35 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, mode
       jobRelatedCandidates += 1;
 
       const identity = extractThreadIdentity({ subject, sender, snippet });
+      let roleResult = extractJobTitle({
+        subject,
+        snippet,
+        bodyText: null,
+        companyName: identity.companyName
+      });
+      if (!roleResult.jobTitle) {
+        try {
+          const fullMessage = await gmail.users.messages.get({
+            userId: 'me',
+            id: message.id,
+            format: 'full'
+          });
+          const bodyText = truncateBodyText(
+            extractPlainTextFromPayload(fullMessage.data.payload)
+          );
+          if (bodyText) {
+            roleResult = extractJobTitle({
+              subject,
+              snippet,
+              bodyText,
+              companyName: identity.companyName
+            });
+          }
+        } catch (err) {
+          logDebug('ingest.body_fetch_failed', { userId, messageId: message.id });
+        }
+      }
+      const rolePayload = roleResult && roleResult.jobTitle ? roleResult : null;
       const eventId = crypto.randomUUID();
       const createdAt = new Date().toISOString();
       const classificationConfidence = Number.isFinite(classification.confidenceScore)
@@ -186,8 +271,8 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, mode
          (id, user_id, provider, message_id, provider_message_id, sender, subject, internal_date, snippet,
           detected_type, confidence_score, classification_confidence, identity_confidence, identity_company_name,
           identity_job_title, identity_company_confidence, identity_explanation, explanation, reason_code, reason_detail,
-          ingest_decision, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          role_title, role_confidence, role_source, role_explanation, ingest_decision, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         eventId,
         userId,
@@ -209,6 +294,10 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, mode
         classification.explanation,
         null,
         null,
+        rolePayload?.jobTitle || null,
+        Number.isFinite(rolePayload?.confidence) ? rolePayload.confidence : null,
+        rolePayload?.source || null,
+        rolePayload?.explanation || null,
         null,
         createdAt
       );
@@ -225,6 +314,10 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, mode
           detected_type: classification.detectedType,
           confidence_score: classificationConfidence,
           classification_confidence: classificationConfidence,
+          role_title: rolePayload?.jobTitle || null,
+          role_confidence: Number.isFinite(rolePayload?.confidence) ? rolePayload.confidence : null,
+          role_source: rolePayload?.source || null,
+          role_explanation: rolePayload?.explanation || null,
           created_at: createdAt
         },
         identity

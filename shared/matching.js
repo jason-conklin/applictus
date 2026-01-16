@@ -127,6 +127,71 @@ const SENDER_COMPANY_PATTERNS = [
   }
 ];
 
+const ROLE_PATTERNS = [
+  {
+    name: 'position_of',
+    regex: /position of\s+([^,.\n]+)/i,
+    confidence: 0.92
+  },
+  {
+    name: 'role_of',
+    regex: /role of\s+([^,.\n]+)/i,
+    confidence: 0.9
+  },
+  {
+    name: 'for_role_position',
+    regex: /for the\s+([^,.\n]+?)\s+position/i,
+    confidence: 0.9
+  },
+  {
+    name: 'applied_for_position_of',
+    regex: /applied for the position of\s+([^,.\n]+)/i,
+    confidence: 0.9
+  },
+  {
+    name: 'application_for_role',
+    regex: /application for\s+([^,.\n]+?)(?:\s+(?:at|with)\s+[A-Z].*)?$/i,
+    confidence: 0.9
+  },
+  {
+    name: 'application_received_role',
+    regex: /application received[:\-]\s*([^,.\n]+)/i,
+    confidence: 0.88
+  },
+  {
+    name: 're_role_application',
+    regex: /re:\s*([^,.\n]+?)\s+application/i,
+    confidence: 0.92
+  },
+  {
+    name: 'interview_for_role',
+    regex: /interview (?:for|with)\s+([^,.\n]+)/i,
+    confidence: 0.88
+  },
+  {
+    name: 'next_steps_role',
+    regex: /next steps[:\-]\s*([^,.\n]+)/i,
+    confidence: 0.86
+  },
+  {
+    name: 'position_title_role',
+    regex: /position title[:\-]\s*([^,.\n]+)/i,
+    confidence: 0.88
+  }
+];
+
+const GENERIC_ROLE_TERMS = new Set([
+  'position',
+  'role',
+  'opportunity',
+  'application',
+  'career',
+  'candidate',
+  'opening',
+  'job',
+  'requisition'
+]);
+
 function normalize(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
@@ -141,6 +206,10 @@ function cleanEntity(value) {
     .replace(/\s+\(.*\)$/, '')
     .replace(/\s+\[.*\]$/, '')
     .trim();
+}
+
+function cleanRoleEntity(value) {
+  return normalize(value).replace(/\s+\[.*\]$/, '').trim();
 }
 
 function extractSenderName(sender) {
@@ -192,6 +261,103 @@ function cleanCompanyCandidate(value) {
     .replace(/^(?:no[-\s]?reply|noreply|do not reply)\b[: ]*/i, '')
     .trim();
   return cleaned || null;
+}
+
+function normalizeRoleCandidate(value, companyName) {
+  if (!value) {
+    return null;
+  }
+  let text = cleanRoleEntity(value);
+  text = text.replace(/\b(?:req(?:uisition)?|job id|job)\s*#?:?\s*[A-Z]*-?\d+\b/gi, '');
+  text = text.replace(/\bR-\d+\b/gi, '');
+  text = text.replace(/\s*[,;|]\s*R-\d+$/i, '');
+  if (companyName) {
+    const escaped = companyName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    text = text.replace(new RegExp(`\\s+(?:at|with|for)\\s+${escaped}.*$`, 'i'), '');
+    text = text.replace(new RegExp(`\\s+-\\s+${escaped}.*$`, 'i'), '');
+  }
+  text = text.replace(/\s+(?:position|role|opportunity)\b/i, '');
+  text = text.replace(/[,:;\-|]+$/g, '');
+  text = normalize(text);
+  return text || null;
+}
+
+function isGenericRole(value) {
+  const text = normalize(value).toLowerCase();
+  if (!text) {
+    return true;
+  }
+  if (GENERIC_ROLE_TERMS.has(text)) {
+    return true;
+  }
+  const words = text.split(/\s+/).filter(Boolean);
+  if (!words.length) {
+    return true;
+  }
+  return words.every((word) => GENERIC_ROLE_TERMS.has(word));
+}
+
+function scoreForSource(base, source) {
+  if (source === 'subject') {
+    return base;
+  }
+  if (source === 'snippet') {
+    return Math.max(0, base - 0.04);
+  }
+  if (source === 'body') {
+    return Math.max(0, base - 0.06);
+  }
+  return base;
+}
+
+function extractJobTitle({ subject, snippet, bodyText, companyName }) {
+  const sources = [
+    { label: 'subject', text: normalize(subject) },
+    { label: 'snippet', text: normalize(snippet) },
+    { label: 'body', text: normalize(bodyText) }
+  ];
+
+  for (const source of sources) {
+    if (!source.text) {
+      continue;
+    }
+    for (const pattern of ROLE_PATTERNS) {
+      const match = source.text.match(pattern.regex);
+      if (!match) {
+        continue;
+      }
+      const candidate = normalizeRoleCandidate(match[1], companyName);
+      if (!candidate) {
+        continue;
+      }
+      if (isGenericRole(candidate)) {
+        continue;
+      }
+      if (candidate.length > 80 && !candidate.includes('(')) {
+        continue;
+      }
+      if (companyName) {
+        const companySlug = slugify(companyName);
+        const roleSlug = slugify(candidate);
+        if (companySlug && roleSlug && companySlug === roleSlug) {
+          continue;
+        }
+      }
+      return {
+        jobTitle: candidate,
+        confidence: scoreForSource(pattern.confidence, source.label),
+        source: source.label,
+        explanation: `Matched ${pattern.name} pattern in ${source.label}.`
+      };
+    }
+  }
+
+  return {
+    jobTitle: null,
+    confidence: 0,
+    source: 'none',
+    explanation: 'No role pattern matched.'
+  };
 }
 
 function extractEmailAddress(sender) {
@@ -424,5 +590,6 @@ function buildMatchKey({ companyName, jobTitle, senderDomain }) {
 
 module.exports = {
   extractThreadIdentity,
+  extractJobTitle,
   buildMatchKey
 };

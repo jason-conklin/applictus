@@ -105,6 +105,26 @@ const PIPELINE_LIMIT = 15;
 const VIEW_MODE_KEY = 'applictus:viewMode';
 const CLASSIFIER_MODE_KEY = 'applictus:classifierMode';
 
+function formatRoleSource(application) {
+  const source = application?.role_source;
+  if (!source) {
+    return null;
+  }
+  if (source === 'manual') {
+    return 'Manual';
+  }
+  if (source === 'subject') {
+    return 'Email subject';
+  }
+  if (source === 'snippet') {
+    return 'Email snippet';
+  }
+  if (source === 'body') {
+    return 'Email body';
+  }
+  return `Email ${source}`;
+}
+
 function getInitialViewMode() {
   try {
     const stored = localStorage.getItem(VIEW_MODE_KEY);
@@ -1798,7 +1818,7 @@ function renderUnsortedEvents(events) {
         : '—';
       const companyPrefill = event.identity_company_name || '';
       const titlePrefill =
-        event.identity_job_title || (companyPrefill ? 'Unknown role' : '');
+        event.role_title || event.identity_job_title || (companyPrefill ? 'Unknown role' : '');
       return `
         <div class="table-row" style="--stagger: ${index}">
           <div>${event.sender || '—'}</div>
@@ -1903,6 +1923,10 @@ function renderDetail(application, events) {
       { label: 'Source', value: application.source || '—' },
       { label: 'Archived', value: application.archived ? 'Yes' : 'No' }
     ];
+    const roleSource = formatRoleSource(application);
+    if (roleSource) {
+      metaItems.splice(3, 0, { label: 'Role source', value: roleSource });
+    }
     detailMeta.innerHTML = metaItems
       .map((item) => `<div><strong>${item.label}:</strong> ${item.value}</div>`)
       .join('');

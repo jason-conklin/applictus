@@ -127,6 +127,11 @@ POST /api/email/events/:id/attach
 POST /api/email/events/:id/create-application
 ```
 
+### Role extraction
+During sync, Applictus extracts job titles from the email subject, snippet, and (when needed) the
+plain-text body. Only the extracted role string plus confidence/source are stored; message bodies
+are parsed transiently and discarded.
+
 Debug helpers (dev/admin only):
 ```
 GET /api/email/sync-debug?limit=20&reason=classified_not_job_related

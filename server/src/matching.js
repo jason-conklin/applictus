@@ -14,6 +14,7 @@ const MIN_COMPANY_CONFIDENCE = 0.85;
 const MIN_CLASSIFICATION_CONFIDENCE = 0.85;
 const MIN_MATCH_CONFIDENCE = 0.85;
 const MIN_DOMAIN_CONFIDENCE = 0.4;
+const MIN_ROLE_CONFIDENCE = 0.8;
 
 function getClassificationConfidence(event) {
   if (!event) {
@@ -30,6 +31,88 @@ function getClassificationConfidence(event) {
 function formatConfidence(value) {
   const numeric = Number.isFinite(value) ? value : 0;
   return numeric.toFixed(2);
+}
+
+function getRoleConfidence(value) {
+  return Number.isFinite(value) ? value : null;
+}
+
+function getRoleFromEvent(event) {
+  if (!event) {
+    return null;
+  }
+  const title = event.role_title ?? event.roleTitle ?? null;
+  if (!title) {
+    return null;
+  }
+  return {
+    title,
+    confidence: getRoleConfidence(event.role_confidence ?? event.roleConfidence),
+    source: event.role_source ?? event.roleSource ?? null,
+    explanation: event.role_explanation ?? event.roleExplanation ?? null
+  };
+}
+
+function selectRoleCandidate(identity, event) {
+  const eventRole = getRoleFromEvent(event);
+  if (eventRole?.title && (eventRole.confidence ?? 0) >= MIN_ROLE_CONFIDENCE) {
+    return {
+      title: eventRole.title,
+      confidence: eventRole.confidence,
+      source: eventRole.source || 'snippet',
+      explanation: eventRole.explanation || 'Derived role from email.'
+    };
+  }
+  if (identity?.jobTitle) {
+    return {
+      title: identity.jobTitle,
+      confidence: getRoleConfidence(identity.roleConfidence),
+      source: 'subject',
+      explanation: 'Derived role from subject pattern.'
+    };
+  }
+  return null;
+}
+
+function shouldUpdateRole(application, candidate) {
+  if (!candidate?.title) {
+    return false;
+  }
+  if (application.role_source === 'manual') {
+    return false;
+  }
+  const currentTitle = application.job_title || application.role || null;
+  const currentConfidence = Number.isFinite(application.role_confidence)
+    ? application.role_confidence
+    : 0;
+  const nextConfidence = Number.isFinite(candidate.confidence) ? candidate.confidence : 0;
+  if (!currentTitle || currentTitle === UNKNOWN_ROLE) {
+    return true;
+  }
+  if (candidate.title === currentTitle) {
+    return nextConfidence > currentConfidence;
+  }
+  return nextConfidence > currentConfidence + 0.05;
+}
+
+function applyRoleCandidate(db, application, candidate) {
+  if (!shouldUpdateRole(application, candidate)) {
+    return false;
+  }
+  db.prepare(
+    `UPDATE job_applications
+     SET job_title = ?, role = ?, role_confidence = ?, role_source = ?, role_explanation = ?, updated_at = ?
+     WHERE id = ?`
+  ).run(
+    candidate.title,
+    candidate.title,
+    Number.isFinite(candidate.confidence) ? candidate.confidence : null,
+    candidate.source || null,
+    candidate.explanation || null,
+    new Date().toISOString(),
+    application.id
+  );
+  return true;
 }
 
 function toIsoFromInternalDate(internalDate, fallback = new Date()) {
@@ -220,7 +303,8 @@ function createApplicationFromEvent(db, userId, identity, event) {
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   const eventTimestamp = toIsoFromInternalDate(event.internal_date, new Date(event.created_at));
-  const jobTitle = identity.jobTitle || UNKNOWN_ROLE;
+  const roleCandidate = selectRoleCandidate(identity, event);
+  const jobTitle = roleCandidate?.title || UNKNOWN_ROLE;
 
   const { status, statusConfidence, appliedAt } = inferInitialStatus(event, eventTimestamp);
   const statusExplanation =
@@ -232,8 +316,9 @@ function createApplicationFromEvent(db, userId, identity, event) {
     `INSERT INTO job_applications
       (id, user_id, company, role, status, status_source, company_name, job_title, job_location,
        source, applied_at, current_status, status_confidence, status_explanation, status_updated_at,
-       last_activity_at, archived, user_override, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       role_confidence, role_source, role_explanation, last_activity_at, archived, user_override,
+       created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     userId,
@@ -250,6 +335,9 @@ function createApplicationFromEvent(db, userId, identity, event) {
     statusConfidence,
     statusExplanation,
     createdAt,
+    Number.isFinite(roleCandidate?.confidence) ? roleCandidate.confidence : null,
+    roleCandidate?.source || null,
+    roleCandidate?.explanation || null,
     eventTimestamp,
     0,
     0,
@@ -342,6 +430,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
   if (existing) {
     attachEventToApplication(db, event.id, existing.id);
     updateApplicationActivity(db, existing, event);
+    applyRoleCandidate(db, existing, selectRoleCandidate(identity, event));
     return { action: 'matched_existing', applicationId: existing.id, identity };
   }
 
@@ -360,5 +449,7 @@ module.exports = {
   extractThreadIdentity,
   shouldAutoCreate,
   inferInitialStatus,
-  toIsoFromInternalDate
+  toIsoFromInternalDate,
+  applyRoleCandidate,
+  selectRoleCandidate
 };

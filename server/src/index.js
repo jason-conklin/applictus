@@ -19,7 +19,13 @@ const {
 } = require('./email');
 const { getGoogleOAuthClient, getGoogleAuthUrl, getGoogleProfileFromCode } = require('./googleAuth');
 const { syncGmailMessages } = require('./ingest');
-const { extractThreadIdentity, inferInitialStatus, toIsoFromInternalDate } = require('./matching');
+const {
+  extractThreadIdentity,
+  inferInitialStatus,
+  toIsoFromInternalDate,
+  applyRoleCandidate,
+  selectRoleCandidate
+} = require('./matching');
 const { runStatusInferenceForApplication } = require('./statusInferenceRunner');
 const { createUserAction } = require('./userActions');
 const { applyStatusOverride } = require('./overrides');
@@ -319,6 +325,13 @@ function applyEventToApplication(application, event) {
     values.push(application.id);
     db.prepare(`UPDATE job_applications SET ${setClause} WHERE id = ?`).run(...values);
   }
+
+  const identity = extractThreadIdentity({
+    subject: event.subject,
+    sender: event.sender,
+    snippet: event.snippet
+  });
+  applyRoleCandidate(db, application, selectRoleCandidate(identity, event));
 }
 
 const SORTABLE_FIELDS = {
@@ -732,6 +745,7 @@ app.get('/api/email/unsorted', requireAuth, (req, res) => {
     .prepare(
       `SELECT id, sender, subject, internal_date, snippet, detected_type, confidence_score, classification_confidence,
               identity_confidence, identity_company_name, identity_job_title, identity_company_confidence,
+              role_title, role_confidence, role_source, role_explanation,
               reason_code, reason_detail, ingest_decision, explanation
        FROM email_events
        WHERE user_id = ? AND application_id IS NULL AND detected_type IS NOT NULL
@@ -810,6 +824,9 @@ app.post('/api/email/events/:id/create-application', requireAuth, (req, res) => 
     initialStatus.status === ApplicationStatus.APPLIED
       ? `User created from confirmation event ${event.id}.`
       : 'User created from email event.';
+  const roleConfidence = jobTitle ? 1 : null;
+  const roleSource = jobTitle ? 'manual' : null;
+  const roleExplanation = jobTitle ? 'Manual entry.' : null;
 
   const id = crypto.randomUUID();
   const createdAt = nowIso();
@@ -817,8 +834,9 @@ app.post('/api/email/events/:id/create-application', requireAuth, (req, res) => 
     `INSERT INTO job_applications
      (id, user_id, company, role, status, status_source, company_name, job_title, job_location, source,
       applied_at, current_status, status_confidence, status_explanation, status_updated_at,
-      last_activity_at, archived, user_override, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      role_confidence, role_source, role_explanation, last_activity_at, archived, user_override,
+      created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     req.user.id,
@@ -835,6 +853,9 @@ app.post('/api/email/events/:id/create-application', requireAuth, (req, res) => 
     initialStatus.statusConfidence,
     statusExplanation,
     createdAt,
+    roleConfidence,
+    roleSource,
+    roleExplanation,
     eventTimestamp,
     0,
     1,
@@ -1018,12 +1039,16 @@ app.post('/api/applications', requireAuth, (req, res) => {
   const statusConfidence = status !== ApplicationStatus.UNKNOWN ? 1.0 : null;
   const statusExplanation =
     status !== ApplicationStatus.UNKNOWN ? 'User set initial status.' : null;
+  const roleConfidence = jobTitle ? 1 : null;
+  const roleSource = jobTitle ? 'manual' : null;
+  const roleExplanation = jobTitle ? 'Manual entry.' : null;
   db.prepare(
     `INSERT INTO job_applications
      (id, user_id, company, role, status, status_source, company_name, job_title, job_location, source,
       applied_at, current_status, status_confidence, status_explanation, status_updated_at,
-      last_activity_at, archived, user_override, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      role_confidence, role_source, role_explanation, last_activity_at, archived, user_override,
+      created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     req.user.id,
@@ -1040,6 +1065,9 @@ app.post('/api/applications', requireAuth, (req, res) => {
     statusConfidence,
     statusExplanation,
     timestamp,
+    roleConfidence,
+    roleSource,
+    roleExplanation,
     timestamp,
     0,
     1,
@@ -1084,6 +1112,9 @@ app.patch('/api/applications/:id', requireAuth, (req, res) => {
   if (req.body.job_title || req.body.role) {
     updates.job_title = String(req.body.job_title || req.body.role).trim();
     updates.role = updates.job_title;
+    updates.role_confidence = 1;
+    updates.role_source = 'manual';
+    updates.role_explanation = 'Manual edit.';
     payload.job_title = updates.job_title;
     metadataChanges.job_title = {
       previous_value: application.job_title || null,
@@ -1283,8 +1314,9 @@ app.get('/api/email/events', requireAuth, (req, res) => {
     .prepare(
       `SELECT provider_message_id, sender, subject, internal_date, snippet,
               detected_type, confidence_score, classification_confidence, identity_confidence,
-              identity_company_name, identity_job_title, identity_company_confidence, reason_code, reason_detail,
-              ingest_decision, explanation, created_at
+              identity_company_name, identity_job_title, identity_company_confidence,
+              role_title, role_confidence, role_source, role_explanation,
+              reason_code, reason_detail, ingest_decision, explanation, created_at
        FROM email_events
        WHERE user_id = ?
        ORDER BY internal_date DESC
