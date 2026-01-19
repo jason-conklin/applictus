@@ -13,7 +13,7 @@
     "test": "node server/scripts/run-tests.js"
   },
   "engines": {
-    "node": ">=20 <23"
+    "node": ">=20 <21"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

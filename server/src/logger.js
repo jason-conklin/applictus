@@ -6,8 +6,11 @@ const LEVELS = {
 };
 
 function getLevel() {
-  const level = String(process.env.JOBTRACK_LOG_LEVEL || 'info').toLowerCase();
-  return LEVELS[level] ?? LEVELS.info;
+  const envLevel = process.env.JOBTRACK_LOG_LEVEL;
+  const defaultLevel =
+    process.env.NODE_ENV === 'test' ? 'error' : 'info';
+  const level = String(envLevel || defaultLevel).toLowerCase();
+  return LEVELS[level] ?? LEVELS[defaultLevel];
 }
 
 function formatEntry(level, message, meta) {

@@ -15,8 +15,8 @@ npm run dev
 Open `http://localhost:3000`.
 
 ### Recommended Node version
-- Use **Node 20 LTS** for native module compatibility (see `.nvmrc`).
-- Package engines: `>=20 <23`.
+- Use **Node 20.20.0** for native module compatibility (see `.nvmrc`).
+- Package engines: `>=20 <21`.
 - If you see `better_sqlite3.node is not a valid Win32 application` or `ERR_DLOPEN_FAILED`, fix by:
   1) `rm -rf node_modules package-lock.json`
   2) `nvm use 20` (or install Node 20 LTS)

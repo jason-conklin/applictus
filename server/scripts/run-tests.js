@@ -31,10 +31,19 @@ if (!testFiles.length) {
   process.exit(1);
 }
 
-const proc = spawn(process.execPath, ['--test', ...testFiles], {
-  cwd: rootDir,
-  stdio: 'inherit'
-});
+const proc = spawn(
+  process.execPath,
+  ['--test', ...testFiles],
+  {
+    cwd: rootDir,
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      NODE_ENV: 'test',
+      JOBTRACK_LOG_LEVEL: process.env.JOBTRACK_LOG_LEVEL || 'error'
+    }
+  }
+);
 
 proc.on('exit', (code) => {
   process.exit(code ?? 1);

@@ -4,7 +4,8 @@
 const path = require('path');
 
 const MIN_NODE_MAJOR = 20;
-const MAX_NODE_MAJOR_EXCLUSIVE = 23;
+const MAX_NODE_MAJOR_EXCLUSIVE = 21;
+const RECOMMENDED_NODE = '20.20.0';
 
 function fail(message, detail) {
   console.error('\n[preflight] Environment check failed:');
@@ -21,14 +22,14 @@ function fail(message, detail) {
 }
 
 function checkNodeVersion() {
-  const [major] = process.versions.node.split('.').map((v) => parseInt(v, 10));
+  const [major, minor, patch] = process.versions.node.split('.').map((v) => parseInt(v, 10));
   if (Number.isNaN(major)) {
     return;
   }
   if (major < MIN_NODE_MAJOR || major >= MAX_NODE_MAJOR_EXCLUSIVE) {
     fail(
       `Unsupported Node version ${process.versions.node}.`,
-      `Use Node ${MIN_NODE_MAJOR}.x for native module compatibility.`
+      `Use Node ${RECOMMENDED_NODE} (Node ${MIN_NODE_MAJOR}.x only).`
     );
   }
 }
