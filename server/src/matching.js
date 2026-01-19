@@ -215,10 +215,25 @@ function inferInitialStatus(event, eventTimestamp) {
   const timestamp = eventTimestamp || toIsoFromInternalDate(event.internal_date, new Date(event.created_at));
   const classificationConfidence = getClassificationConfidence(event);
   const isApplied = event.detected_type === 'confirmation' && classificationConfidence >= 0.9;
+  const isRejected = event.detected_type === 'rejection' && classificationConfidence >= 0.9;
+  if (isRejected) {
+    return {
+      status: ApplicationStatus.REJECTED,
+      statusConfidence: classificationConfidence,
+      appliedAt: null
+    };
+  }
+  if (isApplied) {
+    return {
+      status: ApplicationStatus.APPLIED,
+      statusConfidence: classificationConfidence,
+      appliedAt: timestamp
+    };
+  }
   return {
-    status: isApplied ? ApplicationStatus.APPLIED : ApplicationStatus.UNKNOWN,
-    statusConfidence: isApplied ? classificationConfidence : null,
-    appliedAt: isApplied ? timestamp : null
+    status: ApplicationStatus.UNKNOWN,
+    statusConfidence: null,
+    appliedAt: null
   };
 }
 
@@ -240,7 +255,7 @@ function shouldAutoCreate(event, identity) {
     return false;
   }
   const domainConfidence = identity.domainConfidence || 0;
-  if (!identity.isAtsDomain && domainConfidence < MIN_DOMAIN_CONFIDENCE) {
+  if (!identity.isAtsDomain && domainConfidence < MIN_DOMAIN_CONFIDENCE && event.detected_type !== 'rejection') {
     return false;
   }
   return true;
@@ -372,29 +387,30 @@ function findLooseMatchingApplication(db, userId, identity, externalReqId) {
   return match || null;
 }
 
-function findCompanyMatches(db, userId, identity, senderDomain) {
+function findCompanyMatches(db, userId, identity, senderDomain, recencyDays = null) {
   if (!identity.companyName) {
     return [];
   }
+  const baseQuery = [
+    `SELECT * FROM job_applications`,
+    `WHERE user_id = ?`,
+    `AND (company_name = ? OR company = ?)`,
+    senderDomain ? `AND source = ?` : null,
+    `AND archived = 0`,
+    recencyDays
+      ? `AND COALESCE(last_activity_at, updated_at, created_at) >= date('now', ?)`
+      : null
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const params = [userId, identity.companyName, identity.companyName];
   if (senderDomain) {
-    return db
-      .prepare(
-        `SELECT * FROM job_applications
-         WHERE user_id = ?
-           AND (company_name = ? OR company = ?)
-           AND source = ?
-           AND archived = 0`
-      )
-      .all(userId, identity.companyName, identity.companyName, senderDomain);
+    params.push(senderDomain);
   }
-  return db
-    .prepare(
-      `SELECT * FROM job_applications
-       WHERE user_id = ?
-         AND (company_name = ? OR company = ?)
-         AND archived = 0`
-    )
-    .all(userId, identity.companyName, identity.companyName);
+  if (recencyDays) {
+    params.push(`-${recencyDays} days`);
+  }
+  return db.prepare(baseQuery).all(...params);
 }
 
 function updateApplicationActivity(db, application, event) {
@@ -584,7 +600,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
     }
     if (!existing && !ambiguous) {
       const domainMatches = identity.senderDomain
-        ? findCompanyMatches(db, userId, identity, identity.senderDomain)
+        ? findCompanyMatches(db, userId, identity, identity.senderDomain, 60)
         : [];
       if (domainMatches.length === 1) {
         existing = domainMatches[0];
@@ -593,7 +609,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
       }
     }
     if (!existing && !ambiguous) {
-      const companyMatches = findCompanyMatches(db, userId, identity, null);
+      const companyMatches = findCompanyMatches(db, userId, identity, null, 60);
       if (companyMatches.length === 1) {
         existing = companyMatches[0];
       } else if (companyMatches.length > 1) {

@@ -127,6 +127,20 @@ const RULES = [
   }
 ];
 
+const STRONG_REJECTION_RULE = {
+  name: 'rejection_strong',
+  detectedType: 'rejection',
+  confidence: 0.98,
+  requiresJobContext: true,
+  patterns: [
+    /not selected/i,
+    /moved to the next step in (?:their )?hiring process/i,
+    /we (?:will not|won't) be moving forward/i,
+    /move forward with other candidates/i,
+    /regret to inform/i
+  ]
+};
+
 function normalize(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
@@ -162,6 +176,17 @@ function classifyEmail({ subject, snippet, sender }) {
   const minConfidence = 0.6;
   const rules = RULES;
   const jobContext = hasJobContext(text);
+
+  const strongRejection = findRuleMatch([STRONG_REJECTION_RULE], text, 0.95, jobContext);
+  if (strongRejection) {
+    return {
+      isJobRelated: true,
+      detectedType: strongRejection.rule.detectedType,
+      confidenceScore: strongRejection.rule.confidence,
+      explanation: `Matched ${strongRejection.rule.name} via ${strongRejection.matched}.`,
+      reason: strongRejection.rule.name
+    };
+  }
 
   for (const pattern of DENYLIST) {
     if (pattern.test(text)) {

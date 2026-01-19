@@ -83,7 +83,7 @@ test('classifyEmail detects detailed rejection template with job context', () =>
   });
   assert.equal(result.isJobRelated, true);
   assert.equal(result.detectedType, 'rejection');
-  assert.ok(result.confidenceScore >= 0.9);
+  assert.ok(result.confidenceScore >= 0.95);
 });
 
 test('classifyEmail detects offer', () => {

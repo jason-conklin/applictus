@@ -1014,6 +1014,10 @@ function formatSyncSummary(result) {
   const ambiguousMatch = reasons.ambiguous_match || 0;
   const belowThreshold = reasons.below_threshold || 0;
   const duplicates = reasons.duplicate ?? result.skippedDuplicate ?? 0;
+  const confirmations = result.classified_confirmation ?? 0;
+  const rejections = result.classified_rejection ?? 0;
+  const rejectionsMatched = result.matched_events_rejection ?? 0;
+  const rejectedApplied = result.updated_status_to_rejected_total ?? 0;
   const skippedTotal =
     denylisted +
     notJob +
@@ -1060,9 +1064,20 @@ function formatSyncSummary(result) {
   if (scanned !== null) {
     const candidatesLabel =
       jobRelated !== null ? `job-related ${jobRelated}; ` : '';
-    return `Scanned ${scanned} messages; ${candidatesLabel}created events ${createdEvents} (new apps ${createdApps}, matched ${matched}, unsorted ${unsorted}, ${skippedLabel}).`;
+    const rejectionLabel =
+      rejections || rejectionsMatched || rejectedApplied
+        ? `rejections ${rejections} (matched ${rejectionsMatched}, applied ${rejectedApplied}); `
+        : '';
+    const confirmationLabel =
+      confirmations ? `confirmations ${confirmations}; ` : '';
+    return `Scanned ${scanned} messages; ${candidatesLabel}${confirmationLabel}${rejectionLabel}created events ${createdEvents} (new apps ${createdApps}, matched ${matched}, unsorted ${unsorted}, ${skippedLabel}).`;
   }
-  return `Created ${createdEvents} events (matched ${matched}, new apps ${createdApps}, unsorted ${unsorted}, ${skippedLabel}).`;
+  const rejectionLabel =
+    rejections || rejectionsMatched || rejectedApplied
+      ? `rejections ${rejections} (matched ${rejectionsMatched}, applied ${rejectedApplied}); `
+      : '';
+  const confirmationLabel = confirmations ? `confirmations ${confirmations}; ` : '';
+  return `Created ${createdEvents} events (${confirmationLabel}${rejectionLabel}matched ${matched}, new apps ${createdApps}, unsorted ${unsorted}, ${skippedLabel}).`;
 }
 
 async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {

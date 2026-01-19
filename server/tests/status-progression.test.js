@@ -385,3 +385,47 @@ test('rejection without role is ambiguous when multiple apps exist', () => {
   assert.equal(attached.application_id, null);
   db.close();
 });
+
+test('rejection-only email creates application as REJECTED', () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+
+  const sender = 'no-reply@embrace.com';
+  const rejectionSubject = 'Application update';
+  const rejectionSnippet =
+    'Thank you for applying to the Outreach Coordinator/Marketer position at Embrace Psychiatric Wellness Center. Unfortunately, Embrace Psychiatric Wellness Center has moved to the next step in their hiring process, and your application was not selected at this time.';
+  const rejectionId = insertEmailEvent(db, {
+    userId,
+    messageId: 'msg-reject-5',
+    sender,
+    subject: rejectionSubject,
+    detectedType: 'rejection',
+    confidenceScore: 0.96,
+    classificationConfidence: 0.96,
+    snippet: rejectionSnippet
+  });
+
+  const rejectionMatch = matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: rejectionId,
+      sender,
+      subject: rejectionSubject,
+      snippet: rejectionSnippet,
+      detected_type: 'rejection',
+      confidence_score: 0.96,
+      classification_confidence: 0.96,
+      created_at: new Date().toISOString()
+    }
+  });
+
+  assert.equal(rejectionMatch.action, 'created_application');
+  const appId = rejectionMatch.applicationId;
+  const app = db
+    .prepare('SELECT current_status FROM job_applications WHERE id = ?')
+    .get(appId);
+  assert.equal(app.current_status, ApplicationStatus.REJECTED);
+  db.close();
+});

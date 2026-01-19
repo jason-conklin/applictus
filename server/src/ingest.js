@@ -202,6 +202,16 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
   let createdApplications = 0;
   let unsortedCreated = 0;
   let jobRelatedCandidates = 0;
+  let filteredOutDenylist = 0;
+  let classifiedConfirmation = 0;
+  let classifiedRejection = 0;
+  let storedEventsTotal = 0;
+  let storedEventsRejection = 0;
+  let matchedEventsRejection = 0;
+  let updatedRejectedTotal = 0;
+  let unsortedRejectionTotal = 0;
+  let skippedDuplicatesProvider = 0;
+  let skippedDuplicatesRfc = 0;
   const reasons = initReasonCounters();
 
   const queryDays = Math.max(1, Math.min(days, 365));
@@ -231,6 +241,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         skippedDuplicate += 1;
         reasons.duplicate += 1;
         reasons.duplicate_provider_message_id += 1;
+        skippedDuplicatesProvider += 1;
         fetched += 1;
         logDebug('ingest.skip_duplicate', {
           userId,
@@ -263,6 +274,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
           skippedDuplicate += 1;
           reasons.duplicate += 1;
           reasons.duplicate_rfc_message_id += 1;
+          skippedDuplicatesRfc += 1;
           fetched += 1;
           logDebug('ingest.skip_duplicate', {
             userId,
@@ -279,6 +291,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         let reasonCode = 'classified_not_job_related';
         if (classification.reason === 'denylisted') {
           reasonCode = 'denylisted';
+          filteredOutDenylist += 1;
         } else if (classification.reason === 'below_threshold') {
           reasonCode = 'below_threshold';
         }
@@ -307,6 +320,12 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         continue;
       }
       jobRelatedCandidates += 1;
+      if (classification.detectedType === 'confirmation') {
+        classifiedConfirmation += 1;
+      }
+      if (classification.detectedType === 'rejection') {
+        classifiedRejection += 1;
+      }
 
       const identity = extractThreadIdentity({ subject, sender, snippet, bodyText });
       const roleResult = extractJobTitle({
@@ -355,6 +374,10 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         ingestDecision: null,
         createdAt
       });
+      storedEventsTotal += 1;
+      if (classification.detectedType === 'rejection') {
+        storedEventsRejection += 1;
+      }
 
       const matchResult = matchAndAssignEvent({
         db,
@@ -377,6 +400,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         },
         identity
       });
+      let rejectionApplied = false;
 
       logDebug('ingest.event_classified', {
         userId,
@@ -390,11 +414,18 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       if (matchResult.action === 'matched_existing') {
         matchedExisting += 1;
         reasons.matched_existing += 1;
+        if (classification.detectedType === 'rejection') {
+          matchedEventsRejection += 1;
+        }
         db.prepare('UPDATE email_events SET ingest_decision = ? WHERE id = ?').run(
           'matched',
           eventId
         );
-        runStatusInferenceForApplication(db, userId, matchResult.applicationId);
+        const inference = runStatusInferenceForApplication(db, userId, matchResult.applicationId);
+        if (inference?.applied && inference?.inferred_status === 'REJECTED') {
+          updatedRejectedTotal += 1;
+          rejectionApplied = true;
+        }
       }
       if (matchResult.action === 'created_application') {
         createdApplications += 1;
@@ -403,11 +434,18 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
           'auto_created',
           eventId
         );
-        runStatusInferenceForApplication(db, userId, matchResult.applicationId);
+        const inference = runStatusInferenceForApplication(db, userId, matchResult.applicationId);
+        if (inference?.applied && inference?.inferred_status === 'REJECTED') {
+          updatedRejectedTotal += 1;
+          rejectionApplied = true;
+        }
       }
       if (matchResult.action === 'unassigned') {
         unsortedCreated += 1;
         reasons.unsorted_created += 1;
+        if (classification.detectedType === 'rejection') {
+          unsortedRejectionTotal += 1;
+        }
         db.prepare('UPDATE email_events SET ingest_decision = ? WHERE id = ?').run(
           'unsorted',
           eventId
@@ -433,6 +471,26 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       }
       created += 1;
       fetched += 1;
+
+      if (classification.detectedType === 'rejection') {
+        const senderDomain = sender && sender.includes('@')
+          ? sender.split('@')[1]?.replace(/[> ]/g, '').toLowerCase()
+          : null;
+        const companyPreview = (identity.companyName || '').slice(0, 80);
+        const rolePreview = (identity.jobTitle || rolePayload?.jobTitle || '').slice(0, 80);
+        logInfo('ingest.rejection_trace', {
+          userId,
+          providerMessageId: message.id,
+          senderDomain: senderDomain || null,
+          classifierType: classification.detectedType,
+          confidence: classificationConfidence,
+          company: companyPreview || null,
+          role: rolePreview || null,
+          matchAction: matchResult.action,
+          matchReason: matchResult.reason || null,
+          rejectedApplied: rejectionApplied
+        });
+      }
     }
 
     pageToken = list.data.nextPageToken;
@@ -447,6 +505,16 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
     matchedExisting,
     createdApplications,
     unsortedCreated,
+    filteredOutDenylist,
+    classifiedConfirmation,
+    classifiedRejection,
+    storedEventsTotal,
+    storedEventsRejection,
+    matchedEventsRejection,
+    updatedRejectedTotal,
+    unsortedRejectionTotal,
+    skippedDuplicatesProvider,
+    skippedDuplicatesRfc,
     reasons,
     days: queryDays
   });
@@ -463,6 +531,21 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
     createdApplications,
     unsortedCreated,
     reasons,
+    fetched_total: fetched,
+    filtered_out_denylist: filteredOutDenylist,
+    classified_job_related_total: jobRelatedCandidates,
+    classified_confirmation: classifiedConfirmation,
+    classified_rejection: classifiedRejection,
+    stored_events_total: storedEventsTotal,
+    stored_events_rejection: storedEventsRejection,
+    matched_events_total: matchedExisting,
+    matched_events_rejection: matchedEventsRejection,
+    created_apps_total: createdApplications,
+    updated_status_to_rejected_total: updatedRejectedTotal,
+    unsorted_total: unsortedCreated,
+    unsorted_rejection_total: unsortedRejectionTotal,
+    skipped_duplicates_provider: skippedDuplicatesProvider,
+    skipped_duplicates_rfc: skippedDuplicatesRfc,
     days: queryDays
   };
 }

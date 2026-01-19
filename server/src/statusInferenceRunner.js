@@ -167,6 +167,7 @@ function runStatusInferenceForApplication(db, userId, applicationId) {
 
   return {
     status: 'ok',
+    inferred_status: result.inferred_status,
     applied,
     suggested,
     blocked
