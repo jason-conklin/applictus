@@ -119,6 +119,20 @@ const INVALID_COMPANY_TERMS = new Set([
 
 const ROLE_COMPANY_PATTERNS = [
   {
+    name: 'applying_to_role_position_at_company',
+    regex: /\bapplying to (?:the )?([A-Z][A-Za-z0-9/&.'\- ]{2,80})\s+position\s+at\s+([A-Z][A-Za-z0-9&.'\- ]{2,80}?)(?:[.,\n]|$|\s+has\s+|\s+have\s+)/i,
+    roleIndex: 1,
+    companyIndex: 2,
+    confidence: 0.96
+  },
+  {
+    name: 'application_to_role_position_at_company',
+    regex: /\bapplication to (?:the )?([A-Z][A-Za-z0-9/&.'\- ]{2,80})\s+position\s+at\s+([A-Z][A-Za-z0-9&.'\- ]{2,80}?)(?:[.,\n]|$|\s+has\s+|\s+have\s+)/i,
+    roleIndex: 1,
+    companyIndex: 2,
+    confidence: 0.95
+  },
+  {
     name: 'for_role_at_company',
     regex: /\bfor\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})\s+(?:at|with|from)\s+([A-Z][A-Za-z0-9&.'\- ]{2,60})\b/,
     roleIndex: 1,
@@ -212,6 +226,11 @@ const COMPANY_ONLY_PATTERNS = [
     name: 'application_update_company',
     regex: /update on your application(?:\s*(?:to|at|with))?\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})/i,
     confidence: 0.88
+  },
+  {
+    name: 'moved_to_next_step_company',
+    regex: /([A-Z][A-Za-z0-9&.'\- ]{2,80}) has moved to the next step in (?:their )?hiring process/i,
+    confidence: 0.9
   }
 ];
 
@@ -484,6 +503,7 @@ function cleanCompanyCandidate(value) {
     return null;
   }
   const cleaned = cleanEntity(value)
+    .replace(/^(?:unfortunately|regretfully|sadly)[,:\s-]*/i, '')
     .replace(/\b(?:and|&)\s+its\s+affiliates\b/i, '')
     .replace(/\s+(?:inc|inc\.|llc|llc\.|ltd|ltd\.|corp|corp\.|corporation|co|co\.)$/i, '')
     .replace(/\s+for\s+.*$/i, '')
@@ -847,10 +867,13 @@ function isAtsDomain(senderDomain) {
   return ATS_BASE_DOMAINS.has(base);
 }
 
-function extractCompanyRole(subject) {
-  const text = normalize(subject);
+function extractCompanyRole(text) {
+  const normalized = normalize(text);
+  if (!normalized) {
+    return null;
+  }
   for (const rule of ROLE_COMPANY_PATTERNS) {
-    const match = text.match(rule.regex);
+    const match = normalized.match(rule.regex);
     if (!match) {
       continue;
     }
@@ -867,13 +890,7 @@ function extractCompanyRole(subject) {
       explanation: `Matched ${rule.name} pattern.`
     };
   }
-  return {
-    companyName: null,
-    jobTitle: null,
-    companyConfidence: 0,
-    roleConfidence: 0,
-    explanation: 'No strict role/company pattern matched.'
-  };
+  return null;
 }
 
 function extractCompanyFromSubject(subject) {
@@ -1001,7 +1018,16 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   const snippetText = normalize(snippet);
   const bodyTextRaw = String(bodyText || '');
   const senderName = extractSenderName(sender);
-  const roleMatch = extractCompanyRole(subjectText);
+  const roleMatch =
+    extractCompanyRole(subjectText) ||
+    extractCompanyRole(snippetText) ||
+    extractCompanyRole(bodyTextRaw) || {
+      companyName: null,
+      jobTitle: null,
+      companyConfidence: 0,
+      roleConfidence: 0,
+      explanation: 'No strict role/company pattern matched.'
+    };
   const subjectCompany =
     extractCompanyFromSubject(subjectText) || extractCompanyFromSubject(snippetText);
   const senderCompany = extractCompanyFromSender(sender);

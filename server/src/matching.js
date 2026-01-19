@@ -372,6 +372,31 @@ function findLooseMatchingApplication(db, userId, identity, externalReqId) {
   return match || null;
 }
 
+function findCompanyMatches(db, userId, identity, senderDomain) {
+  if (!identity.companyName) {
+    return [];
+  }
+  if (senderDomain) {
+    return db
+      .prepare(
+        `SELECT * FROM job_applications
+         WHERE user_id = ?
+           AND (company_name = ? OR company = ?)
+           AND source = ?
+           AND archived = 0`
+      )
+      .all(userId, identity.companyName, identity.companyName, senderDomain);
+  }
+  return db
+    .prepare(
+      `SELECT * FROM job_applications
+       WHERE user_id = ?
+         AND (company_name = ? OR company = ?)
+         AND archived = 0`
+    )
+    .all(userId, identity.companyName, identity.companyName);
+}
+
 function updateApplicationActivity(db, application, event) {
   const updates = {};
   const eventTimestamp = toIsoFromInternalDate(event.internal_date, new Date(event.created_at));
@@ -526,8 +551,66 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
 
   const matchConfidence = identity.matchConfidence || 0;
   const externalReqId = getExternalReqId(event);
+  const isRejection = event.detected_type === 'rejection';
+  const roleForMatch = identity.jobTitle || event.role_title || null;
   let existing = null;
-  if (matchConfidence >= MIN_MATCH_CONFIDENCE) {
+  let ambiguous = false;
+
+  if (isRejection) {
+    if (externalReqId) {
+      existing = findMatchingApplication(db, userId, identity, externalReqId);
+    }
+    if (!existing && roleForMatch) {
+      const matches = db
+        .prepare(
+          `SELECT * FROM job_applications
+           WHERE user_id = ?
+             AND (company_name = ? OR company = ?)
+             AND (job_title = ? OR role = ?)
+             AND archived = 0`
+        )
+        .all(
+          userId,
+          identity.companyName,
+          identity.companyName,
+          roleForMatch,
+          roleForMatch
+        );
+      if (matches.length === 1) {
+        existing = matches[0];
+      } else if (matches.length > 1) {
+        ambiguous = true;
+      }
+    }
+    if (!existing && !ambiguous) {
+      const domainMatches = identity.senderDomain
+        ? findCompanyMatches(db, userId, identity, identity.senderDomain)
+        : [];
+      if (domainMatches.length === 1) {
+        existing = domainMatches[0];
+      } else if (domainMatches.length > 1) {
+        ambiguous = true;
+      }
+    }
+    if (!existing && !ambiguous) {
+      const companyMatches = findCompanyMatches(db, userId, identity, null);
+      if (companyMatches.length === 1) {
+        existing = companyMatches[0];
+      } else if (companyMatches.length > 1) {
+        ambiguous = true;
+      }
+    }
+    if (!existing && ambiguous) {
+      return {
+        action: 'unassigned',
+        reason: 'ambiguous_match',
+        reasonDetail: 'Multiple applications match this rejection email.',
+        identity
+      };
+    }
+  }
+
+  if (!existing && matchConfidence >= MIN_MATCH_CONFIDENCE) {
     existing = findMatchingApplication(db, userId, identity, externalReqId);
     if (
       !existing &&
@@ -540,6 +623,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
       existing = findLooseMatchingApplication(db, userId, identity, externalReqId);
     }
   } else if (
+    !existing &&
     !externalReqId &&
     AUTO_CREATE_TYPES.has(event.detected_type) &&
     identity.companyName &&

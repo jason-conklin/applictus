@@ -75,6 +75,17 @@ test('classifyEmail detects rejection via moving forward language', () => {
   assert.equal(result.detectedType, 'rejection');
 });
 
+test('classifyEmail detects detailed rejection template with job context', () => {
+  const result = classifyEmail({
+    subject: 'Application update',
+    snippet:
+      'Thank you for applying to the Outreach Coordinator/Marketer position at Embrace Psychiatric Wellness Center. Unfortunately, Embrace Psychiatric Wellness Center has moved to the next step in their hiring process, and your application was not selected at this time.'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'rejection');
+  assert.ok(result.confidenceScore >= 0.9);
+});
+
 test('classifyEmail detects offer', () => {
   const result = classifyEmail({
     subject: 'Offer letter',
@@ -110,13 +121,20 @@ test('classifyEmail denylist overrides allowlist', () => {
   assert.equal(result.isJobRelated, false);
 });
 
-test('classifyEmail allows strong rejection even with unsubscribe', () => {
+test('classifyEmail does not treat unsubscribe-only as rejection', () => {
   const result = classifyEmail({
     subject: 'Not moving forward',
     snippet: 'Unsubscribe'
   });
-  assert.equal(result.isJobRelated, true);
-  assert.equal(result.detectedType, 'rejection');
+  assert.equal(result.isJobRelated, false);
+});
+
+test('classifyEmail avoids rejection when no job context', () => {
+  const result = classifyEmail({
+    subject: 'Selection update',
+    snippet: 'You were not selected for the giveaway.'
+  });
+  assert.notEqual(result.detectedType, 'rejection');
 });
 
 test('classifyEmail captures job id signals', () => {

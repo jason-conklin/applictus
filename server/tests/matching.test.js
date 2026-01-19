@@ -65,6 +65,19 @@ test('extractThreadIdentity handles greenhouse sender and subject company', () =
   assert.equal(identity.isAtsDomain, true);
 });
 
+test('extractThreadIdentity captures role and company from rejection template', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Application update',
+    sender: 'Embrace <no-reply@embrace.com>',
+    snippet:
+      'Thank you for applying to the Outreach Coordinator/Marketer position at Embrace Psychiatric Wellness Center. Unfortunately, Embrace Psychiatric Wellness Center has moved to the next step in their hiring process, and your application was not selected at this time.'
+  });
+  assert.equal(identity.companyName, 'Embrace Psychiatric Wellness Center');
+  assert.equal(identity.jobTitle, 'Outreach Coordinator/Marketer');
+  assert.ok(identity.companyConfidence >= 0.9);
+  assert.ok(identity.matchConfidence >= 0.9);
+});
+
 test('extractThreadIdentity ignores provider sender name in favor of subject company', () => {
   const identity = extractThreadIdentity({
     subject: 'Thanks for applying to CubX Inc.',

@@ -1011,6 +1011,7 @@ function formatSyncSummary(result) {
   const missingIdentity = reasons.missing_identity || 0;
   const lowConfidence = (reasons.low_confidence || 0) + (reasons.not_confident_for_create || 0);
   const ambiguousSender = reasons.ambiguous_sender || 0;
+  const ambiguousMatch = reasons.ambiguous_match || 0;
   const belowThreshold = reasons.below_threshold || 0;
   const duplicates = reasons.duplicate ?? result.skippedDuplicate ?? 0;
   const skippedTotal =
@@ -1019,6 +1020,7 @@ function formatSyncSummary(result) {
     missingIdentity +
     lowConfidence +
     ambiguousSender +
+    ambiguousMatch +
     belowThreshold +
     duplicates;
 
@@ -1037,6 +1039,9 @@ function formatSyncSummary(result) {
   }
   if (ambiguousSender) {
     skippedParts.push(`ambiguous sender ${ambiguousSender}`);
+  }
+  if (ambiguousMatch) {
+    skippedParts.push(`ambiguous match ${ambiguousMatch}`);
   }
   if (belowThreshold) {
     skippedParts.push(`below threshold ${belowThreshold}`);

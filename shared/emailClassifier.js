@@ -23,20 +23,28 @@ const RULES = [
     name: 'rejection',
     detectedType: 'rejection',
     confidence: 0.95,
+    requiresJobContext: true,
     patterns: [
       /not moving forward/i,
       /no longer under consideration/i,
       /not selected/i,
       /regret to inform/i,
       /we (?:have )?decided to move forward with other candidates/i,
+      /we (?:have )?chosen other candidates/i,
+      /we (?:have )?chosen other applicants/i,
+      /we (?:will not|won't) be moving forward/i,
+      /moved to the next step in (?:their )?hiring process/i,
       /decided to pursue other candidates/i,
       /will not be moving forward/i,
       /we will not be moving forward/i,
+      /application (?:was|has been) not selected/i,
       /unfortunately.+(?:application|candidacy|role|position)/i,
       /thank you for your interest in the (?:position|role|opportunity)/i,
       /we appreciate your interest in the (?:position|role|opportunity)/i,
       /position has been filled/i,
-      /application (?:was|has been) rejected/i
+      /application (?:was|has been) rejected/i,
+      /application (?:was|has been) declined/i,
+      /declined\b/i
     ]
   },
   {
@@ -123,9 +131,18 @@ function normalize(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
-function findRuleMatch(rules, text, minConfidence) {
+function hasJobContext(text) {
+  return /\b(application|apply|applied|position|role|job|candidate|candidacy|hiring|recruit|interview)\b/i.test(
+    text
+  );
+}
+
+function findRuleMatch(rules, text, minConfidence, jobContext) {
   for (const rule of rules) {
     if (rule.confidence < minConfidence) {
+      continue;
+    }
+    if (rule.requiresJobContext && !jobContext) {
       continue;
     }
     const matched = rule.patterns.find((pattern) => pattern.test(text));
@@ -144,18 +161,7 @@ function classifyEmail({ subject, snippet, sender }) {
 
   const minConfidence = 0.6;
   const rules = RULES;
-
-  const rejectionRules = rules.filter((rule) => rule.detectedType === 'rejection');
-  const rejectionMatch = findRuleMatch(rejectionRules, text, 0.9);
-  if (rejectionMatch) {
-    return {
-      isJobRelated: true,
-      detectedType: rejectionMatch.rule.detectedType,
-      confidenceScore: rejectionMatch.rule.confidence,
-      explanation: `Matched ${rejectionMatch.rule.name} via ${rejectionMatch.matched}.`,
-      reason: rejectionMatch.rule.name
-    };
-  }
+  const jobContext = hasJobContext(text);
 
   for (const pattern of DENYLIST) {
     if (pattern.test(text)) {
@@ -167,7 +173,19 @@ function classifyEmail({ subject, snippet, sender }) {
     }
   }
 
-  const match = findRuleMatch(rules, text, minConfidence);
+  const rejectionRules = rules.filter((rule) => rule.detectedType === 'rejection');
+  const rejectionMatch = findRuleMatch(rejectionRules, text, 0.9, jobContext);
+  if (rejectionMatch) {
+    return {
+      isJobRelated: true,
+      detectedType: rejectionMatch.rule.detectedType,
+      confidenceScore: rejectionMatch.rule.confidence,
+      explanation: `Matched ${rejectionMatch.rule.name} via ${rejectionMatch.matched}.`,
+      reason: rejectionMatch.rule.name
+    };
+  }
+
+  const match = findRuleMatch(rules, text, minConfidence, jobContext);
   if (match) {
     return {
       isJobRelated: true,
@@ -178,7 +196,7 @@ function classifyEmail({ subject, snippet, sender }) {
     };
   }
 
-  const lowMatch = findRuleMatch(rules, text, 0);
+  const lowMatch = findRuleMatch(rules, text, 0, jobContext);
   if (lowMatch) {
     return {
       isJobRelated: false,
