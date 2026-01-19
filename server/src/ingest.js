@@ -124,6 +124,24 @@ function parseHeader(headers, name) {
   return header?.value || '';
 }
 
+function categorizeSenderDomain(sender = '') {
+  const domain = sender.includes('@') ? sender.split('@')[1].replace(/[> ]/g, '').toLowerCase() : '';
+  if (!domain) return 'unknown';
+  if (domain.includes('indeed')) return 'indeed';
+  if (domain.includes('greenhouse')) return 'greenhouse';
+  if (domain.includes('myworkday') || domain.includes('workday')) return 'workday';
+  if (domain.includes('icims')) return 'icims';
+  if (domain.includes('workable')) return 'workable';
+  if (domain.includes('breezy')) return 'breezy';
+  if (domain.includes('applytojob')) return 'applytojob';
+  if (domain.includes('lever')) return 'lever';
+  if (domain.includes('smartrecruiters')) return 'smartrecruiters';
+  if (domain.includes('taleo') || domain.includes('talemetry')) return 'taleo';
+  if (domain.includes('ashby')) return 'ashby';
+  if (domain.includes('gmail')) return 'gmail';
+  return domain;
+}
+
 function recordSkipSample({ db, userId, provider, messageId, sender, subject, reasonCode }) {
   try {
     db.prepare(
@@ -196,6 +214,8 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
   const gmail = google.gmail({ version: 'v1', auth: authClient });
   let pageToken;
   let fetched = 0;
+  let pagesFetched = 0;
+  let totalMessagesListed = 0;
   let created = 0;
   let skippedDuplicate = 0;
   let skippedNotJob = 0;
@@ -219,10 +239,14 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
   let unsortedRejectionTotal = 0;
   let skippedDuplicatesProvider = 0;
   let skippedDuplicatesRfc = 0;
+  let stoppedReason = 'completed';
+  const messageSourceCounts = {};
   const reasons = initReasonCounters();
 
   const queryDays = Math.max(1, Math.min(days, 365));
   const limit = Math.max(1, Math.min(maxResults, 500));
+  const timeWindowEnd = new Date();
+  const timeWindowStart = new Date(timeWindowEnd.getTime() - queryDays * 24 * 60 * 60 * 1000);
   do {
     if (fetched >= limit) {
       break;
@@ -234,7 +258,9 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       pageToken
     });
 
+    pagesFetched += 1;
     const messages = list.data.messages || [];
+    totalMessagesListed += messages.length;
     for (const message of messages) {
       if (fetched >= limit) {
         break;
@@ -272,6 +298,8 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         internalDate,
         bodyText
       } = extractMessageMetadata(details.data);
+      const sourceBucket = categorizeSenderDomain(sender);
+      messageSourceCounts[sourceBucket] = (messageSourceCounts[sourceBucket] || 0) + 1;
 
       if (rfcMessageId) {
         const existingRfc = db
@@ -551,6 +579,12 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
     unsortedRejectionTotal,
     skippedDuplicatesProvider,
     skippedDuplicatesRfc,
+    pagesFetched,
+    totalMessagesListed,
+    messageSourceCounts,
+    timeWindowStart: timeWindowStart.toISOString(),
+    timeWindowEnd: timeWindowEnd.toISOString(),
+    stoppedReason,
     reasons,
     days: queryDays
   });
@@ -588,6 +622,12 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
     unsorted_rejection_total: unsortedRejectionTotal,
     skipped_duplicates_provider: skippedDuplicatesProvider,
     skipped_duplicates_rfc: skippedDuplicatesRfc,
+    pages_fetched: pagesFetched,
+    total_messages_listed: totalMessagesListed,
+    message_source_counts: messageSourceCounts,
+    time_window_start: timeWindowStart.toISOString(),
+    time_window_end: timeWindowEnd.toISOString(),
+    stopped_reason: stoppedReason,
     days: queryDays
   };
 }

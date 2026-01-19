@@ -1018,6 +1018,22 @@ function formatSyncSummary(result) {
   const rejections = result.classified_rejection ?? 0;
   const rejectionsMatched = result.matched_events_rejection ?? 0;
   const rejectedApplied = result.updated_status_to_rejected_total ?? 0;
+  const confirmationsMatched = result.matched_events_confirmation_total ?? 0;
+  const confirmationsStored = result.stored_events_confirmation_total ?? confirmations;
+  const confirmationsCreated = result.created_apps_confirmation_total ?? 0;
+  const unsortedConfirmations = result.unsorted_confirmation_total ?? 0;
+  const unsortedRejections = result.unsorted_rejection_total ?? 0;
+  const updatedApplied = result.updated_status_to_applied_total ?? 0;
+  const scanned = result.total_messages_listed ?? result.fetched_total ?? result.fetched ?? 0;
+  const pages = result.pages_fetched ?? null;
+  const stoppedReason = result.stopped_reason || 'completed';
+  const windowStart = result.time_window_start || '';
+  const windowEnd = result.time_window_end || '';
+  const sourceCounts = result.message_source_counts || {};
+  const sourceParts = Object.entries(sourceCounts)
+    .filter(([, count]) => count > 0)
+    .map(([k, v]) => `${k}:${v}`)
+    .join(', ');
   const skippedTotal =
     denylisted +
     notJob +
@@ -1029,55 +1045,35 @@ function formatSyncSummary(result) {
     duplicates;
 
   const skippedParts = [];
-  if (denylisted) {
-    skippedParts.push(`denylist ${denylisted}`);
-  }
-  if (notJob) {
-    skippedParts.push(`not job related ${notJob}`);
-  }
-  if (missingIdentity) {
-    skippedParts.push(`missing identity ${missingIdentity}`);
-  }
-  if (lowConfidence) {
-    skippedParts.push(`low confidence ${lowConfidence}`);
-  }
-  if (ambiguousSender) {
-    skippedParts.push(`ambiguous sender ${ambiguousSender}`);
-  }
-  if (ambiguousMatch) {
-    skippedParts.push(`ambiguous match ${ambiguousMatch}`);
-  }
-  if (belowThreshold) {
-    skippedParts.push(`below threshold ${belowThreshold}`);
-  }
-  if (duplicates) {
-    skippedParts.push(`duplicates ${duplicates}`);
-  }
+  if (denylisted) skippedParts.push(`denylist ${denylisted}`);
+  if (notJob) skippedParts.push(`not job related ${notJob}`);
+  if (missingIdentity) skippedParts.push(`missing identity ${missingIdentity}`);
+  if (lowConfidence) skippedParts.push(`low confidence ${lowConfidence}`);
+  if (ambiguousSender) skippedParts.push(`ambiguous sender ${ambiguousSender}`);
+  if (ambiguousMatch) skippedParts.push(`ambiguous match ${ambiguousMatch}`);
+  if (belowThreshold) skippedParts.push(`below threshold ${belowThreshold}`);
+  if (duplicates) skippedParts.push(`duplicates ${duplicates}`);
 
   const skippedLabel = skippedParts.length
-    ? `skipped ${skippedTotal}: ${skippedParts.join(', ')}`
-    : `skipped ${skippedTotal}`;
+    ? `Skipped ${skippedTotal}: ${skippedParts.join(', ')}`
+    : `Skipped ${skippedTotal}`;
 
-  const scanned = result.totalScanned ?? result.fetched ?? null;
-  const jobRelated = result.jobRelatedCandidates ?? null;
-  const createdEvents = result.created ?? 0;
-  if (scanned !== null) {
-    const candidatesLabel =
-      jobRelated !== null ? `job-related ${jobRelated}; ` : '';
-    const rejectionLabel =
-      rejections || rejectionsMatched || rejectedApplied
-        ? `rejections ${rejections} (matched ${rejectionsMatched}, applied ${rejectedApplied}); `
-        : '';
-    const confirmationLabel =
-      confirmations ? `confirmations ${confirmations}; ` : '';
-    return `Scanned ${scanned} messages; ${candidatesLabel}${confirmationLabel}${rejectionLabel}created events ${createdEvents} (new apps ${createdApps}, matched ${matched}, unsorted ${unsorted}, ${skippedLabel}).`;
+  const lines = [];
+  lines.push(
+    `Scanned ${scanned} messages${pages ? ` across ${pages} pages` : ''} (${windowStart} → ${windowEnd}) [${stoppedReason}]`
+  );
+  lines.push(
+    `Confirmations: classified ${confirmations}, stored ${confirmationsStored}, matched ${confirmationsMatched}, new apps ${confirmationsCreated}, updated→APPLIED ${updatedApplied}, unsorted ${unsortedConfirmations}`
+  );
+  lines.push(
+    `Rejections: classified ${rejections}, matched ${rejectionsMatched}, status→REJECTED ${rejectedApplied}, unsorted ${unsortedRejections}`
+  );
+  if (sourceParts) {
+    lines.push(`Sources: ${sourceParts}`);
   }
-  const rejectionLabel =
-    rejections || rejectionsMatched || rejectedApplied
-      ? `rejections ${rejections} (matched ${rejectionsMatched}, applied ${rejectedApplied}); `
-      : '';
-  const confirmationLabel = confirmations ? `confirmations ${confirmations}; ` : '';
-  return `Created ${createdEvents} events (${confirmationLabel}${rejectionLabel}matched ${matched}, new apps ${createdApps}, unsorted ${unsorted}, ${skippedLabel}).`;
+  lines.push(`Events: matched ${matched}, new apps ${createdApps}, unsorted ${unsorted}`);
+  lines.push(skippedLabel);
+  return lines.join('\n');
 }
 
 async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {

@@ -75,7 +75,11 @@ const RULES = [
       /thank you for applying/i,
       /thanks for applying/i,
       /we (?:have )?received your application/i,
-      /we received your application/i
+      /we received your application/i,
+      /thank you for applying to/i,
+      /your application for the .* position/i,
+      /application received/i,
+      /an update on your application/i
     ]
   },
   {
@@ -198,6 +202,7 @@ function classifyEmail({ subject, snippet, sender }) {
     };
   }
 
+  // Denylist overrides generic allowlist (except for the strong rejection rule above).
   for (const pattern of DENYLIST) {
     if (pattern.test(text)) {
       return {
@@ -208,6 +213,7 @@ function classifyEmail({ subject, snippet, sender }) {
     }
   }
 
+  const confirmationRules = rules.filter((rule) => rule.detectedType === 'confirmation');
   const rejectionRules = rules.filter((rule) => rule.detectedType === 'rejection');
   const rejectionMatch = findRuleMatch(rejectionRules, text, 0.9, jobContext);
   if (rejectionMatch) {
@@ -217,6 +223,17 @@ function classifyEmail({ subject, snippet, sender }) {
       confidenceScore: rejectionMatch.rule.confidence,
       explanation: `Matched ${rejectionMatch.rule.name} via ${rejectionMatch.matched}.`,
       reason: rejectionMatch.rule.name
+    };
+  }
+
+  const confirmationMatch = findRuleMatch(confirmationRules, text, 0.9, jobContext);
+  if (confirmationMatch) {
+    return {
+      isJobRelated: true,
+      detectedType: confirmationMatch.rule.detectedType,
+      confidenceScore: confirmationMatch.rule.confidence,
+      explanation: `Matched ${confirmationMatch.rule.name} via ${confirmationMatch.matched}.`,
+      reason: confirmationMatch.rule.name
     };
   }
 
