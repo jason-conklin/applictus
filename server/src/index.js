@@ -1495,16 +1495,21 @@ let server = null;
 
 function startServer(port = PORT, options = {}) {
   const shouldLog = options.log !== false;
-  return new Promise((resolve) => {
-    server = app.listen(port, () => {
-      if (shouldLog) {
-        const address = server.address();
-        const actualPort =
-          address && typeof address === 'object' && address.port ? address.port : port;
-        console.log(`Applictus running on http://localhost:${actualPort}`);
-      }
-      resolve(server);
-    });
+  const host = options.host || process.env.HOST || '0.0.0.0';
+  return new Promise((resolve, reject) => {
+    server = app
+      .listen(port, host, () => {
+        if (shouldLog) {
+          const address = server.address();
+          const actualPort =
+            address && typeof address === 'object' && address.port ? address.port : port;
+          console.log(`Applictus running on http://${host}:${actualPort}`);
+        }
+        resolve(server);
+      })
+      .on('error', (err) => {
+        reject(err);
+      });
   });
 }
 

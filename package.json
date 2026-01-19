@@ -4,10 +4,16 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
+    "predev": "node server/scripts/preflight.js",
+    "prestart": "node server/scripts/preflight.js",
+    "pretest": "node server/scripts/preflight.js",
     "dev": "node server/src/index.js",
     "start": "node server/src/index.js",
     "seed": "node server/scripts/seed.js",
     "test": "node server/scripts/run-tests.js"
+  },
+  "engines": {
+    "node": ">=20 <23"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

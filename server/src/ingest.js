@@ -207,8 +207,13 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
   let classifiedConfirmation = 0;
   let classifiedRejection = 0;
   let storedEventsTotal = 0;
+  let storedEventsConfirmation = 0;
   let storedEventsRejection = 0;
+  let matchedEventsConfirmation = 0;
   let matchedEventsRejection = 0;
+  let createdAppsConfirmation = 0;
+  let createdAppsRejectionOnly = 0;
+  let unsortedConfirmationTotal = 0;
   let updatedRejectedTotal = 0;
   let unsortedRejectionTotal = 0;
   let skippedDuplicatesProvider = 0;
@@ -376,6 +381,9 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         createdAt
       });
       storedEventsTotal += 1;
+      if (classification.detectedType === 'confirmation') {
+        storedEventsConfirmation += 1;
+      }
       if (classification.detectedType === 'rejection') {
         storedEventsRejection += 1;
       }
@@ -415,6 +423,9 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       if (matchResult.action === 'matched_existing') {
         matchedExisting += 1;
         reasons.matched_existing += 1;
+        if (classification.detectedType === 'confirmation') {
+          matchedEventsConfirmation += 1;
+        }
         if (classification.detectedType === 'rejection') {
           matchedEventsRejection += 1;
         }
@@ -427,10 +438,19 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
           updatedRejectedTotal += 1;
           rejectionApplied = true;
         }
+        if (inference?.applied && inference?.inferred_status === 'APPLIED') {
+          updatedAppliedTotal += 1;
+        }
       }
       if (matchResult.action === 'created_application') {
         createdApplications += 1;
         reasons.auto_created += 1;
+        if (classification.detectedType === 'confirmation') {
+          createdAppsConfirmation += 1;
+        }
+        if (classification.detectedType === 'rejection') {
+          createdAppsRejectionOnly += 1;
+        }
         db.prepare('UPDATE email_events SET ingest_decision = ? WHERE id = ?').run(
           'auto_created',
           eventId
@@ -440,10 +460,16 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
           updatedRejectedTotal += 1;
           rejectionApplied = true;
         }
+        if (inference?.applied && inference?.inferred_status === 'APPLIED') {
+          updatedAppliedTotal += 1;
+        }
       }
       if (matchResult.action === 'unassigned') {
         unsortedCreated += 1;
         reasons.unsorted_created += 1;
+        if (classification.detectedType === 'confirmation') {
+          unsortedConfirmationTotal += 1;
+        }
         if (classification.detectedType === 'rejection') {
           unsortedRejectionTotal += 1;
         }
@@ -512,9 +538,15 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
     classifiedConfirmation,
     classifiedRejection,
     storedEventsTotal,
+    storedEventsConfirmation,
     storedEventsRejection,
+    matchedEventsConfirmation,
     matchedEventsRejection,
+    createdAppsConfirmation,
+    createdAppsRejectionOnly,
     updatedRejectedTotal,
+    updatedAppliedTotal,
+    unsortedConfirmationTotal,
     unsortedRejectionTotal,
     skippedDuplicatesProvider,
     skippedDuplicatesRfc,
@@ -540,12 +572,18 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
     classified_confirmation: classifiedConfirmation,
     classified_rejection: classifiedRejection,
     stored_events_total: storedEventsTotal,
+    stored_events_confirmation_total: storedEventsConfirmation,
     stored_events_rejection: storedEventsRejection,
     matched_events_total: matchedExisting,
+    matched_events_confirmation_total: matchedEventsConfirmation,
     matched_events_rejection: matchedEventsRejection,
     created_apps_total: createdApplications,
+    created_apps_confirmation_total: createdAppsConfirmation,
+    created_apps_rejection_only_total: createdAppsRejectionOnly,
     updated_status_to_rejected_total: updatedRejectedTotal,
+    updated_status_to_applied_total: updatedAppliedTotal,
     unsorted_total: unsortedCreated,
+    unsorted_confirmation_total: unsortedConfirmationTotal,
     unsorted_rejection_total: unsortedRejectionTotal,
     skipped_duplicates_provider: skippedDuplicatesProvider,
     skipped_duplicates_rfc: skippedDuplicatesRfc,

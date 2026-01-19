@@ -106,7 +106,7 @@ function getCookiesFromResponse(response) {
 }
 
 test('critical API routes respond with expected shape', async (t) => {
-  const server = await startServer(0, { log: false });
+  const server = await startServer(0, { log: false, host: '127.0.0.1' });
   const address = server.address();
   const baseUrl =
     address && typeof address === 'object' ? `http://localhost:${address.port}` : 'http://localhost';

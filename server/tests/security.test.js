@@ -11,7 +11,7 @@ async function startServerWithEnv(envOverrides = {}) {
   const envBackup = { ...process.env };
   Object.assign(process.env, envOverrides);
   const { startServer, stopServer } = requireFreshServer();
-  const server = await startServer(0, { log: false });
+  const server = await startServer(0, { log: false, host: '127.0.0.1' });
   const address = server.address();
   const baseUrl =
     address && typeof address === 'object' ? `http://localhost:${address.port}` : 'http://localhost';

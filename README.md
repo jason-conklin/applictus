@@ -14,6 +14,16 @@ npm run dev
 ```
 Open `http://localhost:3000`.
 
+### Recommended Node version
+- Use **Node 20 LTS** for native module compatibility (see `.nvmrc`).
+- Package engines: `>=20 <23`.
+- If you see `better_sqlite3.node is not a valid Win32 application` or `ERR_DLOPEN_FAILED`, fix by:
+  1) `rm -rf node_modules package-lock.json`
+  2) `nvm use 20` (or install Node 20 LTS)
+  3) `npm install`
+  4) If needed: `npm rebuild better-sqlite3 --build-from-source`
+- A preflight check runs before dev/test to catch ABI issues early. Skip only if necessary with `SKIP_PREFLIGHT=1`.
+
 ### Environment configuration
 Copy `.env.example` to `.env` and fill in values as needed.
 Environment variables control database path, auth, OAuth credentials, and logging.
@@ -80,6 +90,7 @@ node server/src/index.js
 Render setup:
 - Build Command: `npm install`
 - Start Command: `npm start`
+- Recommended Node: 20.x (set via package.json engines; Render will use this if available)
 
 Provision a Render Disk and mount it at `/var/data`, then set:
 ```
