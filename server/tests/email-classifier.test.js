@@ -86,6 +86,38 @@ test('classifyEmail detects detailed rejection template with job context', () =>
   assert.ok(result.confidenceScore >= 0.95);
 });
 
+test('classifyEmail detects Indeed-style rejection', () => {
+  const result = classifyEmail({
+    subject: 'An update on your application from Embrace Psychiatric Wellness Center',
+    snippet:
+      'Thank you for applying to the Outreach Coordinator/Marketer position at Embrace Psychiatric Wellness Center. Unfortunately, your application was not selected at this time.'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'rejection');
+  assert.ok(result.confidenceScore >= 0.9);
+});
+
+test('classifyEmail detects Breezy rejection', () => {
+  const result = classifyEmail({
+    subject: '[Job Title] Application Update',
+    snippet:
+      'Thank you for your interest in the Recruiter position. After reviewing your application, we have decided to move forward with candidates.'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'rejection');
+  assert.ok(result.confidenceScore >= 0.9);
+});
+
+test('classifyEmail detects applytojob rejection', () => {
+  const result = classifyEmail({
+    subject: 'Brilliant Agency - Social Media Manager',
+    snippet: 'At this time, we have decided to go in a different direction.'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'rejection');
+  assert.ok(result.confidenceScore >= 0.9);
+});
+
 test('classifyEmail detects offer', () => {
   const result = classifyEmail({
     subject: 'Offer letter',

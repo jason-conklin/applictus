@@ -29,15 +29,18 @@ const RULES = [
       /no longer under consideration/i,
       /not selected/i,
       /regret to inform/i,
+      /after reviewing your application,? we(?:'| have)?(?:\s+)?decided to move forward/i,
       /we (?:have )?decided to move forward with other candidates/i,
       /we (?:have )?chosen other candidates/i,
       /we (?:have )?chosen other applicants/i,
       /we (?:will not|won't) be moving forward/i,
+      /we(?:'| have)?(?:\s+)?decided to go in a different direction/i,
       /moved to the next step in (?:their )?hiring process/i,
       /decided to pursue other candidates/i,
       /will not be moving forward/i,
       /we will not be moving forward/i,
       /application (?:was|has been) not selected/i,
+      /your application was not selected/i,
       /unfortunately.+(?:application|candidacy|role|position)/i,
       /thank you for your interest in the (?:position|role|opportunity)/i,
       /we appreciate your interest in the (?:position|role|opportunity)/i,
@@ -137,7 +140,8 @@ const STRONG_REJECTION_RULE = {
     /moved to the next step in (?:their )?hiring process/i,
     /we (?:will not|won't) be moving forward/i,
     /move forward with other candidates/i,
-    /regret to inform/i
+    /regret to inform/i,
+    /go in a different direction/i
   ]
 };
 
@@ -148,6 +152,12 @@ function normalize(text) {
 function hasJobContext(text) {
   return /\b(application|apply|applied|position|role|job|candidate|candidacy|hiring|recruit|interview)\b/i.test(
     text
+  );
+}
+
+function hasSubjectRolePattern(subject) {
+  return /\b[A-Z][A-Za-z0-9 '&/.()-]{2,}\s*[-–—]\s*[A-Z][A-Za-z0-9 '&/.()-]{2,}/.test(
+    subject || ''
   );
 }
 
@@ -175,7 +185,7 @@ function classifyEmail({ subject, snippet, sender }) {
 
   const minConfidence = 0.6;
   const rules = RULES;
-  const jobContext = hasJobContext(text);
+  const jobContext = hasJobContext(text) || hasSubjectRolePattern(normalize(subject));
 
   const strongRejection = findRuleMatch([STRONG_REJECTION_RULE], text, 0.95, jobContext);
   if (strongRejection) {

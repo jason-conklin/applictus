@@ -19,6 +19,7 @@ const REASON_KEYS = [
   'not_confident_for_create',
   'ambiguous_sender',
   'ambiguous_match',
+  'ambiguous_match_rejection',
   'below_threshold',
   'provider_filtered',
   'parse_error',
@@ -467,6 +468,8 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
           reasons.ambiguous_sender += 1;
         } else if (matchResult.reason === 'ambiguous_match') {
           reasons.ambiguous_match += 1;
+        } else if (matchResult.reason === 'ambiguous_match_rejection') {
+          reasons.ambiguous_match_rejection += 1;
         }
       }
       created += 1;

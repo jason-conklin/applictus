@@ -119,6 +119,13 @@ const INVALID_COMPANY_TERMS = new Set([
 
 const ROLE_COMPANY_PATTERNS = [
   {
+    name: 'subject_update_from_company',
+    regex: /update on your application from\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})/i,
+    roleIndex: null,
+    companyIndex: 1,
+    confidence: 0.9
+  },
+  {
     name: 'applying_to_role_position_at_company',
     regex: /\bapplying to (?:the )?([A-Z][A-Za-z0-9/&.'\- ]{2,80})\s+position\s+at\s+([A-Z][A-Za-z0-9&.'\- ]{2,80}?)(?:[.,\n]|$|\s+has\s+|\s+have\s+)/i,
     roleIndex: 1,
@@ -131,6 +138,13 @@ const ROLE_COMPANY_PATTERNS = [
     roleIndex: 1,
     companyIndex: 2,
     confidence: 0.95
+  },
+  {
+    name: 'company_dash_role',
+    regex: /^([A-Z][A-Za-z0-9&.'\- ]{2,80})\s+[-–—]\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})$/i,
+    roleIndex: 2,
+    companyIndex: 1,
+    confidence: 0.93
   },
   {
     name: 'for_role_at_company',
@@ -289,6 +303,11 @@ const ROLE_PATTERNS = [
     confidence: 0.9
   },
   {
+    name: 'interest_in_role_position',
+    regex: /interest in the\s+([^.\n]+?)\s+position\b/i,
+    confidence: 0.9
+  },
+  {
     name: 'role_of',
     regex: /role of\s+([^.\n]+)/i,
     confidence: 0.9
@@ -296,6 +315,11 @@ const ROLE_PATTERNS = [
   {
     name: 'for_role_position',
     regex: /for the\s+([^.\n]+?)\s+position/i,
+    confidence: 0.9
+  },
+  {
+    name: 'applying_to_role_position',
+    regex: /applying to (?:the )?([^.\n]+?)\s+position\b/i,
     confidence: 0.9
   },
   {
@@ -877,16 +901,19 @@ function extractCompanyRole(text) {
     if (!match) {
       continue;
     }
-    const role = cleanEntity(match[rule.roleIndex]);
+    const role =
+      typeof rule.roleIndex === 'number' && rule.roleIndex >= 0
+        ? cleanEntity(match[rule.roleIndex])
+        : null;
     const company = cleanCompanyCandidate(match[rule.companyIndex]);
-    if (!role || !company) {
+    if (!company) {
       continue;
     }
     return {
       companyName: company,
       jobTitle: role,
       companyConfidence: rule.confidence,
-      roleConfidence: rule.confidence,
+      roleConfidence: role ? rule.confidence : 0,
       explanation: `Matched ${rule.name} pattern.`
     };
   }
@@ -1068,9 +1095,9 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   ]);
 
   const companyName = companyMatch?.companyName || null;
-  const jobTitle = roleMatch.jobTitle || null;
+  let jobTitle = roleMatch.jobTitle || null;
   const companyConfidence = companyMatch?.companyConfidence || 0;
-  const roleConfidence = jobTitle ? roleMatch.roleConfidence : null;
+  let roleConfidence = jobTitle ? roleMatch.roleConfidence : null;
   const domainResult = domainConfidence(companyName, senderDomain);
   const baseConfidence = Math.min(companyConfidence || 0, domainResult.score || 0);
   const matchConfidence = jobTitle
@@ -1085,6 +1112,24 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   }
   if (domainResult.isAtsDomain) {
     explanationParts.push('ATS domain detected.');
+  }
+
+  if (!jobTitle && companyName) {
+    const roleOnly = extractJobTitle({
+      subject: subjectText,
+      snippet: snippetText,
+      bodyText: bodyTextRaw,
+      senderName,
+      sender,
+      companyName
+    });
+    if (roleOnly?.jobTitle) {
+      jobTitle = roleOnly.jobTitle;
+      roleConfidence = roleOnly.confidence || roleOnly.roleConfidence || null;
+      if (roleOnly.explanation) {
+        explanationParts.push(roleOnly.explanation);
+      }
+    }
   }
 
   return {

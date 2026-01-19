@@ -6,6 +6,7 @@ const {
   isInvalidCompanyCandidate,
   normalizeExternalReqId
 } = require('../../shared/matching');
+const { TERMINAL_STATUSES, STATUS_PRIORITY } = require('../../shared/statusInference');
 
 const AUTO_CREATE_TYPES = new Set([
   'confirmation',
@@ -48,6 +49,31 @@ function getExternalReqId(event) {
 
 function getRoleConfidence(value) {
   return Number.isFinite(value) ? value : null;
+}
+
+function shouldBlockAutoStatus(application, nextStatus, confidence) {
+  const current = application.current_status || ApplicationStatus.UNKNOWN;
+  if (application.user_override && nextStatus !== current) {
+    return 'user_override';
+  }
+  if (TERMINAL_STATUSES.has(current) && nextStatus !== current) {
+    if (
+      current === ApplicationStatus.OFFER_RECEIVED &&
+      nextStatus === ApplicationStatus.REJECTED
+    ) {
+      const currentConfidence = application.status_confidence || 0;
+      if ((confidence || 0) >= currentConfidence) {
+        return null;
+      }
+    }
+    return 'terminal';
+  }
+  const currentOrder = STATUS_PRIORITY[current] || 0;
+  const nextOrder = STATUS_PRIORITY[nextStatus] || 0;
+  if (nextOrder < currentOrder) {
+    return 'regression';
+  }
+  return null;
 }
 
 function getRoleFromEvent(event) {
@@ -619,7 +645,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
     if (!existing && ambiguous) {
       return {
         action: 'unassigned',
-        reason: 'ambiguous_match',
+        reason: 'ambiguous_match_rejection',
         reasonDetail: 'Multiple applications match this rejection email.',
         identity
       };
@@ -654,6 +680,29 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
     applyCompanyCandidate(db, existing, selectCompanyCandidate(identity));
     applyRoleCandidate(db, existing, selectRoleCandidate(identity, event));
     applyExternalReqId(db, existing, externalReqId);
+    if (isRejection && getClassificationConfidence(event) >= 0.9) {
+      const blocked = shouldBlockAutoStatus(
+        existing,
+        ApplicationStatus.REJECTED,
+        getClassificationConfidence(event)
+      );
+      if (!blocked) {
+        db.prepare(
+          `UPDATE job_applications
+             SET current_status = ?, status = ?, status_source = ?, status_confidence = ?, status_explanation = ?, status_updated_at = ?, last_activity_at = ?
+           WHERE id = ?`
+        ).run(
+          ApplicationStatus.REJECTED,
+          ApplicationStatus.REJECTED,
+          'inferred',
+          getClassificationConfidence(event),
+          `Rejection detected from event ${event.id}.`,
+          new Date().toISOString(),
+          toIsoFromInternalDate(event.internal_date, new Date(event.created_at)),
+          existing.id
+        );
+      }
+    }
     return { action: 'matched_existing', applicationId: existing.id, identity };
   }
 

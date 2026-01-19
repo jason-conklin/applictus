@@ -78,6 +78,38 @@ test('extractThreadIdentity captures role and company from rejection template', 
   assert.ok(identity.matchConfidence >= 0.9);
 });
 
+test('extractThreadIdentity handles Indeed rejection subject pattern', () => {
+  const identity = extractThreadIdentity({
+    subject: 'An update on your application from Embrace Psychiatric Wellness Center',
+    sender: 'Embrace Psychiatric Wellness Center <noreply@indeed.com>',
+    snippet:
+      'Thank you for applying to the Outreach Coordinator/Marketer position at Embrace Psychiatric Wellness Center. Unfortunately, your application was not selected at this time.'
+  });
+  assert.equal(identity.companyName, 'Embrace Psychiatric Wellness Center');
+  assert.equal(identity.jobTitle, 'Outreach Coordinator/Marketer');
+});
+
+test('extractThreadIdentity handles Breezy rejection without greeting pollution', () => {
+  const identity = extractThreadIdentity({
+    subject: '[Job Title] Application Update',
+    sender: 'HOATalent <no-reply@hoatalent.breezy-mail.com>',
+    bodyText:
+      'Hi Shane,\nThank you for your interest in the Recruiter position. After reviewing your application, we’ve decided to move forward with candidates.'
+  });
+  assert.equal(identity.companyName, 'HOATalent');
+  assert.equal(identity.jobTitle, 'Recruiter');
+});
+
+test('extractThreadIdentity handles applytojob subject company-role pattern', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Brilliant Agency - Social Media Manager',
+    sender: 'Brilliant <recruiting@applytojob.com>',
+    snippet: 'At this time, we have decided to go in a different direction.'
+  });
+  assert.equal(identity.companyName, 'Brilliant Agency');
+  assert.equal(identity.jobTitle, 'Social Media Manager');
+});
+
 test('extractThreadIdentity ignores provider sender name in favor of subject company', () => {
   const identity = extractThreadIdentity({
     subject: 'Thanks for applying to CubX Inc.',

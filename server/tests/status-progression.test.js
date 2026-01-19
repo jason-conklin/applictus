@@ -377,7 +377,7 @@ test('rejection without role is ambiguous when multiple apps exist', () => {
     }
   });
   assert.equal(rejectionMatch.action, 'unassigned');
-  assert.equal(rejectionMatch.reason, 'ambiguous_match');
+  assert.equal(rejectionMatch.reason, 'ambiguous_match_rejection');
 
   const attached = db
     .prepare('SELECT application_id FROM email_events WHERE id = ?')
