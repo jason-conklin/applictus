@@ -215,6 +215,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
   let createdAppsRejectionOnly = 0;
   let unsortedConfirmationTotal = 0;
   let updatedRejectedTotal = 0;
+  let updatedAppliedTotal = 0;
   let unsortedRejectionTotal = 0;
   let skippedDuplicatesProvider = 0;
   let skippedDuplicatesRfc = 0;
