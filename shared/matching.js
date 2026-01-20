@@ -403,7 +403,8 @@ const GENERIC_ROLE_TERMS = new Set([
   'candidate',
   'opening',
   'job',
-  'requisition'
+  'requisition',
+  'the'
 ]);
 
 function normalize(text) {
@@ -743,6 +744,24 @@ function scoreForSource(base, source) {
   return base;
 }
 
+function extractWorkdayStructuredRole(bodyText) {
+  const text = String(bodyText || '');
+  const rolePatterns = [
+    /Business Process:\s*Job Application:\s*[^\n-]*-\s*[A-Z0-9-]{3,}\s+([A-Z][A-Za-z0-9/&.'\- )(]+?)(?:\s+on\s+\d{1,2}\/\d{1,2}\/\d{2,4}|$)/i,
+    /Subject:\s*.*-\s*[A-Z0-9-]{3,}\s+([A-Z][A-Za-z0-9/&.'\- )(]+?)(?:\s+on\s+\d{1,2}\/\d{1,2}\/\d{2,4}|$)/i
+  ];
+  for (const pattern of rolePatterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      const candidate = normalize(match[1]);
+      if (candidate && candidate.length > 2 && !isGenericRole(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  return null;
+}
+
 function extractRoleFromSenderName(senderName, companyName) {
   const text = normalize(senderName);
   if (!text) {
@@ -762,13 +781,24 @@ function extractRoleFromSenderName(senderName, companyName) {
 }
 
 function extractJobTitle({ subject, snippet, bodyText, senderName, sender, companyName }) {
+  const workdayStructured = extractWorkdayStructuredRole(bodyText);
+  const candidates = [];
+  if (workdayStructured) {
+    const candidate = normalizeRoleCandidate(workdayStructured, companyName);
+    if (candidate && !isGenericRole(candidate) && candidate.length >= 3) {
+      candidates.push({
+        jobTitle: candidate,
+        confidence: 0.95,
+        source: 'body',
+        explanation: 'Matched Workday structured role.'
+      });
+    }
+  }
   const sources = [
     { label: 'subject', text: normalize(subject) },
     { label: 'snippet', text: normalize(snippet) },
     { label: 'body', text: normalize(bodyText) }
   ];
-
-  const candidates = [];
 
   for (const source of sources) {
     if (!source.text) {
@@ -1044,6 +1074,10 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   const subjectText = normalize(subject);
   const snippetText = normalize(snippet);
   const bodyTextRaw = String(bodyText || '');
+  const digestIdentity = extractWorkdayDigestIdentity({ subject: subjectText, bodyText: bodyTextRaw, sender });
+  if (digestIdentity) {
+    return digestIdentity;
+  }
   const senderName = extractSenderName(sender);
   const roleMatch =
     extractCompanyRole(subjectText) ||
@@ -1152,6 +1186,57 @@ function buildMatchKey({ companyName, jobTitle, senderDomain }) {
     return null;
   }
   return `${slugify(companyName)}|${slugify(jobTitle)}|${slugify(senderDomain)}`;
+}
+
+function extractWorkdayDigestIdentity({ subject, bodyText, sender }) {
+  const lowerSubject = String(subject || '').toLowerCase();
+  if (!lowerSubject.includes('daily digest')) {
+    return null;
+  }
+  const text = String(bodyText || '');
+  if (!/Business Process:\s*Job Application/i.test(text) && !/Subject:\s*.*-\s*[A-Z0-9-]{3,}/i.test(text)) {
+    return null;
+  }
+  let companyCandidate = null;
+  const talentLine = text.match(/([A-Z][A-Za-z&.'\- ]{2,80})\s+Talent Acquisition/i);
+  if (talentLine && talentLine[1]) {
+    companyCandidate = cleanCompanyCandidate(talentLine[1]);
+  }
+  if (!companyCandidate) {
+    const atLine = text.match(/\bAt\s+([A-Z][A-Za-z&.'\- ]{2,80})\b/);
+    if (atLine && atLine[1]) {
+      companyCandidate = cleanCompanyCandidate(atLine[1]);
+    }
+  }
+  if (!companyCandidate) {
+    const domainGuess = companyFromDomain(extractSenderDomain(sender));
+    if (domainGuess) {
+      companyCandidate = domainGuess;
+    }
+  }
+  if (companyCandidate && /daily digest/i.test(companyCandidate)) {
+    companyCandidate = null;
+  }
+
+  const role = extractWorkdayStructuredRole(text);
+
+  if (!companyCandidate && !role) {
+    return null;
+  }
+
+  return {
+    companyName: companyCandidate || null,
+    jobTitle: role || null,
+    senderDomain: extractSenderDomain(sender),
+    companyConfidence: companyCandidate ? 0.9 : 0,
+    roleConfidence: role ? 0.9 : null,
+    domainConfidence: 0.5,
+    matchConfidence: companyCandidate && role ? 0.88 : 0.75,
+    isAtsDomain: true,
+    isPlatformEmail: true,
+    bodyTextAvailable: Boolean(text && text.trim()),
+    explanation: 'Parsed Workday digest wrapper.'
+  };
 }
 
 module.exports = {
