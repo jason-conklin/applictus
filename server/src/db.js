@@ -77,7 +77,18 @@ function migrate(db) {
   }
 }
 
+let emailEventColumnsCache = null;
+function getEmailEventColumns(db) {
+  if (emailEventColumnsCache) {
+    return emailEventColumnsCache;
+  }
+  const rows = db.prepare('PRAGMA table_info(email_events)').all();
+  emailEventColumnsCache = new Set(rows.map((r) => r.name));
+  return emailEventColumnsCache;
+}
+
 module.exports = {
   openDb,
-  migrate
+  migrate,
+  getEmailEventColumns
 };

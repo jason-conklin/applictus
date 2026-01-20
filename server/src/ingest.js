@@ -10,6 +10,9 @@ const {
 } = require('../../shared/matching');
 const { runStatusInferenceForApplication } = require('./statusInferenceRunner');
 const { logInfo, logDebug } = require('./logger');
+const { runLlmExtraction, getConfig: getLlmConfig } = require('./llmClient');
+const { shouldInvokeLlm } = require('./llmGate');
+const { getEmailEventColumns } = require('./db');
 
 const REASON_KEYS = [
   'classified_not_job_related',
@@ -163,44 +166,69 @@ function recordSkipSample({ db, userId, provider, messageId, sender, subject, re
   }
 }
 
+const COLUMN_TO_PAYLOAD = {
+  id: 'id',
+  user_id: 'userId',
+  provider: 'provider',
+  message_id: 'messageId',
+  provider_message_id: 'providerMessageId',
+  rfc_message_id: 'rfcMessageId',
+  sender: 'sender',
+  subject: 'subject',
+  internal_date: 'internalDate',
+  snippet: 'snippet',
+  detected_type: 'detectedType',
+  confidence_score: 'confidenceScore',
+  classification_confidence: 'classificationConfidence',
+  identity_confidence: 'identityConfidence',
+  identity_company_name: 'identityCompanyName',
+  identity_job_title: 'identityJobTitle',
+  identity_company_confidence: 'identityCompanyConfidence',
+  identity_explanation: 'identityExplanation',
+  explanation: 'explanation',
+  reason_code: 'reasonCode',
+  reason_detail: 'reasonDetail',
+  role_title: 'roleTitle',
+  role_confidence: 'roleConfidence',
+  role_source: 'roleSource',
+  role_explanation: 'roleExplanation',
+  external_req_id: 'externalReqId',
+  ingest_decision: 'ingestDecision',
+  created_at: 'createdAt',
+  llm_ran: 'llmRan',
+  llm_status: 'llmStatus',
+  llm_error: 'llmError',
+  llm_model: 'llmModel',
+  llm_latency_ms: 'llmLatency',
+  llm_event_type: 'llmEventType',
+  llm_confidence: 'llmConfidence',
+  llm_company_name: 'llmCompanyName',
+  llm_job_title: 'llmJobTitle',
+  llm_external_req_id: 'llmExternalReqId',
+  llm_provider_guess: 'llmProviderGuess',
+  llm_reason_codes: 'llmReasonCodes',
+  llm_raw_json: 'llmRawJson'
+};
+
 function insertEmailEventRecord(db, payload) {
-  db.prepare(
-    `INSERT INTO email_events
-     (id, user_id, provider, message_id, provider_message_id, rfc_message_id, sender, subject, internal_date, snippet,
-      detected_type, confidence_score, classification_confidence, identity_confidence, identity_company_name,
-      identity_job_title, identity_company_confidence, identity_explanation, explanation, reason_code, reason_detail,
-      role_title, role_confidence, role_source, role_explanation, external_req_id, ingest_decision, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(
-    payload.id,
-    payload.userId,
-    payload.provider,
-    payload.messageId,
-    payload.providerMessageId,
-    payload.rfcMessageId,
-    payload.sender,
-    payload.subject,
-    payload.internalDate,
-    payload.snippet,
-    payload.detectedType,
-    payload.confidenceScore,
-    payload.classificationConfidence,
-    payload.identityConfidence,
-    payload.identityCompanyName,
-    payload.identityJobTitle,
-    payload.identityCompanyConfidence,
-    payload.identityExplanation,
-    payload.explanation,
-    payload.reasonCode,
-    payload.reasonDetail,
-    payload.roleTitle,
-    payload.roleConfidence,
-    payload.roleSource,
-    payload.roleExplanation,
-    payload.externalReqId,
-    payload.ingestDecision,
-    payload.createdAt
-  );
+  const columnsAvailable = getEmailEventColumns(db);
+  const cols = [];
+  const placeholders = [];
+  const values = [];
+  for (const [column, prop] of Object.entries(COLUMN_TO_PAYLOAD)) {
+    if (!columnsAvailable.has(column)) {
+      continue;
+    }
+    cols.push(column);
+    placeholders.push('?');
+    if (column === 'llm_ran') {
+      values.push(payload.llmRan ?? (payload.llmStatus ? 1 : 0));
+    } else {
+      values.push(payload[prop] ?? null);
+    }
+  }
+  const sql = `INSERT INTO email_events (${cols.join(',')}) VALUES (${placeholders.join(',')})`;
+  db.prepare(sql).run(...values);
 }
 
 async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
@@ -239,6 +267,16 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
   let unsortedRejectionTotal = 0;
   let skippedDuplicatesProvider = 0;
   let skippedDuplicatesRfc = 0;
+  let llmCalls = 0;
+  let llmCacheHits = 0;
+  let llmFailures = 0;
+  let llmUpgradedConfirmations = 0;
+  let llmUpgradedRejections = 0;
+  let llmAgreements = 0;
+  let llmDisagreements = 0;
+  let llmUsedIdentity = 0;
+  let llmUsedType = 0;
+  let llmUsedReqId = 0;
   let stoppedReason = 'completed';
   const messageSourceCounts = {};
   const reasons = initReasonCounters();
@@ -373,6 +411,93 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       const rolePayload = roleResult && roleResult.jobTitle ? roleResult : null;
       const reqResult = extractExternalReqId({ subject, snippet, bodyText });
       const externalReqId = reqResult.externalReqId || null;
+      let effectiveClassification = { ...classification };
+      let effectiveIdentity = { ...identity };
+      let effectiveRole = rolePayload;
+      let llmStatus = 'skipped';
+      let llmError = null;
+      let llmModel = null;
+      let llmLatency = null;
+      let llmReasonCodes = [];
+      let llmRaw = null;
+
+      const gate = shouldInvokeLlm({
+        classification,
+        extracted: identity,
+        matchResult: null,
+        reason: null
+      });
+      const llmConfig = getLlmConfig();
+      const maxCalls = llmConfig.maxCallsPerSync || 20;
+      if (gate.invoke && llmCalls < maxCalls) {
+        llmCalls += 1;
+        llmReasonCodes = gate.why;
+        const llmResponse = await runLlmExtraction({
+          subject,
+          snippet,
+          from: sender,
+          to: null,
+          date: internalDate ? new Date(internalDate).toISOString() : null,
+          headers: { rfcMessageId },
+          provider: 'gmail',
+          messageId: message.id,
+          bodyText
+        });
+        llmModel = llmResponse.model || null;
+        llmLatency = llmResponse.latencyMs || null;
+        if (llmResponse.ok && llmResponse.data) {
+          llmStatus = 'ok';
+          llmRaw = JSON.stringify(llmResponse.data);
+          const llmData = llmResponse.data;
+          const agreeType = llmData.event_type === classification.detectedType;
+          if (agreeType) {
+            llmAgreements += 1;
+          } else {
+            llmDisagreements += 1;
+          }
+          const llmConf = llmData.confidence || 0;
+          const safeUse = llmConf >= 0.85;
+          if (safeUse && (!effectiveIdentity.companyName || effectiveIdentity.companyConfidence < 0.85)) {
+            if (llmData.company_name) {
+              effectiveIdentity = {
+                ...effectiveIdentity,
+                companyName: llmData.company_name,
+                companyConfidence: llmConf,
+                explanation: 'LLM'
+              };
+              llmUsedIdentity += 1;
+            }
+          }
+          if (safeUse && (!effectiveRole || !effectiveRole.jobTitle) && llmData.job_title) {
+            effectiveRole = {
+              jobTitle: llmData.job_title,
+              confidence: llmConf,
+              source: 'llm',
+              explanation: 'LLM'
+            };
+            llmUsedIdentity += 1;
+          }
+          if (safeUse && llmData.external_req_id && !externalReqId) {
+            externalReqId = llmData.external_req_id;
+            llmUsedReqId += 1;
+          }
+          if (safeUse && !classification.isJobRelated && llmData.is_job_related) {
+            effectiveClassification = {
+              isJobRelated: true,
+              detectedType: llmData.event_type === 'non_job' ? 'other_job_related' : llmData.event_type,
+              confidenceScore: llmConf,
+              explanation: 'LLM',
+              reason: 'llm'
+            };
+            llmUsedType += 1;
+          }
+        } else {
+          llmStatus = llmResponse.skipped ? 'skipped' : 'failed';
+          llmError = llmResponse.error || llmResponse.reason || null;
+          llmFailures += llmStatus === 'failed' ? 1 : 0;
+        }
+      }
+
       const eventId = crypto.randomUUID();
       const createdAt = new Date().toISOString();
       const classificationConfidence = Number.isFinite(classification.confidenceScore)
@@ -390,24 +515,35 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         subject: subject || null,
         internalDate,
         snippet: truncateSnippet(snippet),
-        detectedType: classification.detectedType,
-        confidenceScore: classificationConfidence,
-        classificationConfidence,
+        detectedType: effectiveClassification.detectedType,
+        confidenceScore: effectiveClassification.confidenceScore,
+        classificationConfidence: effectiveClassification.confidenceScore,
         identityConfidence,
-        identityCompanyName: identity.companyName || null,
-        identityJobTitle: identity.jobTitle || null,
-        identityCompanyConfidence: identity.companyConfidence || null,
-        identityExplanation: identity.explanation || null,
-        explanation: classification.explanation,
+        identityCompanyName: effectiveIdentity.companyName || null,
+        identityJobTitle: effectiveIdentity.jobTitle || null,
+        identityCompanyConfidence: effectiveIdentity.companyConfidence || null,
+        identityExplanation: effectiveIdentity.explanation || null,
+        explanation: effectiveClassification.explanation,
         reasonCode: null,
         reasonDetail: null,
-        roleTitle: rolePayload?.jobTitle || null,
-        roleConfidence: Number.isFinite(rolePayload?.confidence) ? rolePayload.confidence : null,
-        roleSource: rolePayload?.source || null,
-        roleExplanation: rolePayload?.explanation || null,
+        roleTitle: effectiveRole?.jobTitle || null,
+        roleConfidence: Number.isFinite(effectiveRole?.confidence) ? effectiveRole.confidence : null,
+        roleSource: effectiveRole?.source || null,
+        roleExplanation: effectiveRole?.explanation || null,
         externalReqId,
         ingestDecision: null,
-        createdAt
+        createdAt,
+        llmStatus,
+        llmError,
+        llmModel,
+        llmLatency,
+        llmEventType: llmStatus === 'ok' ? effectiveClassification.detectedType : null,
+        llmConfidence: llmStatus === 'ok' ? effectiveClassification.confidenceScore : null,
+        llmCompanyName: llmStatus === 'ok' ? effectiveIdentity.companyName : null,
+        llmJobTitle: llmStatus === 'ok' ? effectiveRole?.jobTitle || null : null,
+        llmExternalReqId: llmStatus === 'ok' ? externalReqId : null,
+        llmReasonCodes: llmReasonCodes.length ? JSON.stringify(llmReasonCodes) : null,
+        llmRawJson: llmRaw
       });
       storedEventsTotal += 1;
       if (classification.detectedType === 'confirmation') {
@@ -426,17 +562,17 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
           subject,
           snippet,
           internal_date: internalDate,
-          detected_type: classification.detectedType,
-          confidence_score: classificationConfidence,
-          classification_confidence: classificationConfidence,
-          role_title: rolePayload?.jobTitle || null,
-          role_confidence: Number.isFinite(rolePayload?.confidence) ? rolePayload.confidence : null,
-          role_source: rolePayload?.source || null,
-          role_explanation: rolePayload?.explanation || null,
+          detected_type: effectiveClassification.detectedType,
+          confidence_score: effectiveClassification.confidenceScore,
+          classification_confidence: effectiveClassification.confidenceScore,
+          role_title: effectiveRole?.jobTitle || null,
+          role_confidence: Number.isFinite(effectiveRole?.confidence) ? effectiveRole.confidence : null,
+          role_source: effectiveRole?.source || null,
+          role_explanation: effectiveRole?.explanation || null,
           external_req_id: externalReqId,
           created_at: createdAt
         },
-        identity
+        identity: effectiveIdentity
       });
       let rejectionApplied = false;
 
@@ -530,18 +666,18 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       created += 1;
       fetched += 1;
 
-      if (classification.detectedType === 'rejection') {
+      if (effectiveClassification.detectedType === 'rejection') {
         const senderDomain = sender && sender.includes('@')
           ? sender.split('@')[1]?.replace(/[> ]/g, '').toLowerCase()
           : null;
-        const companyPreview = (identity.companyName || '').slice(0, 80);
-        const rolePreview = (identity.jobTitle || rolePayload?.jobTitle || '').slice(0, 80);
+        const companyPreview = (effectiveIdentity.companyName || '').slice(0, 80);
+        const rolePreview = (effectiveIdentity.jobTitle || effectiveRole?.jobTitle || '').slice(0, 80);
         logInfo('ingest.rejection_trace', {
           userId,
           providerMessageId: message.id,
           senderDomain: senderDomain || null,
-          classifierType: classification.detectedType,
-          confidence: classificationConfidence,
+          classifierType: effectiveClassification.detectedType,
+          confidence: effectiveClassification.confidenceScore,
           company: companyPreview || null,
           role: rolePreview || null,
           matchAction: matchResult.action,
@@ -579,6 +715,16 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
     unsortedRejectionTotal,
     skippedDuplicatesProvider,
     skippedDuplicatesRfc,
+    llmCalls,
+    llmCacheHits,
+    llmFailures,
+    llmUpgradedConfirmations,
+    llmUpgradedRejections,
+    llmAgreements,
+    llmDisagreements,
+    llmUsedIdentity,
+    llmUsedType,
+    llmUsedReqId,
     pagesFetched,
     totalMessagesListed,
     messageSourceCounts,
@@ -622,6 +768,16 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
     unsorted_rejection_total: unsortedRejectionTotal,
     skipped_duplicates_provider: skippedDuplicatesProvider,
     skipped_duplicates_rfc: skippedDuplicatesRfc,
+    llm_calls: llmCalls,
+    llm_cache_hits: llmCacheHits,
+    llm_failures: llmFailures,
+    llm_upgraded_confirmations: llmUpgradedConfirmations,
+    llm_upgraded_rejections: llmUpgradedRejections,
+    llm_agree_total: llmAgreements,
+    llm_disagree_total: llmDisagreements,
+    llm_used_identity_total: llmUsedIdentity,
+    llm_used_type_total: llmUsedType,
+    llm_used_req_id_total: llmUsedReqId,
     pages_fetched: pagesFetched,
     total_messages_listed: totalMessagesListed,
     message_source_counts: messageSourceCounts,

@@ -1024,6 +1024,10 @@ function formatSyncSummary(result) {
   const unsortedConfirmations = result.unsorted_confirmation_total ?? 0;
   const unsortedRejections = result.unsorted_rejection_total ?? 0;
   const updatedApplied = result.updated_status_to_applied_total ?? 0;
+  const llmCalls = result.llm_calls ?? 0;
+  const llmCacheHits = result.llm_cache_hits ?? 0;
+  const llmFailures = result.llm_failures ?? 0;
+  const llmDisagree = result.llm_disagree_total ?? 0;
   const scanned = result.total_messages_listed ?? result.fetched_total ?? result.fetched ?? 0;
   const pages = result.pages_fetched ?? null;
   const stoppedReason = result.stopped_reason || 'completed';
@@ -1072,6 +1076,9 @@ function formatSyncSummary(result) {
     lines.push(`Sources: ${sourceParts}`);
   }
   lines.push(`Events: matched ${matched}, new apps ${createdApps}, unsorted ${unsorted}`);
+  lines.push(
+    `LLM: calls ${llmCalls} (cache ${llmCacheHits}), failures ${llmFailures}, disagreements ${llmDisagree}`
+  );
   lines.push(skippedLabel);
   return lines.join('\n');
 }

@@ -120,6 +120,20 @@ POST /api/email/sync
 ```
 with JSON `{ "days": 30 }` (defaults to 30 days, max 365).
 Sync uses a high-recall classifier while keeping auto-create thresholds conservative.
+
+### Optional LLM-assisted enrichment (disabled by default)
+Set env vars to enable:
+```
+APPLICTUS_LLM_ENABLED=1
+APPLICTUS_LLM_PROVIDER=openai_compatible
+APPLICTUS_LLM_BASE_URL=https://api.openai.com/v1
+APPLICTUS_LLM_API_KEY=...
+APPLICTUS_LLM_MODEL=gpt-4.1-mini
+APPLICTUS_LLM_MAX_INPUT_CHARS=8000
+APPLICTUS_LLM_TIMEOUT_MS=8000
+APPLICTUS_LLM_MAX_CALLS_PER_SYNC=20
+```
+Safety: bodies are parsed transiently, redacted before LLM, never stored. Caching avoids repeat calls; failures fall back to heuristic classification. Counters in the sync summary show LLM calls/cache hits/failures.
 ### Unsorted events
 Job-related messages that cannot be confidently matched are kept in the "Unsorted Events" list.
 Use the UI to attach them to an existing application or create a new one.
