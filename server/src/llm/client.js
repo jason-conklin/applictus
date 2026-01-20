@@ -147,6 +147,8 @@ async function analyzeEmailForJobSignals({
 
 module.exports = {
   analyzeEmailForJobSignals,
+  // Backwards-compatible alias
+  runLlmExtraction: analyzeEmailForJobSignals,
   getConfig,
   hashPrompt,
   PROMPT_VERSION
