@@ -210,6 +210,16 @@ const COLUMN_TO_PAYLOAD = {
   llm_raw_json: 'llmRawJson'
 };
 
+function normalizeSqliteValue(v) {
+  if (v === undefined) return null;
+  if (v === null) return null;
+  if (typeof v === 'boolean') return v ? 1 : 0;
+  if (Array.isArray(v)) return JSON.stringify(v);
+  if (Buffer.isBuffer(v)) return v;
+  if (typeof v === 'object') return JSON.stringify(v);
+  return v;
+}
+
 function insertEmailEventRecord(db, payload) {
   const columnsAvailable = getEmailEventColumns(db);
   const cols = [];
@@ -222,12 +232,22 @@ function insertEmailEventRecord(db, payload) {
     cols.push(column);
     placeholders.push('?');
     if (column === 'llm_ran') {
-      values.push(payload.llmRan ?? (payload.llmStatus ? 1 : 0));
+      values.push(normalizeSqliteValue(payload.llmRan ?? (payload.llmStatus ? 1 : 0)));
     } else {
-      values.push(payload[prop] ?? null);
+      values.push(normalizeSqliteValue(payload[prop]));
     }
   }
   const sql = `INSERT INTO email_events (${cols.join(',')}) VALUES (${placeholders.join(',')})`;
+  if (process.env.NODE_ENV !== 'production') {
+    values.forEach((val, idx) => {
+      const col = cols[idx];
+      const t = typeof val;
+      const ok = val === null || t === 'number' || t === 'string' || t === 'bigint' || Buffer.isBuffer(val);
+      if (!ok) {
+        throw new Error(`Unsupported SQLite bind for column ${col}: ${t}`);
+      }
+    });
+  }
   db.prepare(sql).run(...values);
 }
 

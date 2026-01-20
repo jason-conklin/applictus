@@ -113,7 +113,19 @@ test('insertEmailEventRecord accepts null rfc_message_id and external_req_id', (
     roleExplanation: null,
     externalReqId: 'R-122920',
     ingestDecision: null,
-    createdAt
+    createdAt,
+    llmStatus: true,
+    llmError: null,
+    llmModel: 'test-model',
+    llmLatency: 123,
+    llmEventType: 'confirmation',
+    llmConfidence: 0.9,
+    llmCompanyName: 'Prudential',
+    llmJobTitle: 'Engineer',
+    llmExternalReqId: null,
+    llmProviderGuess: null,
+    llmReasonCodes: ['missing_company'],
+    llmRawJson: { test: true }
   });
 
   const count = db.prepare('SELECT COUNT(*) as count FROM email_events').get();
