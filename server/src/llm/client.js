@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { redactContent } = require('./redact');
 const { logInfo, logWarn } = require('../logger');
+const { validateOrThrow } = require('./promptTemplate');
 
 const PROMPT_VERSION = 'v1';
 
@@ -59,32 +60,31 @@ async function callProvider({ prompt, config }) {
   }
 }
 
-function parseJson(content) {
-  try {
-    return JSON.parse(content);
-  } catch (err) {
-    return null;
+function parseModelJson(rawText) {
+  const cleaned = (rawText || '').trim();
+  const preview = cleaned.replace(/\s+/g, ' ').slice(0, 300);
+  if (!cleaned) {
+    return { ok: false, stage: 'parse_failed', preview };
   }
-}
-
-function validateResult(result) {
-  if (!result || typeof result !== 'object') return false;
-  if (typeof result.is_job_related !== 'boolean') return false;
-  const typeOk =
-    typeof result.event_type === 'string' &&
-    [
-      'confirmation',
-      'rejection',
-      'interview',
-      'offer',
-      'under_review',
-      'recruiter_outreach',
-      'other_job_related',
-      'non_job'
-    ].includes(result.event_type);
-  if (!typeOk) return false;
-  if (typeof result.confidence !== 'number') return false;
-  return true;
+  const unfenced = cleaned.replace(/```json/gi, '').replace(/```/g, '').trim();
+  try {
+    const parsed = JSON.parse(unfenced);
+    return { ok: true, parsed, preview };
+  } catch (err) {
+    // fall through
+  }
+  const first = unfenced.indexOf('{');
+  const last = unfenced.lastIndexOf('}');
+  if (first >= 0 && last > first) {
+    const slice = unfenced.slice(first, last + 1);
+    try {
+      const parsed = JSON.parse(slice);
+      return { ok: true, parsed, preview };
+    } catch (err) {
+      // continue
+    }
+  }
+  return { ok: false, stage: 'parse_failed', preview };
 }
 
 async function analyzeEmailForJobSignals({
@@ -123,18 +123,57 @@ async function analyzeEmailForJobSignals({
   const start = Date.now();
   try {
     const raw = await callProvider({ prompt, config });
-    const parsed = parseJson(raw);
-    const valid = validateResult(parsed);
-    logInfo('llm.call', {
-      messageHash: hashPrompt(messageId || ''),
-      duration_ms: Date.now() - start,
-      success: valid,
-      promptHash
-    });
-    if (!valid) {
-      throw new Error('Invalid LLM schema');
+    const parsedResult = parseModelJson(raw);
+    if (!parsedResult.ok) {
+      logWarn('llm.validation_failed', {
+        stage: parsedResult.stage,
+        messageHash: hashPrompt(messageId || ''),
+        duration_ms: Date.now() - start,
+        promptHash,
+        rawPreview: parsedResult.preview
+      });
+      return {
+        used: true,
+        cached: false,
+        result: null,
+        error: 'parse_failed',
+        promptVersion: PROMPT_VERSION,
+        promptHash
+      };
     }
-    return { used: true, cached: false, result: parsed, promptVersion: PROMPT_VERSION, promptHash };
+    try {
+      validateOrThrow(JSON.stringify(parsedResult.parsed));
+      logInfo('llm.call', {
+        messageHash: hashPrompt(messageId || ''),
+        duration_ms: Date.now() - start,
+        success: true,
+        promptHash
+      });
+      return {
+        used: true,
+        cached: false,
+        result: parsedResult.parsed,
+        promptVersion: PROMPT_VERSION,
+        promptHash
+      };
+    } catch (err) {
+      logWarn('llm.validation_failed', {
+        stage: 'schema_failed',
+        messageHash: hashPrompt(messageId || ''),
+        duration_ms: Date.now() - start,
+        promptHash,
+        ajvErrors: String(err.message || '').slice(0, 500),
+        rawPreview: parsedResult.preview
+      });
+      return {
+        used: true,
+        cached: false,
+        result: null,
+        error: 'schema_failed',
+        promptVersion: PROMPT_VERSION,
+        promptHash
+      };
+    }
   } catch (err) {
     logWarn('llm.call_failed', {
       messageHash: hashPrompt(messageId || ''),
@@ -151,5 +190,6 @@ module.exports = {
   runLlmExtraction: analyzeEmailForJobSignals,
   getConfig,
   hashPrompt,
-  PROMPT_VERSION
+  PROMPT_VERSION,
+  parseModelJson
 };
