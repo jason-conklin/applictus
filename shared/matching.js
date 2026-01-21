@@ -539,6 +539,24 @@ function cleanCompanyCandidate(value) {
     .replace(/^(?:no[-\s]?reply|noreply|do not reply)\b[: ]*/i, '')
     .replace(/[,:;|]+$/g, '')
     .trim();
+  const lower = cleaned.toLowerCase();
+  const stopPhrases = [
+    'taking the time to apply',
+    'thank you for your interest',
+    'interest in',
+    'we have received',
+    'we received',
+    'daily digest'
+  ];
+  if (!cleaned || cleaned.length > 60) {
+    return null;
+  }
+  if (stopPhrases.some((p) => lower.includes(p))) {
+    return null;
+  }
+  if (/\b(apply|applying|apply)\b/i.test(cleaned)) {
+    return null;
+  }
   if (!cleaned || isProviderName(cleaned) || isInvalidCompanyCandidate(cleaned)) {
     return null;
   }
@@ -703,7 +721,37 @@ function normalizeRoleCandidate(value, companyName) {
     ''
   );
   text = text.replace(/[\s,:;\-|]+$/g, '');
-  text = normalize(text);
+  text = sanitizeJobTitle(text);
+  return text || null;
+}
+
+function sanitizeJobTitle(title) {
+  if (!title) return null;
+  let text = normalize(title);
+  if (text.length > 120) {
+    text = text.slice(0, 120);
+  }
+  text = text.replace(/^["']+|["']+$/g, '');
+  const clauseStops = [
+    ', and',
+    ', but',
+    ', while',
+    ' we are ',
+    \" we're \",
+    ' we will ',
+    ' thank you ',
+    ' sincerely ',
+    '.',
+    '!',
+    '?',
+    '\n'
+  ];
+  for (const stop of clauseStops) {
+    const idx = text.toLowerCase().indexOf(stop.trim().toLowerCase());
+    if (idx > 0) {
+      text = text.slice(0, idx).trim();
+    }
+  }
   return text || null;
 }
 
@@ -1218,7 +1266,9 @@ function extractWorkdayDigestIdentity({ subject, bodyText, sender }) {
     companyCandidate = null;
   }
 
-  const role = extractWorkdayStructuredRole(text);
+  const interestRole = text.match(/interest in the\s+([A-Z][A-Za-z0-9/&.'\- )(]+?)\s+position/i);
+  const role =
+    (interestRole && interestRole[1] && normalize(interestRole[1])) || extractWorkdayStructuredRole(text);
 
   if (!companyCandidate && !role) {
     return null;
