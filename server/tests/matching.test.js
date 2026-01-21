@@ -110,6 +110,24 @@ test('extractThreadIdentity handles applytojob subject company-role pattern', ()
   assert.equal(identity.jobTitle, 'Social Media Manager');
 });
 
+test('extractThreadIdentity prefers signature company over generic sender', () => {
+  const body = `
+Thank you for applying to the 2026 Technology Early Career Development Program - Full Stack Development.
+We appreciate your interest.
+Best Regards,
+Healthfirst Talent Acquisition Team
+`;
+  const identity = extractThreadIdentity({
+    subject: 'Thank you for applying',
+    sender: 'Opportunities <opportunities@careeralerts.healthfirst.org>',
+    snippet: 'Thank you for applying to the 2026 Technology Early Career Development Program - Full Stack Development',
+    bodyText: body
+  });
+  assert.equal(identity.companyName, 'Healthfirst');
+  assert.ok(identity.jobTitle && identity.jobTitle.length > 0);
+  assert.notEqual(identity.companyName.toLowerCase(), 'opportunities');
+});
+
 test('extractThreadIdentity ignores provider sender name in favor of subject company', () => {
   const identity = extractThreadIdentity({
     subject: 'Thanks for applying to CubX Inc.',

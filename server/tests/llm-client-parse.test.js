@@ -30,7 +30,9 @@ test('schema validation fails on missing required signals', () => {
     '{"is_job_related":true,"event_type":"job_application","company_name":"Acme","job_title":"Engineer","confidence":0.9,"evidence":{"company_source":"from"},"notes":"example"}';
   const res = parseModelJson(raw);
   assert.equal(res.ok, true);
-  assert.throws(() => validateOrThrow(JSON.stringify(res.parsed)));
+  const parsed = validateOrThrow(JSON.stringify(res.parsed));
+  assert.equal(parsed.event_type, 'confirmation');
+  assert.ok(Array.isArray(parsed.signals.confirmation_signals));
 });
 
 test('schema validation passes on aligned example', () => {

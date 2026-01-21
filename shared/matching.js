@@ -245,6 +245,11 @@ const COMPANY_ONLY_PATTERNS = [
     name: 'moved_to_next_step_company',
     regex: /([A-Z][A-Za-z0-9&.'\- ]{2,80}) has moved to the next step in (?:their )?hiring process/i,
     confidence: 0.9
+  },
+  {
+    name: 'subject_company_dash_role',
+    regex: /^([A-Z][A-Za-z0-9&.'\- ]{2,80})\s+[-–—]\s+[A-Z][A-Za-z0-9/&.'\- ]{2,80}$/i,
+    confidence: 0.93
   }
 ];
 
@@ -273,6 +278,16 @@ const ROLE_PATTERNS = [
     confidence: 0.92
   },
   {
+    name: 'thank_you_applying_to_role',
+    regex: /thank you for applying to\s+(?:the\s+)?(.+?)(?:\s+position|\s+role|[.,]|$)/i,
+    confidence: 0.9
+  },
+  {
+    name: 'received_information_for_opening',
+    regex: /received your (?:information|application)\s+for\s+(?:our\s+|the\s+)?(.+?)\s+(?:opening|position|role)\b/i,
+    confidence: 0.93
+  },
+  {
     name: 'application_for_role_position',
     regex: /application for (?:our|the)?\s*(.+?)\s+position\b/i,
     confidence: 0.96
@@ -281,6 +296,11 @@ const ROLE_PATTERNS = [
     name: 'application_for_role_job',
     regex: /application for (?:the )?\s*(.+?)\s+job\b/i,
     confidence: 0.96
+  },
+  {
+    name: 'application_for_role_at_company',
+    regex: /application for\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})\s+at\s+[A-Z][A-Za-z0-9&.'\- ]{2,80}\b/i,
+    confidence: 0.9
   },
   {
     name: 'application_to_role_position',
@@ -546,7 +566,9 @@ function cleanCompanyCandidate(value) {
     'interest in',
     'we have received',
     'we received',
-    'daily digest'
+    'daily digest',
+    'opportunities',
+    'notifications'
   ];
   if (!cleaned || cleaned.length > 60) {
     return null;
@@ -1068,6 +1090,43 @@ function extractCompanyFromSender(sender) {
   return null;
 }
 
+function extractCompanyFromSignatureLines(bodyText) {
+  const text = String(bodyText || '');
+  if (!text) return null;
+  const tailLines = text.split(/\n+/).slice(-12).map((l) => l.trim()).filter(Boolean);
+  const patterns = [
+    /^(?:best regards|regards|sincerely|thanks|thank you)[,]?\s*([A-Z][A-Za-z&.'\- ]{2,80})\s+(?:talent acquisition|recruiting|careers)(?: team)?$/i,
+    /^([A-Z][A-Za-z&.'\- ]{2,80})\s+(?:talent acquisition|recruiting|careers)(?: team)?$/i
+  ];
+  for (const line of tailLines) {
+    for (const pattern of patterns) {
+      const m = line.match(pattern);
+      if (m && m[1]) {
+        const candidate = cleanCompanyCandidate(m[1]);
+        if (candidate) {
+          return {
+            companyName: candidate,
+            companyConfidence: 0.96,
+            explanation: 'Matched signature company line.'
+          };
+        }
+      }
+    }
+    const atMatch = line.match(/in\s+([A-Z][A-Za-z&.'\- ]{2,80})\b\.?$/i);
+    if (atMatch && atMatch[1]) {
+      const candidate = cleanCompanyCandidate(atMatch[1]);
+      if (candidate) {
+        return {
+          companyName: candidate,
+          companyConfidence: 0.88,
+          explanation: 'Matched company from closing sentence.'
+        };
+      }
+    }
+  }
+  return null;
+}
+
 function extractCompanyFromSenderLocalPart(sender, bodyText) {
   const localPart = extractSenderLocalPart(sender);
   if (!localPart) {
@@ -1153,6 +1212,7 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   const senderDomain = extractSenderDomain(sender);
   const providerSender = senderName ? isProviderName(senderName) : false;
   const atsSender = isAtsDomain(senderDomain);
+  const signatureCompany = extractCompanyFromSignatureLines(bodyTextRaw);
   const bodySignatureCompany =
     bodyTextRaw && (atsSender || providerSender)
       ? extractCompanyFromBodyText(bodyTextRaw)
@@ -1172,18 +1232,22 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
       }
     : null;
   const companyMatch = pickBestCompany([
-    roleMatch.companyName
+    signatureCompany,
+    subjectCompany,
+    senderCompany,
+    bodyCompany,
+    localPartCompany,
+    domainCompany,
+    roleMatch.companyName &&
+    !isInvalidCompanyCandidate(roleMatch.companyName) &&
+    !/\b(program|engineer|developer|track|analyst|software|technology)\b/i.test(roleMatch.companyName) &&
+    !/\d{4}/.test(roleMatch.companyName)
       ? {
           companyName: roleMatch.companyName,
           companyConfidence: roleMatch.companyConfidence,
           explanation: roleMatch.explanation
         }
-      : null,
-    subjectCompany,
-    senderCompany,
-    bodyCompany,
-    localPartCompany,
-    domainCompany
+      : null
   ]);
 
   const companyName = companyMatch?.companyName || null;

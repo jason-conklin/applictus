@@ -150,3 +150,17 @@ test('extractJobTitle ignores generic sender name', () => {
 
   assert.equal(result.jobTitle, null);
 });
+
+test('extractJobTitle handles received information opening pattern', () => {
+  const snippet = 'We just received your information for our Software Engineer-I opening.';
+  const role = extractJobTitle({
+    subject: '',
+    snippet,
+    bodyText: '',
+    senderName: '',
+    sender: 'recruiting@example.com',
+    companyName: 'Mobility Ideal Health'
+  });
+
+  assert.equal(role?.jobTitle, 'Software Engineer-I');
+});
