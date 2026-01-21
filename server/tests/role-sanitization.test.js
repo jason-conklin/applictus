@@ -1,14 +1,19 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { sanitizeJobTitle } = require('../src/../shared/matching');
-const { classifyEmail } = require('../src/../shared/emailClassifier');
-const { extractJobTitle } = require('../src/../shared/matching');
+const { sanitizeJobTitle } = require('../../shared/matching');
+const { classifyEmail } = require('../../shared/emailClassifier');
+const { extractJobTitle } = require('../../shared/matching');
 
 test('sanitizeJobTitle trims trailing clause', () => {
   const raw = 'Early Career, Software Engineer (2026) , and we are delighted to move forward.';
   const cleaned = sanitizeJobTitle(raw);
   assert.equal(cleaned, 'Early Career, Software Engineer (2026)');
+});
+
+test('sanitizeJobTitle removes leading determiners', () => {
+  assert.equal(sanitizeJobTitle('our Technology Analyst'), 'Technology Analyst');
+  assert.equal(sanitizeJobTitle('the Software Engineer I'), 'Software Engineer I');
 });
 
 test('Verisk confirmation classified correctly', () => {

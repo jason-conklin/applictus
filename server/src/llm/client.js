@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { redactContent } = require('./redact');
 const { logInfo, logWarn } = require('../logger');
-const { validateOrThrow } = require('./promptTemplate');
+const { validateOrThrow, buildPrompt } = require('./promptTemplate');
 
 const PROMPT_VERSION = 'v1';
 
@@ -21,7 +21,7 @@ function hashPrompt(content) {
   return crypto.createHash('sha256').update(content).digest('hex');
 }
 
-async function callProvider({ prompt, config }) {
+async function callProvider({ messages, config }) {
   if (!config.baseUrl || !config.apiKey) {
     throw new Error('LLM provider not configured');
   }
@@ -37,15 +37,9 @@ async function callProvider({ prompt, config }) {
       signal: controller.signal,
       body: JSON.stringify({
         model: config.model,
-        messages: [
-          {
-            role: 'system',
-            content:
-              'You are a parser that extracts job application signals. Reply ONLY with JSON matching the provided schema.'
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0
+        messages,
+        temperature: 0,
+        response_format: { type: 'json_object' }
       })
     });
     if (!response.ok) {
@@ -107,22 +101,17 @@ async function analyzeEmailForJobSignals({
     bodyText,
     maxChars: config.maxInputChars
   });
-  const prompt = [
-    'Extract job application signals. Return JSON with keys:',
-    'is_job_related (bool), event_type, confidence (0-1), company_name, job_title, external_req_id, evidence {company_source, role_source, req_source}, notes.',
-    `Subject: ${subject || ''}`,
-    `Snippet: ${snippet || ''}`,
-    `From: ${from || ''}`,
-    `To: ${to || ''}`,
-    `Date: ${date || ''}`,
-    `Headers: ${JSON.stringify(headers || {})}`,
-    `Content: ${redacted}`
-  ].join('\n');
+  const messages = buildPrompt({
+    from,
+    subject,
+    snippet,
+    bodyText: redacted || null
+  });
 
-  const promptHash = hashPrompt(prompt);
+  const promptHash = hashPrompt(JSON.stringify(messages));
   const start = Date.now();
   try {
-    const raw = await callProvider({ prompt, config });
+    const raw = await callProvider({ messages, config });
     const parsedResult = parseModelJson(raw);
     if (!parsedResult.ok) {
       logWarn('llm.validation_failed', {
@@ -157,13 +146,17 @@ async function analyzeEmailForJobSignals({
         promptHash
       };
     } catch (err) {
+      const topLevelKeys = parsedResult.parsed && typeof parsedResult.parsed === 'object'
+        ? Object.keys(parsedResult.parsed)
+        : [];
       logWarn('llm.validation_failed', {
         stage: 'schema_failed',
         messageHash: hashPrompt(messageId || ''),
         duration_ms: Date.now() - start,
         promptHash,
         ajvErrors: String(err.message || '').slice(0, 500),
-        rawPreview: parsedResult.preview
+        rawPreview: parsedResult.preview,
+        keys: topLevelKeys
       });
       return {
         used: true,

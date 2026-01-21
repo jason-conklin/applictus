@@ -728,6 +728,7 @@ function normalizeRoleCandidate(value, companyName) {
 function sanitizeJobTitle(title) {
   if (!title) return null;
   let text = normalize(title);
+  text = text.replace(/^(?:our|the|a|an|this|that|your|my)\s+/i, '');
   if (text.length > 120) {
     text = text.slice(0, 120);
   }
@@ -737,7 +738,7 @@ function sanitizeJobTitle(title) {
     ', but',
     ', while',
     ' we are ',
-    \" we're \",
+    " we're ",
     ' we will ',
     ' thank you ',
     ' sincerely ',
@@ -753,6 +754,14 @@ function sanitizeJobTitle(title) {
     }
   }
   return text || null;
+}
+
+function trimTrailingLocation(title) {
+  if (!title) return title;
+  const cleaned = normalize(title);
+  const locationPattern =
+    /\s*[–-]\s*(?:St\.?|San|Los|New|Jersey|Petersburg|City|Houston|Austin|Boston|Chicago|Dallas|Denver|Seattle|Tampa|Florida|Texas|California|FL|NJ|NY)\b.*$/i;
+  return cleaned.replace(locationPattern, '').trim() || cleaned;
 }
 
 function isGenericRole(value) {
@@ -793,15 +802,16 @@ function scoreForSource(base, source) {
 }
 
 function extractWorkdayStructuredRole(bodyText) {
-  const text = String(bodyText || '');
+  const text = String(bodyText || '').replace(/\u2013/g, '-');
   const rolePatterns = [
-    /Business Process:\s*Job Application:\s*[^\n-]*-\s*[A-Z0-9-]{3,}\s+([A-Z][A-Za-z0-9/&.'\- )(]+?)(?:\s+on\s+\d{1,2}\/\d{1,2}\/\d{2,4}|$)/i,
-    /Subject:\s*.*-\s*[A-Z0-9-]{3,}\s+([A-Z][A-Za-z0-9/&.'\- )(]+?)(?:\s+on\s+\d{1,2}\/\d{1,2}\/\d{2,4}|$)/i
+    /Business Process:\s*Job Application:\s*[^\n-]*-\s*[A-Z0-9-]{3,}\s+([A-Z0-9][A-Za-z0-9/&.'\- )(]+?)(?:\s+on\s+\d{1,2}\/\d{1,2}\/\d{2,4}|$)/i,
+    /Subject:\s*.*-\s*[A-Z0-9-]{3,}\s+([A-Z0-9][A-Za-z0-9/&.'\- )(]+?)(?:\s+on\s+\d{1,2}\/\d{1,2}\/\d{2,4}|$)/i
   ];
   for (const pattern of rolePatterns) {
     const match = text.match(pattern);
     if (match && match[1]) {
-      const candidate = normalize(match[1]);
+      let candidate = normalize(match[1]);
+      candidate = trimTrailingLocation(candidate);
       if (candidate && candidate.length > 2 && !isGenericRole(candidate)) {
         return candidate;
       }
@@ -1241,7 +1251,7 @@ function extractWorkdayDigestIdentity({ subject, bodyText, sender }) {
   if (!lowerSubject.includes('daily digest')) {
     return null;
   }
-  const text = String(bodyText || '');
+  const text = String(bodyText || '').replace(/\u2013/g, '-');
   if (!/Business Process:\s*Job Application/i.test(text) && !/Subject:\s*.*-\s*[A-Z0-9-]{3,}/i.test(text)) {
     return null;
   }
@@ -1266,22 +1276,44 @@ function extractWorkdayDigestIdentity({ subject, bodyText, sender }) {
     companyCandidate = null;
   }
 
-  const interestRole = text.match(/interest in the\s+([A-Z][A-Za-z0-9/&.'\- )(]+?)\s+position/i);
-  const role =
+  const interestRole = text.match(/interest in the\s+([A-Z0-9][A-Za-z0-9/&.'\- )(]+?)\s+position/i);
+  let role =
     (interestRole && interestRole[1] && normalize(interestRole[1])) || extractWorkdayStructuredRole(text);
+  if (!role) {
+    // Try parsing the subject line for req/role combos
+    const subjRole = String(subject || '')
+      .replace(/\u2013/g, '-')
+      .match(/-\s*[A-Z0-9-]{3,}\s+([A-Za-z0-9/&.'\- )(]+)$/);
+    if (subjRole && subjRole[1]) {
+      role = normalize(subjRole[1]);
+    }
+  }
+  if (role) {
+    role = trimTrailingLocation(role);
+    role = sanitizeJobTitle(role);
+  }
+
+  let externalReqId = null;
+  const reqMatch =
+    text.match(/(R-\d{4,})/i) ||
+    String(subject || '').match(/(R-\d{4,})/i);
+  if (reqMatch && reqMatch[1]) {
+    externalReqId = normalizeExternalReqId(reqMatch[1]);
+  }
 
   if (!companyCandidate && !role) {
     return null;
   }
 
   return {
-    companyName: companyCandidate || null,
-    jobTitle: role || null,
+    companyName: companyCandidate || '',
+    jobTitle: role || '',
     senderDomain: extractSenderDomain(sender),
     companyConfidence: companyCandidate ? 0.9 : 0,
     roleConfidence: role ? 0.9 : null,
     domainConfidence: 0.5,
     matchConfidence: companyCandidate && role ? 0.88 : 0.75,
+    externalReqId,
     isAtsDomain: true,
     isPlatformEmail: true,
     bodyTextAvailable: Boolean(text && text.trim()),
@@ -1297,5 +1329,6 @@ module.exports = {
   isProviderName,
   isInvalidCompanyCandidate,
   extractCompanyFromBodyText,
-  normalizeExternalReqId
+  normalizeExternalReqId,
+  sanitizeJobTitle
 };

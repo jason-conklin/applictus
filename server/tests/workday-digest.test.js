@@ -1,9 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { extractThreadIdentity } = require('../src/../shared/matching');
-const { classifyEmail } = require('../src/../shared/emailClassifier');
-const { extractJobTitle } = require('../src/../shared/matching');
+const { extractThreadIdentity } = require('../../shared/matching');
+const { classifyEmail } = require('../../shared/emailClassifier');
+const { extractJobTitle } = require('../../shared/matching');
 
 const digestBody = `
 Workday Inbox - Your Daily Digest
@@ -30,6 +30,7 @@ test('Workday digest wrapper extracts company and role', () => {
   assert.equal(identity.companyName, 'Raymond James');
   assert.ok(identity.jobTitle.includes('Software Developer Track'));
   assert.ok(identity.jobTitle.includes('ADP'));
+  assert.equal(identity.externalReqId, 'R-0008694');
   assert.notEqual(identity.companyName.toLowerCase(), 'daily digest');
 });
 

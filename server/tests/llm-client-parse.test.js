@@ -24,3 +24,19 @@ test('schema validation fails on bad enum', () => {
   assert.equal(res.ok, true);
   assert.throws(() => validateOrThrow(JSON.stringify(res.parsed)));
 });
+
+test('schema validation fails on missing required signals', () => {
+  const raw =
+    '{"is_job_related":true,"event_type":"job_application","company_name":"Acme","job_title":"Engineer","confidence":0.9,"evidence":{"company_source":"from"},"notes":"example"}';
+  const res = parseModelJson(raw);
+  assert.equal(res.ok, true);
+  assert.throws(() => validateOrThrow(JSON.stringify(res.parsed)));
+});
+
+test('schema validation passes on aligned example', () => {
+  const good =
+    '{"is_job_related":true,"event_type":"confirmation","company_name":"Acme","job_title":"Engineer","external_req_id":null,"confidence":0.92,"signals":{"job_context_signals":["application"],"rejection_signals":[],"confirmation_signals":["thank you"]},"evidence":{"company_source":"subject","role_source":"body","decision_source":"combined"},"notes":"Aligned with schema","safe_debug":{"provider_hint":null,"matched_patterns":["thank you"]}}';
+  const res = parseModelJson(good);
+  assert.equal(res.ok, true);
+  validateOrThrow(JSON.stringify(res.parsed));
+});
