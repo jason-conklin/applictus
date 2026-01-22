@@ -9,7 +9,7 @@ You are a precise email parser. You must return ONLY a single JSON object matchi
 - Confidence must be 0.0-1.0 and evidence-based. Prefer precision over recall; null is better than a guess.
 - Do not include Markdown, code fences, or any text outside the JSON object.
 - The JSON must include exactly the keys required by the schema (no additional properties, no missing required fields).
-- If a field is unknown, set it to null and still include the key.
+- If a field is unknown: use empty arrays for signals.*, use 'unknown' for evidence sources, and use an empty string for notes.
 - Evidence strings must be short pointers (e.g., "subject: thank you for applying", "signature: prudential") without quoting long text (>12 words).
 - If the message is not job-related, set event_type to "non_job", is_job_related=false, and all entities null.
 - Must follow the schema exactly with no additional properties anywhere.
@@ -362,7 +362,6 @@ const validate = ajv.compile(OUTPUT_SCHEMA);
 
 function normalizeOutput(obj) {
   const out = {};
-  // Map common aliases for event_type
   const eventAlias = {
     job_application: 'confirmation',
     application: 'confirmation',
@@ -385,35 +384,83 @@ function normalizeOutput(obj) {
     if (!allowedKeys.has(key)) continue;
     out[key] = obj[key];
   }
+
+  // required primitives
+  if (out.company_name === undefined) out.company_name = null;
+  if (out.job_title === undefined) out.job_title = null;
+  if (out.external_req_id === undefined) out.external_req_id = null;
+  if (out.notes === undefined || out.notes === null) out.notes = '';
+
+  // signals
+  const signals = out.signals || {};
+  out.signals = {
+    job_context_signals: Array.isArray(signals.job_context_signals)
+      ? signals.job_context_signals.map(String)
+      : [],
+    rejection_signals: Array.isArray(signals.rejection_signals)
+      ? signals.rejection_signals.map(String)
+      : [],
+    confirmation_signals: Array.isArray(signals.confirmation_signals)
+      ? signals.confirmation_signals.map(String)
+      : []
+  };
+
+  // evidence with enum clamping
+  const evidence = out.evidence || {};
+  const companySource = ['from', 'subject', 'body', 'signature', 'unknown'].includes(
+    evidence.company_source
+  )
+    ? evidence.company_source
+    : 'unknown';
+  const roleSource = ['subject', 'body', 'unknown'].includes(evidence.role_source)
+    ? evidence.role_source
+    : 'unknown';
+  const decisionSource = ['subject', 'body', 'combined', 'unknown'].includes(
+    evidence.decision_source
+  )
+    ? evidence.decision_source
+    : 'unknown';
+  out.evidence = {
+    company_source: companySource,
+    role_source: roleSource,
+    decision_source: decisionSource
+  };
+
+  // safe_debug defaults
+  const safeDebug = out.safe_debug || {};
+  out.safe_debug = {
+    provider_hint: safeDebug.provider_hint || null,
+    matched_patterns: Array.isArray(safeDebug.matched_patterns)
+      ? safeDebug.matched_patterns.map(String)
+      : []
+  };
+
+  // event_type aliasing with confirmation signals guard
   if (out.event_type && eventAlias[out.event_type]) {
-    out.event_type = eventAlias[out.event_type];
+    if (eventAlias[out.event_type] === 'confirmation') {
+      out.event_type =
+        out.signals.confirmation_signals && out.signals.confirmation_signals.length
+          ? 'confirmation'
+          : 'other_job_related';
+    } else {
+      out.event_type = eventAlias[out.event_type];
+    }
   }
-  if (out.signals) {
-    out.signals = {
-      job_context_signals: Array.isArray(out.signals.job_context_signals)
-        ? out.signals.job_context_signals
-        : out.signals.job_context_signals
-        ? [String(out.signals.job_context_signals)]
-        : undefined,
-      rejection_signals: Array.isArray(out.signals.rejection_signals)
-        ? out.signals.rejection_signals
-        : out.signals.rejection_signals
-        ? [String(out.signals.rejection_signals)]
-        : undefined,
-      confirmation_signals: Array.isArray(out.signals.confirmation_signals)
-        ? out.signals.confirmation_signals
-        : out.signals.confirmation_signals
-        ? [String(out.signals.confirmation_signals)]
-        : undefined
-    };
+  const allowedEvents = new Set([
+    'confirmation',
+    'rejection',
+    'interview_request',
+    'interview_completed',
+    'offer',
+    'under_review',
+    'recruiter_outreach',
+    'other_job_related',
+    'non_job'
+  ]);
+  if (!allowedEvents.has(out.event_type)) {
+    out.event_type = 'other_job_related';
   }
-  if (out.evidence) {
-    out.evidence = {
-      company_source: out.evidence.company_source,
-      role_source: out.evidence.role_source,
-      decision_source: out.evidence.decision_source
-    };
-  }
+
   return out;
 }
 

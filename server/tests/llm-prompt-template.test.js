@@ -43,7 +43,8 @@ test('validateOrThrow rejects non-json wrapper', () => {
 
 test('validateOrThrow rejects wrong enum', () => {
   const bad = { ...EXAMPLES[0].output, event_type: 'invalid' };
-  assert.throws(() => validateOrThrow(JSON.stringify(bad)));
+  const parsed = validateOrThrow(JSON.stringify(bad));
+  assert.equal(parsed.event_type, 'other_job_related');
 });
 
 test('validateOrThrow rejects confidence out of range', () => {

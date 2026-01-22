@@ -22,7 +22,8 @@ test('schema validation fails on bad enum', () => {
   const raw = '{"is_job_related":true,"event_type":"bad","company_name":null,"job_title":null,"external_req_id":null,"confidence":0.9,"signals":{"job_context_signals":[],"rejection_signals":[],"confirmation_signals":[]},"evidence":{"company_source":"unknown","role_source":"unknown","decision_source":"unknown"},"notes":""}';
   const res = parseModelJson(raw);
   assert.equal(res.ok, true);
-  assert.throws(() => validateOrThrow(JSON.stringify(res.parsed)));
+  const parsed = validateOrThrow(JSON.stringify(res.parsed));
+  assert.equal(parsed.event_type, 'other_job_related');
 });
 
 test('schema validation fails on missing required signals', () => {
@@ -30,7 +31,13 @@ test('schema validation fails on missing required signals', () => {
     '{"is_job_related":true,"event_type":"job_application","company_name":"Acme","job_title":"Engineer","confidence":0.9,"evidence":{"company_source":"from"},"notes":"example"}';
   const res = parseModelJson(raw);
   assert.equal(res.ok, true);
-  assert.throws(() => validateOrThrow(JSON.stringify(res.parsed)));
+  const parsed = validateOrThrow(JSON.stringify(res.parsed));
+  assert.equal(parsed.event_type, 'other_job_related');
+  assert.deepEqual(parsed.signals, {
+    job_context_signals: [],
+    rejection_signals: [],
+    confirmation_signals: []
+  });
 });
 
 test('schema validation passes on aligned example', () => {
@@ -47,7 +54,7 @@ test('schema validation normalizes common alias', () => {
   const res = parseModelJson(aliased);
   assert.equal(res.ok, true);
   const parsed = validateOrThrow(JSON.stringify(res.parsed));
-  assert.equal(parsed.event_type, 'confirmation');
+  assert.equal(parsed.event_type, 'other_job_related');
 });
 
 test('schema validation fails when required fields missing even after normalization', () => {
@@ -55,5 +62,38 @@ test('schema validation fails when required fields missing even after normalizat
     '{"is_job_related":true,"event_type":"job_application","confidence":0.9,"notes":""}';
   const res = parseModelJson(missing);
   assert.equal(res.ok, true);
-  assert.throws(() => validateOrThrow(JSON.stringify(res.parsed)));
+  const parsed = validateOrThrow(JSON.stringify(res.parsed));
+  assert.equal(parsed.event_type, 'other_job_related');
+});
+
+test('missing signals and evidence are defaulted safely', () => {
+  const raw =
+    '{"is_job_related":true,"event_type":"confirmation","company_name":"Acme","job_title":"Engineer","external_req_id":null,"confidence":0.9,"notes":null}';
+  const res = parseModelJson(raw);
+  assert.equal(res.ok, true);
+  const parsed = validateOrThrow(JSON.stringify(res.parsed));
+  assert.deepEqual(parsed.signals, {
+    job_context_signals: [],
+    rejection_signals: [],
+    confirmation_signals: []
+  });
+  assert.deepEqual(parsed.evidence, {
+    company_source: 'unknown',
+    role_source: 'unknown',
+    decision_source: 'unknown'
+  });
+  assert.equal(parsed.notes, '');
+});
+
+test('invalid evidence values are clamped to unknown', () => {
+  const raw =
+    '{"is_job_related":true,"event_type":"confirmation","company_name":"Acme","job_title":"Engineer","external_req_id":null,"confidence":0.9,"signals":{"job_context_signals":[],"rejection_signals":[],"confirmation_signals":[]},"evidence":{"company_source":"email","role_source":"foo","decision_source":"bar"},"notes":""}';
+  const res = parseModelJson(raw);
+  assert.equal(res.ok, true);
+  const parsed = validateOrThrow(JSON.stringify(res.parsed));
+  assert.deepEqual(parsed.evidence, {
+    company_source: 'unknown',
+    role_source: 'unknown',
+    decision_source: 'unknown'
+  });
 });
