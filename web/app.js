@@ -175,7 +175,11 @@ const syncUiState = {
   label: '',
   error: false,
   syncId: null,
-  pollTimer: null
+  pollTimer: null,
+  easingTimer: null,
+  startTs: null,
+  backendTarget: 0,
+  completed: false
 };
 
 const SORT_LABELS = {
@@ -556,7 +560,14 @@ function hideSyncProgress() {
     window.clearInterval(syncUiState.pollTimer);
     syncUiState.pollTimer = null;
   }
+  if (syncUiState.easingTimer) {
+    window.clearInterval(syncUiState.easingTimer);
+    syncUiState.easingTimer = null;
+  }
   syncUiState.syncId = null;
+  syncUiState.startTs = null;
+  syncUiState.backendTarget = 0;
+  syncUiState.completed = false;
 }
 
 function easeProgress(target) {
@@ -585,12 +596,55 @@ function mapPhaseLabel(phase) {
   }
 }
 
+function animateToHundredThenHide() {
+  const start = syncUiState.progress || 0;
+  const duration = 500;
+  const end = 1;
+  const startTime = performance.now();
+  function step(ts) {
+    const t = Math.min(1, (ts - startTime) / duration);
+    const eased = start + (end - start) * t;
+    setSyncProgressState({ visible: true, progress: eased, label: 'Sync complete', error: false });
+    if (t < 1) {
+      requestAnimationFrame(step);
+    } else {
+      setTimeout(() => hideSyncProgress(), 250);
+    }
+  }
+  requestAnimationFrame(step);
+}
+
 function startSyncPolling(syncId) {
   if (!syncId) return;
   syncUiState.syncId = syncId;
+  syncUiState.startTs = Date.now();
   if (syncUiState.pollTimer) {
     window.clearInterval(syncUiState.pollTimer);
   }
+  if (syncUiState.easingTimer) {
+    window.clearInterval(syncUiState.easingTimer);
+  }
+  syncUiState.easingTimer = window.setInterval(() => {
+    if (!syncUiState.startTs) return;
+    const elapsedSec = (Date.now() - syncUiState.startTs) / 1000;
+    // Time-based perceived curve: fast rise then taper to 95%
+    const cap = syncUiState.completed ? 1 : 0.95;
+    const baseTarget = cap * (1 - Math.exp(-elapsedSec / 8)); // ~20% @2s, ~54% @6s, ~83% @15s
+    const backendTarget = syncUiState.backendTarget || 0;
+    const target = Math.min(cap, Math.max(baseTarget, backendTarget));
+    easeProgress(target);
+    const label =
+      syncUiState.backendPhaseLabel ||
+      (elapsedSec < 3
+        ? 'Starting sync…'
+        : elapsedSec < 12
+        ? 'Fetching emails…'
+        : elapsedSec < 30
+        ? 'Classifying emails…'
+        : 'Matching applications…');
+    setSyncProgressState({ visible: true, label, error: syncUiState.error });
+  }, 120);
+
   const poll = async () => {
     try {
       const progress = await api(`/api/email/sync/status?sync_id=${encodeURIComponent(syncId)}`);
@@ -606,21 +660,19 @@ function startSyncPolling(syncId) {
         const fallbackTotal = Math.max(processed + 5, processed * 1.2);
         target = Math.min(0.7, processed / fallbackTotal);
       }
-      if (status === 'completed') {
-        target = 1;
-      }
+      syncUiState.backendTarget = target;
+      syncUiState.backendPhaseLabel = label;
       if (process.env.NODE_ENV !== 'production') {
         console.debug('sync status', { progress, target });
       }
-      easeProgress(target);
       setSyncProgressState({ visible: true, label, error: status === 'failed' });
       if (status === 'failed') {
         hideSyncProgress();
         if (syncStatus) syncStatus.textContent = 'Failed';
       }
       if (status === 'completed') {
-        const finalize = () => hideSyncProgress();
-        window.setTimeout(finalize, 700);
+        syncUiState.completed = true;
+        animateToHundredThenHide();
         window.clearInterval(syncUiState.pollTimer);
         syncUiState.pollTimer = null;
       }
