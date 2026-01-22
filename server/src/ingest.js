@@ -431,7 +431,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       });
       const rolePayload = roleResult && roleResult.jobTitle ? roleResult : null;
       const reqResult = extractExternalReqId({ subject, snippet, bodyText });
-      const externalReqId = reqResult.externalReqId || null;
+      let externalReqId = reqResult.externalReqId || null;
       let effectiveClassification = { ...classification };
       let effectiveIdentity = { ...identity };
       let effectiveRole = rolePayload;
