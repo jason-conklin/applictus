@@ -361,60 +361,57 @@ const ajv = new Ajv({ allErrors: true, strict: false });
 const validate = ajv.compile(OUTPUT_SCHEMA);
 
 function normalizeOutput(obj) {
-  const out = { ...obj };
-  // Map common aliases
-  if (out.event_type === 'job_application' || out.event_type === 'application') {
-    out.event_type = 'confirmation';
+  const out = {};
+  // Map common aliases for event_type
+  const eventAlias = {
+    job_application: 'confirmation',
+    application: 'confirmation',
+    application_confirmation: 'confirmation',
+    job_rejection: 'rejection'
+  };
+  const allowedKeys = new Set([
+    'is_job_related',
+    'event_type',
+    'company_name',
+    'job_title',
+    'external_req_id',
+    'confidence',
+    'signals',
+    'evidence',
+    'notes',
+    'safe_debug'
+  ]);
+  for (const key of Object.keys(obj || {})) {
+    if (!allowedKeys.has(key)) continue;
+    out[key] = obj[key];
   }
-  if (out.event_type === 'account_activation') {
-    out.event_type = 'non_job';
+  if (out.event_type && eventAlias[out.event_type]) {
+    out.event_type = eventAlias[out.event_type];
   }
-  if (out.company_name === undefined) out.company_name = null;
-  if (out.job_title === undefined) out.job_title = null;
-  if (out.external_req_id === undefined) out.external_req_id = null;
-  if (!out.signals) {
-    out.signals = {
-      job_context_signals: [],
-      rejection_signals: [],
-      confirmation_signals: []
-    };
-  } else {
+  if (out.signals) {
     out.signals = {
       job_context_signals: Array.isArray(out.signals.job_context_signals)
         ? out.signals.job_context_signals
-        : [],
+        : out.signals.job_context_signals
+        ? [String(out.signals.job_context_signals)]
+        : undefined,
       rejection_signals: Array.isArray(out.signals.rejection_signals)
         ? out.signals.rejection_signals
-        : [],
+        : out.signals.rejection_signals
+        ? [String(out.signals.rejection_signals)]
+        : undefined,
       confirmation_signals: Array.isArray(out.signals.confirmation_signals)
         ? out.signals.confirmation_signals
-        : []
+        : out.signals.confirmation_signals
+        ? [String(out.signals.confirmation_signals)]
+        : undefined
     };
   }
-  if (!out.evidence) {
+  if (out.evidence) {
     out.evidence = {
-      company_source: 'unknown',
-      role_source: 'unknown',
-      decision_source: 'unknown'
-    };
-  } else {
-    out.evidence = {
-      company_source: out.evidence.company_source || 'unknown',
-      role_source: out.evidence.role_source || 'unknown',
-      decision_source: out.evidence.decision_source || 'unknown'
-    };
-  }
-  if (!out.notes) {
-    out.notes = '';
-  }
-  if (!out.safe_debug) {
-    out.safe_debug = { provider_hint: null, matched_patterns: [] };
-  } else {
-    out.safe_debug = {
-      provider_hint: out.safe_debug.provider_hint || null,
-      matched_patterns: Array.isArray(out.safe_debug.matched_patterns)
-        ? out.safe_debug.matched_patterns
-        : []
+      company_source: out.evidence.company_source,
+      role_source: out.evidence.role_source,
+      decision_source: out.evidence.decision_source
     };
   }
   return out;

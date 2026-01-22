@@ -30,9 +30,7 @@ test('schema validation fails on missing required signals', () => {
     '{"is_job_related":true,"event_type":"job_application","company_name":"Acme","job_title":"Engineer","confidence":0.9,"evidence":{"company_source":"from"},"notes":"example"}';
   const res = parseModelJson(raw);
   assert.equal(res.ok, true);
-  const parsed = validateOrThrow(JSON.stringify(res.parsed));
-  assert.equal(parsed.event_type, 'confirmation');
-  assert.ok(Array.isArray(parsed.signals.confirmation_signals));
+  assert.throws(() => validateOrThrow(JSON.stringify(res.parsed)));
 });
 
 test('schema validation passes on aligned example', () => {
@@ -41,4 +39,21 @@ test('schema validation passes on aligned example', () => {
   const res = parseModelJson(good);
   assert.equal(res.ok, true);
   validateOrThrow(JSON.stringify(res.parsed));
+});
+
+test('schema validation normalizes common alias', () => {
+  const aliased =
+    '{"is_job_related":true,"event_type":"job_application","company_name":"Acme","job_title":"Engineer","external_req_id":null,"confidence":0.9,"signals":{"job_context_signals":[],"rejection_signals":[],"confirmation_signals":[]},"evidence":{"company_source":"subject","role_source":"body","decision_source":"combined"},"notes":""}';
+  const res = parseModelJson(aliased);
+  assert.equal(res.ok, true);
+  const parsed = validateOrThrow(JSON.stringify(res.parsed));
+  assert.equal(parsed.event_type, 'confirmation');
+});
+
+test('schema validation fails when required fields missing even after normalization', () => {
+  const missing =
+    '{"is_job_related":true,"event_type":"job_application","confidence":0.9,"notes":""}';
+  const res = parseModelJson(missing);
+  assert.equal(res.ok, true);
+  assert.throws(() => validateOrThrow(JSON.stringify(res.parsed)));
 });
