@@ -297,6 +297,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
   let llmUsedIdentity = 0;
   let llmUsedType = 0;
   let llmUsedReqId = 0;
+  let llmUsedRole = 0;
   let stoppedReason = 'completed';
   const messageSourceCounts = {};
   const reasons = initReasonCounters();
@@ -465,8 +466,8 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
         });
         llmModel = llmResponse.model || null;
         llmLatency = llmResponse.latencyMs || null;
+        llmStatus = llmResponse.ok ? 'ok' : llmResponse.skipped ? 'skipped' : 'failed';
         if (llmResponse.ok && llmResponse.data) {
-          llmStatus = 'ok';
           llmRaw = JSON.stringify(llmResponse.data);
           const llmData = llmResponse.data;
           const agreeType = llmData.event_type === classification.detectedType;
@@ -495,7 +496,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
               source: 'llm',
               explanation: 'LLM'
             };
-            llmUsedIdentity += 1;
+            llmUsedRole += 1;
           }
           if (safeUse && llmData.external_req_id && !externalReqId) {
             externalReqId = llmData.external_req_id;
@@ -512,9 +513,10 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
             llmUsedType += 1;
           }
         } else {
-          llmStatus = llmResponse.skipped ? 'skipped' : 'failed';
           llmError = llmResponse.error || llmResponse.reason || null;
-          llmFailures += llmStatus === 'failed' ? 1 : 0;
+          if (!llmResponse.skipped) {
+            llmFailures += 1;
+          }
         }
       }
 
@@ -745,6 +747,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
     llmUsedIdentity,
     llmUsedType,
     llmUsedReqId,
+    llmUsedRole,
     pagesFetched,
     totalMessagesListed,
     messageSourceCounts,
@@ -798,6 +801,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
     llm_used_identity_total: llmUsedIdentity,
     llm_used_type_total: llmUsedType,
     llm_used_req_id_total: llmUsedReqId,
+    llm_used_role_total: llmUsedRole,
     pages_fetched: pagesFetched,
     total_messages_listed: totalMessagesListed,
     message_source_counts: messageSourceCounts,

@@ -93,7 +93,18 @@ async function analyzeEmailForJobSignals({
 }) {
   const config = getConfig();
   if (!config.enabled) {
-    return { used: false, cached: false, result: null, promptVersion: PROMPT_VERSION };
+    return {
+      ok: false,
+      skipped: true,
+      data: null,
+      error: 'disabled',
+      model: null,
+      latencyMs: null,
+      promptVersion: PROMPT_VERSION,
+      promptHash: null,
+      messageHash: null,
+      cached: false
+    };
   }
   const { redacted } = redactContent({
     subject,
@@ -122,16 +133,20 @@ async function analyzeEmailForJobSignals({
         rawPreview: parsedResult.preview
       });
       return {
-        used: true,
-        cached: false,
-        result: null,
+        ok: false,
+        skipped: false,
+        data: null,
         error: 'parse_failed',
+        model: config.model,
+        latencyMs: Date.now() - start,
         promptVersion: PROMPT_VERSION,
-        promptHash
+        promptHash,
+        messageHash: hashPrompt(messageId || ''),
+        cached: false
       };
     }
     try {
-      validateOrThrow(JSON.stringify(parsedResult.parsed));
+      const normalized = validateOrThrow(JSON.stringify(parsedResult.parsed));
       logInfo('llm.call', {
         messageHash: hashPrompt(messageId || ''),
         duration_ms: Date.now() - start,
@@ -139,11 +154,15 @@ async function analyzeEmailForJobSignals({
         promptHash
       });
       return {
-        used: true,
-        cached: false,
-        result: parsedResult.parsed,
+        ok: true,
+        skipped: false,
+        data: normalized,
+        model: config.model,
+        latencyMs: Date.now() - start,
         promptVersion: PROMPT_VERSION,
-        promptHash
+        promptHash,
+        messageHash: hashPrompt(messageId || ''),
+        cached: false
       };
     } catch (err) {
       const topLevelKeys = parsedResult.parsed && typeof parsedResult.parsed === 'object'
@@ -159,12 +178,16 @@ async function analyzeEmailForJobSignals({
         keys: topLevelKeys
       });
       return {
-        used: true,
-        cached: false,
-        result: null,
+        ok: false,
+        skipped: false,
+        data: null,
         error: 'schema_failed',
+        model: config.model,
+        latencyMs: Date.now() - start,
         promptVersion: PROMPT_VERSION,
-        promptHash
+        promptHash,
+        messageHash: hashPrompt(messageId || ''),
+        cached: false
       };
     }
   } catch (err) {
@@ -173,7 +196,18 @@ async function analyzeEmailForJobSignals({
       duration_ms: Date.now() - start,
       error: err.message
     });
-    return { used: true, cached: false, result: null, error: err, promptVersion: PROMPT_VERSION, promptHash };
+    return {
+      ok: false,
+      skipped: false,
+      data: null,
+      error: err.message,
+      model: config.model,
+      latencyMs: Date.now() - start,
+      promptVersion: PROMPT_VERSION,
+      promptHash,
+      messageHash: hashPrompt(messageId || ''),
+      cached: false
+    };
   }
 }
 
