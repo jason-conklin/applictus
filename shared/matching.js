@@ -95,6 +95,7 @@ const INVALID_COMPANY_TERMS = new Set([
   'hey',
   'thanks',
   'thank you',
+  'thank you so much',
   'regards',
   'best regards',
   'kind regards',
@@ -245,6 +246,11 @@ const COMPANY_ONLY_PATTERNS = [
     name: 'moved_to_next_step_company',
     regex: /([A-Z][A-Za-z0-9&.'\- ]{2,80}) has moved to the next step in (?:their )?hiring process/i,
     confidence: 0.9
+  },
+  {
+    name: 'recruiting_thank_you_applying',
+    regex: /^([A-Z][A-Za-z0-9&.'\- ]{2,80})\s+recruiting\s+[-–—]\s+thank you for applying/i,
+    confidence: 0.93
   },
   {
     name: 'subject_company_dash_role',
@@ -482,7 +488,34 @@ function isInvalidCompanyCandidate(value) {
   if (/^(thanks|thank you)\b/.test(lower)) {
     return true;
   }
+  if (/^(your|our|this|that|these|those|my)\b/.test(lower)) {
+    return true;
+  }
+  if (/^[A-Za-z]{2,40},/.test(text) || /,\s*thank you/i.test(lower)) {
+    return true;
+  }
+  if (lower.includes('thank you') && lower.split(/\s+/).length <= 6) {
+    return true;
+  }
+  if (/\bjoining us\b/i.test(lower) || /\bwe appreciate\b/i.test(lower) || /\bthank you so much\b/i.test(lower)) {
+    return true;
+  }
+  if (/^(we|i|you)\b/.test(lower)) {
+    return true;
+  }
   if (/unsubscribe|view in browser/i.test(lower)) {
+    return true;
+  }
+  if (/^(your|our|this|that|these|those|my)\b/.test(lower)) {
+    return true;
+  }
+  if (/^[A-Za-z]{2,40},/.test(text) || /,\s*thank you/i.test(lower)) {
+    return true;
+  }
+  if (lower.includes('thank you') && lower.split(/\s+/).length <= 6) {
+    return true;
+  }
+  if (/\bjoining us\b/i.test(lower) || /\bwe appreciate\b/i.test(lower) || /\bthank you so much\b/i.test(lower)) {
     return true;
   }
   if (INVALID_COMPANY_TERMS.has(lower)) {
@@ -563,6 +596,7 @@ function cleanCompanyCandidate(value) {
   const stopPhrases = [
     'taking the time to apply',
     'thank you for your interest',
+    'thank you so much',
     'interest in',
     'we have received',
     'we received',
@@ -578,6 +612,9 @@ function cleanCompanyCandidate(value) {
     return null;
   }
   if (/\b(apply|applying|apply)\b/i.test(cleaned)) {
+    return null;
+  }
+  if (/^(hi|hello|dear|hey)\b/i.test(cleaned)) {
     return null;
   }
   if (!cleaned || isProviderName(cleaned) || isInvalidCompanyCandidate(cleaned)) {
@@ -1166,6 +1203,18 @@ function pickBestCompany(candidates) {
   return available.sort((a, b) => (b.companyConfidence || 0) - (a.companyConfidence || 0))[0];
 }
 
+function sanitizeCompanyCandidate(candidate) {
+  if (!candidate || !candidate.companyName) return null;
+  const name = candidate.companyName;
+  if (isInvalidCompanyCandidate(name)) {
+    return null;
+  }
+  if (/\b(engineer|developer|analyst|program|track)\b/i.test(name)) {
+    return null;
+  }
+  return candidate;
+}
+
 function domainConfidence(companyName, senderDomain) {
   if (!companyName || !senderDomain) {
     return { score: 0, isAtsDomain: false };
@@ -1208,29 +1257,32 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
       explanation: 'No strict role/company pattern matched.'
     };
   const subjectCompany =
-    extractCompanyFromSubject(subjectText) || extractCompanyFromSubject(snippetText);
-  const senderCompany = extractCompanyFromSender(sender);
+    sanitizeCompanyCandidate(extractCompanyFromSubject(subjectText)) ||
+    sanitizeCompanyCandidate(extractCompanyFromSubject(snippetText));
+  const senderCompany = sanitizeCompanyCandidate(extractCompanyFromSender(sender));
   const senderDomain = extractSenderDomain(sender);
   const providerSender = senderName ? isProviderName(senderName) : false;
   const atsSender = isAtsDomain(senderDomain);
-  const signatureCompany = extractCompanyFromSignatureLines(bodyTextRaw);
+  const signatureCompany = sanitizeCompanyCandidate(extractCompanyFromSignatureLines(bodyTextRaw));
   const bodySignatureCompany =
     bodyTextRaw && (atsSender || providerSender)
-      ? extractCompanyFromBodyText(bodyTextRaw)
+      ? sanitizeCompanyCandidate(extractCompanyFromBodyText(bodyTextRaw))
       : null;
   const bodyPatternCompany =
     bodyTextRaw && (atsSender || providerSender)
-      ? extractCompanyFromBodyPatterns(bodyTextRaw)
+      ? sanitizeCompanyCandidate(extractCompanyFromBodyPatterns(bodyTextRaw))
       : null;
   const localPartCompany =
-    atsSender || providerSender ? extractCompanyFromSenderLocalPart(sender, bodyTextRaw) : null;
+    atsSender || providerSender
+      ? sanitizeCompanyCandidate(extractCompanyFromSenderLocalPart(sender, bodyTextRaw))
+      : null;
   const bodyCompany = bodySignatureCompany || bodyPatternCompany;
   const domainCompany = companyFromDomain(senderDomain)
-    ? {
+    ? sanitizeCompanyCandidate({
         companyName: companyFromDomain(senderDomain),
         companyConfidence: 0.85,
         explanation: 'Derived company from sender domain.'
-      }
+      })
     : null;
   const companyMatch = pickBestCompany([
     signatureCompany,

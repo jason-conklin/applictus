@@ -990,12 +990,18 @@ details summary {
   background: var(--color-border);
 }
 
-.status.APPLIED .status-chip,
+.status.APPLIED .status-chip {
+  background: var(--color-warning);
+}
+
+.status.APPLIED {
+  background: var(--color-warning-tint);
+}
+
 .status.OFFER_RECEIVED .status-chip {
   background: var(--color-success);
 }
 
-.status.APPLIED,
 .status.OFFER_RECEIVED {
   background: var(--color-success-tint);
 }

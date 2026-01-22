@@ -6,6 +6,7 @@ const {
   isInvalidCompanyCandidate,
   normalizeExternalReqId
 } = require('../../shared/matching');
+const { logDebug } = require('./logger');
 const { TERMINAL_STATUSES, STATUS_PRIORITY } = require('../../shared/statusInference');
 
 const AUTO_CREATE_TYPES = new Set([
@@ -29,13 +30,12 @@ function normalizeSlug(text) {
     .replace(/[^a-z0-9]/g, '');
 }
 
-function buildConfirmationDedupeKey(identity, externalReqId) {
+function buildConfirmationDedupeKey(identity, externalReqId, roleTitle = null) {
   if (!identity?.companyName) return null;
   const companySlug = normalizeSlug(identity.companyName);
+  const roleSource = roleTitle || identity.jobTitle;
   const roleSlug =
-    identity.jobTitle && identity.jobTitle !== UNKNOWN_ROLE
-      ? normalizeSlug(identity.jobTitle)
-      : null;
+    roleSource && roleSource !== UNKNOWN_ROLE ? normalizeSlug(roleSource) : null;
   const domainSlug = identity.senderDomain ? normalizeSlug(identity.senderDomain) : null;
   const reqSlug = externalReqId ? normalizeSlug(externalReqId) : null;
   if (!companySlug) return null;
@@ -46,38 +46,56 @@ function findDedupeApplication(db, userId, dedupeKey, eventTimestamp) {
   if (!dedupeKey) return null;
   const since = new Date(eventTimestamp || Date.now());
   since.setDate(since.getDate() - DEDUPE_RECENCY_DAYS);
-  const rows = db
-    .prepare(
-      `SELECT * FROM job_applications
+  const query = `SELECT * FROM job_applications
        WHERE user_id = ?
          AND company_name IS NOT NULL
-         AND last_activity_at >= ?`
-    )
-    .all(userId, since.toISOString());
-  for (const app of rows) {
+         AND archived = 0
+         AND last_activity_at >= ?`;
+  const rows = db.prepare(query).all(userId, since.toISOString());
+
+  const checkMatch = (app) => {
     const appCompany = normalizeSlug(app.company_name);
     if (!appCompany || appCompany !== dedupeKey.companySlug) {
-      continue;
+      return false;
     }
     const appReq = app.external_req_id ? normalizeSlug(app.external_req_id) : null;
-    if (dedupeKey.reqSlug && appReq) {
-      if (dedupeKey.reqSlug === appReq) {
-        return app;
+    if (dedupeKey.reqSlug) {
+      if (appReq) {
+        if (dedupeKey.reqSlug === appReq) {
+          return true;
+        }
+        return false;
       }
-      continue;
+      // app missing req id; fall through to role/company match
     }
     const appRole =
       app.job_title && app.job_title !== UNKNOWN_ROLE ? normalizeSlug(app.job_title) : null;
     if (dedupeKey.roleSlug && appRole && dedupeKey.roleSlug === appRole) {
-      return app;
+      return true;
     }
-    if (!dedupeKey.roleSlug && !appRole) {
-      // fall back to domain match when roles are missing
-      const appDomain = app.source ? normalizeSlug(app.source) : null;
-      if (!dedupeKey.domainSlug || (appDomain && appDomain === dedupeKey.domainSlug)) {
-        return app;
-      }
+    if (!dedupeKey.roleSlug || !appRole) {
+      // allow match when one side lacks role but company matches
+      return true;
     }
+    return false;
+  };
+
+  for (const app of rows) {
+    if (checkMatch(app)) return app;
+  }
+
+  // As a relaxed fallback (in case last_activity_at filtering or missing timestamps),
+  // scan all non-archived applications for a matching company/role/req.
+  const allRows = db
+    .prepare(
+      `SELECT * FROM job_applications
+         WHERE user_id = ?
+           AND company_name IS NOT NULL
+           AND archived = 0`
+    )
+    .all(userId);
+  for (const app of allRows) {
+    if (checkMatch(app)) return app;
   }
   return null;
 }
@@ -646,15 +664,91 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
   const identity =
     providedIdentity ||
     extractThreadIdentity({ subject: event.subject, sender: event.sender, snippet: event.snippet });
+  const externalReqId = getExternalReqId(event);
+  const roleForMatch = identity.jobTitle || event.role_title || null;
+  const isConfirmation = event.detected_type === 'confirmation';
+
+  const logDedupe = (label, payload) => {
+    if (process.env.NODE_ENV === 'production') return;
+    logDebug(label, payload);
+  };
+
+  const canonicalizeCompanyForConfirmation = () => {
+    let candidate = identity.companyName;
+    if (!candidate || isInvalidCompanyCandidate(candidate) || (identity.companyConfidence || 0) < MIN_COMPANY_CONFIDENCE) {
+      const subject = String(event.subject || '');
+      const subjectMatch =
+        subject.match(/thank you for (?:your )?(?:application|applying) to\s+([A-Z][A-Za-z0-9 &'./-]{2,80})/i) ||
+        subject.match(/^([A-Z][A-Za-z0-9 &'./-]{2,80})\s+recruiting\s+[-–—]\s+thank you for applying/i);
+      if (subjectMatch && subjectMatch[1]) {
+        candidate = subjectMatch[1].trim();
+      }
+    }
+    if ((!candidate || isInvalidCompanyCandidate(candidate)) && identity.senderDomain) {
+      const base = identity.senderDomain.split('.')[0] || '';
+      if (base && !ATS_BASE_DOMAINS.has(base)) {
+        candidate = base.charAt(0).toUpperCase() + base.slice(1);
+      }
+    }
+    if (!candidate || isInvalidCompanyCandidate(candidate)) {
+      return null;
+    }
+    return candidate;
+  };
+
+  const canonicalizeRole = () => {
+    if (!roleForMatch) return null;
+    const text = String(roleForMatch).trim();
+    if (!text) return null;
+    return text;
+  };
+
+  logDedupe('matching.confirmation_identity', {
+    eventId: event.id,
+    subject: event.subject,
+    sender: event.sender,
+    company: identity.companyName,
+    companyConf: identity.companyConfidence,
+    role: identity.jobTitle,
+    roleConf: identity.roleConfidence,
+    senderDomain: identity.senderDomain,
+    explanation: identity.explanation
+  });
   if (!identity.companyName) {
+    if (isConfirmation && roleForMatch) {
+      const recentRoleMatch = db
+        .prepare(
+          `SELECT * FROM job_applications
+           WHERE user_id = ?
+             AND archived = 0
+             AND (job_title = ? OR role = ?)
+             AND COALESCE(last_activity_at, updated_at, created_at) >= date('now', '-7 days')
+           ORDER BY COALESCE(last_activity_at, updated_at, created_at) DESC
+           LIMIT 1`
+        )
+        .get(userId, roleForMatch, roleForMatch);
+      if (recentRoleMatch) {
+        attachEventToApplication(db, event.id, recentRoleMatch.id);
+        updateApplicationActivity(db, recentRoleMatch, event);
+        applyRoleCandidate(db, recentRoleMatch, selectRoleCandidate(identity, event));
+        applyExternalReqId(db, recentRoleMatch, externalReqId);
+        logDebug('matching.dedupe_matched_recent_confirmation', {
+          eventId: event.id,
+          applicationId: recentRoleMatch.id,
+          company: identity.companyName || null,
+          role: roleForMatch || null,
+          reqId: externalReqId || null,
+          reason: 'role_only_recent'
+        });
+        return { action: 'matched_existing', applicationId: recentRoleMatch.id, identity };
+      }
+    }
     const unassigned = buildUnassignedReason(event, identity);
     return { action: 'unassigned', reason: unassigned.reason, reasonDetail: unassigned.detail, identity };
   }
 
   const matchConfidence = identity.matchConfidence || 0;
-  const externalReqId = getExternalReqId(event);
   const isRejection = event.detected_type === 'rejection';
-  const roleForMatch = identity.jobTitle || event.role_title || null;
   let existing = null;
   let ambiguous = false;
 
@@ -772,20 +866,137 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
   }
 
   if (event.detected_type === 'confirmation') {
-    const dedupeKey = buildConfirmationDedupeKey(identity, externalReqId);
-    const candidate = findDedupeApplication(
+    const canonicalCompany = canonicalizeCompanyForConfirmation();
+    const dedupeIdentity =
+      canonicalCompany && !isInvalidCompanyCandidate(canonicalCompany)
+        ? { ...identity, companyName: canonicalCompany }
+        : identity;
+    const dedupeRole = canonicalizeRole() || roleForMatch;
+    const dedupeKey = buildConfirmationDedupeKey(dedupeIdentity, null, dedupeRole);
+    logDedupe('matching.confirmation_dedupe_start', {
+      eventId: event.id,
+      subject: event.subject,
+      sender: event.sender,
+      dedupeKey,
+      canonicalCompany,
+      dedupeRole
+    });
+    let candidate = findDedupeApplication(
       db,
       userId,
       dedupeKey,
       toIsoFromInternalDate(event.internal_date, new Date(event.created_at))
     );
+    if (!candidate && dedupeKey) {
+      // Relax domain requirement to catch ATS/corporate double confirmations
+      candidate = findDedupeApplication(
+        db,
+        userId,
+        { ...dedupeKey, domainSlug: null },
+        toIsoFromInternalDate(event.internal_date, new Date(event.created_at))
+      );
+    }
+    if (!candidate && dedupeKey && dedupeKey.companySlug && dedupeKey.roleSlug) {
+      const rows = db
+        .prepare(
+          `SELECT * FROM job_applications
+           WHERE user_id = ?
+             AND archived = 0`
+        )
+        .all(userId);
+      for (const app of rows) {
+        const appCompany = normalizeSlug(app.company_name || app.company || '');
+        const appRole = normalizeSlug(app.job_title || app.role || '');
+        if (appCompany === dedupeKey.companySlug && appRole === dedupeKey.roleSlug) {
+          candidate = app;
+          break;
+        }
+      }
+    }
+    if (!candidate && dedupeKey && dedupeKey.companySlug && dedupeKey.roleSlug) {
+      const direct = db
+        .prepare(
+          `SELECT * FROM job_applications
+           WHERE user_id = ?
+             AND archived = 0
+             AND lower(replace(company_name, ' ', '')) = ?
+             AND lower(replace(job_title, ' ', '')) = ?`
+        )
+        .get(userId, dedupeKey.companySlug, dedupeKey.roleSlug);
+      if (direct) {
+        candidate = direct;
+      }
+    }
     if (candidate) {
       attachEventToApplication(db, event.id, candidate.id);
       updateApplicationActivity(db, candidate, event);
       applyCompanyCandidate(db, candidate, selectCompanyCandidate(identity));
       applyRoleCandidate(db, candidate, selectRoleCandidate(identity, event));
       applyExternalReqId(db, candidate, externalReqId);
+      logDebug('matching.dedupe_matched_recent_confirmation', {
+        eventId: event.id,
+        applicationId: candidate.id,
+        company: identity.companyName || null,
+        role: roleForMatch || null,
+        reqId: externalReqId || null
+      });
       return { action: 'matched_existing', applicationId: candidate.id, identity };
+    }
+    // Final cross-channel dedupe without domain constraint
+    if (canonicalCompany && dedupeRole) {
+      const companySlug = normalizeSlug(canonicalCompany);
+      const roleSlug = normalizeSlug(dedupeRole);
+      const recent = db
+        .prepare(
+          `SELECT * FROM job_applications
+           WHERE user_id = ?
+             AND archived = 0
+             AND lower(replace(company_name, ' ', '')) = ?
+             AND lower(replace(job_title, ' ', '')) = ?
+             AND COALESCE(last_activity_at, updated_at, created_at) >= date('now', '-7 days')`
+        )
+        .all(userId, companySlug, roleSlug);
+      logDedupe('matching.final_confirmation_dedupe', {
+        eventId: event.id,
+        canonicalCompany,
+        canonicalRole: dedupeRole,
+        candidates: recent.length
+      });
+      if (recent.length === 1) {
+        const candidate = recent[0];
+        attachEventToApplication(db, event.id, candidate.id);
+        updateApplicationActivity(db, candidate, event);
+        applyCompanyCandidate(db, candidate, selectCompanyCandidate(identity));
+        applyRoleCandidate(db, candidate, selectRoleCandidate(identity, event));
+        applyExternalReqId(db, candidate, externalReqId);
+        return { action: 'matched_existing', applicationId: candidate.id, identity };
+      }
+    }
+    if ((!identity.companyName || isInvalidCompanyCandidate(identity.companyName)) && dedupeRole && (identity.isAtsDomain || identity.isPlatformEmail)) {
+      const roleSlug = normalizeSlug(dedupeRole);
+      const recentRole = db
+        .prepare(
+          `SELECT * FROM job_applications
+           WHERE user_id = ?
+             AND archived = 0
+             AND lower(replace(job_title, ' ', '')) = ?
+             AND COALESCE(last_activity_at, updated_at, created_at) >= date('now', '-1 days')`
+        )
+        .all(userId, roleSlug);
+      logDedupe('matching.role_only_confirmation_dedupe', {
+        eventId: event.id,
+        canonicalRole: dedupeRole,
+        candidates: recentRole.length
+      });
+      if (recentRole.length === 1) {
+        const candidate = recentRole[0];
+        attachEventToApplication(db, event.id, candidate.id);
+        updateApplicationActivity(db, candidate, event);
+        applyCompanyCandidate(db, candidate, selectCompanyCandidate(identity));
+        applyRoleCandidate(db, candidate, selectRoleCandidate(identity, event));
+        applyExternalReqId(db, candidate, externalReqId);
+        return { action: 'matched_existing', applicationId: candidate.id, identity };
+      }
     }
   }
 

@@ -179,3 +179,122 @@ test('Workday confirmations with different requisitions create separate applicat
   assert.equal(eventRows.length, 2);
   assert.notEqual(eventRows[0].application_id, eventRows[1].application_id);
 });
+
+test('Workday + corporate confirmations dedupe to one application and ignore greeting company', () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+
+  const senderA = 'Careers <careers@trimble.com>';
+  const subjectA = 'Thank you for your application to Trimble!';
+  const snippetA = 'Thank you for your application to Trimble for Software Engineer.';
+  const bodyA = 'Thank you for your application to Trimble for Software Engineer.';
+  const identityA = extractThreadIdentity({ subject: subjectA, sender: senderA, snippet: snippetA, bodyText: bodyA });
+  const roleA = extractJobTitle({
+    subject: subjectA,
+    snippet: snippetA,
+    bodyText: bodyA,
+    sender: senderA,
+    companyName: identityA.companyName
+  });
+  const reqA = extractExternalReqId({ subject: subjectA, snippet: snippetA, bodyText: bodyA });
+
+  const eventAId = insertEmailEvent(db, {
+    userId,
+    messageId: 'trimble-a',
+    sender: senderA,
+    subject: subjectA,
+    detectedType: 'confirmation',
+    confidenceScore: 0.92,
+    classificationConfidence: 0.92,
+    snippet: snippetA,
+    externalReqId: reqA.externalReqId
+  });
+
+  const matchA = matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: eventAId,
+      sender: senderA,
+      subject: subjectA,
+      snippet: snippetA,
+      detected_type: 'confirmation',
+      confidence_score: 0.92,
+      classification_confidence: 0.92,
+      role_title: roleA.jobTitle,
+      role_confidence: roleA.confidence,
+      role_source: roleA.source,
+      role_explanation: roleA.explanation,
+      external_req_id: reqA.externalReqId,
+      created_at: new Date().toISOString()
+    },
+    identity: identityA
+  });
+  assert.equal(matchA.action, 'created_application');
+
+  const senderB = 'Trimble Recruiting <trimble@myworkday.com>';
+  const subjectB = 'Trimble Recruiting - Thank you for applying!';
+  const bodyB = `
+Jason, Thank you so much for applying to Trimble.
+Business Process: Job Application: Jason Conklin - R-0001 Software Engineer on 01/20/2026
+Best Regards,
+Trimble Talent Acquisition
+`;
+  const identityB = extractThreadIdentity({ subject: subjectB, sender: senderB, bodyText: bodyB });
+  assert.equal(identityB.companyName, 'Trimble');
+  assert.ok(identityB.jobTitle && identityB.jobTitle.includes('Software Engineer'));
+
+  const roleB = extractJobTitle({
+    subject: subjectB,
+    snippet: '',
+    bodyText: bodyB,
+    sender: senderB,
+    companyName: identityB.companyName
+  });
+  const reqB = extractExternalReqId({ subject: subjectB, snippet: '', bodyText: bodyB });
+
+  const eventBId = insertEmailEvent(db, {
+    userId,
+    messageId: 'trimble-b',
+    sender: senderB,
+    subject: subjectB,
+    detectedType: 'confirmation',
+    confidenceScore: 0.92,
+    classificationConfidence: 0.92,
+    snippet: 'Thank you for applying',
+    externalReqId: reqB.externalReqId
+  });
+
+  const matchB = matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: eventBId,
+      sender: senderB,
+      subject: subjectB,
+      snippet: 'Thank you for applying',
+      detected_type: 'confirmation',
+      confidence_score: 0.92,
+      classification_confidence: 0.92,
+      role_title: roleB.jobTitle,
+      role_confidence: roleB.confidence,
+      role_source: roleB.source,
+      role_explanation: roleB.explanation,
+      external_req_id: reqB.externalReqId,
+      created_at: new Date().toISOString()
+    },
+    identity: identityB
+  });
+
+  assert.equal(matchB.action, 'matched_existing');
+
+  const apps = db.prepare('SELECT id FROM job_applications').all();
+  assert.equal(apps.length, 1);
+
+  const events = db
+    .prepare('SELECT application_id FROM email_events WHERE id IN (?, ?)')
+    .all(eventAId, eventBId);
+  assert.equal(events.length, 2);
+  assert.ok(events[0].application_id === events[1].application_id);
+});
