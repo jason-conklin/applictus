@@ -21,6 +21,66 @@ const MIN_CLASSIFICATION_CONFIDENCE = 0.85;
 const MIN_MATCH_CONFIDENCE = 0.85;
 const MIN_DOMAIN_CONFIDENCE = 0.4;
 const MIN_ROLE_CONFIDENCE = 0.8;
+const DEDUPE_RECENCY_DAYS = 7;
+
+function normalizeSlug(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function buildConfirmationDedupeKey(identity, externalReqId) {
+  if (!identity?.companyName) return null;
+  const companySlug = normalizeSlug(identity.companyName);
+  const roleSlug =
+    identity.jobTitle && identity.jobTitle !== UNKNOWN_ROLE
+      ? normalizeSlug(identity.jobTitle)
+      : null;
+  const domainSlug = identity.senderDomain ? normalizeSlug(identity.senderDomain) : null;
+  const reqSlug = externalReqId ? normalizeSlug(externalReqId) : null;
+  if (!companySlug) return null;
+  return { companySlug, roleSlug, domainSlug, reqSlug };
+}
+
+function findDedupeApplication(db, userId, dedupeKey, eventTimestamp) {
+  if (!dedupeKey) return null;
+  const since = new Date(eventTimestamp || Date.now());
+  since.setDate(since.getDate() - DEDUPE_RECENCY_DAYS);
+  const rows = db
+    .prepare(
+      `SELECT * FROM job_applications
+       WHERE user_id = ?
+         AND company_name IS NOT NULL
+         AND last_activity_at >= ?`
+    )
+    .all(userId, since.toISOString());
+  for (const app of rows) {
+    const appCompany = normalizeSlug(app.company_name);
+    if (!appCompany || appCompany !== dedupeKey.companySlug) {
+      continue;
+    }
+    const appReq = app.external_req_id ? normalizeSlug(app.external_req_id) : null;
+    if (dedupeKey.reqSlug && appReq) {
+      if (dedupeKey.reqSlug === appReq) {
+        return app;
+      }
+      continue;
+    }
+    const appRole =
+      app.job_title && app.job_title !== UNKNOWN_ROLE ? normalizeSlug(app.job_title) : null;
+    if (dedupeKey.roleSlug && appRole && dedupeKey.roleSlug === appRole) {
+      return app;
+    }
+    if (!dedupeKey.roleSlug && !appRole) {
+      // fall back to domain match when roles are missing
+      const appDomain = app.source ? normalizeSlug(app.source) : null;
+      if (!dedupeKey.domainSlug || (appDomain && appDomain === dedupeKey.domainSlug)) {
+        return app;
+      }
+    }
+  }
+  return null;
+}
 
 function getClassificationConfidence(event) {
   if (!event) {
@@ -709,6 +769,24 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
   if (!shouldAutoCreate(event, identity)) {
     const unassigned = buildUnassignedReason(event, identity);
     return { action: 'unassigned', reason: unassigned.reason, reasonDetail: unassigned.detail, identity };
+  }
+
+  if (event.detected_type === 'confirmation') {
+    const dedupeKey = buildConfirmationDedupeKey(identity, externalReqId);
+    const candidate = findDedupeApplication(
+      db,
+      userId,
+      dedupeKey,
+      toIsoFromInternalDate(event.internal_date, new Date(event.created_at))
+    );
+    if (candidate) {
+      attachEventToApplication(db, event.id, candidate.id);
+      updateApplicationActivity(db, candidate, event);
+      applyCompanyCandidate(db, candidate, selectCompanyCandidate(identity));
+      applyRoleCandidate(db, candidate, selectRoleCandidate(identity, event));
+      applyExternalReqId(db, candidate, externalReqId);
+      return { action: 'matched_existing', applicationId: candidate.id, identity };
+    }
   }
 
   const application = createApplicationFromEvent(db, userId, identity, event);

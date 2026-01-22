@@ -568,7 +568,8 @@ function cleanCompanyCandidate(value) {
     'we received',
     'daily digest',
     'opportunities',
-    'notifications'
+    'notifications',
+    'joining us'
   ];
   if (!cleaned || cleaned.length > 60) {
     return null;
