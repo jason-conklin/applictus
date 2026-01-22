@@ -173,7 +173,9 @@ const syncUiState = {
   visible: false,
   progress: 0,
   label: '',
-  error: false
+  error: false,
+  syncId: null,
+  pollTimer: null
 };
 
 const SORT_LABELS = {
@@ -534,7 +536,9 @@ function setSyncProgressState({ visible, progress, label, error = false }) {
     return;
   }
   syncUiState.visible = visible;
-  syncUiState.progress = progress;
+  if (typeof progress === 'number') {
+    syncUiState.progress = progress;
+  }
   syncUiState.label = label || syncUiState.label;
   syncUiState.error = error;
 
@@ -548,6 +552,80 @@ function setSyncProgressState({ visible, progress, label, error = false }) {
 
 function hideSyncProgress() {
   setSyncProgressState({ visible: false, progress: 0, label: '', error: false });
+  if (syncUiState.pollTimer) {
+    window.clearInterval(syncUiState.pollTimer);
+    syncUiState.pollTimer = null;
+  }
+  syncUiState.syncId = null;
+}
+
+function easeProgress(target) {
+  const current = syncUiState.progress || 0;
+  const next = current + (target - current) * 0.2;
+  const clamped = Math.min(target, Math.max(current, next));
+  setSyncProgressState({ visible: true, progress: clamped });
+}
+
+function mapPhaseLabel(phase) {
+  switch (phase) {
+    case 'listing':
+      return 'Listing messages…';
+    case 'fetching':
+      return 'Fetching message details…';
+    case 'classifying':
+      return 'Classifying emails…';
+    case 'matching':
+      return 'Matching applications…';
+    case 'saving':
+      return 'Saving results…';
+    case 'finalizing':
+      return 'Finalizing…';
+    default:
+      return 'Syncing…';
+  }
+}
+
+function startSyncPolling(syncId) {
+  if (!syncId) return;
+  syncUiState.syncId = syncId;
+  if (syncUiState.pollTimer) {
+    window.clearInterval(syncUiState.pollTimer);
+  }
+  const poll = async () => {
+    try {
+      const progress = await api(`/api/email/sync/status?sync_id=${encodeURIComponent(syncId)}`);
+      const total = Number(progress.total) || 0;
+      const processed = Number(progress.processed) || 0;
+      const status = progress.status || 'running';
+      const phase = progress.phase || 'syncing';
+      const label = mapPhaseLabel(phase);
+      let target = 0;
+      if (total > 0) {
+        target = Math.min(0.99, processed / total);
+      } else if (processed > 0) {
+        target = Math.min(0.7, processed / (processed + 20));
+      }
+      if (status === 'completed') {
+        target = 1;
+      }
+      easeProgress(target);
+      setSyncProgressState({ visible: true, label, error: status === 'failed' });
+      if (status === 'failed') {
+        hideSyncProgress();
+        if (syncStatus) syncStatus.textContent = 'Failed';
+      }
+      if (status === 'completed') {
+        const finalize = () => hideSyncProgress();
+        window.setTimeout(finalize, 700);
+        window.clearInterval(syncUiState.pollTimer);
+        syncUiState.pollTimer = null;
+      }
+    } catch (err) {
+      // Keep previous progress on poll error
+    }
+  };
+  poll();
+  syncUiState.pollTimer = window.setInterval(poll, 450);
 }
 
 function formatDateTime(value) {
@@ -1127,14 +1205,14 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
   if (buttonEl) {
     buttonEl.disabled = true;
   }
-  setSyncProgressState({ visible: true, progress: 0.08, label: 'Starting sync…', error: false });
+  const syncId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+  setSyncProgressState({ visible: true, progress: 0, label: 'Starting sync…', error: false });
+  startSyncPolling(syncId);
   try {
-    setSyncProgressState({ visible: true, progress: 0.2, label: 'Fetching messages…', error: false });
     const result = await api('/api/email/sync', {
       method: 'POST',
-      body: JSON.stringify({ days })
+      body: JSON.stringify({ days, sync_id: syncId })
     });
-    setSyncProgressState({ visible: true, progress: 0.55, label: 'Classifying messages…', error: false });
     if (result.status === 'not_connected') {
       if (statusEl) {
         statusEl.textContent = 'Not connected';
@@ -1142,7 +1220,6 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
       if (resultEl) {
         resultEl.textContent = 'Connect Gmail first.';
       }
-      setSyncProgressState({ visible: true, progress: 1, label: 'Not connected', error: true });
     } else {
       if (statusEl) {
         statusEl.textContent = 'Complete';
@@ -1150,15 +1227,10 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
       if (resultEl) {
         resultEl.textContent = formatSyncSummary(result);
       }
-      setSyncProgressState({ visible: true, progress: 0.7, label: 'Saving results…', error: false });
     }
     await loadActiveApplications();
-    setSyncProgressState({ visible: true, progress: 0.82, label: 'Updating events…', error: false });
     await refreshEmailEvents();
-    setSyncProgressState({ visible: true, progress: 0.9, label: 'Refreshing unsorted…', error: false });
     await refreshUnsortedEvents();
-    setSyncProgressState({ visible: true, progress: 1, label: 'Sync complete', error: false });
-    window.setTimeout(() => hideSyncProgress(), 700);
   } catch (err) {
     if (statusEl) {
       statusEl.textContent = 'Failed';
@@ -1176,7 +1248,8 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
         resultEl.appendChild(detail);
       }
     }
-    setSyncProgressState({ visible: true, progress: 1, label: 'Sync failed', error: true });
+    setSyncProgressState({ visible: true, progress: syncUiState.progress, label: 'Sync failed', error: true });
+    hideSyncProgress();
   } finally {
     if (buttonEl) {
       buttonEl.disabled = false;
@@ -1189,10 +1262,12 @@ async function runQuickSync() {
   if (statusEl) {
     statusEl.textContent = 'Syncing...';
   }
+  const syncId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+  startSyncPolling(syncId);
   try {
     const result = await api('/api/email/sync', {
       method: 'POST',
-      body: JSON.stringify({ days: 30 })
+      body: JSON.stringify({ days: 30, sync_id: syncId })
     });
     if (statusEl) {
       if (result.status === 'not_connected') {

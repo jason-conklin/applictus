@@ -41,6 +41,34 @@ function initReasonCounters() {
   }, {});
 }
 
+// Simple in-memory sync progress tracker keyed by sync_id
+const syncProgressStore = new Map();
+
+function setSyncProgress(syncId, payload) {
+  if (!syncId) return;
+  const existing = syncProgressStore.get(syncId) || {};
+  const total =
+    payload.total !== undefined ? payload.total : existing.total !== undefined ? existing.total : null;
+  syncProgressStore.set(syncId, {
+    syncId,
+    status: payload.status || existing.status || 'running',
+    phase: payload.phase || existing.phase || 'listing',
+    processed: payload.processed ?? existing.processed ?? 0,
+    total,
+    pagesFetched: payload.pagesFetched ?? existing.pagesFetched ?? 0,
+    createdApplications: payload.createdApplications ?? existing.createdApplications ?? 0,
+    matchedExisting: payload.matchedExisting ?? existing.matchedExisting ?? 0,
+    llmCalls: payload.llmCalls ?? existing.llmCalls ?? 0,
+    error: payload.error || null,
+    updatedAt: new Date().toISOString()
+  });
+}
+
+function getSyncProgress(syncId) {
+  if (!syncId) return null;
+  return syncProgressStore.get(syncId) || null;
+}
+
 function truncateSnippet(snippet, max = 140) {
   if (!snippet) {
     return null;
@@ -251,13 +279,13 @@ function insertEmailEventRecord(db, payload) {
   db.prepare(sql).run(...values);
 }
 
-async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
+async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, syncId = null }) {
   const authClient = await getAuthorizedClient(db, userId);
   if (!authClient) {
     return { status: 'not_connected' };
   }
 
-  logInfo('ingest.start', { userId, days, maxResults });
+  logInfo('ingest.start', { userId, days, maxResults, syncId });
 
   const gmail = google.gmail({ version: 'v1', auth: authClient });
   let pageToken;
@@ -302,6 +330,14 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
   const messageSourceCounts = {};
   const reasons = initReasonCounters();
 
+  setSyncProgress(syncId, {
+    status: 'running',
+    phase: 'listing',
+    processed: 0,
+    total: null,
+    pagesFetched: 0
+  });
+
   const queryDays = Math.max(1, Math.min(days, 365));
   const limit = Math.max(1, Math.min(maxResults, 500));
   const timeWindowEnd = new Date();
@@ -319,7 +355,17 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
 
     pagesFetched += 1;
     const messages = list.data.messages || [];
+    const estimate = list.data.resultSizeEstimate;
+    if (Number.isFinite(estimate)) {
+      setSyncProgress(syncId, { total: estimate });
+    }
     totalMessagesListed += messages.length;
+    setSyncProgress(syncId, {
+      phase: 'fetching',
+      pagesFetched,
+      processed: fetched,
+      total: Number.isFinite(estimate) ? estimate : null
+    });
     for (const message of messages) {
       if (fetched >= limit) {
         break;
@@ -420,6 +466,13 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       if (classification.detectedType === 'rejection') {
         classifiedRejection += 1;
       }
+
+      setSyncProgress(syncId, {
+        phase: 'classifying',
+        processed: fetched,
+        pagesFetched,
+        total: Number.isFinite(estimate) ? estimate : null
+      });
 
       const identity = extractThreadIdentity({ subject, sender, snippet, bodyText });
       const roleResult = extractJobTitle({
@@ -687,6 +740,14 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
       }
       created += 1;
       fetched += 1;
+      setSyncProgress(syncId, {
+        phase: 'matching',
+        processed: fetched,
+        pagesFetched,
+        total: Number.isFinite(estimate) ? estimate : null,
+        createdApplications,
+        matchedExisting
+      });
 
       if (effectiveClassification.detectedType === 'rejection') {
         const senderDomain = sender && sender.includes('@')
@@ -711,6 +772,18 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
 
     pageToken = list.data.nextPageToken;
   } while (pageToken && fetched < limit);
+
+  setSyncProgress(syncId, {
+    status: 'completed',
+    phase: 'finalizing',
+    processed: fetched,
+    total: totalMessagesListed || fetched,
+    pagesFetched,
+    createdApplications,
+    matchedExisting,
+    llmCalls,
+    llmFailures
+  });
 
   logInfo('ingest.complete', {
     userId,
@@ -814,6 +887,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100 }) {
 
 module.exports = {
   syncGmailMessages,
+  getSyncProgress,
   REASON_KEYS,
   initReasonCounters,
   extractMessageMetadata,

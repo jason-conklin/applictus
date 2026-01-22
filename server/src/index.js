@@ -18,7 +18,7 @@ const {
   isEncryptionReady
 } = require('./email');
 const { getGoogleOAuthClient, getGoogleAuthUrl, getGoogleProfileFromCode } = require('./googleAuth');
-const { syncGmailMessages } = require('./ingest');
+const { syncGmailMessages, getSyncProgress } = require('./ingest');
 const { logError } = require('./logger');
 const {
   extractThreadIdentity,
@@ -728,6 +728,7 @@ app.get('/api/email/callback', requireAuth, async (req, res) => {
 app.post('/api/email/sync', requireAuth, async (req, res) => {
   const days = Number(req.body.days) || 30;
   const maxResults = Number(req.body.maxResults) || 100;
+  const syncId = req.body.sync_id || crypto.randomUUID();
   if (!isEncryptionReady()) {
     return res.status(400).json({ error: 'TOKEN_ENC_KEY_REQUIRED' });
   }
@@ -737,9 +738,10 @@ app.post('/api/email/sync', requireAuth, async (req, res) => {
       db,
       userId: req.user.id,
       days,
-      maxResults
+      maxResults,
+      syncId
     });
-    return res.json(result);
+    return res.json({ ...result, sync_id: syncId });
   } catch (err) {
     const code = err && typeof err === 'object' ? err.code || err.name : null;
     const message = err && typeof err === 'object' ? err.message : null;
@@ -756,6 +758,18 @@ app.post('/api/email/sync', requireAuth, async (req, res) => {
       detail: detail || 'Sync failed unexpectedly.'
     });
   }
+});
+
+app.get('/api/email/sync/status', requireAuth, (req, res) => {
+  const syncId = req.query.sync_id;
+  if (!syncId) {
+    return res.status(400).json({ error: 'MISSING_SYNC_ID' });
+  }
+  const progress = getSyncProgress(syncId);
+  if (!progress) {
+    return res.status(404).json({ error: 'NOT_FOUND' });
+  }
+  return res.json(progress);
 });
 
 app.get('/api/email/unsorted', requireAuth, (req, res) => {
