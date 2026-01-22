@@ -65,6 +65,10 @@ const emailSync = document.getElementById('email-sync');
 const syncDays = document.getElementById('sync-days');
 const syncStatus = document.getElementById('sync-status');
 const syncResult = document.getElementById('sync-result');
+const syncProgress = document.getElementById('sync-progress');
+const syncProgressFill = document.getElementById('sync-progress-fill');
+const syncProgressLabel = document.getElementById('sync-progress-label');
+const syncProgressValue = document.getElementById('sync-progress-value');
 const kpiTotal = document.getElementById('kpi-total');
 const kpiApplied = document.getElementById('kpi-applied');
 const kpiUnderReview = document.getElementById('kpi-under-review');
@@ -164,6 +168,12 @@ const emailState = {
   encryptionReady: false,
   connected: false,
   email: null
+};
+const syncUiState = {
+  visible: false,
+  progress: 0,
+  label: '',
+  error: false
 };
 
 const SORT_LABELS = {
@@ -517,6 +527,27 @@ function formatDate(value) {
     return '—';
   }
   return date.toLocaleDateString();
+}
+
+function setSyncProgressState({ visible, progress, label, error = false }) {
+  if (!syncProgress || !syncProgressFill || !syncProgressLabel || !syncProgressValue) {
+    return;
+  }
+  syncUiState.visible = visible;
+  syncUiState.progress = progress;
+  syncUiState.label = label || syncUiState.label;
+  syncUiState.error = error;
+
+  syncProgress.classList.toggle('hidden', !visible);
+  syncProgressLabel.textContent = syncUiState.label || '';
+  const pct = Math.max(0, Math.min(100, Math.round((progress || 0) * 100)));
+  syncProgressValue.textContent = `${pct}%`;
+  syncProgressFill.style.width = `${pct}%`;
+  syncProgressFill.classList.toggle('error', !!error);
+}
+
+function hideSyncProgress() {
+  setSyncProgressState({ visible: false, progress: 0, label: '', error: false });
 }
 
 function formatDateTime(value) {
@@ -1096,11 +1127,14 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
   if (buttonEl) {
     buttonEl.disabled = true;
   }
+  setSyncProgressState({ visible: true, progress: 0.08, label: 'Starting sync…', error: false });
   try {
+    setSyncProgressState({ visible: true, progress: 0.2, label: 'Fetching messages…', error: false });
     const result = await api('/api/email/sync', {
       method: 'POST',
       body: JSON.stringify({ days })
     });
+    setSyncProgressState({ visible: true, progress: 0.55, label: 'Classifying messages…', error: false });
     if (result.status === 'not_connected') {
       if (statusEl) {
         statusEl.textContent = 'Not connected';
@@ -1108,6 +1142,7 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
       if (resultEl) {
         resultEl.textContent = 'Connect Gmail first.';
       }
+      setSyncProgressState({ visible: true, progress: 1, label: 'Not connected', error: true });
     } else {
       if (statusEl) {
         statusEl.textContent = 'Complete';
@@ -1115,10 +1150,15 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
       if (resultEl) {
         resultEl.textContent = formatSyncSummary(result);
       }
+      setSyncProgressState({ visible: true, progress: 0.7, label: 'Saving results…', error: false });
     }
     await loadActiveApplications();
+    setSyncProgressState({ visible: true, progress: 0.82, label: 'Updating events…', error: false });
     await refreshEmailEvents();
+    setSyncProgressState({ visible: true, progress: 0.9, label: 'Refreshing unsorted…', error: false });
     await refreshUnsortedEvents();
+    setSyncProgressState({ visible: true, progress: 1, label: 'Sync complete', error: false });
+    window.setTimeout(() => hideSyncProgress(), 700);
   } catch (err) {
     if (statusEl) {
       statusEl.textContent = 'Failed';
@@ -1136,6 +1176,7 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
         resultEl.appendChild(detail);
       }
     }
+    setSyncProgressState({ visible: true, progress: 1, label: 'Sync failed', error: true });
   } finally {
     if (buttonEl) {
       buttonEl.disabled = false;

@@ -187,6 +187,15 @@
               <button class="ghost" type="button" data-action="manage-gmail">Manage Gmail</button>
             </div>
           </div>
+          <div class="sync-progress hidden" id="sync-progress">
+            <div class="sync-progress-meta">
+              <span id="sync-progress-label">Syncing emails…</span>
+              <span id="sync-progress-value">0%</span>
+            </div>
+            <div class="progress-track" aria-hidden="true">
+              <div class="progress-fill" id="sync-progress-fill"></div>
+            </div>
+          </div>
           <div class="muted small" id="sync-result"></div>
         </section>
         <section class="kpi-row" aria-label="Application stats">
