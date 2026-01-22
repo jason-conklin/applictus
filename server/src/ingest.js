@@ -330,6 +330,9 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
   const messageSourceCounts = {};
   const reasons = initReasonCounters();
 
+  const queryDays = Math.max(1, Math.min(days, 365));
+  const limit = Math.max(1, Math.min(maxResults, 500));
+
   setSyncProgress(syncId, {
     status: 'running',
     phase: 'listing',
@@ -338,8 +341,6 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
     pagesFetched: 0
   });
 
-  const queryDays = Math.max(1, Math.min(days, 365));
-  const limit = Math.max(1, Math.min(maxResults, 500));
   const timeWindowEnd = new Date();
   const timeWindowStart = new Date(timeWindowEnd.getTime() - queryDays * 24 * 60 * 60 * 1000);
   do {
