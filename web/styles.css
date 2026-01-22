@@ -674,6 +674,39 @@ textarea:focus-visible {
   color: var(--color-text);
 }
 
+.kpi-card.status-applied {
+  background: #fefce8;
+  border-color: #facc15;
+  color: #854d0e;
+}
+
+.kpi-card.status-applied .kpi-label,
+.kpi-card.status-applied .kpi-value {
+  color: #854d0e;
+}
+
+.kpi-card.status-offer {
+  background: #ecfdf3;
+  border-color: #22c55e;
+  color: #166534;
+}
+
+.kpi-card.status-offer .kpi-label,
+.kpi-card.status-offer .kpi-value {
+  color: #166534;
+}
+
+.kpi-card.status-rejected {
+  background: #fef2f2;
+  border-color: #ef4444;
+  color: #991b1b;
+}
+
+.kpi-card.status-rejected .kpi-label,
+.kpi-card.status-rejected .kpi-value {
+  color: #991b1b;
+}
+
 .ghost-link:hover {
   transform: translateY(-2px);
   background: var(--color-accent-tint);

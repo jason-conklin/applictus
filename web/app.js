@@ -71,7 +71,7 @@ const syncProgressLabel = document.getElementById('sync-progress-label');
 const syncProgressValue = document.getElementById('sync-progress-value');
 const kpiTotal = document.getElementById('kpi-total');
 const kpiApplied = document.getElementById('kpi-applied');
-const kpiUnderReview = document.getElementById('kpi-under-review');
+const kpiOffer = document.getElementById('kpi-offer');
 const kpiRejected = document.getElementById('kpi-rejected');
 const accountEmailSync = document.getElementById('account-email-sync');
 const accountSyncDays = document.getElementById('account-sync-days');
@@ -603,10 +603,14 @@ function startSyncPolling(syncId) {
       if (total > 0) {
         target = Math.min(0.99, processed / total);
       } else if (processed > 0) {
-        target = Math.min(0.7, processed / (processed + 20));
+        const fallbackTotal = Math.max(processed + 5, processed * 1.2);
+        target = Math.min(0.7, processed / fallbackTotal);
       }
       if (status === 'completed') {
         target = 1;
+      }
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('sync status', { progress, target });
       }
       easeProgress(target);
       setSyncProgressState({ visible: true, label, error: status === 'failed' });
@@ -622,6 +626,9 @@ function startSyncPolling(syncId) {
       }
     } catch (err) {
       // Keep previous progress on poll error
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('sync status poll failed', err?.message || err);
+      }
     }
   };
   poll();
@@ -804,15 +811,15 @@ function updateDashboardMeta(total) {
   }
 }
 
-function updateKpiCounts({ total = 0, applied = 0, underReview = 0, rejected = 0 } = {}) {
+function updateKpiCounts({ total = 0, applied = 0, offer = 0, rejected = 0 } = {}) {
   if (kpiTotal) {
     kpiTotal.textContent = String(total);
   }
   if (kpiApplied) {
     kpiApplied.textContent = String(applied);
   }
-  if (kpiUnderReview) {
-    kpiUnderReview.textContent = String(underReview);
+  if (kpiOffer) {
+    kpiOffer.textContent = String(offer);
   }
   if (kpiRejected) {
     kpiRejected.textContent = String(rejected);
@@ -820,14 +827,14 @@ function updateKpiCounts({ total = 0, applied = 0, underReview = 0, rejected = 0
 }
 
 function getKpiCountsFromColumns(columns) {
-  const counts = { total: 0, applied: 0, underReview: 0, rejected: 0 };
+  const counts = { total: 0, applied: 0, offer: 0, rejected: 0 };
   (columns || []).forEach((column) => {
     const count = column.count || 0;
     counts.total += count;
     if (column.status === 'APPLIED') {
       counts.applied += count;
-    } else if (column.status === 'UNDER_REVIEW') {
-      counts.underReview += count;
+    } else if (column.status === 'OFFER_RECEIVED') {
+      counts.offer += count;
     } else if (column.status === 'REJECTED') {
       counts.rejected += count;
     }

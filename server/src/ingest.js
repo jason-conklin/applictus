@@ -334,7 +334,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
     status: 'running',
     phase: 'listing',
     processed: 0,
-    total: null,
+    total: limit,
     pagesFetched: 0
   });
 
@@ -356,6 +356,8 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
     pagesFetched += 1;
     const messages = list.data.messages || [];
     const estimate = list.data.resultSizeEstimate;
+    // Treat limit as total so progress is determinate even before all pages are known
+    const totalForRun = limit;
     if (Number.isFinite(estimate)) {
       setSyncProgress(syncId, { total: estimate });
     }
@@ -364,7 +366,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
       phase: 'fetching',
       pagesFetched,
       processed: fetched,
-      total: Number.isFinite(estimate) ? estimate : null
+      total: Number.isFinite(estimate) ? estimate : totalForRun
     });
     for (const message of messages) {
       if (fetched >= limit) {
@@ -471,7 +473,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
         phase: 'classifying',
         processed: fetched,
         pagesFetched,
-        total: Number.isFinite(estimate) ? estimate : null
+        total: Number.isFinite(estimate) ? estimate : totalForRun
       });
 
       const identity = extractThreadIdentity({ subject, sender, snippet, bodyText });
@@ -744,7 +746,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
         phase: 'matching',
         processed: fetched,
         pagesFetched,
-        total: Number.isFinite(estimate) ? estimate : null,
+        total: Number.isFinite(estimate) ? estimate : totalForRun,
         createdApplications,
         matchedExisting
       });
@@ -777,7 +779,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
     status: 'completed',
     phase: 'finalizing',
     processed: fetched,
-    total: totalMessagesListed || fetched,
+    total: totalMessagesListed || fetched || limit,
     pagesFetched,
     createdApplications,
     matchedExisting,
