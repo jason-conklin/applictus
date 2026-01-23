@@ -77,6 +77,12 @@ const syncProgress = document.getElementById('sync-progress');
 const syncProgressFill = document.getElementById('sync-progress-fill');
 const syncProgressLabel = document.getElementById('sync-progress-label');
 const syncProgressValue = document.getElementById('sync-progress-value');
+const syncSummary = document.getElementById('sync-summary');
+const syncSummaryMain = document.getElementById('sync-summary-main');
+const syncSummaryStatus = document.getElementById('sync-summary-status');
+const syncSummaryMetrics = document.getElementById('sync-summary-metrics');
+const syncDetailsToggle = document.getElementById('sync-details-toggle');
+const syncDetailsWrapper = document.getElementById('sync-details-wrapper');
 const kpiTotal = document.getElementById('kpi-total');
 const kpiApplied = document.getElementById('kpi-applied');
 const kpiOffer = document.getElementById('kpi-offer');
@@ -117,6 +123,7 @@ const STATUS_OPTIONS = Object.keys(STATUS_LABELS);
 const PAGE_SIZE = 25;
 const PIPELINE_LIMIT = 15;
 const VIEW_MODE_KEY = 'applictus:viewMode';
+const SYNC_DETAILS_KEY = 'applictus:syncDetailsOpen';
 function formatRoleSource(application) {
   const source = application?.role_source;
   if (!source) {
@@ -197,6 +204,7 @@ const syncUiState = {
   finishTimer: null,
   finishGuard: null
 };
+renderSyncSummary({ status: 'idle', rawDetails: '' });
 
 const SORT_LABELS = {
   last_activity_at: 'Last activity',
@@ -1284,6 +1292,7 @@ async function refreshEmailStatus() {
     if (syncControls) syncControls.classList.add('hidden');
     if (syncConnectCta) syncConnectCta.classList.remove('hidden');
     refreshDashboardEmptyStateIfNeeded();
+    renderSyncSummary({ status: 'not_connected', rawDetails: '' });
   }
 }
 
@@ -1382,6 +1391,123 @@ function formatSyncSummary(result) {
   return lines.join('\n');
 }
 
+function deriveSyncMetrics(result = {}, rawDetails = '') {
+  const metrics = {
+    scanned: null,
+    pages: null,
+    appsUpdated: null
+  };
+  if (result && typeof result === 'object') {
+    metrics.scanned =
+      result.total_messages_listed ?? result.fetched_total ?? result.fetched ?? metrics.scanned;
+    metrics.pages = result.pages_fetched ?? metrics.pages;
+    const updatedRejected = result.updated_status_to_rejected_total ?? 0;
+    const updatedApplied = result.updated_status_to_applied_total ?? 0;
+    const createdApps =
+      result.createdApplications ?? result.created_apps_total ?? result.created_apps_confirmation_total ?? 0;
+    const matchedExisting = result.matchedExisting ?? result.matched_events_total ?? 0;
+    const updated = updatedRejected + updatedApplied + createdApps + matchedExisting;
+    metrics.appsUpdated = updated || metrics.appsUpdated;
+  }
+  if (rawDetails) {
+    const scanMatch = rawDetails.match(/Scanned\s+(\d+)\s+messages(?:\s+across\s+(\d+)\s+pages)?/i);
+    if (scanMatch) {
+      metrics.scanned = metrics.scanned ?? Number(scanMatch[1]);
+      metrics.pages = metrics.pages ?? (scanMatch[2] ? Number(scanMatch[2]) : null);
+    }
+    const updatedMatch = rawDetails.match(/updated[^0-9]*?(\d+)\s*(applications|apps)?/i);
+    if (updatedMatch) {
+      metrics.appsUpdated = metrics.appsUpdated ?? Number(updatedMatch[1]);
+    }
+  }
+  return metrics;
+}
+
+function buildMetricsLine(metrics) {
+  const parts = [];
+  if (Number.isFinite(metrics.scanned)) {
+    parts.push(`Scanned ${metrics.scanned} messages`);
+  }
+  if (Number.isFinite(metrics.pages)) {
+    parts.push(`${metrics.pages} pages`);
+  }
+  if (Number.isFinite(metrics.appsUpdated)) {
+    parts.push(`${metrics.appsUpdated} applications updated`);
+  }
+  return parts.join(' · ');
+}
+
+function getStoredSyncDetailsOpen() {
+  try {
+    return localStorage.getItem(SYNC_DETAILS_KEY) === '1';
+  } catch (err) {
+    return false;
+  }
+}
+
+function storeSyncDetailsOpen(open) {
+  try {
+    localStorage.setItem(SYNC_DETAILS_KEY, open ? '1' : '0');
+  } catch (err) {
+    // ignore
+  }
+}
+
+function applySyncDetailsVisibility(open, hasDetails) {
+  if (!syncDetailsWrapper || !syncDetailsToggle) return;
+  const effectiveOpen = hasDetails && open;
+  syncDetailsWrapper.classList.toggle('hidden', !effectiveOpen);
+  syncDetailsToggle.classList.toggle('hidden', !hasDetails);
+  syncDetailsToggle.dataset.open = open ? 'true' : 'false';
+  syncDetailsToggle.textContent = effectiveOpen ? 'Hide details' : 'View details';
+  if (syncSummaryMain) {
+    syncSummaryMain.setAttribute('aria-expanded', effectiveOpen ? 'true' : 'false');
+  }
+  syncDetailsToggle.setAttribute('aria-expanded', effectiveOpen ? 'true' : 'false');
+  syncDetailsToggle.setAttribute('aria-controls', 'sync-details-wrapper');
+}
+
+function renderSyncSummary({ status = 'idle', result = null, rawDetails = '', label = '' } = {}) {
+  if (!syncSummary || !syncSummaryStatus || !syncSummaryMetrics) return;
+  const hasDetails = Boolean(rawDetails && rawDetails.trim().length);
+  if (syncResult) {
+    syncResult.textContent = hasDetails ? rawDetails : '';
+  }
+  let statusText = 'Last sync not run';
+  let metricsText = '';
+  switch (status) {
+    case 'running':
+      statusText = '⏳ Syncing…';
+      metricsText = label || 'In progress';
+      break;
+    case 'success': {
+      statusText = '✅ Last sync complete';
+      const metrics = deriveSyncMetrics(result, rawDetails);
+      metricsText = buildMetricsLine(metrics) || 'Sync complete';
+      break;
+    }
+    case 'failed':
+      statusText = '⚠️ Last sync failed';
+      metricsText = label || 'See details for more info';
+      break;
+    case 'not_connected':
+      statusText = 'Not connected';
+      metricsText = 'Connect Gmail to start syncing';
+      break;
+    default:
+      statusText = 'Last sync not run';
+      metricsText = 'Run a sync to see metrics';
+      break;
+  }
+  syncSummaryStatus.textContent = statusText;
+  syncSummaryMetrics.textContent = metricsText;
+  syncSummary.classList.remove('hidden');
+  const shouldOpen =
+    hasDetails &&
+    (syncDetailsToggle?.dataset.open === 'true' || getStoredSyncDetailsOpen());
+  applySyncDetailsVisibility(shouldOpen, hasDetails);
+}
+
 async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
   if (buttonEl?.disabled) {
     return;
@@ -1389,6 +1515,7 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
   if (syncErrorBanner) {
     syncErrorBanner.classList.add('hidden');
   }
+  renderSyncSummary({ status: 'running', rawDetails: 'Sync in progress…' });
   if (statusEl) {
     statusEl.textContent = 'Syncing...';
   }
@@ -1414,16 +1541,20 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
       if (statusEl) {
         statusEl.textContent = 'Not connected';
       }
-      if (resultEl) {
-        resultEl.textContent = 'Connect Gmail first.';
-      }
     } else {
       if (statusEl) {
         statusEl.textContent = 'Complete';
       }
-      if (resultEl) {
-        resultEl.textContent = formatSyncSummary(result);
-      }
+    }
+    const rawDetails =
+      result.status === 'not_connected' ? 'Connect Gmail first.' : formatSyncSummary(result);
+    renderSyncSummary({
+      status: result.status === 'not_connected' ? 'not_connected' : 'success',
+      result,
+      rawDetails
+    });
+    if (resultEl) {
+      resultEl.textContent = rawDetails;
     }
     await loadActiveApplications();
     await refreshEmailEvents();
@@ -1439,18 +1570,13 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
       syncErrorBanner.classList.remove('hidden');
       syncErrorDetail.classList.add('hidden');
     }
+    const code = err?.code ? ` (${err.code})` : '';
+    const rawDetails = `${err?.message || 'Unexpected error'}${code}${
+      err?.detail ? `\n${err.detail}` : ''
+    }`;
+    renderSyncSummary({ status: 'failed', rawDetails, label: 'Sync failed' });
     if (resultEl) {
-      const code = err?.code ? ` (${err.code})` : '';
-      resultEl.innerHTML = '';
-      const summary = document.createElement('div');
-      summary.textContent = `Sync failed: ${err?.message || 'Unexpected error'}${code}`;
-      resultEl.appendChild(summary);
-      if (err?.detail) {
-        const detail = document.createElement('pre');
-        detail.className = 'sync-error-detail';
-        detail.textContent = err.detail;
-        resultEl.appendChild(detail);
-      }
+      resultEl.textContent = rawDetails;
     }
     setSyncProgressState({ visible: true, progress: syncUiState.progress, label: 'Sync failed', error: true });
     hideSyncProgress();
@@ -1472,6 +1598,7 @@ async function runQuickSync() {
   if (statusEl) {
     statusEl.textContent = 'Syncing...';
   }
+  renderSyncSummary({ status: 'running', rawDetails: 'Sync in progress…' });
   const syncId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
   startSyncPolling(syncId);
   try {
@@ -1479,13 +1606,17 @@ async function runQuickSync() {
       method: 'POST',
       body: JSON.stringify({ days: 30, sync_id: syncId })
     });
+    const rawDetails =
+      result.status === 'not_connected' ? 'Connect Gmail first.' : formatSyncSummary(result);
     if (statusEl) {
-      if (result.status === 'not_connected') {
-        statusEl.textContent = 'Connect Gmail first.';
-      } else {
-        statusEl.textContent = formatSyncSummary(result);
-      }
+      statusEl.textContent =
+        result.status === 'not_connected' ? 'Connect Gmail first.' : 'Complete';
     }
+    renderSyncSummary({
+      status: result.status === 'not_connected' ? 'not_connected' : 'success',
+      result,
+      rawDetails
+    });
     await loadActiveApplications();
     await refreshEmailEvents();
     await refreshUnsortedEvents();
@@ -1498,6 +1629,11 @@ async function runQuickSync() {
         statusEl.textContent += ` — ${err.detail}`;
       }
     }
+    const code = err?.code ? ` (${err.code})` : '';
+    const rawDetails = `${err?.message || 'Unexpected error'}${code}${
+      err?.detail ? `\n${err.detail}` : ''
+    }`;
+    renderSyncSummary({ status: 'failed', rawDetails, label: 'Sync failed' });
   }
 }
 
@@ -2754,6 +2890,37 @@ syncErrorToggle?.addEventListener('click', () => {
     syncErrorToggle.textContent = willShow ? 'Hide details' : 'Show details';
   }
 });
+
+if (syncDetailsToggle) {
+  const initialOpen = getStoredSyncDetailsOpen();
+  applySyncDetailsVisibility(initialOpen, Boolean(syncResult?.textContent?.trim()));
+  syncDetailsToggle.addEventListener('click', () => {
+    const current = syncDetailsToggle.dataset.open === 'true';
+    const next = !current;
+    storeSyncDetailsOpen(next);
+    applySyncDetailsVisibility(next, Boolean(syncResult?.textContent?.trim()));
+  });
+}
+
+if (syncSummaryMain) {
+  syncSummaryMain.addEventListener('click', () => {
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) return;
+    const current = syncDetailsToggle?.dataset.open === 'true';
+    const next = !current;
+    storeSyncDetailsOpen(next);
+    applySyncDetailsVisibility(next, Boolean(syncResult?.textContent?.trim()));
+  });
+  syncSummaryMain.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      const current = syncDetailsToggle?.dataset.open === 'true';
+      const next = !current;
+      storeSyncDetailsOpen(next);
+      applySyncDetailsVisibility(next, Boolean(syncResult?.textContent?.trim()));
+    }
+  });
+}
 
 accountEmailSync?.addEventListener('click', async () => {
   const days = Number(accountSyncDays?.value) || 30;

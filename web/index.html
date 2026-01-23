@@ -211,7 +211,23 @@
               <div class="progress-fill" id="sync-progress-fill"></div>
             </div>
           </div>
-          <div class="muted small" id="sync-result"></div>
+          <div class="sync-summary" id="sync-summary">
+            <div
+              class="sync-summary-main clickable"
+              role="button"
+              tabindex="0"
+              aria-expanded="false"
+              aria-controls="sync-details-wrapper"
+              id="sync-summary-main"
+            >
+              <span class="sync-summary-status" id="sync-summary-status">Last sync not run</span>
+              <span class="sync-summary-metrics muted" id="sync-summary-metrics"></span>
+            </div>
+            <button class="ghost link" type="button" id="sync-details-toggle">View details</button>
+          </div>
+          <div class="sync-details hidden" id="sync-details-wrapper">
+            <pre class="sync-details-block" id="sync-result"></pre>
+          </div>
         </section>
         <section class="kpi-row" aria-label="Application stats">
           <div class="kpi-card status-total">
