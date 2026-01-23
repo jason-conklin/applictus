@@ -1462,7 +1462,9 @@ function buildMetricsLine(metrics) {
       ? formatDateRange(metrics.windowStart, metrics.windowEnd)
       : '';
   if (dateRange || days) {
-    const label = dateRange ? `${dateRange}${days ? ` (${days}d)` : ''}` : `Last ${days}d`;
+    const label = dateRange
+      ? `${dateRange}${days ? ` (${days} days)` : ''}`
+      : `Last ${days} days`;
     parts.push(label);
   }
   if (Number.isFinite(metrics.appsUpdated)) {
