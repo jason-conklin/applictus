@@ -65,8 +65,14 @@ const emailSync = document.getElementById('email-sync');
 const syncDays = document.getElementById('sync-days');
 const syncStatus = document.getElementById('sync-status');
 const syncResult = document.getElementById('sync-result');
+const syncErrorBanner = document.getElementById('sync-error-banner');
+const syncErrorMessage = document.getElementById('sync-error-message');
+const syncErrorDetail = document.getElementById('sync-error-detail');
+const syncErrorToggle = document.getElementById('sync-error-toggle');
 const dashboardGmailStatus = document.getElementById('dashboard-gmail-status');
 const dashboardGmailEmail = document.getElementById('dashboard-gmail-email');
+const syncControls = document.getElementById('sync-controls');
+const syncConnectCta = document.getElementById('sync-connect-cta');
 const syncProgress = document.getElementById('sync-progress');
 const syncProgressFill = document.getElementById('sync-progress-fill');
 const syncProgressLabel = document.getElementById('sync-progress-label');
@@ -154,10 +160,15 @@ const state = {
     sortBy: 'last_activity_at',
     sortDir: 'desc'
   },
+  sort: {
+    key: 'lastActivity',
+    dir: 'desc'
+  },
   lastTotal: 0,
   table: {
     offset: 0,
-    total: 0
+    total: 0,
+    data: []
   },
   archived: {
     offset: 0,
@@ -307,9 +318,11 @@ function setSyncResultText(text) {
 function setSyncDisabled(isDisabled) {
   if (emailSync) {
     emailSync.disabled = isDisabled;
+    emailSync.setAttribute('aria-busy', String(!!isDisabled));
   }
   if (accountEmailSync) {
     accountEmailSync.disabled = isDisabled;
+    accountEmailSync.setAttribute('aria-busy', String(!!isDisabled));
   }
 }
 
@@ -319,8 +332,8 @@ function getDashboardEmptyStateHtml() {
       <h3>No applications yet</h3>
       <p class="muted">Sync Gmail to import applications automatically, or add one manually.</p>
       <div class="empty-state-actions">
-        <button type="button" data-action="add-application">Add application</button>
-        <button class="ghost" type="button" data-action="manage-gmail">Sync Gmail</button>
+        <button class="btn-primary" type="button" data-action="sync-gmail">Sync Gmail</button>
+        <button class="ghost" type="button" data-action="add-application">Add application</button>
       </div>
     </div>
   `;
@@ -597,6 +610,10 @@ function hideSyncProgress() {
     window.clearTimeout(syncUiState.finishGuard);
     syncUiState.finishGuard = null;
   }
+  if (syncErrorBanner) {
+    syncErrorBanner.classList.add('hidden');
+    if (syncErrorDetail) syncErrorDetail.classList.add('hidden');
+  }
 }
 
 function easeProgress(target) {
@@ -750,6 +767,36 @@ function formatDateTime(value) {
 
 function getActivityDate(application) {
   return application.last_activity_at || application.updated_at || application.created_at || null;
+}
+
+function compareByKey(a, b, key) {
+  const av = (a || '').toString().toLowerCase();
+  const bv = (b || '').toString().toLowerCase();
+  return av.localeCompare(bv, undefined, { sensitivity: 'base' });
+}
+
+function sortApplications(list) {
+  const key = state.sort.key;
+  const dir = state.sort.dir === 'asc' ? 1 : -1;
+  const sorted = [...list].sort((a, b) => {
+    if (key === 'company') {
+      return dir * compareByKey(a.company_name, b.company_name);
+    }
+    if (key === 'role') {
+      return dir * compareByKey(a.job_title, b.job_title);
+    }
+    if (key === 'status') {
+      return dir * compareByKey(a.current_status, b.current_status);
+    }
+    // lastActivity
+    const ad = new Date(getActivityDate(a)).getTime() || 0;
+    const bd = new Date(getActivityDate(b)).getTime() || 0;
+    if (ad === bd) {
+      return dir * compareByKey(a.company_name, b.company_name);
+    }
+    return dir * (ad - bd);
+  });
+  return sorted;
 }
 
 function getConfidence(application) {
@@ -1088,9 +1135,10 @@ async function refreshTable() {
   params.set('offset', String(state.table.offset));
   const data = await api(`/api/applications?${params.toString()}`);
   state.table.total = data.total || 0;
+  state.table.data = data.applications || [];
   updateDashboardMeta(state.table.total);
   state.lastTotal = state.table.total;
-  renderApplicationsTable(data.applications || []);
+  renderApplicationsTable(sortApplications(state.table.data));
   updateTablePagination();
   await refreshKpisFromPipeline();
 }
@@ -1158,20 +1206,22 @@ async function refreshEmailStatus() {
       if (gmailHint) {
         gmailHint.classList.remove('hidden');
       }
-      if (gmailHintText) {
-        gmailHintText.textContent =
-          'Add GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REDIRECT_URI in .env to enable Gmail.';
-      }
-      return;
+    if (gmailHintText) {
+      gmailHintText.textContent =
+        'Add GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REDIRECT_URI in .env to enable Gmail.';
     }
-    if (!data.encryptionReady) {
-      setPillState(accountGmailStatus, 'Encryption required', 'warning');
-      setPillState(dashboardGmailStatus, 'Encryption required', 'warning');
-      if (emailConnect) {
-        emailConnect.disabled = true;
-      }
-      setSyncDisabled(true);
-      setSyncStatusText('Disabled');
+    if (syncControls) syncControls.classList.add('hidden');
+    if (syncConnectCta) syncConnectCta.classList.remove('hidden');
+    return;
+  }
+  if (!data.encryptionReady) {
+    setPillState(accountGmailStatus, 'Encryption required', 'warning');
+    setPillState(dashboardGmailStatus, 'Encryption required', 'warning');
+    if (emailConnect) {
+      emailConnect.disabled = true;
+    }
+    setSyncDisabled(true);
+    setSyncStatusText('Disabled');
       if (accountGmailEmail) {
         accountGmailEmail.textContent = 'Token encryption key is missing.';
       }
@@ -1183,13 +1233,15 @@ async function refreshEmailStatus() {
       }
       if (gmailHintText) {
         gmailHintText.textContent =
-          'Set JOBTRACK_TOKEN_ENC_KEY to enable encrypted Gmail tokens.';
-      }
-      return;
+        'Set JOBTRACK_TOKEN_ENC_KEY to enable encrypted Gmail tokens.';
     }
-    if (gmailHint) {
-      gmailHint.classList.add('hidden');
-    }
+    if (syncControls) syncControls.classList.add('hidden');
+    if (syncConnectCta) syncConnectCta.classList.remove('hidden');
+    return;
+  }
+  if (gmailHint) {
+    gmailHint.classList.add('hidden');
+  }
     if (emailConnect) {
       emailConnect.disabled = false;
     }
@@ -1203,6 +1255,8 @@ async function refreshEmailStatus() {
       if (dashboardGmailEmail) {
         dashboardGmailEmail.textContent = data.email ? data.email : 'Connected';
       }
+      if (syncControls) syncControls.classList.remove('hidden');
+      if (syncConnectCta) syncConnectCta.classList.add('hidden');
       setSyncStatusText('Ready');
     } else {
       setPillState(accountGmailStatus, 'Not connected', 'idle');
@@ -1214,6 +1268,8 @@ async function refreshEmailStatus() {
         dashboardGmailEmail.textContent = '';
       }
       setSyncStatusText('Not connected');
+      if (syncControls) syncControls.classList.add('hidden');
+      if (syncConnectCta) syncConnectCta.classList.remove('hidden');
     }
     refreshDashboardEmptyStateIfNeeded();
   } catch (err) {
@@ -1225,6 +1281,8 @@ async function refreshEmailStatus() {
     if (gmailHint) {
       gmailHint.classList.add('hidden');
     }
+    if (syncControls) syncControls.classList.add('hidden');
+    if (syncConnectCta) syncConnectCta.classList.remove('hidden');
     refreshDashboardEmptyStateIfNeeded();
   }
 }
@@ -1328,6 +1386,9 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
   if (buttonEl?.disabled) {
     return;
   }
+  if (syncErrorBanner) {
+    syncErrorBanner.classList.add('hidden');
+  }
   if (statusEl) {
     statusEl.textContent = 'Syncing...';
   }
@@ -1336,6 +1397,10 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
   }
   if (buttonEl) {
     buttonEl.disabled = true;
+    buttonEl.setAttribute('aria-busy', 'true');
+    buttonEl.dataset.originalLabel = buttonEl.textContent;
+    buttonEl.textContent = 'Syncing…';
+    buttonEl.classList.add('loading');
   }
   const syncId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
   setSyncProgressState({ visible: true, progress: 0, label: 'Starting sync…', error: false });
@@ -1368,6 +1433,12 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
     if (statusEl) {
       statusEl.textContent = 'Failed';
     }
+    if (syncErrorBanner && syncErrorMessage && syncErrorDetail) {
+      syncErrorMessage.textContent = 'Sync failed';
+      syncErrorDetail.textContent = `${err?.message || 'Unexpected error'}${err?.detail ? `\n${err.detail}` : ''}`;
+      syncErrorBanner.classList.remove('hidden');
+      syncErrorDetail.classList.add('hidden');
+    }
     if (resultEl) {
       const code = err?.code ? ` (${err.code})` : '';
       resultEl.innerHTML = '';
@@ -1386,6 +1457,12 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
   } finally {
     if (buttonEl) {
       buttonEl.disabled = false;
+      buttonEl.setAttribute('aria-busy', 'false');
+      if (buttonEl.dataset.originalLabel) {
+        buttonEl.textContent = buttonEl.dataset.originalLabel;
+        delete buttonEl.dataset.originalLabel;
+      }
+      buttonEl.classList.remove('loading');
     }
   }
 }
@@ -1958,12 +2035,23 @@ function renderApplicationsTable(applications) {
     return;
   }
 
+  const sortKey = state.sort.key;
+  const sortDir = state.sort.dir;
+  const arrow = sortDir === 'asc' ? '▲' : '▼';
   const header = `
-    <div class="table-header">
-      <div>Company</div>
-      <div>Role</div>
-      <div>Status</div>
-      <div>Last activity</div>
+    <div class="table-header sortable">
+      <button type="button" class="sort-btn${sortKey === 'company' ? ' active' : ''}" data-sort="company" aria-label="Sort by company">
+        <span>Company</span>${sortKey === 'company' ? `<span class="arrow">${arrow}</span>` : ''}
+      </button>
+      <button type="button" class="sort-btn${sortKey === 'role' ? ' active' : ''}" data-sort="role" aria-label="Sort by role">
+        <span>Role</span>${sortKey === 'role' ? `<span class="arrow">${arrow}</span>` : ''}
+      </button>
+      <button type="button" class="sort-btn${sortKey === 'status' ? ' active' : ''}" data-sort="status" aria-label="Sort by status">
+        <span>Status</span>${sortKey === 'status' ? `<span class="arrow">${arrow}</span>` : ''}
+      </button>
+      <button type="button" class="sort-btn${sortKey === 'lastActivity' ? ' active' : ''}" data-sort="lastActivity" aria-label="Sort by last activity">
+        <span>Last activity</span>${sortKey === 'lastActivity' ? `<span class="arrow">${arrow}</span>` : ''}
+      </button>
     </div>
   `;
 
@@ -1977,10 +2065,10 @@ function renderApplicationsTable(applications) {
         : null;
       return `
         <div class="table-row" style="--stagger: ${index}" data-id="${app.id}">
-          <div><strong>${app.company_name || '—'}</strong></div>
-          <div>${app.job_title || '—'}</div>
+          <div class="cell-company"><strong>${app.company_name || '—'}</strong></div>
+          <div class="cell-role" title="${app.job_title || '—'}">${app.job_title || '—'}</div>
           <div>
-            <div class="status ${statusValue}"><span class="status-chip"></span>${statusLabel}</div>
+            <div class="status animate ${statusValue}"><span class="status-chip"></span>${statusLabel}</div>
             ${suggestionLabel ? `<div class="explanation">Suggestion: ${suggestionLabel}</div>` : ''}
           </div>
           <div>${activity}</div>
@@ -2021,7 +2109,7 @@ function renderArchivedApplications(applications) {
         <div class="table-row" style="--stagger: ${index}" data-id="${app.id}">
           <div><strong>${app.company_name || '—'}</strong></div>
           <div>${app.job_title || '—'}</div>
-          <div class="status ${statusValue}"><span class="status-chip"></span>${statusLabel}</div>
+          <div class="status animate ${statusValue}"><span class="status-chip"></span>${statusLabel}</div>
           <div>${activity}</div>
           <div><span class="badge">${confidence}</span></div>
           <div>${sourceLabel}</div>
@@ -2483,10 +2571,22 @@ dashboardView?.addEventListener('click', async (event) => {
   if (action === 'add-application') {
     setPanelOpen(addPanel, true);
     addToggle?.setAttribute('aria-expanded', 'true');
-    setPanelOpen(filtersPanel, false);
-    filterToggle?.setAttribute('aria-expanded', 'false');
     const firstField = addPanel?.querySelector('input[name="company_name"]');
     firstField?.focus();
+    return;
+  }
+   if (action === 'sync-gmail') {
+    if (emailState.connected) {
+      const days = Number(syncDays?.value) || 30;
+      await runEmailSync({
+        days,
+        statusEl: syncStatus,
+        resultEl: syncResult,
+        buttonEl: emailSync
+      });
+    } else {
+      window.location.hash = '#account';
+    }
     return;
   }
   if (action === 'manage-gmail') {
@@ -2578,6 +2678,20 @@ archivedNext?.addEventListener('click', async () => {
 });
 
 applicationsTable?.addEventListener('click', (event) => {
+  const sortBtn = event.target.closest('.sort-btn');
+  if (sortBtn) {
+    const key = sortBtn.dataset.sort;
+    if (key) {
+      if (state.sort.key === key) {
+        state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.sort.key = key;
+        state.sort.dir = key === 'lastActivity' ? 'desc' : 'asc';
+      }
+      renderApplicationsTable(sortApplications(state.table.data));
+    }
+    return;
+  }
   const row = event.target.closest('.table-row');
   if (!row) {
     return;
@@ -2630,6 +2744,15 @@ emailSync?.addEventListener('click', async () => {
     resultEl: syncResult,
     buttonEl: emailSync
   });
+});
+
+syncErrorToggle?.addEventListener('click', () => {
+  if (!syncErrorDetail) return;
+  const willShow = syncErrorDetail.classList.contains('hidden');
+  syncErrorDetail.classList.toggle('hidden', !willShow);
+  if (syncErrorToggle) {
+    syncErrorToggle.textContent = willShow ? 'Hide details' : 'Show details';
+  }
 });
 
 accountEmailSync?.addEventListener('click', async () => {

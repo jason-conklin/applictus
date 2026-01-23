@@ -182,14 +182,25 @@
               <div class="pill" id="dashboard-gmail-status">Not connected</div>
               <div class="muted small" id="dashboard-gmail-email">—</div>
             </div>
-            <label class="sync-banner-input">
-              <span>Sync range (days)</span>
-              <input type="number" id="sync-days" min="1" max="365" value="30" />
-            </label>
-            <div class="sync-banner-actions">
-              <button class="btn-primary" type="button" id="email-sync">Sync now</button>
-              <button class="ghost" type="button" data-action="manage-gmail">Manage Gmail</button>
+            <div class="sync-controls" id="sync-controls">
+              <label class="sync-banner-input">
+                <span>Sync range (days)</span>
+                <input type="number" id="sync-days" min="1" max="365" value="30" />
+              </label>
+              <div class="sync-banner-actions">
+                <button class="btn-primary" type="button" id="email-sync">Sync now</button>
+                <button class="ghost" type="button" data-action="manage-gmail">Manage Gmail</button>
+              </div>
             </div>
+            <div class="sync-connect-cta hidden" id="sync-connect-cta">
+              <div class="muted small">Connect Gmail to import applications automatically.</div>
+              <button class="btn-primary" type="button" data-action="manage-gmail">Connect Gmail</button>
+            </div>
+          </div>
+          <div class="sync-error hidden" id="sync-error-banner">
+            <div class="sync-error-message" id="sync-error-message">Sync failed.</div>
+            <button class="ghost icon" type="button" id="sync-error-toggle">Show details</button>
+            <pre class="sync-error-detail hidden" id="sync-error-detail"></pre>
           </div>
           <div class="sync-progress hidden" id="sync-progress">
             <div class="sync-progress-meta">
@@ -203,20 +214,57 @@
           <div class="muted small" id="sync-result"></div>
         </section>
         <section class="kpi-row" aria-label="Application stats">
-          <div class="kpi-card">
-            <div class="kpi-label">Total tracked</div>
+          <div class="kpi-card status-total">
+            <div class="kpi-meta">
+              <span class="kpi-dot neutral"></span>
+              <span class="kpi-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="4" y="5" width="16" height="3" rx="1"></rect>
+                  <rect x="4" y="11" width="16" height="3" rx="1"></rect>
+                  <rect x="4" y="17" width="10" height="3" rx="1"></rect>
+                </svg>
+              </span>
+              <div class="kpi-label">Total tracked</div>
+            </div>
             <div class="kpi-value" id="kpi-total">0</div>
           </div>
           <div class="kpi-card status-applied">
-            <div class="kpi-label">Applied</div>
+            <div class="kpi-meta">
+              <span class="kpi-dot warning"></span>
+              <span class="kpi-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="9"></circle>
+                  <path d="M12 7v6l3 2"></path>
+                </svg>
+              </span>
+              <div class="kpi-label">Applied</div>
+            </div>
             <div class="kpi-value" id="kpi-applied">0</div>
           </div>
           <div class="kpi-card status-offer">
-            <div class="kpi-label">Offer received</div>
+            <div class="kpi-meta">
+              <span class="kpi-dot success"></span>
+              <span class="kpi-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="12 2 15 8.5 22 9 17 13.8 18.5 20.8 12 17.4 5.5 20.8 7 13.8 2 9 9 8.5 12 2"></polygon>
+                </svg>
+              </span>
+              <div class="kpi-label">Offer received</div>
+            </div>
             <div class="kpi-value" id="kpi-offer">0</div>
           </div>
           <div class="kpi-card status-rejected">
-            <div class="kpi-label">Rejected</div>
+            <div class="kpi-meta">
+              <span class="kpi-dot danger"></span>
+              <span class="kpi-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="9"></circle>
+                  <path d="M15 9l-6 6"></path>
+                  <path d="M9 9l6 6"></path>
+                </svg>
+              </span>
+              <div class="kpi-label">Rejected</div>
+            </div>
             <div class="kpi-value" id="kpi-rejected">0</div>
           </div>
         </section>
