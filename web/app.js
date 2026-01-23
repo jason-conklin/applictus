@@ -548,10 +548,21 @@ function setSyncProgressState({ visible, progress, label, error = false }) {
 
   syncProgress.classList.toggle('hidden', !visible);
   syncProgressLabel.textContent = syncUiState.label || '';
-  const pct = Math.max(0, Math.min(100, Math.round((progress || 0) * 100)));
-  syncProgressValue.textContent = `${pct}%`;
-  syncProgressFill.style.width = `${pct}%`;
+  const rawPct = Math.max(0, Math.min(100, (syncUiState.progress || 0) * 100));
+  const displayPct =
+    !syncUiState.completed && rawPct > 0 && rawPct < 1 ? 1 : Math.min(100, rawPct);
+  syncProgressValue.textContent = `${Math.round(displayPct)}%`;
+  syncProgressFill.style.width = `${Math.min(displayPct, syncUiState.completed ? 100 : 99.5)}%`;
   syncProgressFill.classList.toggle('error', !!error);
+  if (window.__SYNC_DEBUG__) {
+    console.debug('sync ui', {
+      visible,
+      progress: syncUiState.progress,
+      displayPct,
+      label: syncUiState.label,
+      error
+    });
+  }
 }
 
 function hideSyncProgress() {
