@@ -1469,6 +1469,12 @@ function applySyncDetailsVisibility(open, hasDetails, allowToggle = true) {
 
 function renderSyncSummary({ status = 'idle', result = null, rawDetails = '', label = '' } = {}) {
   if (!syncSummary || !syncSummaryStatus || !syncSummaryMetrics) return;
+  if (status === 'running') {
+    // While sync is in progress, rely on the progress bar and hide the summary/disclosure to reduce noise.
+    syncSummary.classList.add('hidden');
+    applySyncDetailsVisibility(false, false, false);
+    return;
+  }
   const hasDetails = Boolean(rawDetails && rawDetails.trim().length);
   if (syncResult) {
     syncResult.textContent = hasDetails ? rawDetails : '';
