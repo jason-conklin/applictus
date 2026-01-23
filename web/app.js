@@ -1427,9 +1427,9 @@ function deriveSyncMetrics(result = {}, rawDetails = '') {
     const updatedApplied = result.updated_status_to_applied_total ?? 0;
     const createdApps =
       result.createdApplications ?? result.created_apps_total ?? result.created_apps_confirmation_total ?? 0;
-    const matchedExisting = result.matchedExisting ?? result.matched_events_total ?? 0;
-    const updated = updatedRejected + updatedApplied + createdApps + matchedExisting;
-    metrics.appsUpdated = updated || metrics.appsUpdated;
+    // Applications “updated” should reflect newly created plus status changes, not raw event matches.
+    const updated = updatedRejected + updatedApplied + createdApps;
+    metrics.appsUpdated = updated || createdApps || metrics.appsUpdated;
     metrics.days = result.days ?? metrics.days;
   }
   if (rawDetails) {
