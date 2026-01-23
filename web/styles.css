@@ -654,14 +654,17 @@ textarea:focus-visible {
   padding: 6px 8px;
 }
 
+.sync-inline-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
 .sync-connect-cta {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-}
-
-.sync-strip-range + .btn-primary {
-  margin-left: auto;
 }
 
 .sync-banner {
