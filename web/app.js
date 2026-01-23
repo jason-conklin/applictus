@@ -156,6 +156,25 @@ function getInitialViewMode() {
   return 'table';
 }
 
+function formatShortDate(date, includeYear = false) {
+  if (!date) return '';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return '';
+  const opts = { month: 'short', day: 'numeric' };
+  if (includeYear) opts.year = 'numeric';
+  return d.toLocaleDateString(undefined, opts);
+}
+
+function formatDateRange(startIso, endIso) {
+  if (!startIso || !endIso) return '';
+  const start = new Date(startIso);
+  const end = new Date(endIso);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return '';
+  const sameYear = start.getFullYear() === end.getFullYear();
+  const includeYear = !sameYear;
+  return `${formatShortDate(start, includeYear)}–${formatShortDate(end, true)}`;
+}
+
 const state = {
   viewMode: getInitialViewMode(),
   filters: {
@@ -1395,7 +1414,10 @@ function deriveSyncMetrics(result = {}, rawDetails = '') {
   const metrics = {
     scanned: null,
     pages: null,
-    appsUpdated: null
+    appsUpdated: null,
+    windowStart: result?.time_window_start || null,
+    windowEnd: result?.time_window_end || null,
+    days: null
   };
   if (result && typeof result === 'object') {
     metrics.scanned =
@@ -1408,6 +1430,7 @@ function deriveSyncMetrics(result = {}, rawDetails = '') {
     const matchedExisting = result.matchedExisting ?? result.matched_events_total ?? 0;
     const updated = updatedRejected + updatedApplied + createdApps + matchedExisting;
     metrics.appsUpdated = updated || metrics.appsUpdated;
+    metrics.days = result.days ?? metrics.days;
   }
   if (rawDetails) {
     const scanMatch = rawDetails.match(/Scanned\s+(\d+)\s+messages(?:\s+across\s+(\d+)\s+pages)?/i);
@@ -1428,8 +1451,19 @@ function buildMetricsLine(metrics) {
   if (Number.isFinite(metrics.scanned)) {
     parts.push(`Scanned ${metrics.scanned} messages`);
   }
-  if (Number.isFinite(metrics.pages)) {
-    parts.push(`${metrics.pages} pages`);
+  const days =
+    metrics.days ??
+    (syncDays ? Number(syncDays.value) || null : null) ??
+    (metrics.windowStart && metrics.windowEnd
+      ? Math.max(1, Math.round((new Date(metrics.windowEnd) - new Date(metrics.windowStart)) / 86400000))
+      : null);
+  const dateRange =
+    metrics.windowStart && metrics.windowEnd
+      ? formatDateRange(metrics.windowStart, metrics.windowEnd)
+      : '';
+  if (dateRange || days) {
+    const label = dateRange ? `${dateRange}${days ? ` (${days}d)` : ''}` : `Last ${days}d`;
+    parts.push(label);
   }
   if (Number.isFinite(metrics.appsUpdated)) {
     parts.push(`${metrics.appsUpdated} applications updated`);
