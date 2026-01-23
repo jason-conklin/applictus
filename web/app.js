@@ -1461,6 +1461,9 @@ function applySyncDetailsVisibility(open, hasDetails, allowToggle = true) {
   syncDetailsToggle.dataset.open = open ? 'true' : 'false';
   syncDetailsToggle.textContent = effectiveOpen ? 'Hide details' : 'View details';
   if (syncSummaryMain) {
+    syncSummaryMain.classList.toggle('open', effectiveOpen);
+  }
+  if (syncSummaryMain) {
     syncSummaryMain.setAttribute('aria-expanded', effectiveOpen ? 'true' : 'false');
   }
   syncDetailsToggle.setAttribute('aria-expanded', effectiveOpen ? 'true' : 'false');

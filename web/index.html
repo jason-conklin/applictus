@@ -168,35 +168,33 @@
       </section>
 
       <section class="dashboard" id="dashboard-view" hidden>
-        <div class="page-header">
-          <h2>Dashboard</h2>
-          <p class="muted">Track pipeline activity and suggested next steps.</p>
-        </div>
-        <section class="sync-banner">
-          <div class="sync-banner-row">
-            <div class="sync-banner-info">
-              <div class="sync-banner-title">Gmail sync</div>
-              <div class="muted" id="sync-status">Ready</div>
+        <div class="dash-top">
+          <div class="dash-header-row">
+            <div class="dash-title">
+              <h2>Dashboard</h2>
+              <p class="muted small">Track pipeline activity and suggested next steps.</p>
             </div>
-            <div class="sync-banner-connection">
-              <div class="pill" id="dashboard-gmail-status">Not connected</div>
-              <div class="muted small" id="dashboard-gmail-email">—</div>
+            <div class="dash-actions">
+              <button class="btn-primary" type="button" id="email-sync">Sync now</button>
+              <button class="ghost" type="button" data-action="manage-gmail">Manage Gmail</button>
             </div>
-            <div class="sync-controls" id="sync-controls">
-              <label class="sync-banner-input">
-                <span>Sync range (days)</span>
+          </div>
+          <div class="sync-band">
+            <div class="sync-strip" id="sync-strip">
+              <div class="sync-strip-status">
+                <div class="pill" id="dashboard-gmail-status">Not connected</div>
+                <div class="muted small" id="dashboard-gmail-email">—</div>
+                <span class="muted" id="sync-status">Ready</span>
+              </div>
+              <div class="sync-strip-range" id="sync-controls">
+                <label for="sync-days">Sync range (days)</label>
                 <input type="number" id="sync-days" min="1" max="365" value="30" />
-              </label>
-              <div class="sync-banner-actions">
-                <button class="btn-primary" type="button" id="email-sync">Sync now</button>
+              </div>
+              <div class="sync-connect-cta hidden" id="sync-connect-cta">
+                <div class="muted small">Gmail not connected</div>
                 <button class="ghost" type="button" data-action="manage-gmail">Manage Gmail</button>
               </div>
             </div>
-            <div class="sync-connect-cta hidden" id="sync-connect-cta">
-              <div class="muted small">Connect Gmail to import applications automatically.</div>
-              <button class="btn-primary" type="button" data-action="manage-gmail">Connect Gmail</button>
-            </div>
-          </div>
           <div class="sync-error hidden" id="sync-error-banner">
             <div class="sync-error-message" id="sync-error-message">Sync failed.</div>
             <button class="ghost icon" type="button" id="sync-error-toggle">Show details</button>
@@ -222,13 +220,15 @@
             >
               <span class="sync-summary-status" id="sync-summary-status">Last sync not run</span>
               <span class="sync-summary-metrics muted" id="sync-summary-metrics"></span>
+              <span class="chevron" aria-hidden="true">▾</span>
             </div>
             <button class="ghost link" type="button" id="sync-details-toggle">View details</button>
           </div>
           <div class="sync-details hidden" id="sync-details-wrapper">
             <pre class="sync-details-block" id="sync-result"></pre>
           </div>
-        </section>
+          </div>
+        </div>
         <section class="kpi-row" aria-label="Application stats">
           <div class="kpi-card status-total">
             <div class="kpi-meta">
