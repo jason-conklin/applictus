@@ -217,7 +217,8 @@ body.modal-open {
 
 .topbar .brand-mark {
   border-color: var(--color-nav-button-border);
-  background: #e7f0ff;
+  background: var(--color-card);
+  color: var(--color-text);
 }
 
 .avatar {
