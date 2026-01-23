@@ -1206,7 +1206,7 @@ async function refreshEmailStatus() {
       setSyncStatusText('Ready');
     } else {
       setPillState(accountGmailStatus, 'Not connected', 'idle');
-      setPillState(dashboardGmailStatus, 'Not connected', 'idle');
+      setPillState(dashboardGmailStatus, '', 'idle');
       if (accountGmailEmail) {
         accountGmailEmail.textContent = 'Not connected.';
       }
