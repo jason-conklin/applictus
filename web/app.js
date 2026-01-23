@@ -2937,11 +2937,14 @@ accountEmailSync?.addEventListener('click', async () => {
   // Navigate to dashboard and start sync to keep UX consistent
   window.location.hash = '#dashboard';
   setView('dashboard');
+  if (syncDays) {
+    syncDays.value = days;
+  }
   await runEmailSync({
     days,
     statusEl: accountSyncStatus,
     resultEl: accountSyncResult,
-    buttonEl: accountEmailSync
+    buttonEl: emailSync
   });
 });
 
