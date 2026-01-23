@@ -639,6 +639,7 @@ textarea:focus-visible {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  margin-right: auto;
 }
 
 .sync-strip-range {
