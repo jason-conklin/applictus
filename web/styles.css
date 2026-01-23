@@ -654,6 +654,10 @@ textarea:focus-visible {
   padding: 6px 8px;
 }
 
+.sync-band .btn {
+  margin-left: auto;
+}
+
 .sync-connect-cta {
   display: inline-flex;
   align-items: center;
