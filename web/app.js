@@ -65,6 +65,8 @@ const emailSync = document.getElementById('email-sync');
 const syncDays = document.getElementById('sync-days');
 const syncStatus = document.getElementById('sync-status');
 const syncResult = document.getElementById('sync-result');
+const dashboardGmailStatus = document.getElementById('dashboard-gmail-status');
+const dashboardGmailEmail = document.getElementById('dashboard-gmail-email');
 const syncProgress = document.getElementById('sync-progress');
 const syncProgressFill = document.getElementById('sync-progress-fill');
 const syncProgressLabel = document.getElementById('sync-progress-label');
@@ -179,7 +181,10 @@ const syncUiState = {
   easingTimer: null,
   startTs: null,
   backendTarget: 0,
-  completed: false
+  backendPhaseLabel: null,
+  state: 'idle', // 'idle' | 'running' | 'finishing' | 'error'
+  finishTimer: null,
+  finishGuard: null
 };
 
 const SORT_LABELS = {
@@ -550,9 +555,13 @@ function setSyncProgressState({ visible, progress, label, error = false }) {
   syncProgressLabel.textContent = syncUiState.label || '';
   const rawPct = Math.max(0, Math.min(100, (syncUiState.progress || 0) * 100));
   const displayPct =
-    !syncUiState.completed && rawPct > 0 && rawPct < 1 ? 1 : Math.min(100, rawPct);
+    syncUiState.state === 'finishing'
+      ? Math.min(100, rawPct)
+      : rawPct > 0 && rawPct < 1
+      ? 1
+      : Math.min(99.5, rawPct);
   syncProgressValue.textContent = `${Math.round(displayPct)}%`;
-  syncProgressFill.style.width = `${Math.min(displayPct, syncUiState.completed ? 100 : 99.5)}%`;
+  syncProgressFill.style.width = `${displayPct}%`;
   syncProgressFill.classList.toggle('error', !!error);
   if (window.__SYNC_DEBUG__) {
     console.debug('sync ui', {
@@ -575,10 +584,19 @@ function hideSyncProgress() {
     window.clearInterval(syncUiState.easingTimer);
     syncUiState.easingTimer = null;
   }
+  syncUiState.state = 'idle';
   syncUiState.syncId = null;
   syncUiState.startTs = null;
   syncUiState.backendTarget = 0;
-  syncUiState.completed = false;
+  syncUiState.backendPhaseLabel = null;
+  if (syncUiState.finishTimer) {
+    window.clearTimeout(syncUiState.finishTimer);
+    syncUiState.finishTimer = null;
+  }
+  if (syncUiState.finishGuard) {
+    window.clearTimeout(syncUiState.finishGuard);
+    syncUiState.finishGuard = null;
+  }
 }
 
 function easeProgress(target) {
@@ -609,7 +627,7 @@ function mapPhaseLabel(phase) {
 
 function animateToHundredThenHide() {
   const start = syncUiState.progress || 0;
-  const duration = 500;
+  const duration = 550;
   const end = 1;
   const startTime = performance.now();
   function step(ts) {
@@ -625,10 +643,29 @@ function animateToHundredThenHide() {
   requestAnimationFrame(step);
 }
 
+function enterFinishing() {
+  if (syncUiState.state === 'finishing') return;
+  syncUiState.state = 'finishing';
+  syncUiState.backendTarget = 1;
+  syncUiState.backendPhaseLabel = 'Sync complete';
+  animateToHundredThenHide();
+  if (syncUiState.finishGuard) {
+    clearTimeout(syncUiState.finishGuard);
+  }
+  // Safety guard: if finishing hangs, force completion
+  syncUiState.finishGuard = setTimeout(() => {
+    if (syncUiState.state === 'finishing') {
+      setSyncProgressState({ visible: true, progress: 1, label: 'Sync complete', error: false });
+      hideSyncProgress();
+    }
+  }, 2000);
+}
+
 function startSyncPolling(syncId) {
   if (!syncId) return;
   syncUiState.syncId = syncId;
   syncUiState.startTs = Date.now();
+  syncUiState.state = 'running';
   if (syncUiState.pollTimer) {
     window.clearInterval(syncUiState.pollTimer);
   }
@@ -638,11 +675,14 @@ function startSyncPolling(syncId) {
   syncUiState.easingTimer = window.setInterval(() => {
     if (!syncUiState.startTs) return;
     const elapsedSec = (Date.now() - syncUiState.startTs) / 1000;
-    // Time-based perceived curve: fast rise then taper to 95%
-    const cap = syncUiState.completed ? 1 : 0.95;
+    // Time-based perceived curve: fast rise then taper
+    const cap = syncUiState.state === 'finishing' ? 1 : 0.95;
     const baseTarget = cap * (1 - Math.exp(-elapsedSec / 8)); // ~20% @2s, ~54% @6s, ~83% @15s
     const backendTarget = syncUiState.backendTarget || 0;
-    const target = Math.min(cap, Math.max(baseTarget, backendTarget));
+    const target =
+      syncUiState.state === 'finishing'
+        ? 1
+        : Math.min(cap, Math.max(baseTarget, backendTarget));
     easeProgress(target);
     const label =
       syncUiState.backendPhaseLabel ||
@@ -682,8 +722,7 @@ function startSyncPolling(syncId) {
         if (syncStatus) syncStatus.textContent = 'Failed';
       }
       if (status === 'completed') {
-        syncUiState.completed = true;
-        animateToHundredThenHide();
+        enterFinishing();
         window.clearInterval(syncUiState.pollTimer);
         syncUiState.pollTimer = null;
       }
@@ -1086,7 +1125,14 @@ async function refreshUnsortedEvents() {
 }
 
 async function refreshEmailStatus() {
-  if (!accountGmailStatus && !accountGmailEmail && !emailSync && !accountEmailSync) {
+  if (
+    !accountGmailStatus &&
+    !accountGmailEmail &&
+    !emailSync &&
+    !accountEmailSync &&
+    !dashboardGmailStatus &&
+    !dashboardGmailEmail
+  ) {
     return;
   }
   try {
@@ -1097,6 +1143,7 @@ async function refreshEmailStatus() {
     emailState.email = data.email || null;
     if (!data.configured) {
       setPillState(accountGmailStatus, 'Not configured', 'warning');
+      setPillState(dashboardGmailStatus, 'Not configured', 'warning');
       if (emailConnect) {
         emailConnect.disabled = true;
       }
@@ -1104,6 +1151,9 @@ async function refreshEmailStatus() {
       setSyncStatusText('Disabled');
       if (accountGmailEmail) {
         accountGmailEmail.textContent = 'Gmail OAuth is not configured.';
+      }
+      if (dashboardGmailEmail) {
+        dashboardGmailEmail.textContent = 'Gmail OAuth is not configured.';
       }
       if (gmailHint) {
         gmailHint.classList.remove('hidden');
@@ -1116,6 +1166,7 @@ async function refreshEmailStatus() {
     }
     if (!data.encryptionReady) {
       setPillState(accountGmailStatus, 'Encryption required', 'warning');
+      setPillState(dashboardGmailStatus, 'Encryption required', 'warning');
       if (emailConnect) {
         emailConnect.disabled = true;
       }
@@ -1123,6 +1174,9 @@ async function refreshEmailStatus() {
       setSyncStatusText('Disabled');
       if (accountGmailEmail) {
         accountGmailEmail.textContent = 'Token encryption key is missing.';
+      }
+      if (dashboardGmailEmail) {
+        dashboardGmailEmail.textContent = 'Token encryption key is missing.';
       }
       if (gmailHint) {
         gmailHint.classList.remove('hidden');
@@ -1142,14 +1196,22 @@ async function refreshEmailStatus() {
     setSyncDisabled(!data.connected);
     if (data.connected) {
       setPillState(accountGmailStatus, 'Connected', 'connected');
+      setPillState(dashboardGmailStatus, 'Connected', 'connected');
       if (accountGmailEmail) {
         accountGmailEmail.textContent = data.email ? `Connected as ${data.email}` : 'Connected';
+      }
+      if (dashboardGmailEmail) {
+        dashboardGmailEmail.textContent = data.email ? `Connected as ${data.email}` : 'Connected';
       }
       setSyncStatusText('Ready');
     } else {
       setPillState(accountGmailStatus, 'Not connected', 'idle');
+      setPillState(dashboardGmailStatus, 'Not connected', 'idle');
       if (accountGmailEmail) {
         accountGmailEmail.textContent = 'Not connected.';
+      }
+      if (dashboardGmailEmail) {
+        dashboardGmailEmail.textContent = 'Not connected.';
       }
       setSyncStatusText('Not connected');
     }
@@ -1301,6 +1363,7 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
     await loadActiveApplications();
     await refreshEmailEvents();
     await refreshUnsortedEvents();
+    enterFinishing();
   } catch (err) {
     if (statusEl) {
       statusEl.textContent = 'Failed';
@@ -1349,6 +1412,7 @@ async function runQuickSync() {
     await loadActiveApplications();
     await refreshEmailEvents();
     await refreshUnsortedEvents();
+    enterFinishing();
   } catch (err) {
     if (statusEl) {
       const code = err?.code ? ` (${err.code})` : '';

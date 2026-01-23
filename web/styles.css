@@ -592,6 +592,12 @@ textarea:focus-visible {
   flex-wrap: wrap;
 }
 
+.sync-banner-connection {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .sync-progress {
   margin-top: 6px;
   display: grid;
