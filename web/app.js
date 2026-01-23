@@ -1268,14 +1268,14 @@ async function refreshEmailStatus() {
       setSyncStatusText('Ready');
     } else {
       setPillState(accountGmailStatus, 'Not connected', 'idle');
-      setPillState(dashboardGmailStatus, '', 'idle');
+      setPillState(dashboardGmailStatus, 'Not connected', 'idle');
       if (accountGmailEmail) {
         accountGmailEmail.textContent = 'Not connected.';
       }
       if (dashboardGmailEmail) {
         dashboardGmailEmail.textContent = '';
       }
-      setSyncStatusText('Not connected');
+      setSyncStatusText('');
       if (syncControls) syncControls.classList.add('hidden');
       if (syncConnectCta) syncConnectCta.classList.remove('hidden');
     }
