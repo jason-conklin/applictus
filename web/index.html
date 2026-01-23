@@ -178,15 +178,15 @@
           </div>
           <div class="sync-band">
             <div class="sync-strip" id="sync-strip">
+              <button class="btn btn-secondary btn-md" type="button" data-action="manage-gmail">
+                <span class="btn-icon-left" aria-hidden="true">✉</span>
+                <span class="btn-label">Manage Gmail</span>
+              </button>
               <div class="sync-strip-status">
                 <div class="pill" id="dashboard-gmail-status">Not connected</div>
                 <div class="muted small" id="dashboard-gmail-email">—</div>
                 <span class="muted" id="sync-status">Ready</span>
               </div>
-              <button class="btn btn-secondary btn-md" type="button" data-action="manage-gmail">
-                <span class="btn-icon-left" aria-hidden="true">✉</span>
-                <span class="btn-label">Manage Gmail</span>
-              </button>
               <div class="sync-strip-range" id="sync-controls">
                 <label for="sync-days">Sync range (days)</label>
                 <input type="number" id="sync-days" min="1" max="365" value="30" />
@@ -197,10 +197,6 @@
               </button>
               <div class="sync-connect-cta hidden" id="sync-connect-cta">
                 <div class="muted small">Gmail not connected</div>
-                <button class="btn btn-secondary btn-md" type="button" data-action="manage-gmail">
-                  <span class="btn-icon-left" aria-hidden="true">✉</span>
-                  <span class="btn-label">Manage Gmail</span>
-                </button>
               </div>
             </div>
           <div class="sync-error hidden" id="sync-error-banner">
