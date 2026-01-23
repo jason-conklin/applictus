@@ -2934,6 +2934,9 @@ if (syncSummaryMain) {
 
 accountEmailSync?.addEventListener('click', async () => {
   const days = Number(accountSyncDays?.value) || 30;
+  // Navigate to dashboard and start sync to keep UX consistent
+  window.location.hash = '#dashboard';
+  setView('dashboard');
   await runEmailSync({
     days,
     statusEl: accountSyncStatus,
