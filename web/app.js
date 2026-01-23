@@ -1493,17 +1493,12 @@ function applySyncDetailsVisibility(open, hasDetails, allowToggle = true) {
   if (!syncDetailsWrapper || !syncDetailsToggle) return;
   const effectiveOpen = hasDetails && allowToggle && open;
   syncDetailsWrapper.classList.toggle('hidden', !effectiveOpen);
-  syncDetailsToggle.classList.toggle('hidden', !(hasDetails && allowToggle));
-  syncDetailsToggle.dataset.open = open ? 'true' : 'false';
-  syncDetailsToggle.textContent = effectiveOpen ? 'Hide details' : 'View details';
   if (syncSummaryMain) {
     syncSummaryMain.classList.toggle('open', effectiveOpen);
   }
   if (syncSummaryMain) {
     syncSummaryMain.setAttribute('aria-expanded', effectiveOpen ? 'true' : 'false');
   }
-  syncDetailsToggle.setAttribute('aria-expanded', effectiveOpen ? 'true' : 'false');
-  syncDetailsToggle.setAttribute('aria-controls', 'sync-details-wrapper');
 }
 
 function renderSyncSummary({ status = 'idle', result = null, rawDetails = '', label = '' } = {}) {
@@ -2937,31 +2932,22 @@ syncErrorToggle?.addEventListener('click', () => {
   }
 });
 
-if (syncDetailsToggle) {
-  const initialOpen = getStoredSyncDetailsOpen();
-  applySyncDetailsVisibility(initialOpen, Boolean(syncResult?.textContent?.trim()));
-  syncDetailsToggle.addEventListener('click', () => {
-    const current = syncDetailsToggle.dataset.open === 'true';
-    const next = !current;
-    storeSyncDetailsOpen(next);
-    applySyncDetailsVisibility(next, Boolean(syncResult?.textContent?.trim()));
-  });
-}
-
 if (syncSummaryMain) {
   syncSummaryMain.addEventListener('click', () => {
     const selection = window.getSelection();
     if (selection && selection.toString().length > 0) return;
-    const current = syncDetailsToggle?.dataset.open === 'true';
+    const current = syncSummaryMain.dataset.open === 'true';
     const next = !current;
+    syncSummaryMain.dataset.open = next ? 'true' : 'false';
     storeSyncDetailsOpen(next);
     applySyncDetailsVisibility(next, Boolean(syncResult?.textContent?.trim()));
   });
   syncSummaryMain.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      const current = syncDetailsToggle?.dataset.open === 'true';
+      const current = syncSummaryMain.dataset.open === 'true';
       const next = !current;
+      syncSummaryMain.dataset.open = next ? 'true' : 'false';
       storeSyncDetailsOpen(next);
       applySyncDetailsVisibility(next, Boolean(syncResult?.textContent?.trim()));
     }
