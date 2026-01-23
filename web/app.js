@@ -1211,7 +1211,7 @@ async function refreshEmailStatus() {
         accountGmailEmail.textContent = 'Not connected.';
       }
       if (dashboardGmailEmail) {
-        dashboardGmailEmail.textContent = 'Not connected.';
+        dashboardGmailEmail.textContent = '';
       }
       setSyncStatusText('Not connected');
     }
