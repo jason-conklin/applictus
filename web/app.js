@@ -1453,11 +1453,11 @@ function storeSyncDetailsOpen(open) {
   }
 }
 
-function applySyncDetailsVisibility(open, hasDetails) {
+function applySyncDetailsVisibility(open, hasDetails, allowToggle = true) {
   if (!syncDetailsWrapper || !syncDetailsToggle) return;
-  const effectiveOpen = hasDetails && open;
+  const effectiveOpen = hasDetails && allowToggle && open;
   syncDetailsWrapper.classList.toggle('hidden', !effectiveOpen);
-  syncDetailsToggle.classList.toggle('hidden', !hasDetails);
+  syncDetailsToggle.classList.toggle('hidden', !(hasDetails && allowToggle));
   syncDetailsToggle.dataset.open = open ? 'true' : 'false';
   syncDetailsToggle.textContent = effectiveOpen ? 'Hide details' : 'View details';
   if (syncSummaryMain) {
@@ -1505,7 +1505,8 @@ function renderSyncSummary({ status = 'idle', result = null, rawDetails = '', la
   const shouldOpen =
     hasDetails &&
     (syncDetailsToggle?.dataset.open === 'true' || getStoredSyncDetailsOpen());
-  applySyncDetailsVisibility(shouldOpen, hasDetails);
+  const allowToggle = status !== 'running';
+  applySyncDetailsVisibility(shouldOpen, hasDetails, allowToggle);
 }
 
 async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
