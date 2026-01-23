@@ -677,7 +677,7 @@ function startSyncPolling(syncId) {
     const elapsedSec = (Date.now() - syncUiState.startTs) / 1000;
     // Time-based perceived curve: fast rise then taper
     const cap = syncUiState.state === 'finishing' ? 1 : 0.95;
-    const baseTarget = cap * (1 - Math.exp(-elapsedSec / 8)); // ~20% @2s, ~54% @6s, ~83% @15s
+    const baseTarget = cap * (1 - Math.exp(-elapsedSec / 16)); // slower rise: ~11% @2s, ~31% @6s, ~58% @15s, ~79% @30s
     const backendTarget = syncUiState.backendTarget || 0;
     const target =
       syncUiState.state === 'finishing'
