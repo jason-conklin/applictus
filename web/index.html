@@ -178,6 +178,10 @@
               <div class="sync-banner-title">Gmail sync</div>
               <div class="muted" id="sync-status">Ready</div>
             </div>
+            <div class="sync-banner-connection">
+              <div class="pill" id="dashboard-gmail-status">Not connected</div>
+              <div class="muted small" id="dashboard-gmail-email">—</div>
+            </div>
             <label class="sync-banner-input">
               <span>Sync range (days)</span>
               <input type="number" id="sync-days" min="1" max="365" value="30" />
@@ -186,10 +190,6 @@
               <button class="btn-primary" type="button" id="email-sync">Sync now</button>
               <button class="ghost" type="button" data-action="manage-gmail">Manage Gmail</button>
             </div>
-          </div>
-          <div class="sync-banner-connection">
-            <div class="pill" id="dashboard-gmail-status">Not connected</div>
-            <div class="muted small" id="dashboard-gmail-email">—</div>
           </div>
           <div class="sync-progress hidden" id="sync-progress">
             <div class="sync-progress-meta">

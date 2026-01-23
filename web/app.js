@@ -1201,7 +1201,7 @@ async function refreshEmailStatus() {
         accountGmailEmail.textContent = data.email ? `Connected as ${data.email}` : 'Connected';
       }
       if (dashboardGmailEmail) {
-        dashboardGmailEmail.textContent = data.email ? `Connected as ${data.email}` : 'Connected';
+        dashboardGmailEmail.textContent = data.email ? data.email : 'Connected';
       }
       setSyncStatusText('Ready');
     } else {
