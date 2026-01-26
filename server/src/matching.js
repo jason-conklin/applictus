@@ -24,6 +24,12 @@ const MIN_DOMAIN_CONFIDENCE = 0.4;
 const MIN_ROLE_CONFIDENCE = 0.8;
 const DEDUPE_RECENCY_DAYS = 7;
 
+function extractSenderDomain(sender) {
+  if (!sender) return null;
+  const match = String(sender).match(/@([^> ]+)/);
+  return match ? match[1].toLowerCase() : null;
+}
+
 function normalizeSlug(text) {
   return String(text || '')
     .toLowerCase()
@@ -608,8 +614,8 @@ function buildUnassignedReason(event, identity) {
   const companyConfidence = identity.companyConfidence || 0;
   const domainConfidence = identity.domainConfidence || 0;
   const matchConfidence = identity.matchConfidence || 0;
-  const senderDomain = identity.senderDomain || null;
-  const base = senderDomain ? baseDomain(senderDomain) : null;
+  const senderDomain = identity.senderDomain || extractSenderDomain(event.sender) || null;
+  const base = senderDomain ? (senderDomain.split('@').pop() || senderDomain) : null;
 
   if (!identity.companyName) {
     if (identity.isPlatformEmail) {

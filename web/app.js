@@ -770,6 +770,9 @@ function startSyncPolling(syncId) {
     setSyncProgressState({ visible: true, label, error: syncUiState.error });
   }, 120);
 
+  const isDev =
+    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
   const poll = async () => {
     try {
       const progress = await api(`/api/email/sync/status?sync_id=${encodeURIComponent(syncId)}`);
@@ -787,7 +790,7 @@ function startSyncPolling(syncId) {
       }
       syncUiState.backendTarget = target;
       syncUiState.backendPhaseLabel = label;
-      if (process.env.NODE_ENV !== 'production') {
+      if (isDev) {
         console.debug('sync status', { progress, target });
       }
       setSyncProgressState({ visible: true, label, error: status === 'failed' });
@@ -802,8 +805,15 @@ function startSyncPolling(syncId) {
       }
     } catch (err) {
       // Keep previous progress on poll error
-      if (process.env.NODE_ENV !== 'production') {
+      if (isDev) {
         console.debug('sync status poll failed', err?.message || err);
+      }
+      setSyncProgressState({ visible: true, label: 'Sync failed', error: true });
+      hideSyncProgress();
+      if (syncStatus) syncStatus.textContent = 'Failed';
+      if (syncUiState.pollTimer) {
+        window.clearInterval(syncUiState.pollTimer);
+        syncUiState.pollTimer = null;
       }
     }
   };

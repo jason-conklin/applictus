@@ -399,6 +399,28 @@ Applied on January 23, 2026`;
   assert.equal(result.action, 'created_application');
 });
 
+test('buildUnassignedReason handles missing domain safely', () => {
+  const event = { detected_type: 'confirmation', subject: 'Test', sender: null, classification_confidence: 0.9 };
+  const identity = { companyName: 'Acme', companyConfidence: 0.9, matchConfidence: 0.9, domainConfidence: 0 };
+  const db = {
+    prepare() {
+      return {
+        all() {
+          return [];
+        },
+        get() {
+          return null;
+        },
+        run() {
+          return null;
+        }
+      };
+    }
+  };
+  const result = matchAndAssignEvent({ db, userId: 'user-1', event, identity });
+  assert.ok(result.action === 'unassigned' || result.action === 'created_application');
+});
+
 test('Workday confirmation does not fall into ambiguous sender and auto-creates', () => {
   const subject = 'Thank You For Your Application!';
   const sender = 'pureinsurance@myworkday.com';
