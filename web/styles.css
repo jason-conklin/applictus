@@ -1039,7 +1039,11 @@ button.danger,
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 14px;
-  margin: 12px 0 8px;
+  margin: 0;
+}
+
+.header-actions .filter-inline {
+  margin-left: 10px;
 }
 
 .filter-inline label {

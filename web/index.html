@@ -298,10 +298,29 @@
               </div>
               <div class="header-actions">
                 <button class="btn-primary" id="add-toggle" type="button">Add application</button>
-                <button class="ghost" id="filter-toggle" type="button">
-                  <span>Filters</span>
-                  <span class="count-badge hidden" id="filter-count">0</span>
-                </button>
+                <div class="filter-inline" id="filters-inline">
+                  <label>
+                    Status
+                    <select id="filter-status">
+                      <option value="">Any status</option>
+                      <option value="APPLIED">Applied</option>
+                      <option value="UNDER_REVIEW">Under review</option>
+                      <option value="INTERVIEW_REQUESTED">Interview requested</option>
+                      <option value="INTERVIEW_COMPLETED">Interview completed</option>
+                      <option value="OFFER_RECEIVED">Offer received</option>
+                      <option value="REJECTED">Rejected</option>
+                      <option value="GHOSTED">Ghosted</option>
+                      <option value="UNKNOWN">Unknown</option>
+                    </select>
+                  </label>
+                  <label class="filter-company-inline">
+                    Company
+                    <div class="input-with-clear">
+                      <input type="text" id="filter-company" placeholder="Filter by company…" />
+                      <button type="button" class="clear-input hidden" id="filter-company-clear" aria-label="Clear company filter">×</button>
+                    </div>
+                  </label>
+                </div>
               </div>
             </div>
             <div class="header-right">
@@ -311,7 +330,6 @@
               </div>
             </div>
           </div>
-          <div class="filters-summary hidden" id="filters-summary"></div>
           <div class="panel hidden" id="add-panel">
             <form id="quick-add" class="form-grid inline">
               <label>
@@ -337,29 +355,6 @@
               </label>
               <button type="submit">Add</button>
             </form>
-          </div>
-          <div class="filter-inline" id="filters-inline">
-            <label>
-              Status
-              <select id="filter-status">
-                <option value="">Any status</option>
-                <option value="APPLIED">Applied</option>
-                <option value="UNDER_REVIEW">Under review</option>
-                <option value="INTERVIEW_REQUESTED">Interview requested</option>
-                <option value="INTERVIEW_COMPLETED">Interview completed</option>
-                <option value="OFFER_RECEIVED">Offer received</option>
-                <option value="REJECTED">Rejected</option>
-                <option value="GHOSTED">Ghosted</option>
-                <option value="UNKNOWN">Unknown</option>
-              </select>
-            </label>
-            <label class="filter-company-inline">
-              Company
-              <div class="input-with-clear">
-                <input type="text" id="filter-company" placeholder="Filter by company…" />
-                <button type="button" class="clear-input hidden" id="filter-company-clear" aria-label="Clear company filter">×</button>
-              </div>
-            </label>
           </div>
           <div class="pipeline-view" id="pipeline-view"></div>
           <div class="table" id="applications-table"></div>
