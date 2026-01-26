@@ -1009,6 +1009,31 @@ button.danger,
   transform: scale(0.98);
 }
 
+.danger-panel {
+  background: #fef2f2;
+  border: 1px solid #fecdd3;
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.danger-panel-title {
+  font-weight: 700;
+  color: #991b1b;
+}
+
+.danger-panel-body {
+  color: #7f1d1d;
+  font-size: 14px;
+}
+
+.danger-panel-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .stack {
   display: grid;
   gap: 10px;

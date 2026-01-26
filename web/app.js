@@ -144,6 +144,10 @@ const detailExplainerToggle = document.getElementById('detail-explainer-toggle')
 const detailExplainerBody = document.getElementById('detail-explainer-body');
 let explanationOpen = false;
 let lastDetailId = null;
+let lastDetailEvents = [];
+let deleteConfirmForId = null;
+let deleteBusy = false;
+let deleteError = null;
 const detailActions = document.getElementById('detail-actions');
 const modalRoot = document.getElementById('modal-root');
 const modalTitle = document.getElementById('modal-title');
@@ -2494,6 +2498,10 @@ function setDrawerOpen(isOpen) {
   if (!isOpen) {
     currentDetail = null;
     lastDetailId = null;
+    lastDetailEvents = [];
+    deleteConfirmForId = null;
+    deleteBusy = false;
+    deleteError = null;
     explanationOpen = false;
     if (detailExplainerBody) {
       detailExplainerBody.classList.add('collapsed');
@@ -2508,9 +2516,13 @@ function renderDetail(application, events) {
   if (!application) {
     return;
   }
+  lastDetailEvents = events || [];
   if (lastDetailId !== application.id) {
     explanationOpen = false;
     lastDetailId = application.id;
+    deleteConfirmForId = null;
+    deleteBusy = false;
+    deleteError = null;
     if (detailExplainerBody) {
       detailExplainerBody.classList.add('collapsed');
     }
@@ -2588,9 +2600,25 @@ function renderDetail(application, events) {
   }
 
   if (detailActions) {
-    const archiveButton = detailActions.querySelector('[data-action="archive"]');
-    if (archiveButton) {
-      archiveButton.textContent = application.archived ? 'Unarchive' : 'Archive';
+    if (deleteConfirmForId === application.id) {
+      detailActions.innerHTML = `
+        <div class="danger-panel" aria-live="polite">
+          <div class="danger-panel-title">Delete application?</div>
+          <div class="danger-panel-body">This will remove this application and its timeline events. This can't be undone.</div>
+          ${deleteError ? `<div class="form-error">${deleteError}</div>` : ''}
+          <div class="danger-panel-actions">
+            <button class="ghost" type="button" data-action="delete-cancel"${deleteBusy ? ' disabled' : ''}>Cancel</button>
+            <button class="ghost danger" type="button" data-action="delete-confirm"${deleteBusy ? ' disabled' : ''}>${deleteBusy ? 'Deleting…' : 'Delete permanently'}</button>
+          </div>
+        </div>
+      `;
+    } else {
+      detailActions.innerHTML = `
+        <button class="ghost" type="button" data-action="edit">Edit</button>
+        <button class="ghost" type="button" data-action="override">Override status</button>
+        <button class="ghost" type="button" data-action="archive">${application.archived ? 'Unarchive' : 'Archive'}</button>
+        <button class="ghost danger" type="button" data-action="delete">Delete</button>
+      `;
     }
   }
 
@@ -3103,19 +3131,36 @@ detailDrawer?.addEventListener('click', async (event) => {
     return;
   }
   if (action === 'delete') {
-    const ok = window.confirm(
-      'Delete this application? This will remove the application and its events from your dashboard. This cannot be undone.'
-    );
-    if (!ok) {
-      return;
-    }
+    deleteConfirmForId = currentDetail.id;
+    deleteError = null;
+    deleteBusy = false;
+    renderDetail(currentDetail, lastDetailEvents);
+    return;
+  }
+  if (action === 'delete-cancel') {
+    deleteConfirmForId = null;
+    deleteBusy = false;
+    deleteError = null;
+    renderDetail(currentDetail, lastDetailEvents);
+    return;
+  }
+  if (action === 'delete-confirm') {
+    if (deleteBusy) return;
+    deleteBusy = true;
+    deleteError = null;
+    renderDetail(currentDetail, lastDetailEvents);
     try {
       await api(`/api/applications/${currentDetail.id}`, { method: 'DELETE' });
+      deleteConfirmForId = null;
+      deleteBusy = false;
+      deleteError = null;
       setDrawerOpen(false);
       await loadActiveApplications();
       await refreshArchivedApplications();
     } catch (err) {
-      showNotice(err.message || 'Delete failed');
+      deleteBusy = false;
+      deleteError = err.message || 'Delete failed. Please try again.';
+      renderDetail(currentDetail, lastDetailEvents);
     }
     return;
   }
@@ -3161,6 +3206,13 @@ detailExplainerToggle?.addEventListener('keydown', (e) => {
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && detailDrawer && !detailDrawer.classList.contains('hidden')) {
+    if (deleteConfirmForId) {
+      deleteConfirmForId = null;
+      deleteBusy = false;
+      deleteError = null;
+      renderDetail(currentDetail, lastDetailEvents);
+      return;
+    }
     setDrawerOpen(false);
   }
 });
