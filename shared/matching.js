@@ -1237,10 +1237,123 @@ function domainConfidence(companyName, senderDomain) {
   return { score: 0.4, isAtsDomain: false };
 }
 
+function extractLinkedInApplicationIdentity({ subject, bodyText, sender }) {
+  const senderDomain = extractSenderDomain(sender);
+  const isLinkedInSender = /linkedin\.com/i.test(senderDomain || '') || /linkedin\.com/i.test(sender || '');
+  if (!isLinkedInSender) {
+    return null;
+  }
+
+  const normalizedSubject = String(subject || '').trim();
+  const body = String(bodyText || '').replace(/\r\n/g, '\n');
+  const lines = body.split('\n').map((line) => line.trim()).filter(Boolean);
+
+  let companyName = null;
+  const subjectCompanyMatch = normalizedSubject.match(/application was sent to\s+(.+?)\.?$/i);
+  if (subjectCompanyMatch) {
+    companyName = subjectCompanyMatch[1].trim();
+  }
+
+  if (!companyName) {
+    const lineWithCompany = lines.find((line) => /application was sent to/i.test(line));
+    if (lineWithCompany) {
+      const m = lineWithCompany.match(/application was sent to\s+(.+?)\.?$/i);
+      if (m) {
+        companyName = m[1].trim();
+      }
+    }
+  }
+
+  let jobTitle = null;
+  let companyLineIndex = -1;
+  lines.forEach((line, idx) => {
+    if (companyLineIndex === -1 && /application was sent to/i.test(line)) {
+      companyLineIndex = idx;
+    }
+  });
+
+  for (let i = 0; i < lines.length; i++) {
+    if (jobTitle) break;
+    const line = lines[i];
+    if (line.includes('·')) {
+      const parts = line.split('·').map((p) => p.trim()).filter(Boolean);
+      if (parts.length) {
+        const roleCandidate = parts[0];
+        const companyCandidate = parts[1];
+        if (!jobTitle && roleCandidate && (!companyName || slugify(roleCandidate) !== slugify(companyName))) {
+          jobTitle = roleCandidate;
+        }
+        if (!companyName && companyCandidate) {
+          companyName = companyCandidate;
+        }
+      }
+    }
+  }
+
+  if (!jobTitle && companyLineIndex >= 0) {
+    for (let j = companyLineIndex + 1; j < lines.length; j++) {
+      const candidate = lines[j];
+      if (!candidate) continue;
+      const roleCandidate = candidate.split('·')[0]?.trim();
+      if (roleCandidate && (!companyName || slugify(roleCandidate) !== slugify(companyName))) {
+        jobTitle = roleCandidate;
+        break;
+      }
+    }
+  }
+
+  if (!companyName) {
+    return null;
+  }
+
+  const sanitizedCompany = sanitizeCompanyCandidate({
+    companyName,
+    companyConfidence: 0.9,
+    explanation: 'LinkedIn application sent template'
+  });
+  if (!sanitizedCompany) {
+    return null;
+  }
+  companyName = sanitizedCompany.companyName;
+  const companyConfidence = sanitizedCompany.companyConfidence || 0.9;
+
+  if (jobTitle) {
+    jobTitle = sanitizeJobTitle(jobTitle);
+  }
+
+  const roleConfidence = jobTitle ? 0.88 : null;
+  const domainResult = domainConfidence(companyName, senderDomain);
+  const matchConfidence = jobTitle
+    ? Math.min(companyConfidence, roleConfidence || companyConfidence, domainResult.score || companyConfidence)
+    : Math.min(companyConfidence, domainResult.score || companyConfidence);
+
+  return {
+    companyName,
+    jobTitle,
+    senderDomain,
+    companyConfidence,
+    roleConfidence,
+    domainConfidence: domainResult.score,
+    matchConfidence,
+    isAtsDomain: domainResult.isAtsDomain,
+    isPlatformEmail: true,
+    bodyTextAvailable: Boolean(body && body.trim()),
+    explanation: 'LinkedIn application was sent template'
+  };
+}
+
 function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   const subjectText = normalize(subject);
   const snippetText = normalize(snippet);
   const bodyTextRaw = String(bodyText || '');
+  const linkedInIdentity = extractLinkedInApplicationIdentity({
+    subject: subjectText,
+    bodyText: bodyTextRaw,
+    sender
+  });
+  if (linkedInIdentity) {
+    return linkedInIdentity;
+  }
   const digestIdentity = extractWorkdayDigestIdentity({ subject: subjectText, bodyText: bodyTextRaw, sender });
   if (digestIdentity) {
     return digestIdentity;

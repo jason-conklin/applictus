@@ -185,3 +185,14 @@ test('classifyEmail stays conservative with neutral content', () => {
   });
   assert.equal(result.isJobRelated, false);
 });
+
+test('classifyEmail detects LinkedIn Easy Apply confirmation', () => {
+  const result = classifyEmail({
+    subject: 'Jason, your application was sent to BeaconFire Inc.',
+    snippet: 'Your application was sent to BeaconFire Inc. Applied on January 23, 2026.',
+    sender: 'jobs-noreply@linkedin.com'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'confirmation');
+  assert.ok(result.confidenceScore >= 0.92);
+});

@@ -338,3 +338,63 @@ test('matchAndAssignEvent auto-creates for Workday confirmation with body compan
   const result = matchAndAssignEvent({ db, userId: 'user-1', event, identity });
   assert.equal(result.action, 'created_application');
 });
+
+test('extractThreadIdentity parses LinkedIn application sent confirmation', () => {
+  const subject = 'Jason, your application was sent to BeaconFire Inc.';
+  const sender = 'jobs-noreply@linkedin.com';
+  const bodyText = `Jason, your application was sent to BeaconFire Inc.
+Junior Java Developer · BeaconFire Inc. · Jersey City, NJ
+Applied on January 23, 2026`;
+
+  const identity = extractThreadIdentity({ subject, sender, bodyText });
+  assert.equal(identity.companyName, 'BeaconFire Inc');
+  assert.equal(identity.jobTitle, 'Junior Java Developer');
+  assert.ok(identity.companyConfidence >= 0.85);
+});
+
+test('matchAndAssignEvent auto-creates for LinkedIn Easy Apply confirmation', () => {
+  const subject = 'Jason, your application was sent to BeaconFire Inc.';
+  const sender = 'jobs-noreply@linkedin.com';
+  const bodyText = `Jason, your application was sent to BeaconFire Inc.
+Junior Java Developer · BeaconFire Inc. · Jersey City, NJ
+Applied on January 23, 2026`;
+  const identity = extractThreadIdentity({ subject, sender, bodyText });
+
+  const applications = {};
+  const db = {
+    prepare(sql) {
+      return {
+        all() {
+          return [];
+        },
+        get(id) {
+          if (sql.startsWith('SELECT * FROM job_applications')) {
+            return applications[id] || null;
+          }
+          return null;
+        },
+        run(...args) {
+          if (sql.startsWith('INSERT INTO job_applications')) {
+            const id = args[0];
+            applications[id] = { id };
+          }
+          return null;
+        }
+      };
+    }
+  };
+
+  const event = {
+    id: 'evt-2',
+    detected_type: 'confirmation',
+    classification_confidence: 0.93,
+    created_at: new Date().toISOString(),
+    role_title: identity.jobTitle,
+    role_confidence: identity.roleConfidence,
+    role_source: 'identity',
+    role_explanation: identity.explanation
+  };
+
+  const result = matchAndAssignEvent({ db, userId: 'user-1', event, identity });
+  assert.equal(result.action, 'created_application');
+});

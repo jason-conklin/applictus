@@ -7,6 +7,18 @@ const DENYLIST = [
   /marketing/i
 ];
 
+const LINKEDIN_CONFIRMATION_RULE = {
+  name: 'linkedin_application_sent',
+  detectedType: 'confirmation',
+  confidence: 0.92,
+  requiresJobContext: false,
+  patterns: [
+    /your application was sent to/i,
+    /applied on\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}/i
+  ],
+  senderPattern: /linkedin\.com/i
+};
+
 const RULES = [
   {
     name: 'offer',
@@ -192,6 +204,21 @@ function classifyEmail({ subject, snippet, sender }) {
   const minConfidence = 0.6;
   const rules = RULES;
   const jobContext = hasJobContext(text) || hasSubjectRolePattern(normalize(subject));
+
+  // High-confidence LinkedIn Easy Apply confirmation override (before denylist).
+  const senderMatchesLinkedIn = LINKEDIN_CONFIRMATION_RULE.senderPattern.test(sender || '');
+  if (senderMatchesLinkedIn) {
+    const linkedInMatch = LINKEDIN_CONFIRMATION_RULE.patterns.find((p) => p.test(text));
+    if (linkedInMatch) {
+      return {
+        isJobRelated: true,
+        detectedType: 'confirmation',
+        confidenceScore: LINKEDIN_CONFIRMATION_RULE.confidence,
+        explanation: 'LinkedIn application sent',
+        reason: LINKEDIN_CONFIRMATION_RULE.name
+      };
+    }
+  }
 
   const strongRejection = findRuleMatch([STRONG_REJECTION_RULE], text, 0.95, jobContext);
   if (strongRejection) {
