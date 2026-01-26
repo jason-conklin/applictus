@@ -1034,6 +1034,62 @@ button.danger,
   justify-content: flex-end;
 }
 
+.filter-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+  margin: 12px 0 8px;
+}
+
+.filter-inline label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.filter-inline select,
+.filter-inline input {
+  min-width: 180px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.filter-company-inline .input-with-clear {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 260px;
+}
+
+.filter-company-inline input {
+  width: 100%;
+  padding-right: 32px;
+}
+
+.clear-input {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px;
+}
+
+.clear-input:hover {
+  color: var(--color-text);
+}
+
 .stack {
   display: grid;
   gap: 10px;

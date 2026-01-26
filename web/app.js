@@ -64,10 +64,7 @@ const accountGmailEmail = document.getElementById('account-gmail-email');
 const quickAdd = document.getElementById('quick-add');
 const addToggle = document.getElementById('add-toggle');
 const addPanel = document.getElementById('add-panel');
-const filterToggle = document.getElementById('filter-toggle');
 const filterCount = document.getElementById('filter-count');
-const filtersPanel = document.getElementById('filters-panel');
-const filtersSummary = document.getElementById('filters-summary');
 const applicationsTable = document.getElementById('applications-table');
 const pipelineView = document.getElementById('pipeline-view');
 const appCount = document.getElementById('app-count');
@@ -75,15 +72,9 @@ const archivedTable = document.getElementById('archived-table');
 const archivedCount = document.getElementById('archived-count');
 const unsortedTable = document.getElementById('unsorted-table');
 const viewToggle = document.getElementById('view-toggle');
-const filterForm = document.getElementById('filters');
 const filterStatus = document.getElementById('filter-status');
 const filterCompany = document.getElementById('filter-company');
-const filterRecency = document.getElementById('filter-recency');
-const filterConfidence = document.getElementById('filter-confidence');
-const filterSuggestions = document.getElementById('filter-suggestions');
-const filterSort = document.getElementById('filter-sort');
-const filterDir = document.getElementById('filter-dir');
-const filterReset = document.getElementById('filter-reset');
+const filterCompanyClear = document.getElementById('filter-company-clear');
 const tablePrev = document.getElementById('table-prev');
 const tableNext = document.getElementById('table-next');
 const tablePageInfo = document.getElementById('table-page-info');
@@ -218,12 +209,7 @@ const state = {
   viewMode: getInitialViewMode(),
   filters: {
     status: '',
-    company: '',
-    recencyDays: '',
-    minConfidence: '',
-    suggestionsOnly: false,
-    sortBy: 'last_activity_at',
-    sortDir: 'desc'
+    company: ''
   },
   sort: {
     key: 'lastActivity',
@@ -263,15 +249,6 @@ const syncUiState = {
   finishGuard: null
 };
 renderSyncSummary({ status: 'idle', rawDetails: '' });
-
-const SORT_LABELS = {
-  last_activity_at: 'Last activity',
-  company_name: 'Company',
-  job_title: 'Role',
-  status: 'Status',
-  confidence: 'Confidence',
-  created_at: 'Created'
-};
 
 let modalState = {
   onClose: null,
@@ -924,26 +901,14 @@ function buildListParams(overrides = {}) {
   const filters = state.filters;
   const status = overrides.status ?? filters.status;
   const company = overrides.company ?? filters.company;
-  const recencyDays = overrides.recencyDays ?? filters.recencyDays;
-  const minConfidence = overrides.minConfidence ?? filters.minConfidence;
-  const suggestionsOnly = overrides.suggestionsOnly ?? filters.suggestionsOnly;
-  const sortBy = overrides.sortBy ?? filters.sortBy;
-  const sortDir = overrides.sortDir ?? filters.sortDir;
+  const sortBy = 'last_activity_at';
+  const sortDir = 'desc';
 
   if (status) {
     params.set('status', status);
   }
   if (company) {
     params.set('company', company);
-  }
-  if (recencyDays) {
-    params.set('recency_days', recencyDays);
-  }
-  if (minConfidence) {
-    params.set('min_confidence', minConfidence);
-  }
-  if (suggestionsOnly) {
-    params.set('suggestions_only', '1');
   }
   if (sortBy) {
     params.set('sort_by', sortBy);
@@ -990,21 +955,6 @@ function getActiveFilters() {
   if (filters.company) {
     active.push(`Company: ${filters.company}`);
   }
-  if (filters.recencyDays) {
-    active.push(`Recency: ${filters.recencyDays} days`);
-  }
-  if (filters.minConfidence) {
-    active.push(`Confidence: ${Math.round(Number(filters.minConfidence) * 100)}%+`);
-  }
-  if (filters.suggestionsOnly) {
-    active.push('Suggestions only');
-  }
-  if (filters.sortBy && filters.sortBy !== 'last_activity_at') {
-    active.push(`Sort: ${SORT_LABELS[filters.sortBy] || filters.sortBy}`);
-  }
-  if (filters.sortDir && filters.sortDir !== 'desc') {
-    active.push('Order: Oldest');
-  }
 
   return active;
 }
@@ -1014,16 +964,6 @@ function updateFilterSummary() {
   if (filterCount) {
     filterCount.textContent = String(active.length);
     filterCount.classList.toggle('hidden', active.length === 0);
-  }
-  if (filtersSummary) {
-    const panelOpen = filtersPanel && !filtersPanel.classList.contains('hidden');
-    if (active.length && !panelOpen) {
-      filtersSummary.innerHTML = active.map((item) => `<span class="summary-chip">${item}</span>`).join('');
-      filtersSummary.classList.remove('hidden');
-    } else {
-      filtersSummary.innerHTML = '';
-      filtersSummary.classList.add('hidden');
-    }
   }
 }
 
@@ -1150,9 +1090,7 @@ async function loadSession() {
     }
     updateFilterSummary();
     setPanelOpen(addPanel, false);
-    setPanelOpen(filtersPanel, false);
     addToggle?.setAttribute('aria-expanded', 'false');
-    filterToggle?.setAttribute('aria-expanded', 'false');
     setView('dashboard');
     syncViewToggle();
     await loadActiveApplications();
@@ -1893,168 +1831,6 @@ async function openEditModal(application) {
   });
 }
 
-async function openOverrideModal(application) {
-  if (!application) {
-    return;
-  }
-  const form = document.createElement('form');
-  form.className = 'modal-form form-grid';
-  form.id = `override-form-${application.id}`;
-
-  const options = STATUS_OPTIONS.map((status) => ({
-    value: status,
-    label: STATUS_LABELS[status] || status
-  }));
-  const statusField = createSelectField({
-    label: 'Status',
-    name: 'current_status',
-    value: application.current_status || 'UNKNOWN',
-    options
-  });
-  const noteField = createTextField({
-    label: 'Note (optional)',
-    name: 'status_explanation',
-    value: '',
-    placeholder: 'Add a note for the audit trail.',
-    type: 'textarea'
-  });
-
-  const errorEl = document.createElement('div');
-  errorEl.className = 'form-error hidden';
-
-  form.append(statusField.wrapper, noteField.wrapper, errorEl);
-
-  const footer = buildModalFooter({ confirmText: 'Set status', formId: form.id });
-  openModal({
-    title: 'Override status',
-    description: 'Set a manual status and mark this application as user-controlled.',
-    body: form,
-    footer,
-    allowBackdropClose: false,
-    initialFocus: statusField.select
-  });
-
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const nextStatus = statusField.select.value;
-    if (!STATUS_OPTIONS.includes(nextStatus)) {
-      setFormError(errorEl, 'Choose a valid status.');
-      return;
-    }
-    setFormError(errorEl, '');
-    disableModalFooter(footer, true);
-    try {
-      const payload = { current_status: nextStatus };
-      const note = noteField.input.value.trim();
-      if (note) {
-        payload.status_explanation = note;
-      }
-      await api(`/api/applications/${application.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(payload)
-      });
-      closeModal('success');
-      await loadActiveApplications();
-      await refreshArchivedApplications();
-      await openDetail(application.id);
-    } catch (err) {
-      setFormError(errorEl, err.message);
-      disableModalFooter(footer, false);
-    }
-  });
-}
-
-async function openMergeModal(application) {
-  if (!application) {
-    return;
-  }
-  let applications = [];
-  try {
-    applications = await fetchApplications({ includeArchived: false });
-  } catch (err) {
-    showNotice(err.message, 'Unable to load applications');
-    return;
-  }
-  const candidates = applications.filter((app) => app.id !== application.id);
-  const form = document.createElement('form');
-  form.className = 'modal-form form-grid';
-  form.id = `merge-form-${application.id}`;
-
-  const info = document.createElement('p');
-  info.textContent = 'Merge moves all events to the target and archives the source application.';
-  info.className = 'modal-note';
-
-  const selectOptions = [
-    { value: '', label: candidates.length ? 'Select an application' : 'No applications available' },
-    ...candidates.map((app) => ({ value: app.id, label: formatApplicationLabel(app) }))
-  ];
-  const targetField = createSelectField({
-    label: 'Merge into',
-    name: 'merge_target',
-    value: '',
-    options: selectOptions
-  });
-  if (!candidates.length) {
-    targetField.select.disabled = true;
-  }
-
-  const confirmRow = document.createElement('label');
-  confirmRow.className = 'checkbox-row';
-  const confirmInput = document.createElement('input');
-  confirmInput.type = 'checkbox';
-  confirmInput.name = 'confirm_merge';
-  const confirmText = document.createElement('span');
-  confirmText.textContent = 'I understand this will archive the current application.';
-  confirmRow.append(confirmInput, confirmText);
-
-  const errorEl = document.createElement('div');
-  errorEl.className = 'form-error hidden';
-
-  form.append(info, targetField.wrapper, confirmRow, errorEl);
-
-  const footer = buildModalFooter({ confirmText: 'Merge', formId: form.id });
-  const confirmButton = footer.querySelector('[data-role="confirm"]');
-  if (confirmButton && !candidates.length) {
-    confirmButton.disabled = true;
-  }
-  openModal({
-    title: 'Merge applications',
-    description: 'Choose the application that should receive all events.',
-    body: form,
-    footer,
-    allowBackdropClose: false,
-    initialFocus: targetField.select
-  });
-
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const targetId = targetField.select.value;
-    if (!targetId) {
-      setFormError(errorEl, 'Select an application to merge into.');
-      return;
-    }
-    if (!confirmInput.checked) {
-      setFormError(errorEl, 'Confirm the merge before continuing.');
-      return;
-    }
-    setFormError(errorEl, '');
-    disableModalFooter(footer, true);
-    try {
-      await api(`/api/applications/${application.id}/merge`, {
-        method: 'POST',
-        body: JSON.stringify({ targetId })
-      });
-      closeModal('success');
-      await loadActiveApplications();
-      await refreshArchivedApplications();
-      await openDetail(targetId);
-    } catch (err) {
-      setFormError(errorEl, err.message);
-      disableModalFooter(footer, false);
-    }
-  });
-}
-
 async function openArchiveModal(application) {
   if (!application) {
     return;
@@ -2738,9 +2514,7 @@ function route() {
   }
   setDrawerOpen(false);
   setPanelOpen(addPanel, false);
-  setPanelOpen(filtersPanel, false);
   addToggle?.setAttribute('aria-expanded', 'false');
-  filterToggle?.setAttribute('aria-expanded', 'false');
   updateFilterSummary();
   const hash = window.location.hash.replace('#', '');
   if (hash === 'gmail') {
@@ -2841,24 +2615,6 @@ addToggle?.addEventListener('click', () => {
   const isOpen = !addPanel.classList.contains('hidden');
   setPanelOpen(addPanel, !isOpen);
   addToggle.setAttribute('aria-expanded', String(!isOpen));
-  if (!isOpen) {
-    setPanelOpen(filtersPanel, false);
-    filterToggle?.setAttribute('aria-expanded', 'false');
-  }
-  updateFilterSummary();
-});
-
-filterToggle?.addEventListener('click', () => {
-  if (!filtersPanel) {
-    return;
-  }
-  const isOpen = !filtersPanel.classList.contains('hidden');
-  setPanelOpen(filtersPanel, !isOpen);
-  filterToggle.setAttribute('aria-expanded', String(!isOpen));
-  if (!isOpen) {
-    setPanelOpen(addPanel, false);
-    addToggle?.setAttribute('aria-expanded', 'false');
-  }
   updateFilterSummary();
 });
 
@@ -2934,54 +2690,35 @@ dashboardView?.addEventListener('click', async (event) => {
   }
 });
 
-filterForm?.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  state.filters.status = filterStatus?.value || '';
-  state.filters.company = filterCompany?.value.trim() || '';
-  state.filters.recencyDays = filterRecency?.value || '';
-  state.filters.minConfidence = filterConfidence?.value || '';
-  state.filters.suggestionsOnly = Boolean(filterSuggestions?.checked);
-  state.filters.sortBy = filterSort?.value || 'last_activity_at';
-  state.filters.sortDir = filterDir?.value || 'desc';
+let filterCompanyTimer = null;
+const applyFilters = async () => {
   state.table.offset = 0;
   updateFilterSummary();
   await loadActiveApplications();
+};
+
+filterStatus?.addEventListener('change', async () => {
+  state.filters.status = filterStatus.value || '';
+  await applyFilters();
 });
 
-filterReset?.addEventListener('click', async () => {
-  if (filterStatus) {
-    filterStatus.value = '';
+filterCompany?.addEventListener('input', () => {
+  if (filterCompanyClear) {
+    filterCompanyClear.classList.toggle('hidden', !filterCompany.value);
   }
-  if (filterCompany) {
-    filterCompany.value = '';
-  }
-  if (filterRecency) {
-    filterRecency.value = '';
-  }
-  if (filterConfidence) {
-    filterConfidence.value = '';
-  }
-  if (filterSuggestions) {
-    filterSuggestions.checked = false;
-  }
-  if (filterSort) {
-    filterSort.value = 'last_activity_at';
-  }
-  if (filterDir) {
-    filterDir.value = 'desc';
-  }
-  state.filters = {
-    status: '',
-    company: '',
-    recencyDays: '',
-    minConfidence: '',
-    suggestionsOnly: false,
-    sortBy: 'last_activity_at',
-    sortDir: 'desc'
-  };
-  state.table.offset = 0;
-  updateFilterSummary();
-  await loadActiveApplications();
+  clearTimeout(filterCompanyTimer);
+  filterCompanyTimer = setTimeout(async () => {
+    state.filters.company = filterCompany.value.trim();
+    await applyFilters();
+  }, 180);
+});
+
+filterCompanyClear?.addEventListener('click', async () => {
+  if (!filterCompany) return;
+  filterCompany.value = '';
+  filterCompanyClear.classList.add('hidden');
+  state.filters.company = '';
+  await applyFilters();
 });
 
 tablePrev?.addEventListener('click', async () => {
