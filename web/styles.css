@@ -1717,16 +1717,23 @@ details summary {
   background: var(--color-card);
   border-bottom: 1px solid var(--color-border);
   padding: 18px 20px 12px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-left: 4px solid var(--drawer-accent, var(--color-accent));
 }
 
 .drawer-title {
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .drawer-subtitle {
   font-size: 14px;
   color: var(--color-muted);
+  margin-top: 2px;
 }
 
 .drawer-header-text {
@@ -1736,7 +1743,8 @@ details summary {
 
 .drawer-close {
   border: 1px solid var(--color-border);
-  background: var(--color-card);
+  background: #f8fafc;
+  color: #111827;
   width: 34px;
   height: 34px;
   border-radius: 10px;
@@ -1765,6 +1773,47 @@ details summary {
 .pill.subtle {
   background: var(--color-accent-soft);
   color: var(--color-primary);
+}
+.pill-status {
+  font-weight: 700;
+}
+.pill-applied {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+.pill-offer_received {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #34d399;
+}
+.pill-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+.pill-under_review {
+  background: #e0f2fe;
+  color: #075985;
+  border: 1px solid #7dd3fc;
+}
+.pill-unknown {
+  background: #e5e7eb;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.drawer-panel[data-status='applied'] .drawer-header {
+  --drawer-accent: #f59e0b;
+}
+.drawer-panel[data-status='offer_received'] .drawer-header {
+  --drawer-accent: #16a34a;
+}
+.drawer-panel[data-status='rejected'] .drawer-header {
+  --drawer-accent: #ef4444;
+}
+.drawer-panel[data-status='under_review'] .drawer-header {
+  --drawer-accent: #0ea5e9;
 }
 
 .drawer-body {

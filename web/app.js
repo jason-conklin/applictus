@@ -139,6 +139,7 @@ const detailSuggestionLabel = document.getElementById('detail-suggestion-label')
 const detailSuggestionExplanation = document.getElementById('detail-suggestion-explanation');
 const detailSuggestionAccept = document.getElementById('detail-suggestion-accept');
 const detailSuggestionDismiss = document.getElementById('detail-suggestion-dismiss');
+const detailPanel = document.getElementById('detail-panel');
 const detailExplainerToggle = document.getElementById('detail-explainer-toggle');
 const detailExplainerBody = document.getElementById('detail-explainer-body');
 let explanationOpen = false;
@@ -2522,6 +2523,9 @@ function renderDetail(application, events) {
   const confidenceValue = getConfidence(application);
   const confidenceLabel = confidenceValue !== null ? `${Math.round(confidenceValue * 100)}%` : '—';
   const sourceLabel = statusSourceLabel(getStatusSource(application));
+  if (detailPanel) {
+    detailPanel.dataset.status = statusValue.toLowerCase();
+  }
 
   if (detailCompany) {
     detailCompany.textContent = application.company_name || '—';
@@ -2531,7 +2535,7 @@ function renderDetail(application, events) {
   }
   if (detailStatus) {
     detailStatus.textContent = statusLabel;
-    detailStatus.className = 'pill';
+    detailStatus.className = `pill pill-status pill-${statusValue.toLowerCase()}`;
   }
   if (detailSource) {
     detailSource.textContent = sourceLabel;
