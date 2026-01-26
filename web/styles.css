@@ -1395,49 +1395,60 @@ details summary {
   font-size: 12px;
 }
 
-.status-chip {
+.status-cell {
+  display: inline-flex;
+  align-items: center;
+}
+
+.appl-statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  border: 1px solid #d1d5db;
+  background: #f3f4f6;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.appl-statusPill[data-status] {
+  position: relative;
+}
+
+.appl-statusPill .dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
-  background: var(--color-border);
+  border-radius: 999px;
+  background: currentColor;
+  display: inline-block;
 }
 
-.status.APPLIED .status-chip {
-  background: var(--color-warning);
+.appl-status-applied {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #92400e;
 }
 
-.status.APPLIED {
-  background: var(--color-warning-tint);
+.appl-status-offer_received {
+  background: #d1fae5;
+  border-color: #34d399;
+  color: #065f46;
 }
 
-.status.OFFER_RECEIVED .status-chip {
-  background: var(--color-success);
+.appl-status-rejected {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
 }
 
-.status.OFFER_RECEIVED {
-  background: var(--color-success-tint);
-}
-
-.status.UNDER_REVIEW .status-chip,
-.status.INTERVIEW_REQUESTED .status-chip,
-.status.INTERVIEW_COMPLETED .status-chip,
-.status.GHOSTED .status-chip {
-  background: var(--color-warning);
-}
-
-.status.UNDER_REVIEW,
-.status.INTERVIEW_REQUESTED,
-.status.INTERVIEW_COMPLETED,
-.status.GHOSTED {
-  background: var(--color-warning-tint);
-}
-
-.status.REJECTED .status-chip {
-  background: var(--color-danger);
-}
-
-.status.REJECTED {
-  background: var(--color-danger-tint);
+.appl-status-unknown {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+  color: #374151;
 }
 
 .pipeline-card {

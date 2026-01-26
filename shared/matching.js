@@ -1171,7 +1171,27 @@ function extractCompanyFromSenderLocalPart(sender, bodyText) {
     return null;
   }
   const key = localPart.toLowerCase();
+  const body = String(bodyText || '');
   const mapped = ATS_LOCALPART_COMPANY_MAP[key];
+
+  // Workday tenant style: foo@myworkday.com -> company "Foo"
+  const isWorkdaySender = /@(?:my)?workday\.com$/i.test(sender || '');
+  if (isWorkdaySender) {
+    const workdayCandidate = cleanCompanyCandidate(key);
+    if (workdayCandidate && !isInvalidCompanyCandidate(workdayCandidate)) {
+      const matchesBody = body
+        ? new RegExp(`\\b${escapeRegExp(workdayCandidate)}\\b`, 'i').test(body)
+        : false;
+      return {
+        companyName: workdayCandidate,
+        companyConfidence: matchesBody ? 0.92 : 0.88,
+        explanation: matchesBody
+          ? 'Derived company from Workday sender local part confirmed in body.'
+          : 'Derived company from Workday sender local part.'
+      };
+    }
+  }
+
   if (!mapped) {
     return null;
   }
@@ -1179,7 +1199,6 @@ function extractCompanyFromSenderLocalPart(sender, bodyText) {
   if (!candidate) {
     return null;
   }
-  const body = String(bodyText || '');
   const matchesBody = body
     ? new RegExp(`\\b${escapeRegExp(candidate)}\\b`, 'i').test(body)
     : false;

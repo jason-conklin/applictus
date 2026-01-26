@@ -10,6 +10,36 @@ const STATUS_LABELS = {
   UNKNOWN: 'Unknown'
 };
 
+const STATUS_DEBUG_ENABLED = typeof location !== 'undefined' && location.hostname === 'localhost';
+let statusDebugLogged = false;
+
+function normalizeStatusValue(status) {
+  if (!status) return 'UNKNOWN';
+  const upper = String(status).toUpperCase().replace(/\s+/g, '_');
+  if (upper.includes('OFFER')) return 'OFFER_RECEIVED';
+  if (upper.includes('APPLIED')) return 'APPLIED';
+  if (upper.includes('REJECT')) return 'REJECTED';
+  if (upper.includes('REVIEW')) return 'UNDER_REVIEW';
+  if (upper.includes('GHOST')) return 'GHOSTED';
+  return STATUS_LABELS[upper] ? upper : 'UNKNOWN';
+}
+
+function getStatusPresentation(status) {
+  const normalized = normalizeStatusValue(status);
+  const label = STATUS_LABELS[normalized] || 'Unknown';
+  const className = `appl-status-${normalized.toLowerCase()}`;
+  if (STATUS_DEBUG_ENABLED && !statusDebugLogged) {
+    console.debug('status-pill-debug', { raw: status, normalized, className });
+    statusDebugLogged = true;
+  }
+  return { normalized, label, className };
+}
+
+function renderStatusPill(status) {
+  const { normalized, label, className } = getStatusPresentation(status);
+  return `<span class="appl-statusPill ${className}" data-status="${normalized}"><span class="dot"></span>${label}</span>`;
+}
+
 const authView = document.getElementById('auth-view');
 const dashboardView = document.getElementById('dashboard-view');
 const accountView = document.getElementById('account-view');
@@ -2166,7 +2196,8 @@ function renderPipeline(columns, total) {
       const statusLabel = STATUS_LABELS[column.status] || column.status;
       const cards = (column.applications || [])
         .map((app) => {
-          const statusValue = app.current_status || 'UNKNOWN';
+          const statusValue = normalizeStatusValue(app.current_status || 'UNKNOWN');
+          const statusPill = renderStatusPill(statusValue);
           const confidenceValue = getConfidence(app);
           const confidence = confidenceValue !== null ? `${Math.round(confidenceValue * 100)}%` : '—';
           const activity = formatDate(getActivityDate(app));
@@ -2178,7 +2209,7 @@ function renderPipeline(columns, total) {
             <div class="pipeline-card" data-id="${app.id}">
               <div><strong>${app.company_name || '—'}</strong></div>
               <div class="meta">${app.job_title || '—'}</div>
-              <div class="status ${statusValue}"><span class="status-chip"></span>${statusLabel}</div>
+              <div class="status-cell">${statusPill}</div>
               <div class="meta">Last activity: ${activity}</div>
               <div class="badge-row">
                 <span class="badge">${confidence}</span>
@@ -2234,8 +2265,8 @@ function renderApplicationsTable(applications) {
 
   const rows = applications
     .map((app, index) => {
-      const statusValue = app.current_status || 'UNKNOWN';
-      const statusLabel = STATUS_LABELS[statusValue] || statusValue;
+      const statusValue = normalizeStatusValue(app.current_status || 'UNKNOWN');
+      const statusPill = renderStatusPill(statusValue);
       const activity = formatDate(getActivityDate(app));
       const suggestionLabel = app.suggested_status
         ? STATUS_LABELS[app.suggested_status] || app.suggested_status
@@ -2245,7 +2276,7 @@ function renderApplicationsTable(applications) {
           <div class="cell-company"><strong>${app.company_name || '—'}</strong></div>
           <div class="cell-role" title="${app.job_title || '—'}">${app.job_title || '—'}</div>
           <div>
-            <div class="status animate ${statusValue}"><span class="status-chip"></span>${statusLabel}</div>
+            <div class="status-cell">${statusPill}</div>
             ${suggestionLabel ? `<div class="explanation">Suggestion: ${suggestionLabel}</div>` : ''}
           </div>
           <div>${activity}</div>
@@ -2276,8 +2307,8 @@ function renderArchivedApplications(applications) {
 
   const rows = applications
     .map((app, index) => {
-      const statusValue = app.current_status || 'UNKNOWN';
-      const statusLabel = STATUS_LABELS[statusValue] || statusValue;
+      const statusValue = normalizeStatusValue(app.current_status || 'UNKNOWN');
+      const statusPill = renderStatusPill(statusValue);
       const confidenceValue = getConfidence(app);
       const confidence = confidenceValue !== null ? `${Math.round(confidenceValue * 100)}%` : '—';
       const activity = formatDate(getActivityDate(app));
@@ -2286,7 +2317,7 @@ function renderArchivedApplications(applications) {
         <div class="table-row" style="--stagger: ${index}" data-id="${app.id}">
           <div><strong>${app.company_name || '—'}</strong></div>
           <div>${app.job_title || '—'}</div>
-          <div class="status animate ${statusValue}"><span class="status-chip"></span>${statusLabel}</div>
+          <div class="status-cell">${statusPill}</div>
           <div>${activity}</div>
           <div><span class="badge">${confidence}</span></div>
           <div>${sourceLabel}</div>

@@ -608,6 +608,8 @@ function buildUnassignedReason(event, identity) {
   const companyConfidence = identity.companyConfidence || 0;
   const domainConfidence = identity.domainConfidence || 0;
   const matchConfidence = identity.matchConfidence || 0;
+  const senderDomain = identity.senderDomain || null;
+  const base = senderDomain ? baseDomain(senderDomain) : null;
 
   if (!identity.companyName) {
     if (identity.isPlatformEmail) {
@@ -641,7 +643,22 @@ function buildUnassignedReason(event, identity) {
     };
   }
   if (!identity.isAtsDomain && domainConfidence < MIN_DOMAIN_CONFIDENCE) {
+    logDebug('matching.ambiguous_sender_domain', {
+      senderDomain,
+      baseDomain: base,
+      isAtsDomain: identity.isAtsDomain,
+      companyName: identity.companyName,
+      companyConfidence,
+      matchConfidence,
+      subject: event.subject || null
+    });
     return { reason: 'ambiguous_sender', detail: 'Ambiguous sender domain.' };
+  }
+  if (identity.isAtsDomain && !identity.companyName && !identity.bodyTextAvailable) {
+    return {
+      reason: 'missing_identity',
+      detail: 'Missing company and body for ATS sender.'
+    };
   }
   if (matchConfidence < MIN_MATCH_CONFIDENCE) {
     return {

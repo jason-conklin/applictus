@@ -398,3 +398,52 @@ Applied on January 23, 2026`;
   const result = matchAndAssignEvent({ db, userId: 'user-1', event, identity });
   assert.equal(result.action, 'created_application');
 });
+
+test('Workday confirmation does not fall into ambiguous sender and auto-creates', () => {
+  const subject = 'Thank You For Your Application!';
+  const sender = 'pureinsurance@myworkday.com';
+  const bodyText =
+    'Thank you for your application to our Technology Analyst position.\nKind Regards,\nPURE’s Talent Acquisition Team';
+  const identity = extractThreadIdentity({ subject, sender, bodyText });
+  assert.ok(identity.companyName, 'company should be extracted');
+  assert.ok(/pure/i.test(identity.companyName), `unexpected company ${identity.companyName}`);
+  const db = {
+    lastId: null,
+    records: {},
+    prepare(sql) {
+      return {
+        all() {
+          return [];
+        },
+        get(id) {
+          if (sql.startsWith('SELECT * FROM job_applications')) {
+            return this.records ? this.records[id] : null;
+          }
+          return null;
+        },
+        run(...args) {
+          if (sql.startsWith('INSERT INTO job_applications')) {
+            const id = args[0];
+            db.records[id] = { id };
+          }
+          return null;
+        },
+        records: db.records
+      };
+    }
+  };
+
+  const event = {
+    id: 'evt-3',
+    detected_type: 'confirmation',
+    classification_confidence: 0.94,
+    created_at: new Date().toISOString(),
+    role_title: 'Technology Analyst',
+    role_confidence: 0.9,
+    role_source: 'body',
+    role_explanation: 'Workday confirmation body'
+  };
+
+  const result = matchAndAssignEvent({ db, userId: 'user-1', event, identity });
+  assert.equal(result.action, 'created_application');
+});
