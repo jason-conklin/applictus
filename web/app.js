@@ -1787,11 +1787,56 @@ async function openEditModal(application) {
     value: application.source || '',
     placeholder: 'Referral, LinkedIn, etc.'
   });
+  const isManualStatus = application.status_source === 'user' || application.user_override;
+  const statusOptions = STATUS_OPTIONS.map((status) => ({
+    value: status,
+    label: STATUS_LABELS[status] || status
+  }));
+  const manualToggleRow = document.createElement('label');
+  manualToggleRow.className = 'checkbox-row';
+  const manualToggle = document.createElement('input');
+  manualToggle.type = 'checkbox';
+  manualToggle.checked = isManualStatus;
+  const manualLabel = document.createElement('span');
+  manualLabel.textContent = 'Manual status override';
+  manualToggleRow.append(manualToggle, manualLabel);
+
+  const statusFields = document.createElement('div');
+  statusFields.className = `stack ${isManualStatus ? '' : 'hidden'}`;
+  const statusField = createSelectField({
+    label: 'Status',
+    name: 'current_status',
+    value: application.current_status || 'UNKNOWN',
+    options: statusOptions
+  });
+  const noteField = createTextField({
+    label: 'Note (optional)',
+    name: 'status_explanation',
+    value: application.status_explanation || '',
+    placeholder: 'Add a note for the audit trail.',
+    type: 'textarea'
+  });
+  const helper = document.createElement('div');
+  helper.className = 'form-help';
+  helper.textContent = 'Manual status locks this application and prevents automatic changes.';
+  statusFields.append(statusField.wrapper, noteField.wrapper, helper);
+
+  manualToggle.addEventListener('change', () => {
+    statusFields.classList.toggle('hidden', !manualToggle.checked);
+  });
 
   const errorEl = document.createElement('div');
   errorEl.className = 'form-error hidden';
 
-  form.append(companyField.wrapper, titleField.wrapper, locationField.wrapper, sourceField.wrapper, errorEl);
+  form.append(
+    companyField.wrapper,
+    titleField.wrapper,
+    locationField.wrapper,
+    sourceField.wrapper,
+    manualToggleRow,
+    statusFields,
+    errorEl
+  );
 
   const footer = buildModalFooter({ confirmText: 'Save', formId: form.id });
   openModal({
@@ -1809,6 +1854,7 @@ async function openEditModal(application) {
     const title = titleField.input.value.trim();
     const location = locationField.input.value.trim();
     const source = sourceField.input.value.trim();
+    const manualStatus = manualToggle.checked;
 
     if (!company || !title) {
       setFormError(errorEl, 'Company name and role title are required.');
@@ -1817,14 +1863,24 @@ async function openEditModal(application) {
     setFormError(errorEl, '');
     disableModalFooter(footer, true);
     try {
+      const payload = {
+        company_name: company,
+        job_title: title,
+        job_location: location,
+        source
+      };
+      if (manualStatus) {
+        payload.current_status = statusField.select.value;
+        const note = noteField.input.value.trim();
+        if (note) {
+          payload.status_explanation = note;
+        }
+      } else if (application.status_source === 'user' || application.user_override) {
+        payload.user_override = 0;
+      }
       await api(`/api/applications/${application.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({
-          company_name: company,
-          job_title: title,
-          job_location: location,
-          source
-        })
+        body: JSON.stringify(payload)
       });
       closeModal('success');
       await loadActiveApplications();
@@ -2615,7 +2671,6 @@ function renderDetail(application, events) {
     } else {
       detailActions.innerHTML = `
         <button class="ghost" type="button" data-action="edit">Edit</button>
-        <button class="ghost" type="button" data-action="override">Override status</button>
         <button class="ghost" type="button" data-action="archive">${application.archived ? 'Unarchive' : 'Archive'}</button>
         <button class="ghost danger" type="button" data-action="delete">Delete</button>
       `;
@@ -3114,10 +3169,6 @@ detailDrawer?.addEventListener('click', async (event) => {
 
   if (action === 'edit') {
     await openEditModal(currentDetail);
-    return;
-  }
-  if (action === 'override') {
-    await openOverrideModal(currentDetail);
     return;
   }
   if (action === 'archive') {
