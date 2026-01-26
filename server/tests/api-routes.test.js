@@ -153,14 +153,35 @@ test('critical API routes respond with expected shape', async (t) => {
     body: JSON.stringify({ company_name: 'Beta', job_title: 'Designer', current_status: 'UNDER_REVIEW' })
   });
 
+  const listAll = await request('/api/applications?limit=10&offset=0');
+  assert.equal(listAll.total, 2);
+  const firstId = listAll.applications[0].id;
+
+  const deleteResult = await request(`/api/applications/${firstId}`, { method: 'DELETE' });
+  assert.equal(deleteResult.ok, true);
+  assert.equal(deleteResult.deletedApplicationId, firstId);
+
+  const listAfterDelete = await request('/api/applications?limit=10&offset=0');
+  assert.equal(listAfterDelete.total, 1);
+
+  // Another user cannot delete someone else's application (404)
+  const request2 = await createClient(baseUrl);
+  await request2('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({ email: `tester2-${crypto.randomUUID()}@example.com`, password })
+  });
+  const deleteOther = await request2(`/api/applications/${firstId}`, { method: 'DELETE' }).catch(
+    (err) => err.message
+  );
+  assert.equal(deleteOther, 'NOT_FOUND');
+
   const list = await request('/api/applications?limit=1&offset=0');
   assert.equal(list.applications.length, 1);
-  assert.equal(list.total, 2);
 
   const pipeline = await request('/api/applications/pipeline?per_status_limit=5');
   assert.ok(Array.isArray(pipeline.columns));
   const counted = pipeline.columns.reduce((sum, col) => sum + (col.count || 0), 0);
-  assert.ok(counted >= 2);
+  assert.ok(counted >= 1);
 
   const detail = await request(`/api/applications/${list.applications[0].id}`);
   assert.ok(detail.application);

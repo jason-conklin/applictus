@@ -1354,6 +1354,38 @@ app.post('/api/applications/:id/suggestion/dismiss', requireAuth, (req, res) => 
   return res.json({ application: updated });
 });
 
+app.delete('/api/applications/:id', requireAuth, (req, res) => {
+  const id = req.params.id;
+  const existing = db
+    .prepare('SELECT id FROM job_applications WHERE id = ? AND user_id = ?')
+    .get(id, req.user.id);
+  if (!existing) {
+    return res.status(404).json({ error: 'NOT_FOUND' });
+  }
+
+  const deleteApplication = db.transaction((applicationId, userId) => {
+    db.prepare('DELETE FROM email_events WHERE application_id = ? AND user_id = ?').run(
+      applicationId,
+      userId
+    );
+    db.prepare('DELETE FROM user_actions WHERE application_id = ? AND user_id = ?').run(
+      applicationId,
+      userId
+    );
+    db.prepare('DELETE FROM job_applications WHERE id = ? AND user_id = ?').run(
+      applicationId,
+      userId
+    );
+  });
+
+  try {
+    deleteApplication(id, req.user.id);
+    return res.json({ ok: true, deletedApplicationId: id });
+  } catch (err) {
+    return res.status(500).json({ error: 'DELETE_FAILED' });
+  }
+});
+
 app.get('/api/email/events', requireAuth, (req, res) => {
   if (!hasDevAccess(req)) {
     return res.status(403).json({ error: 'FORBIDDEN' });

@@ -3092,10 +3092,6 @@ detailDrawer?.addEventListener('click', async (event) => {
     await openOverrideModal(currentDetail);
     return;
   }
-  if (action === 'merge') {
-    await openMergeModal(currentDetail);
-    return;
-  }
   if (action === 'archive') {
     const confirmText = currentDetail.archived
       ? 'Unarchive this application?'
@@ -3103,6 +3099,23 @@ detailDrawer?.addEventListener('click', async (event) => {
     const ok = window.confirm(confirmText);
     if (ok) {
       await openArchiveModal(currentDetail);
+    }
+    return;
+  }
+  if (action === 'delete') {
+    const ok = window.confirm(
+      'Delete this application? This will remove the application and its events from your dashboard. This cannot be undone.'
+    );
+    if (!ok) {
+      return;
+    }
+    try {
+      await api(`/api/applications/${currentDetail.id}`, { method: 'DELETE' });
+      setDrawerOpen(false);
+      await loadActiveApplications();
+      await refreshArchivedApplications();
+    } catch (err) {
+      showNotice(err.message || 'Delete failed');
     }
     return;
   }

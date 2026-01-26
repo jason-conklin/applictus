@@ -994,6 +994,21 @@ textarea:focus-visible {
   box-shadow: none;
 }
 
+button.danger,
+.ghost.danger {
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+  background: #fef2f2;
+}
+
+.ghost.danger:hover {
+  background: #fee2e2;
+}
+
+.ghost.danger:active {
+  transform: scale(0.98);
+}
+
 .stack {
   display: grid;
   gap: 10px;
