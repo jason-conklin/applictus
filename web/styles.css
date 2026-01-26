@@ -1705,17 +1705,18 @@ details summary {
 
 .drawer-panel {
   background: var(--color-card);
-  padding: 24px;
+  padding: 0;
   overflow-y: auto;
   border-left: 1px solid var(--color-border);
 }
 
 .drawer-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--color-card);
+  border-bottom: 1px solid var(--color-border);
+  padding: 18px 20px 12px;
 }
 
 .drawer-title {
@@ -1728,11 +1729,37 @@ details summary {
   color: var(--color-muted);
 }
 
-.drawer-badges {
+.drawer-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.drawer-close {
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.drawer-close:hover {
+  background: var(--color-surface);
+}
+
+.drawer-close:active {
+  transform: scale(0.97);
+}
+
+.drawer-chips {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-top: 10px;
 }
 
 .pill.subtle {
@@ -1740,16 +1767,37 @@ details summary {
   color: var(--color-primary);
 }
 
-.drawer-meta {
-  display: grid;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--color-muted);
-  margin-bottom: 16px;
+.drawer-body {
+  padding: 16px 20px 100px;
 }
 
-.drawer-section {
-  margin-bottom: 18px;
+.drawer-card {
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-panel-bg);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-xs);
+}
+
+.drawer-card-title {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 8px 12px;
+  font-size: 13px;
+}
+
+.details-label {
+  color: var(--color-muted);
+}
+
+.details-value {
+  color: var(--color-text);
 }
 
 .timeline {
@@ -1757,16 +1805,79 @@ details summary {
   gap: 12px;
 }
 
-.timeline-item {
+.timeline-card {
   border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 10px 12px;
   background: var(--color-card);
+  box-shadow: var(--shadow-xs);
 }
 
-.timeline-item .meta {
+.timeline-card-top {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.timeline-type {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.timeline-confidence {
+  font-size: 12px;
+}
+
+.timeline-date {
+  justify-self: end;
+  font-size: 12px;
+}
+
+.timeline-subject {
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+.timeline-meta {
   font-size: 12px;
   color: var(--color-muted);
+}
+
+.drawer-footer {
+  position: sticky;
+  bottom: 0;
+  padding: 12px 20px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: var(--color-card);
+  border-top: 1px solid var(--color-border);
+  z-index: 2;
+}
+
+.drawer-disclosure {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  font-weight: 600;
+  padding: 4px 0;
+}
+
+.drawer-disclosure:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.drawer-disclosure-body.collapsed {
+  display: none;
+}
+
+.drawer-disclosure .chevron {
+  transition: transform 0.2s ease;
 }
 
 .ghosted {

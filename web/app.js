@@ -139,6 +139,10 @@ const detailSuggestionLabel = document.getElementById('detail-suggestion-label')
 const detailSuggestionExplanation = document.getElementById('detail-suggestion-explanation');
 const detailSuggestionAccept = document.getElementById('detail-suggestion-accept');
 const detailSuggestionDismiss = document.getElementById('detail-suggestion-dismiss');
+const detailExplainerToggle = document.getElementById('detail-explainer-toggle');
+const detailExplainerBody = document.getElementById('detail-explainer-body');
+let explanationOpen = false;
+let lastDetailId = null;
 const detailActions = document.getElementById('detail-actions');
 const modalRoot = document.getElementById('modal-root');
 const modalTitle = document.getElementById('modal-title');
@@ -2488,12 +2492,30 @@ function setDrawerOpen(isOpen) {
   detailDrawer.classList.toggle('hidden', !isOpen);
   if (!isOpen) {
     currentDetail = null;
+    lastDetailId = null;
+    explanationOpen = false;
+    if (detailExplainerBody) {
+      detailExplainerBody.classList.add('collapsed');
+    }
+    if (detailExplainerToggle) {
+      detailExplainerToggle.setAttribute('aria-expanded', 'false');
+    }
   }
 }
 
 function renderDetail(application, events) {
   if (!application) {
     return;
+  }
+  if (lastDetailId !== application.id) {
+    explanationOpen = false;
+    lastDetailId = application.id;
+    if (detailExplainerBody) {
+      detailExplainerBody.classList.add('collapsed');
+    }
+    if (detailExplainerToggle) {
+      detailExplainerToggle.setAttribute('aria-expanded', 'false');
+    }
   }
   const statusValue = application.current_status || 'UNKNOWN';
   const statusLabel = STATUS_LABELS[statusValue] || statusValue;
@@ -2531,7 +2553,7 @@ function renderDetail(application, events) {
       metaItems.splice(3, 0, { label: 'Role source', value: roleSource });
     }
     detailMeta.innerHTML = metaItems
-      .map((item) => `<div><strong>${item.label}:</strong> ${item.value}</div>`)
+      .map((item) => `<div class="details-label">${item.label}</div><div class="details-value">${item.value}</div>`)
       .join('');
   }
 
@@ -2572,6 +2594,14 @@ function renderDetail(application, events) {
     if (!events.length) {
       detailTimeline.innerHTML = '<div class="muted">No events yet.</div>';
     } else {
+      const typeIcon = (type) => {
+        const t = (type || '').toLowerCase();
+        if (t === 'confirmation') return '✅';
+        if (t === 'rejection') return '⛔';
+        if (t.includes('interview')) return '📅';
+        if (t.includes('offer')) return '🎉';
+        return '•';
+      };
       detailTimeline.innerHTML = events
         .map((eventItem) => {
           const eventDate = eventItem.internal_date
@@ -2585,12 +2615,16 @@ function renderDetail(application, events) {
               : '—';
           const typeLabel = eventItem.detected_type || 'other';
           return `
-            <div class="timeline-item">
-              <div><strong>${typeLabel}</strong> - ${confidence}</div>
-              <div class="meta">${formatDateTime(eventDate)}</div>
-              <div>${eventItem.subject || '—'}</div>
-              <div class="meta">${eventItem.sender || '—'}</div>
-              ${eventItem.explanation ? `<div class="meta">${eventItem.explanation}</div>` : ''}
+            <div class="timeline-card">
+              <div class="timeline-card-top">
+                <span class="timeline-icon">${typeIcon(typeLabel)}</span>
+                <span class="timeline-type">${typeLabel}</span>
+                <span class="timeline-confidence">${confidence}</span>
+                <span class="timeline-date">${formatDateTime(eventDate)}</span>
+              </div>
+              <div class="timeline-subject">${eventItem.subject || '—'}</div>
+              <div class="timeline-meta">${eventItem.sender || '—'}</div>
+              ${eventItem.explanation ? `<div class="timeline-meta muted">${eventItem.explanation}</div>` : ''}
             </div>
           `;
         })
@@ -3059,7 +3093,13 @@ detailDrawer?.addEventListener('click', async (event) => {
     return;
   }
   if (action === 'archive') {
-    await openArchiveModal(currentDetail);
+    const confirmText = currentDetail.archived
+      ? 'Unarchive this application?'
+      : 'Archive this application?';
+    const ok = window.confirm(confirmText);
+    if (ok) {
+      await openArchiveModal(currentDetail);
+    }
     return;
   }
 
@@ -3077,6 +3117,34 @@ detailDrawer?.addEventListener('click', async (event) => {
     await openDetail(currentDetail.id);
   } catch (err) {
     showNotice(err.message);
+  }
+});
+
+function setExplanationOpen(open) {
+  explanationOpen = open;
+  if (detailExplainerBody) {
+    detailExplainerBody.classList.toggle('collapsed', !open);
+  }
+  if (detailExplainerToggle) {
+    detailExplainerToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    const chev = detailExplainerToggle.querySelector('.chevron');
+    if (chev) {
+      chev.style.transform = open ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
+  }
+}
+
+detailExplainerToggle?.addEventListener('click', () => setExplanationOpen(!explanationOpen));
+detailExplainerToggle?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    setExplanationOpen(!explanationOpen);
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && detailDrawer && !detailDrawer.classList.contains('hidden')) {
+    setDrawerOpen(false);
   }
 });
 

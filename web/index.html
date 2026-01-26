@@ -457,46 +457,55 @@
       <div class="drawer-backdrop" data-action="close"></div>
       <aside class="drawer-panel">
         <div class="drawer-header">
-          <div>
+          <div class="drawer-header-text">
             <div class="drawer-title" id="detail-company">—</div>
             <div class="drawer-subtitle" id="detail-title">—</div>
           </div>
-          <button class="ghost" type="button" data-action="close">Close</button>
+          <button class="drawer-close" type="button" data-action="close" aria-label="Close details">✕</button>
+          <div class="drawer-chips">
+            <div class="pill" id="detail-status">Unknown</div>
+            <div class="pill subtle" id="detail-source">Inferred</div>
+            <div class="pill subtle" id="detail-confidence">—</div>
+          </div>
         </div>
-        <div class="drawer-badges">
-          <div class="pill" id="detail-status">Unknown</div>
-          <div class="pill subtle" id="detail-source">Inferred</div>
-          <div class="pill subtle" id="detail-confidence">—</div>
-        </div>
-        <div class="drawer-meta" id="detail-meta"></div>
-        <div class="drawer-section">
-          <h3>Status explanation</h3>
-          <div class="explanation" id="detail-explanation">No explanation yet.</div>
-          <div class="suggestion-callout hidden" id="detail-suggestion">
-            <div class="explanation" id="detail-suggestion-label">Suggestion</div>
-            <div class="explanation" id="detail-suggestion-explanation">—</div>
-            <div class="suggestion-actions">
-              <button class="ghost" type="button" data-action="accept-suggestion" id="detail-suggestion-accept">
-                Accept
-              </button>
-              <button class="ghost" type="button" data-action="dismiss-suggestion" id="detail-suggestion-dismiss">
-                Dismiss
-              </button>
+        <div class="drawer-body">
+          <div class="drawer-card">
+            <div class="drawer-card-title">Details</div>
+            <div class="details-grid" id="detail-meta"></div>
+          </div>
+
+          <div class="drawer-card">
+            <div class="drawer-disclosure" id="detail-explainer-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="detail-explainer-body">
+              <span>Status explanation</span>
+              <span class="chevron">▾</span>
+            </div>
+            <div class="drawer-disclosure-body collapsed" id="detail-explainer-body">
+              <div class="explanation" id="detail-explanation">No explanation yet.</div>
+              <div class="suggestion-callout hidden" id="detail-suggestion">
+                <div class="explanation" id="detail-suggestion-label">Suggestion</div>
+                <div class="explanation" id="detail-suggestion-explanation">—</div>
+                <div class="suggestion-actions">
+                  <button class="ghost" type="button" data-action="accept-suggestion" id="detail-suggestion-accept">
+                    Accept
+                  </button>
+                  <button class="ghost" type="button" data-action="dismiss-suggestion" id="detail-suggestion-dismiss">
+                    Dismiss
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-        <div class="drawer-section">
-          <h3>Timeline</h3>
-          <div class="timeline" id="detail-timeline"></div>
-        </div>
-        <div class="drawer-section">
-          <h3>Actions</h3>
-          <div class="action-group" id="detail-actions">
-            <button class="ghost" type="button" data-action="edit">Edit</button>
-            <button class="ghost" type="button" data-action="override">Override status</button>
-            <button class="ghost" type="button" data-action="merge">Merge</button>
-            <button class="ghost" type="button" data-action="archive">Archive</button>
+
+          <div class="drawer-card">
+            <div class="drawer-card-title">Timeline</div>
+            <div class="timeline" id="detail-timeline"></div>
           </div>
+        </div>
+        <div class="drawer-footer action-group" id="detail-actions">
+          <button class="ghost" type="button" data-action="edit">Edit</button>
+          <button class="ghost" type="button" data-action="override">Override status</button>
+          <button class="ghost" type="button" data-action="merge">Merge</button>
+          <button class="ghost danger" type="button" data-action="archive">Archive</button>
         </div>
       </aside>
     </div>
