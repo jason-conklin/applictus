@@ -320,7 +320,7 @@
                     </div>
                   </label>
                 </div>
-                <button class="btn-primary btn-compact" id="add-toggle" type="button">Add application</button>
+                <button class="icon-btn-circle" id="add-toggle" type="button" aria-label="Add application">+</button>
               </div>
             </div>
             <div class="header-right">
@@ -329,32 +329,6 @@
                 <button type="button" data-view="table">Table</button>
               </div>
             </div>
-          </div>
-          <div class="panel hidden" id="add-panel">
-            <form id="quick-add" class="form-grid inline">
-              <label>
-                Company
-                <input type="text" name="company_name" required placeholder="Company name" />
-              </label>
-              <label>
-                Role
-                <input type="text" name="job_title" required placeholder="Role title" />
-              </label>
-              <label>
-                Status
-                <select name="current_status">
-                  <option value="UNKNOWN">Unknown</option>
-                  <option value="APPLIED">Applied</option>
-                  <option value="UNDER_REVIEW">Under review</option>
-                  <option value="INTERVIEW_REQUESTED">Interview requested</option>
-                  <option value="INTERVIEW_COMPLETED">Interview completed</option>
-                  <option value="OFFER_RECEIVED">Offer received</option>
-                  <option value="REJECTED">Rejected</option>
-                  <option value="GHOSTED">Ghosted</option>
-                </select>
-              </label>
-              <button type="submit">Add</button>
-            </form>
           </div>
           <div class="pipeline-view" id="pipeline-view"></div>
           <div class="table" id="applications-table"></div>

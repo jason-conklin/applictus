@@ -61,9 +61,9 @@ const accountAuth = document.getElementById('account-auth');
 const accountGmailStatus = document.getElementById('account-gmail-status');
 const accountGmailEmail = document.getElementById('account-gmail-email');
 
-const quickAdd = document.getElementById('quick-add');
+const quickAdd = null;
 const addToggle = document.getElementById('add-toggle');
-const addPanel = document.getElementById('add-panel');
+const addPanel = null;
 const filterCount = document.getElementById('filter-count');
 const applicationsTable = document.getElementById('applications-table');
 const pipelineView = document.getElementById('pipeline-view');
@@ -257,6 +257,100 @@ let modalState = {
   lastFocused: null,
   keyHandler: null
 };
+
+function openAddModal() {
+  const form = document.createElement('form');
+  form.className = 'modal-form form-grid';
+
+  const companyField = createTextField({
+    label: 'Company name',
+    name: 'company_name',
+    placeholder: 'Company name',
+    required: true
+  });
+  const roleField = createTextField({
+    label: 'Role title',
+    name: 'job_title',
+    placeholder: 'Role title',
+    required: true
+  });
+  const statusField = createSelectField({
+    label: 'Status',
+    name: 'current_status',
+    value: 'APPLIED',
+    options: STATUS_OPTIONS.map((status) => ({
+      value: status,
+      label: STATUS_LABELS[status] || status
+    }))
+  });
+  const dateField = createTextField({
+    label: 'Date',
+    name: 'applied_at',
+    type: 'date',
+    required: true,
+    value: new Date().toISOString().slice(0, 10)
+  });
+
+  const errorEl = document.createElement('div');
+  errorEl.className = 'form-error hidden';
+
+  form.append(companyField.wrapper, roleField.wrapper, statusField.wrapper, dateField.wrapper, errorEl);
+
+  const footer = buildModalFooter({ confirmText: 'Add application', formId: 'add-app-form' });
+  form.id = 'add-app-form';
+  openModal({
+    title: 'Add application',
+    description: 'Create a new application entry.',
+    body: form,
+    footer,
+    allowBackdropClose: true,
+    initialFocus: companyField.input
+  });
+
+  const confirmBtn = footer.querySelector('[data-role="confirm"]');
+  const updateButtonState = () => {
+    const valid =
+      companyField.input.value.trim() &&
+      roleField.input.value.trim() &&
+      statusField.select.value &&
+      dateField.input.value;
+    if (confirmBtn) {
+      confirmBtn.disabled = !valid;
+    }
+  };
+  form.addEventListener('input', updateButtonState);
+  updateButtonState();
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const company = companyField.input.value.trim();
+    const role = roleField.input.value.trim();
+    const status = statusField.select.value || 'APPLIED';
+    const dateValue = dateField.input.value;
+    if (!company || !role || !dateValue) {
+      setFormError(errorEl, 'Please complete all required fields.');
+      return;
+    }
+    setFormError(errorEl, '');
+    disableModalFooter(footer, true);
+    try {
+      const when = new Date(dateValue);
+      when.setHours(12, 0, 0, 0);
+      const payload = {
+        company_name: company,
+        job_title: role,
+        current_status: status,
+        applied_at: when.toISOString()
+      };
+      await api('/api/applications', { method: 'POST', body: JSON.stringify(payload) });
+      closeModal('success');
+      await loadActiveApplications();
+    } catch (err) {
+      setFormError(errorEl, err.message || 'Unable to add application.');
+      disableModalFooter(footer, false);
+    }
+  });
+}
 
 async function api(path, options = {}) {
   const method = (options.method || 'GET').toUpperCase();
@@ -1089,7 +1183,6 @@ async function loadSession() {
       accountAvatar.title = sessionUser.email || 'Account';
     }
     updateFilterSummary();
-    setPanelOpen(addPanel, false);
     addToggle?.setAttribute('aria-expanded', 'false');
     setView('dashboard');
     syncViewToggle();
@@ -2513,7 +2606,6 @@ function route() {
     return;
   }
   setDrawerOpen(false);
-  setPanelOpen(addPanel, false);
   addToggle?.setAttribute('aria-expanded', 'false');
   updateFilterSummary();
   const hash = window.location.hash.replace('#', '');
@@ -2609,28 +2701,7 @@ accountLogout?.addEventListener('click', async () => {
 });
 
 addToggle?.addEventListener('click', () => {
-  if (!addPanel) {
-    return;
-  }
-  const isOpen = !addPanel.classList.contains('hidden');
-  setPanelOpen(addPanel, !isOpen);
-  addToggle.setAttribute('aria-expanded', String(!isOpen));
-  updateFilterSummary();
-});
-
-quickAdd?.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const formData = new FormData(quickAdd);
-  const payload = Object.fromEntries(formData.entries());
-  try {
-    await api('/api/applications', { method: 'POST', body: JSON.stringify(payload) });
-    quickAdd.reset();
-    setPanelOpen(addPanel, false);
-    addToggle?.setAttribute('aria-expanded', 'false');
-    await loadActiveApplications();
-  } catch (err) {
-    showNotice(err.message, 'Unable to add application');
-  }
+  openAddModal();
 });
 
 viewToggle?.addEventListener('click', async (event) => {
@@ -2664,10 +2735,7 @@ dashboardView?.addEventListener('click', async (event) => {
   }
   const action = actionTarget.dataset.action;
   if (action === 'add-application') {
-    setPanelOpen(addPanel, true);
-    addToggle?.setAttribute('aria-expanded', 'true');
-    const firstField = addPanel?.querySelector('input[name="company_name"]');
-    firstField?.focus();
+    openAddModal();
     return;
   }
    if (action === 'sync-gmail') {
