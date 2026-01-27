@@ -4,7 +4,8 @@ const {
   extractThreadIdentity,
   isProviderName,
   isInvalidCompanyCandidate,
-  normalizeExternalReqId
+  normalizeExternalReqId,
+  sanitizeJobTitle
 } = require('../../shared/matching');
 const { logDebug } = require('./logger');
 const { TERMINAL_STATUSES, STATUS_PRIORITY } = require('../../shared/statusInference');
@@ -23,6 +24,7 @@ const MIN_MATCH_CONFIDENCE = 0.85;
 const MIN_DOMAIN_CONFIDENCE = 0.4;
 const MIN_ROLE_CONFIDENCE = 0.8;
 const DEDUPE_RECENCY_DAYS = 7;
+const FUZZY_CONFIRMATION_WINDOW_HOURS = 24;
 
 function extractSenderDomain(sender) {
   if (!sender) return null;
@@ -34,6 +36,47 @@ function normalizeSlug(text) {
   return String(text || '')
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '');
+}
+
+function normalizeRoleSlug(text) {
+  let cleaned = sanitizeJobTitle(text);
+  if (!cleaned) return null;
+  cleaned = cleaned
+    .replace(/\bjr\.?\b/gi, 'junior')
+    .replace(/\bsr\.?\b/gi, 'senior')
+    .replace(/\bswe\b/gi, 'software engineer')
+    .replace(/\bengineer\b/gi, 'engineer')
+    .replace(/\bdev\b/gi, 'developer')
+    .replace(/\bposition\b/gi, '')
+    .replace(/\brole\b/gi, '')
+    .replace(/\bjob\b/gi, '');
+  return normalizeSlug(cleaned);
+}
+
+function roleTokens(slug) {
+  if (!slug) return [];
+  return slug.split(/\s+/).filter(Boolean);
+}
+
+function jaccardSimilarity(aTokens, bTokens) {
+  if (!aTokens.length || !bTokens.length) return 0;
+  const setA = new Set(aTokens);
+  const setB = new Set(bTokens);
+  let intersect = 0;
+  for (const t of setA) {
+    if (setB.has(t)) intersect += 1;
+  }
+  const union = setA.size + setB.size - intersect;
+  if (union === 0) return 0;
+  return intersect / union;
+}
+
+function normalizeLocation(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function buildConfirmationDedupeKey(identity, externalReqId, roleTitle = null) {
@@ -365,7 +408,12 @@ function shouldAutoCreate(event, identity) {
     return false;
   }
   const domainConfidence = identity.domainConfidence || 0;
-  if (!identity.isAtsDomain && domainConfidence < MIN_DOMAIN_CONFIDENCE && event.detected_type !== 'rejection') {
+  if (
+    !identity.isAtsDomain &&
+    !identity.isPlatformEmail &&
+    domainConfidence < MIN_DOMAIN_CONFIDENCE &&
+    event.detected_type !== 'rejection'
+  ) {
     return false;
   }
   return true;
@@ -723,7 +771,8 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
     if (!roleForMatch) return null;
     const text = String(roleForMatch).trim();
     if (!text) return null;
-    return text;
+    const cleaned = sanitizeJobTitle(text);
+    return cleaned || text;
   };
 
   logDedupe('matching.confirmation_identity', {
@@ -1016,9 +1065,96 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
         attachEventToApplication(db, event.id, candidate.id);
         updateApplicationActivity(db, candidate, event);
         applyCompanyCandidate(db, candidate, selectCompanyCandidate(identity));
-        applyRoleCandidate(db, candidate, selectRoleCandidate(identity, event));
+        const roleCandidate = selectRoleCandidate(identity, event);
+        const currentTitle = candidate.job_title || candidate.role || '';
+        if (roleCandidate?.title && roleCandidate.title.length >= currentTitle.length) {
+          applyRoleCandidate(db, candidate, roleCandidate);
+        }
         applyExternalReqId(db, candidate, externalReqId);
         return { action: 'matched_existing', applicationId: candidate.id, identity };
+      }
+    }
+
+    // Fuzzy cross-source confirmation dedupe (LinkedIn -> ATS)
+    if (canonicalCompany) {
+      const companySlug = normalizeSlug(canonicalCompany);
+      const roleBase = dedupeRole || roleForMatch || identity.jobTitle || event.role_title || null;
+      const incomingRoleSlug = normalizeRoleSlug(roleBase);
+      const incomingTokens = roleTokens(incomingRoleSlug);
+      const classificationConfidence = getClassificationConfidence(event);
+      const companyConf = identity.companyConfidence || 0;
+      if (companySlug && incomingRoleSlug && incomingTokens.length) {
+        const since = new Date(Date.now() - FUZZY_CONFIRMATION_WINDOW_HOURS * 3600000).toISOString();
+        const candidates = db
+          .prepare(
+            `SELECT * FROM job_applications
+             WHERE user_id = ?
+               AND archived = 0
+               AND company_name IS NOT NULL
+               AND lower(replace(company_name, ' ', '')) = ?
+               AND COALESCE(last_activity_at, updated_at, created_at) >= ?`
+          )
+          .all(userId, companySlug, since);
+
+        const locationsCompatible = (incoming, candidateLoc) => {
+          if (!incoming || !candidateLoc) return true;
+          const a = normalizeLocation(incoming);
+          const b = normalizeLocation(candidateLoc);
+          if (!a || !b) return true;
+          if (a === b) return true;
+          const aTokens = a.split(' ').filter(Boolean);
+          const bTokens = b.split(' ').filter(Boolean);
+          const overlap = aTokens.some((t) => bTokens.includes(t));
+          return overlap || a.includes(b) || b.includes(a);
+        };
+
+        const weakIncoming = incomingTokens.length < 2;
+
+        for (const app of candidates) {
+          const appRoleSlug = normalizeRoleSlug(app.job_title || app.role || '');
+          const appTokens = roleTokens(appRoleSlug);
+          if (!appRoleSlug || !appTokens.length) continue;
+
+          const prefixMatch =
+            incomingRoleSlug.startsWith(appRoleSlug) || appRoleSlug.startsWith(incomingRoleSlug);
+          const jaccard = jaccardSimilarity(incomingTokens, appTokens);
+          const subset =
+            incomingTokens.length &&
+            incomingTokens.every((t) => appTokens.includes(t)) &&
+            appTokens.length >= 2;
+
+          const roleMatch =
+            prefixMatch || jaccard >= 0.7 || subset || (weakIncoming && subset && appTokens.length >= 2);
+
+          const locOk = locationsCompatible(identity.jobLocation || identity.location || null, app.job_location);
+
+          if (
+            roleMatch &&
+            locOk &&
+            companyConf >= MIN_COMPANY_CONFIDENCE &&
+            classificationConfidence >= MIN_CLASSIFICATION_CONFIDENCE
+          ) {
+            attachEventToApplication(db, event.id, app.id);
+            updateApplicationActivity(db, app, event);
+            applyCompanyCandidate(db, app, selectCompanyCandidate(identity));
+            const roleCandidate = selectRoleCandidate(identity, event);
+            const currentTitle = app.job_title || app.role || '';
+            if (roleCandidate?.title && roleCandidate.title.length >= (currentTitle || '').length) {
+              applyRoleCandidate(db, app, roleCandidate);
+            }
+            applyExternalReqId(db, app, externalReqId);
+            logDebug('matching.dedupe_fuzzy_confirmation', {
+              company: canonicalCompany,
+              roleIncoming: roleBase,
+              roleCandidate: app.job_title || app.role || '',
+              similarityScore: Number(jaccard.toFixed ? jaccard.toFixed(3) : jaccard),
+              timeDeltaHours: FUZZY_CONFIRMATION_WINDOW_HOURS,
+              locationIncoming: identity.jobLocation || identity.location || null,
+              locationCandidate: app.job_location || null
+            });
+            return { action: 'matched_existing', applicationId: app.id, identity };
+          }
+        }
       }
     }
   }

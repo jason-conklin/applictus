@@ -298,3 +298,100 @@ Trimble Talent Acquisition
   assert.equal(events.length, 2);
   assert.ok(events[0].application_id === events[1].application_id);
 });
+
+test('LinkedIn + ATS confirmations for same role dedupe via fuzzy match', () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+
+  const now = new Date().toISOString();
+  const identityA = {
+    companyName: 'EarthCam',
+    companyConfidence: 0.95,
+    jobTitle: 'Jr. Python Developer',
+    roleConfidence: 0.9,
+    matchConfidence: 0.9,
+    domainConfidence: 0.6,
+    senderDomain: 'linkedin.com',
+    isAtsDomain: false,
+    isPlatformEmail: true
+  };
+  const eventAId = insertEmailEvent(db, {
+    userId,
+    messageId: 'msg-linkedin',
+    sender: 'jobs-noreply@linkedin.com',
+    subject: 'Jason, your application was sent to EarthCam',
+    detectedType: 'confirmation',
+    confidenceScore: 0.92,
+    classificationConfidence: 0.92,
+    snippet: 'Your application was sent to EarthCam',
+    externalReqId: null
+  });
+
+  const matchA = matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: eventAId,
+      sender: 'jobs-noreply@linkedin.com',
+      subject: 'Jason, your application was sent to EarthCam',
+      detected_type: 'confirmation',
+      confidence_score: 0.92,
+      classification_confidence: 0.92,
+      role_title: 'Jr. Python Developer',
+      role_confidence: 0.9,
+      role_source: 'subject',
+      created_at: now
+    },
+    identity: identityA
+  });
+  assert.equal(matchA.action, 'created_application');
+
+  const identityB = {
+    companyName: 'EarthCam',
+    companyConfidence: 0.95,
+    jobTitle: 'Jr',
+    roleConfidence: 0.4,
+    matchConfidence: 0.9,
+    domainConfidence: 0.6,
+    senderDomain: 'workablemail.com',
+    isAtsDomain: true,
+    isPlatformEmail: true
+  };
+  const eventBId = insertEmailEvent(db, {
+    userId,
+    messageId: 'msg-workable',
+    sender: 'no-reply@workablemail.com',
+    subject: 'Thanks for applying to EarthCam',
+    detectedType: 'confirmation',
+    confidenceScore: 0.92,
+    classificationConfidence: 0.92,
+    snippet: 'Jr role',
+    externalReqId: null
+  });
+
+  const matchB = matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: eventBId,
+      sender: 'no-reply@workablemail.com',
+      subject: 'Thanks for applying to EarthCam',
+      detected_type: 'confirmation',
+      confidence_score: 0.92,
+      classification_confidence: 0.92,
+      role_title: 'Jr',
+      role_confidence: 0.4,
+      role_source: 'subject',
+      created_at: now
+    },
+    identity: identityB
+  });
+
+  assert.equal(matchB.action, 'matched_existing');
+
+  const apps = db.prepare('SELECT * FROM job_applications WHERE user_id = ?').all(userId);
+  assert.equal(apps.length, 1);
+  assert.equal(apps[0].company_name, 'EarthCam');
+  assert.equal(apps[0].job_title, 'Jr. Python Developer');
+});
