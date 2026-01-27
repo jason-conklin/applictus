@@ -300,7 +300,7 @@ function openAddModal() {
   form.id = 'add-app-form';
   openModal({
     title: 'Add application',
-    description: 'Create a new application entry.',
+    description: 'Manually create a new application entry.',
     body: form,
     footer,
     allowBackdropClose: true,
