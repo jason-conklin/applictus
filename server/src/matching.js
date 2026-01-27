@@ -5,7 +5,13 @@ const {
   isProviderName,
   isInvalidCompanyCandidate,
   normalizeExternalReqId,
-  sanitizeJobTitle
+  sanitizeJobTitle,
+  normalizeRoleTokens,
+  roleStrength,
+  extractRoleTail,
+  extractProgramTail,
+  isProgramRole,
+  tailSimilarity
 } = require('../../shared/matching');
 const { logDebug } = require('./logger');
 const { TERMINAL_STATUSES, STATUS_PRIORITY } = require('../../shared/statusInference');
@@ -24,7 +30,7 @@ const MIN_MATCH_CONFIDENCE = 0.85;
 const MIN_DOMAIN_CONFIDENCE = 0.4;
 const MIN_ROLE_CONFIDENCE = 0.8;
 const DEDUPE_RECENCY_DAYS = 7;
-const FUZZY_CONFIRMATION_WINDOW_HOURS = 24;
+const FUZZY_CONFIRMATION_WINDOW_HOURS = 6;
 
 function extractSenderDomain(sender) {
   if (!sender) return null;
@@ -58,6 +64,12 @@ function roleTokens(slug) {
   return slug.split(/\s+/).filter(Boolean);
 }
 
+function isWeakRoleText(text) {
+  if (!text) return true;
+  const tokens = normalizeRoleTokens(text);
+  return tokens.length < 2;
+}
+
 function jaccardSimilarity(aTokens, bTokens) {
   if (!aTokens.length || !bTokens.length) return 0;
   const setA = new Set(aTokens);
@@ -77,6 +89,52 @@ function normalizeLocation(text) {
     .replace(/[^a-z0-9 ]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function isDivergentStrongRoles(incomingTitle, candidateTitle) {
+  const inTokens = normalizeRoleTokens(incomingTitle);
+  const candTokens = normalizeRoleTokens(candidateTitle);
+  const inStrength = roleStrength(inTokens);
+  const candStrength = roleStrength(candTokens);
+  if (!inStrength.strong || !candStrength.strong) {
+    return false;
+  }
+  // Specialization sets
+  const specialization = new Set([
+    'data',
+    'cloud',
+    'full',
+    'stack',
+    'frontend',
+    'backend',
+    'ios',
+    'android',
+    'ml',
+    'ai',
+    'security',
+    'devops',
+    'qa',
+    'sre',
+    'analytics',
+    'analyst'
+  ]);
+  const inSpecs = new Set(inTokens.filter((t) => specialization.has(t)));
+  const candSpecs = new Set(candTokens.filter((t) => specialization.has(t)));
+  const specOverlap = [...inSpecs].some((t) => candSpecs.has(t));
+  if (inSpecs.size && candSpecs.size && !specOverlap) {
+    return true;
+  }
+  // Divergence by token symmetric difference
+  const setIn = new Set(inTokens);
+  const setCand = new Set(candTokens);
+  let diff = 0;
+  for (const t of setIn) {
+    if (!setCand.has(t)) diff++;
+  }
+  for (const t of setCand) {
+    if (!setIn.has(t)) diff++;
+  }
+  return diff >= 2;
 }
 
 function buildConfirmationDedupeKey(identity, externalReqId, roleTitle = null) {
@@ -231,7 +289,7 @@ function selectRoleCandidate(identity, event) {
   }
   if (identity?.jobTitle) {
     return {
-      title: identity.jobTitle,
+      title: identity.jobTitleRaw || identity.jobTitle,
       confidence: getRoleConfidence(identity.roleConfidence),
       source: 'subject',
       explanation: 'Derived role from subject pattern.'
@@ -304,6 +362,8 @@ function shouldUpdateRole(application, candidate) {
     return false;
   }
   const currentTitle = application.job_title || application.role || null;
+  const currentDisplay = currentTitle ? normalizeDisplayTitle(currentTitle) : null;
+  const incomingDisplay = normalizeDisplayTitle(candidate.title);
   const currentConfidence = Number.isFinite(application.role_confidence)
     ? application.role_confidence
     : 0;
@@ -311,8 +371,12 @@ function shouldUpdateRole(application, candidate) {
   if (!currentTitle || currentTitle === UNKNOWN_ROLE) {
     return true;
   }
-  if (candidate.title === currentTitle) {
+  if (incomingDisplay === currentDisplay) {
     return nextConfidence > currentConfidence;
+  }
+  // Prefer strictly longer/more-informative titles
+  if (incomingDisplay.length > currentDisplay.length + 2) {
+    return true;
   }
   return nextConfidence > currentConfidence + 0.05;
 }
@@ -321,13 +385,14 @@ function applyRoleCandidate(db, application, candidate) {
   if (!shouldUpdateRole(application, candidate)) {
     return false;
   }
+  const displayTitle = normalizeDisplayTitle(candidate.title);
   db.prepare(
     `UPDATE job_applications
      SET job_title = ?, role = ?, role_confidence = ?, role_source = ?, role_explanation = ?, updated_at = ?
      WHERE id = ?`
   ).run(
-    candidate.title,
-    candidate.title,
+    displayTitle,
+    displayTitle,
     Number.isFinite(candidate.confidence) ? candidate.confidence : null,
     candidate.source || null,
     candidate.explanation || null,
@@ -354,14 +419,29 @@ function applyExternalReqId(db, application, externalReqId) {
 }
 
 function toIsoFromInternalDate(internalDate, fallback = new Date()) {
-  if (!internalDate) {
-    return fallback.toISOString();
-  }
-  const date = new Date(Number(internalDate));
-  if (Number.isNaN(date.getTime())) {
-    return fallback.toISOString();
-  }
-  return date.toISOString();
+  const safeIso = (value) => {
+    if (value === undefined || value === null) return null;
+    const d = new Date(value);
+    return Number.isFinite(d.getTime()) ? d.toISOString() : null;
+  };
+  const fromInternal = safeIso(Number(internalDate));
+  if (fromInternal) return fromInternal;
+  const fromFallback = safeIso(fallback);
+  if (fromFallback) return fromFallback;
+  return new Date().toISOString();
+}
+
+function formatDisplayJobTitle(rawTitle) {
+  if (rawTitle === null || rawTitle === undefined) return UNKNOWN_ROLE;
+  const text = String(rawTitle).trim();
+  return text || UNKNOWN_ROLE;
+}
+
+function normalizeDisplayTitle(rawTitle) {
+  if (rawTitle === null || rawTitle === undefined) return UNKNOWN_ROLE;
+  let text = String(rawTitle).trim();
+  text = text.replace(/\s+(role|position|opening)\s*$/i, '').trim();
+  return text || UNKNOWN_ROLE;
 }
 
 function inferInitialStatus(event, eventTimestamp) {
@@ -428,7 +508,7 @@ function findMatchingApplication(db, userId, identity, externalReqId) {
       .prepare(
         `SELECT * FROM job_applications
          WHERE user_id = ?
-           AND (company_name = ? OR company = ?)
+           AND (LOWER(company_name) = LOWER(?) OR LOWER(company) = LOWER(?))
            AND external_req_id = ?
            AND archived = 0
          LIMIT 1`
@@ -605,7 +685,11 @@ function createApplicationFromEvent(db, userId, identity, event) {
   const companyCandidate = selectCompanyCandidate(identity);
   const roleCandidate = selectRoleCandidate(identity, event);
   const externalReqId = getExternalReqId(event);
-  const jobTitle = roleCandidate?.title || UNKNOWN_ROLE;
+  const displaySource =
+    event.detected_type === 'confirmation' && identity?.jobTitleRaw
+      ? identity.jobTitleRaw
+      : roleCandidate?.title || UNKNOWN_ROLE;
+  const jobTitle = normalizeDisplayTitle(displaySource);
 
   const { status, statusConfidence, appliedAt } = inferInitialStatus(event, eventTimestamp);
   const statusExplanation =
@@ -738,6 +822,8 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
   const externalReqId = getExternalReqId(event);
   const roleForMatch = identity.jobTitle || event.role_title || null;
   const isConfirmation = event.detected_type === 'confirmation';
+  const eventTsIso = toIsoFromInternalDate(event.internal_date, new Date(event.created_at));
+  const eventTimeMs = eventTsIso ? new Date(eventTsIso).getTime() : Date.now();
 
   const logDedupe = (label, payload) => {
     if (process.env.NODE_ENV === 'production') return;
@@ -821,6 +907,20 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
 
   const matchConfidence = identity.matchConfidence || 0;
   const isRejection = event.detected_type === 'rejection';
+  // For confirmations, handle req-id match early and skip generic matching paths
+  if (isConfirmation && externalReqId) {
+    const reqMatch = findMatchingApplication(db, userId, identity, externalReqId);
+    if (reqMatch) {
+      attachEventToApplication(db, event.id, reqMatch.id);
+      updateApplicationActivity(db, reqMatch, event);
+      applyCompanyCandidate(db, reqMatch, selectCompanyCandidate(identity));
+      applyRoleCandidate(db, reqMatch, selectRoleCandidate(identity, event));
+      applyExternalReqId(db, reqMatch, externalReqId);
+      logDebug('matching.confirmation_path', { path: 'req_id_match', eventId: event.id, applicationId: reqMatch.id });
+      return { action: 'matched_existing', applicationId: reqMatch.id, identity };
+    }
+  }
+
   let existing = null;
   let ambiguous = false;
 
@@ -878,9 +978,20 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
     }
   }
 
-  if (!existing && matchConfidence >= MIN_MATCH_CONFIDENCE) {
-    existing = findMatchingApplication(db, userId, identity, externalReqId);
-    if (
+  if (!isConfirmation) {
+    if (!existing && matchConfidence >= MIN_MATCH_CONFIDENCE) {
+      existing = findMatchingApplication(db, userId, identity, externalReqId);
+      if (
+        !existing &&
+        !externalReqId &&
+        AUTO_CREATE_TYPES.has(event.detected_type) &&
+        identity.companyName &&
+        (identity.companyConfidence || 0) >= MIN_COMPANY_CONFIDENCE &&
+        getClassificationConfidence(event) >= MIN_CLASSIFICATION_CONFIDENCE
+      ) {
+        existing = findLooseMatchingApplication(db, userId, identity, externalReqId);
+      }
+    } else if (
       !existing &&
       !externalReqId &&
       AUTO_CREATE_TYPES.has(event.detected_type) &&
@@ -890,16 +1001,42 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
     ) {
       existing = findLooseMatchingApplication(db, userId, identity, externalReqId);
     }
-  } else if (
-    !existing &&
-    !externalReqId &&
-    AUTO_CREATE_TYPES.has(event.detected_type) &&
-    identity.companyName &&
-    (identity.companyConfidence || 0) >= MIN_COMPANY_CONFIDENCE &&
-    getClassificationConfidence(event) >= MIN_CLASSIFICATION_CONFIDENCE
-  ) {
-    existing = findLooseMatchingApplication(db, userId, identity, externalReqId);
   }
+
+  // For confirmations, bail out of an early company match if roles are divergent or too far apart in time
+  if (existing && isConfirmation) {
+    const incomingRole = roleForMatch || identity.jobTitle || event.role_title || '';
+    const candidateRole = existing.job_title || existing.role || '';
+    if (isDivergentStrongRoles(incomingRole, candidateRole)) {
+      existing = null;
+    } else {
+      const eventTsIso = toIsoFromInternalDate(event.internal_date, new Date(event.created_at));
+      const eventTs = eventTsIso ? new Date(eventTsIso).getTime() : Date.now();
+      const candidateTsIso =
+        existing.last_activity_at || existing.updated_at || existing.created_at || null;
+      const candidateTs = candidateTsIso ? new Date(candidateTsIso).getTime() : null;
+      if (
+        candidateTs &&
+        !externalReqId &&
+        Math.abs(eventTs - candidateTs) / 3600000 > FUZZY_CONFIRMATION_WINDOW_HOURS
+      ) {
+        const incomingStrength = roleStrength(normalizeRoleTokens(incomingRole));
+        const candidateStrength = roleStrength(normalizeRoleTokens(candidateRole));
+        if (incomingStrength.strong && candidateStrength.strong) {
+          logDebug('matching.confirmation_fuzzy_window_check', {
+            eventId: event.id,
+            candidateId: existing.id,
+            deltaHours: Math.abs(eventTs - candidateTs) / 3600000,
+            incomingRole,
+            candidateRole,
+            externalReqIdPresent: Boolean(externalReqId)
+          });
+          existing = null;
+        }
+      }
+    }
+  }
+
   if (existing) {
     attachEventToApplication(db, event.id, existing.id);
     updateApplicationActivity(db, existing, event);
@@ -974,17 +1111,20 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
           `SELECT * FROM job_applications
            WHERE user_id = ?
              AND archived = 0`
-        )
-        .all(userId);
-      for (const app of rows) {
-        const appCompany = normalizeSlug(app.company_name || app.company || '');
-        const appRole = normalizeSlug(app.job_title || app.role || '');
-        if (appCompany === dedupeKey.companySlug && appRole === dedupeKey.roleSlug) {
-          candidate = app;
-          break;
+      )
+      .all(userId);
+    for (const app of rows) {
+      const appCompany = normalizeSlug(app.company_name || app.company || '');
+      const appRole = normalizeSlug(app.job_title || app.role || '');
+      if (appCompany === dedupeKey.companySlug && appRole === dedupeKey.roleSlug) {
+        if (isDivergentStrongRoles(dedupeRole || roleForMatch, app.job_title || app.role)) {
+          continue;
         }
+        candidate = app;
+        break;
       }
     }
+  }
     if (!candidate && dedupeKey && dedupeKey.companySlug && dedupeKey.roleSlug) {
       const direct = db
         .prepare(
@@ -1000,24 +1140,40 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
       }
     }
     if (candidate) {
-      attachEventToApplication(db, event.id, candidate.id);
-      updateApplicationActivity(db, candidate, event);
-      applyCompanyCandidate(db, candidate, selectCompanyCandidate(identity));
-      applyRoleCandidate(db, candidate, selectRoleCandidate(identity, event));
-      applyExternalReqId(db, candidate, externalReqId);
-      logDebug('matching.dedupe_matched_recent_confirmation', {
-        eventId: event.id,
-        applicationId: candidate.id,
-        company: identity.companyName || null,
-        role: roleForMatch || null,
-        reqId: externalReqId || null
-      });
-      return { action: 'matched_existing', applicationId: candidate.id, identity };
+      // Enforce confirmation recency window unless req id provided
+      const candidateTsIso = candidate.last_activity_at || candidate.updated_at || candidate.created_at || null;
+      const candidateMs = candidateTsIso ? new Date(candidateTsIso).getTime() : null;
+      const deltaHours =
+        candidateMs !== null ? Math.abs(eventTimeMs - candidateMs) / 3600000 : Infinity;
+      if (!externalReqId && deltaHours > FUZZY_CONFIRMATION_WINDOW_HOURS) {
+        candidate = null;
+      }
     }
+    if (candidate) {
+      if (isDivergentStrongRoles(dedupeRole || roleForMatch, candidate.job_title || candidate.role)) {
+        candidate = null;
+      }
+    }
+      if (candidate) {
+        attachEventToApplication(db, event.id, candidate.id);
+        updateApplicationActivity(db, candidate, event);
+        applyCompanyCandidate(db, candidate, selectCompanyCandidate(identity));
+        applyRoleCandidate(db, candidate, selectRoleCandidate(identity, event));
+        applyExternalReqId(db, candidate, externalReqId);
+        logDebug('matching.dedupe_matched_recent_confirmation', {
+          eventId: event.id,
+          applicationId: candidate.id,
+          company: identity.companyName || null,
+          role: roleForMatch || null,
+          reqId: externalReqId || null
+        });
+        return { action: 'matched_existing', applicationId: candidate.id, identity };
+      }
     // Final cross-channel dedupe without domain constraint
     if (canonicalCompany && dedupeRole) {
       const companySlug = normalizeSlug(canonicalCompany);
       const roleSlug = normalizeSlug(dedupeRole);
+      const windowStart = new Date(eventTimeMs - FUZZY_CONFIRMATION_WINDOW_HOURS * 3600000).toISOString();
       const recent = db
         .prepare(
           `SELECT * FROM job_applications
@@ -1025,9 +1181,9 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
              AND archived = 0
              AND lower(replace(company_name, ' ', '')) = ?
              AND lower(replace(job_title, ' ', '')) = ?
-             AND COALESCE(last_activity_at, updated_at, created_at) >= date('now', '-7 days')`
+             AND COALESCE(last_activity_at, updated_at, created_at) >= ?`
         )
-        .all(userId, companySlug, roleSlug);
+        .all(userId, companySlug, roleSlug, windowStart);
       logDedupe('matching.final_confirmation_dedupe', {
         eventId: event.id,
         canonicalCompany,
@@ -1036,6 +1192,9 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
       });
       if (recent.length === 1) {
         const candidate = recent[0];
+        if (isDivergentStrongRoles(dedupeRole || roleForMatch, candidate.job_title || candidate.role)) {
+          return { action: 'created_application', applicationId: null, identity };
+        }
         attachEventToApplication(db, event.id, candidate.id);
         updateApplicationActivity(db, candidate, event);
         applyCompanyCandidate(db, candidate, selectCompanyCandidate(identity));
@@ -1080,21 +1239,33 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
       const companySlug = normalizeSlug(canonicalCompany);
       const roleBase = dedupeRole || roleForMatch || identity.jobTitle || event.role_title || null;
       const incomingRoleSlug = normalizeRoleSlug(roleBase);
-      const incomingTokens = roleTokens(incomingRoleSlug);
+  const incomingTokens = roleTokens(incomingRoleSlug);
+  const incomingStrength = roleStrength(normalizeRoleTokens(roleBase));
+  const incomingTail = extractRoleTail(roleBase || '');
+  const incomingTailTokens = incomingTail.tailTokens.length ? incomingTail.tailTokens : incomingTokens;
       const classificationConfidence = getClassificationConfidence(event);
       const companyConf = identity.companyConfidence || 0;
       if (companySlug && incomingRoleSlug && incomingTokens.length) {
-        const since = new Date(Date.now() - FUZZY_CONFIRMATION_WINDOW_HOURS * 3600000).toISOString();
-        const candidates = db
-          .prepare(
-            `SELECT * FROM job_applications
-             WHERE user_id = ?
-               AND archived = 0
-               AND company_name IS NOT NULL
-               AND lower(replace(company_name, ' ', '')) = ?
-               AND COALESCE(last_activity_at, updated_at, created_at) >= ?`
-          )
-          .all(userId, companySlug, since);
+        const eventTime = event.internal_date
+          ? new Date(Number(event.internal_date))
+          : event.created_at
+          ? new Date(event.created_at)
+          : new Date();
+      const windowHours =
+        externalReqId && identity.externalReqId
+          ? Math.max(FUZZY_CONFIRMATION_WINDOW_HOURS, 24)
+          : FUZZY_CONFIRMATION_WINDOW_HOURS;
+      const windowStart = new Date(eventTime.getTime() - windowHours * 3600000).toISOString();
+      const candidates = db
+        .prepare(
+          `SELECT * FROM job_applications
+           WHERE user_id = ?
+             AND archived = 0
+             AND company_name IS NOT NULL
+             AND lower(replace(company_name, ' ', '')) = ?
+             AND COALESCE(last_activity_at, updated_at, created_at) >= ?`
+        )
+        .all(userId, companySlug, windowStart);
 
         const locationsCompatible = (incoming, candidateLoc) => {
           if (!incoming || !candidateLoc) return true;
@@ -1110,23 +1281,162 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
 
         const weakIncoming = incomingTokens.length < 2;
 
+        const specializationSet = new Set([
+          'data',
+          'cloud',
+          'full',
+          'stack',
+          'frontend',
+          'backend',
+          'ios',
+          'android',
+          'ml',
+          'ai',
+          'security',
+          'devops',
+          'qa',
+          'sre',
+          'analytics',
+          'analyst'
+        ]);
+
         for (const app of candidates) {
-          const appRoleSlug = normalizeRoleSlug(app.job_title || app.role || '');
+          const candReq = app.external_req_id ? normalizeExternalReqId(app.external_req_id) : null;
+          if (externalReqId && candReq && externalReqId !== candReq) {
+            logDebug('matching.confirmation_skip_req_mismatch', {
+              eventId: event.id,
+              candidateId: app.id,
+              inReq: externalReqId,
+              candReq
+            });
+            continue;
+          }
+          const appRoleRaw = app.job_title || app.role || '';
+          const appRoleSlug = normalizeRoleSlug(appRoleRaw);
           const appTokens = roleTokens(appRoleSlug);
+          const appTail = extractRoleTail(appRoleRaw);
+          const appTailTokens = appTail.tailTokens.length ? appTail.tailTokens : appTokens;
+          const appStrength = roleStrength(normalizeRoleTokens(appRoleRaw));
           if (!appRoleSlug || !appTokens.length) continue;
 
+          const incomingProgram = isProgramRole(roleBase);
+          const appProgram = isProgramRole(appRoleRaw);
+          const incomingProgramTail = extractProgramTail(roleBase);
+          const appProgramTail = extractProgramTail(appRoleRaw);
+
+          // If both roles are strong and diverge materially, skip immediately
+          if (isDivergentStrongRoles(roleBase, appRoleRaw)) {
+            continue;
+          }
+
+          const compareTokens =
+            incomingTailTokens.length && appTailTokens.length ? [incomingTailTokens, appTailTokens] : [incomingTokens, appTokens];
+          const jaccard = jaccardSimilarity(compareTokens[0], compareTokens[1]);
           const prefixMatch =
             incomingRoleSlug.startsWith(appRoleSlug) || appRoleSlug.startsWith(incomingRoleSlug);
-          const jaccard = jaccardSimilarity(incomingTokens, appTokens);
           const subset =
             incomingTokens.length &&
             incomingTokens.every((t) => appTokens.includes(t)) &&
             appTokens.length >= 2;
 
-          const roleMatch =
-            prefixMatch || jaccard >= 0.7 || subset || (weakIncoming && subset && appTokens.length >= 2);
+          const incomingSpecs = new Set(compareTokens[0].filter((t) => specializationSet.has(t)));
+          const appSpecs = new Set(compareTokens[1].filter((t) => specializationSet.has(t)));
+          const specOverlap = [...incomingSpecs].some((t) => appSpecs.has(t));
+          const specDiverge =
+            incomingSpecs.size && appSpecs.size && !specOverlap;
+
+          const bothStrong = incomingStrength.strong && appStrength.strong;
+          const eitherWeak = incomingStrength.weak || appStrength.weak;
+
+          // Divergence on tails for strong roles
+          let divergent = false;
+          if (bothStrong) {
+            const setIncoming = new Set(compareTokens[0]);
+            const setApp = new Set(compareTokens[1]);
+            let diff = 0;
+            for (const t of setIncoming) {
+              if (!setApp.has(t)) diff++;
+            }
+            for (const t of setApp) {
+              if (!setIncoming.has(t)) diff++;
+            }
+            if (diff >= 2) divergent = true;
+          }
+
+          // Hard block when both roles are strong but specializations diverge or tokens diverge
+          if (bothStrong && (specDiverge || divergent)) {
+            continue;
+          }
+
+          // If both strong and only one side carries specialization signals, treat as divergent
+          if (bothStrong && !specOverlap && (incomingSpecs.size || appSpecs.size)) {
+            continue;
+          }
+
+          logDedupe('matching.dedupe_fuzzy_eval', {
+            eventId: event.id,
+            incomingRole: roleBase,
+            incomingSlug: incomingRoleSlug,
+            incomingTail: incomingTail.tail || null,
+            incomingWeak: incomingStrength.weak,
+            incomingStrong: incomingStrength.strong,
+            candidateRole: appRoleRaw,
+            candidateSlug: appRoleSlug,
+            candidateTail: appTail.tail || null,
+            candidateWeak: appStrength.weak,
+            candidateStrong: appStrength.strong,
+            jaccard: Number(jaccard.toFixed ? jaccard.toFixed(3) : jaccard),
+            prefixMatch,
+            subset,
+            specDiverge,
+            divergent,
+            timeWindowHours: windowHours
+          });
+
+          // Program-tail guard: if both are program roles with strong tails, require tail similarity
+          if (
+            incomingProgram &&
+            appProgram &&
+            incomingProgramTail.tailStrength &&
+            appProgramTail.tailStrength
+          ) {
+            const tailSim = tailSimilarity(
+              incomingProgramTail.tailTokens,
+              appProgramTail.tailTokens
+            );
+            logDedupe('matching.dedupe_fuzzy_eval', {
+              eventId: event.id,
+              incomingRole: roleBase,
+              incomingSlug: incomingRoleSlug,
+              incomingTail: incomingProgramTail.tailSlug,
+              candidateRole: appRoleRaw,
+              candidateSlug: appRoleSlug,
+              candidateTail: appProgramTail.tailSlug,
+              tailSim,
+              program: true
+            });
+            if (tailSim < 0.8) {
+              continue;
+            }
+          }
+
+          let roleMatch = false;
+          if (eitherWeak) {
+            roleMatch = prefixMatch || subset || jaccard >= 0.7;
+          } else {
+            roleMatch = jaccard >= 0.85 && !divergent && !specDiverge;
+          }
 
           const locOk = locationsCompatible(identity.jobLocation || identity.location || null, app.job_location);
+
+          // Enforce time window for fuzzy confirmation
+          const candidateTsIso = app.last_activity_at || app.updated_at || app.created_at || null;
+          const candidateMs = candidateTsIso ? new Date(candidateTsIso).getTime() : null;
+          const deltaHours =
+            candidateMs !== null ? Math.abs(eventTimeMs - candidateMs) / 3600000 : Infinity;
+          if (!externalReqId && deltaHours > windowHours) {
+            continue;
+          }
 
           if (
             roleMatch &&
@@ -1147,14 +1457,74 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
               company: canonicalCompany,
               roleIncoming: roleBase,
               roleCandidate: app.job_title || app.role || '',
-              similarityScore: Number(jaccard.toFixed ? jaccard.toFixed(3) : jaccard),
-              timeDeltaHours: FUZZY_CONFIRMATION_WINDOW_HOURS,
-              locationIncoming: identity.jobLocation || identity.location || null,
-              locationCandidate: app.job_location || null
-            });
-            return { action: 'matched_existing', applicationId: app.id, identity };
+            similarityScore: Number(jaccard.toFixed ? jaccard.toFixed(3) : jaccard),
+            timeDeltaHours: FUZZY_CONFIRMATION_WINDOW_HOURS,
+            locationIncoming: identity.jobLocation || identity.location || null,
+            locationCandidate: app.job_location || null
+          });
+          return { action: 'matched_existing', applicationId: app.id, identity };
           }
         }
+      }
+    }
+
+    // Weak-role ATS/company fallback to merge corporate + ATS confirmations
+    if (canonicalCompany) {
+      const companySlug = normalizeSlug(canonicalCompany);
+      const windowStart = new Date(eventTimeMs - FUZZY_CONFIRMATION_WINDOW_HOURS * 3600000).toISOString();
+      const weakIncoming =
+        isWeakRoleText(roleForMatch || identity.jobTitle || event.role_title) ||
+        normalizeDisplayTitle(roleForMatch || identity.jobTitle || event.role_title) === UNKNOWN_ROLE;
+      const candidates = db
+        .prepare(
+          `SELECT * FROM job_applications
+           WHERE user_id = ?
+             AND archived = 0
+             AND lower(replace(company_name, ' ', '')) = ?
+             AND COALESCE(last_activity_at, updated_at, created_at) >= ?`
+        )
+        .all(userId, companySlug, windowStart);
+      for (const app of candidates) {
+        const candReq = app.external_req_id ? normalizeExternalReqId(app.external_req_id) : null;
+        if (externalReqId && candReq && externalReqId !== candReq) {
+          logDebug('matching.confirmation_skip_req_mismatch', {
+            eventId: event.id,
+            candidateId: app.id,
+            inReq: externalReqId,
+            candReq
+          });
+          continue;
+        }
+        const appWeak = isWeakRoleText(app.job_title || app.role);
+        const atsRegex = /(workday|myworkday|greenhouse|lever|icims|workable|jobvite|applytojob|smartrecruiters)/i;
+        const atsInvolved =
+          identity.isAtsDomain ||
+          (app.source && atsRegex.test(app.source)) ||
+          (app.company && atsRegex.test(app.company));
+        const appCompanyConf = Number.isFinite(app.company_confidence) ? app.company_confidence : 1;
+        const identityCompanyConf = identity.companyConfidence || 0;
+        if (!atsInvolved) continue;
+        if (identityCompanyConf < MIN_COMPANY_CONFIDENCE || appCompanyConf < MIN_COMPANY_CONFIDENCE) continue;
+        if (weakIncoming && appWeak) continue;
+
+        attachEventToApplication(db, event.id, app.id);
+        updateApplicationActivity(db, app, event);
+        applyCompanyCandidate(db, app, selectCompanyCandidate(identity));
+        const roleCandidate = selectRoleCandidate(identity, event);
+        const currentTitle = app.job_title || app.role || '';
+        const incomingStrong = !weakIncoming;
+        if (incomingStrong && roleCandidate?.title && (appWeak || roleCandidate.title.length > currentTitle.length)) {
+          applyRoleCandidate(db, app, roleCandidate);
+        }
+        applyExternalReqId(db, app, externalReqId);
+        logDebug('matching.confirmation_weak_role_dedupe', {
+          eventId: event.id,
+          applicationId: app.id,
+          weakIncoming,
+          appWeak,
+          atsInvolved
+        });
+        return { action: 'matched_existing', applicationId: app.id, identity };
       }
     }
   }

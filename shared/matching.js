@@ -279,6 +279,11 @@ const SENDER_COMPANY_PATTERNS = [
 
 const ROLE_PATTERNS = [
   {
+    name: 'thank_you_application_to_our_role',
+    regex: /thank you for your application\s+(?:to|for)\s+(?:our\s+|the\s+)?(.+?)\s+(?:role|position|job|opening)\b/i,
+    confidence: 0.95
+  },
+  {
     name: 'thank_you_applying_for_role',
     regex: /thank you for applying(?:\s+to\s+[^,.\n]+)?\s+for\s+([^.\n]+)/i,
     confidence: 0.92
@@ -445,6 +450,122 @@ function slugify(text) {
   return normalize(text).toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+function normalizeRoleTokens(title) {
+  if (!title) return [];
+  let text = sanitizeJobTitle(title) || '';
+  text = text
+    .replace(/\bjr\.?\b/gi, 'junior')
+    .replace(/\bsr\.?\b/gi, 'senior')
+    .replace(/\bswe\b/gi, 'software engineer')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const tokens = text
+    .toLowerCase()
+    .split(' ')
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .filter((t) => !['job', 'role', 'position', 'opening', 'program'].includes(t));
+  return tokens;
+}
+
+function roleStrength(tokens) {
+  if (!tokens || !tokens.length) {
+    return { weak: true, strong: false };
+  }
+  const meaningful = tokens.filter(
+    (t) => !['junior', 'jr', 'senior', 'sr', 'intern', 'internship', 'graduate', 'grad'].includes(t)
+  );
+  const specialization = new Set([
+    'data',
+    'cloud',
+    'full',
+    'stack',
+    'frontend',
+    'backend',
+    'ios',
+    'android',
+    'ml',
+    'ai',
+    'security',
+    'devops',
+    'qa',
+    'sre',
+    'analytics',
+    'analyst'
+  ]);
+  const hasSpec = tokens.some((t) => specialization.has(t));
+  const strong = meaningful.length >= 3 || hasSpec;
+  const weak = meaningful.length < 2 && !hasSpec;
+  return { weak, strong };
+}
+
+function extractRoleTail(title) {
+  if (!title) return { tail: null, tailTokens: [], fullTokens: normalizeRoleTokens(title) };
+  const parts = String(title).split(/[-–—:\/]+/);
+  const tail = parts.length > 1 ? parts[parts.length - 1].trim() : null;
+  const tailTokens = tail ? normalizeRoleTokens(tail) : [];
+  return { tail, tailTokens, fullTokens: normalizeRoleTokens(title) };
+}
+
+const PROGRAM_TAIL_STOPWORDS = new Set([
+  'program',
+  'development',
+  'technology',
+  'technical',
+  'early',
+  'career',
+  'track',
+  'rotation',
+  'rotational',
+  'academy',
+  'fellowship',
+  'internship',
+  'intern',
+  'graduate',
+  'grad',
+  'role',
+  'position',
+  'opening'
+]);
+
+function isProgramRole(text) {
+  if (!text) return false;
+  const lower = String(text).toLowerCase();
+  return (
+    lower.includes('program') ||
+    lower.includes('early career') ||
+    lower.includes('development program') ||
+    lower.includes('rotational') ||
+    lower.includes('academy') ||
+    lower.includes('track')
+  );
+}
+
+function extractProgramTail(title) {
+  if (!title) return { tailSlug: null, tailTokens: [], tailStrength: false };
+  const parts = String(title).split(/[-–—:|\/]+/);
+  const tail = parts.length > 1 ? parts[parts.length - 1] : parts[0];
+  const tokens = normalizeRoleTokens(tail).filter((t) => !PROGRAM_TAIL_STOPWORDS.has(t));
+  const tailStrength = tokens.length >= 2;
+  const tailSlug = tokens.join(' ');
+  return { tailSlug, tailTokens: tokens, tailStrength };
+}
+
+function tailSimilarity(aTokens, bTokens) {
+  if (!aTokens.length || !bTokens.length) return 0;
+  const setA = new Set(aTokens.filter((t) => !PROGRAM_TAIL_STOPWORDS.has(t)));
+  const setB = new Set(bTokens.filter((t) => !PROGRAM_TAIL_STOPWORDS.has(t)));
+  if (!setA.size || !setB.size) return 0;
+  let intersect = 0;
+  for (const t of setA) {
+    if (setB.has(t)) intersect++;
+  }
+  const union = setA.size + setB.size - intersect;
+  if (!union) return 0;
+  return intersect / union;
+}
+
 function normalizeExternalReqId(value) {
   const text = normalize(value);
   if (!text) {
@@ -538,6 +659,13 @@ function cleanEntity(value) {
 
 function cleanRoleEntity(value) {
   return normalize(value).replace(/\s+\[.*\]$/, '').trim();
+}
+
+function normalizeDisplayTitle(title) {
+  if (title === null || title === undefined) return null;
+  let text = String(title).trim();
+  text = text.replace(/\s+(role|position|opening)\s*$/i, '').trim();
+  return text || null;
 }
 
 function extractSenderName(sender) {
@@ -949,6 +1077,7 @@ function extractJobTitle({ subject, snippet, bodyText, senderName, sender, compa
       }
       candidates.push({
         jobTitle: candidate,
+        jobTitleRaw: match[1] ? match[1].trim() : candidate,
         confidence: scoreForSource(pattern.confidence, source.label),
         source: source.label,
         explanation: `Matched ${pattern.name} pattern in ${source.label}.`
@@ -961,6 +1090,7 @@ function extractJobTitle({ subject, snippet, bodyText, senderName, sender, compa
   if (senderCandidate) {
     candidates.push({
       jobTitle: senderCandidate,
+      jobTitleRaw: senderCandidate,
       confidence: scoreForSource(0.78, 'sender'),
       source: 'sender',
       explanation: 'Derived role from sender display name.'
@@ -1051,7 +1181,7 @@ function extractCompanyRole(text) {
     }
     const role =
       typeof rule.roleIndex === 'number' && rule.roleIndex >= 0
-        ? cleanEntity(match[rule.roleIndex])
+        ? cleanRoleEntity(match[rule.roleIndex])
         : null;
     const company = cleanCompanyCandidate(match[rule.companyIndex]);
     if (!company) {
@@ -1336,6 +1466,7 @@ function extractLinkedInApplicationIdentity({ subject, bodyText, sender }) {
   companyName = sanitizedCompany.companyName;
   const companyConfidence = sanitizedCompany.companyConfidence || 0.9;
 
+  const jobTitleRaw = jobTitle ? jobTitle.trim() : null;
   if (jobTitle) {
     jobTitle = sanitizeJobTitle(jobTitle);
   }
@@ -1352,6 +1483,7 @@ function extractLinkedInApplicationIdentity({ subject, bodyText, sender }) {
     senderDomain,
     companyConfidence,
     roleConfidence,
+    jobTitleRaw,
     domainConfidence: domainResult.score,
     matchConfidence,
     isAtsDomain: domainResult.isAtsDomain,
@@ -1437,6 +1569,11 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
 
   const companyName = companyMatch?.companyName || null;
   let jobTitle = roleMatch.jobTitle || null;
+  const jobTitleDisplay = roleMatch.jobTitleRaw
+    ? normalizeDisplayTitle(roleMatch.jobTitleRaw)
+    : jobTitle
+    ? normalizeDisplayTitle(jobTitle)
+    : null;
   const companyConfidence = companyMatch?.companyConfidence || 0;
   let roleConfidence = jobTitle ? roleMatch.roleConfidence : null;
   const domainResult = domainConfidence(companyName, senderDomain);
@@ -1476,6 +1613,7 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   return {
     companyName,
     jobTitle,
+    jobTitleRaw: jobTitleDisplay,
     senderDomain,
     companyConfidence,
     roleConfidence,
@@ -1579,5 +1717,11 @@ module.exports = {
   isInvalidCompanyCandidate,
   extractCompanyFromBodyText,
   normalizeExternalReqId,
-  sanitizeJobTitle
+  sanitizeJobTitle,
+  normalizeRoleTokens,
+  roleStrength,
+  extractRoleTail,
+  extractProgramTail,
+  isProgramRole,
+  tailSimilarity
 };

@@ -244,6 +244,8 @@ Trimble Talent Acquisition
   const identityB = extractThreadIdentity({ subject: subjectB, sender: senderB, bodyText: bodyB });
   assert.equal(identityB.companyName, 'Trimble');
   assert.ok(identityB.jobTitle && identityB.jobTitle.includes('Software Engineer'));
+  console.log('WD identityA', identityA);
+  console.log('WD identityB', identityB);
 
   const roleB = extractJobTitle({
     subject: subjectB,
@@ -286,6 +288,14 @@ Trimble Talent Acquisition
     },
     identity: identityB
   });
+
+  console.log('WD matchB.action', matchB.action);
+  const appsWD = db
+    .prepare(
+      'SELECT id, company_name, job_title, applied_at, created_at, source FROM job_applications WHERE user_id = ?'
+    )
+    .all(userId);
+  console.log('WD apps:', appsWD);
 
   assert.equal(matchB.action, 'matched_existing');
 
@@ -394,4 +404,104 @@ test('LinkedIn + ATS confirmations for same role dedupe via fuzzy match', () => 
   assert.equal(apps.length, 1);
   assert.equal(apps[0].company_name, 'EarthCam');
   assert.equal(apps[0].job_title, 'Jr. Python Developer');
+});
+
+test('Distinct program role tails at same company do not dedupe', () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+
+  const sender = 'notifications@healthfirst.com';
+  const subject = 'Thank you for your application';
+  const bodyA =
+    'Thank you for your application to our 2026 Technology Early Career Development Program - Data//Cloud Engineer role';
+  const bodyB =
+    'Thank you for your application to our 2026 Technology Early Career Development Program - Full Stack Development role';
+
+  const identityA = extractThreadIdentity({ subject, sender, bodyText: bodyA });
+  const identityB = extractThreadIdentity({ subject, sender, bodyText: bodyB });
+  console.log('HF identityA', identityA);
+  console.log('HF identityB', identityB);
+
+  const eventAId = insertEmailEvent(db, {
+    userId,
+    messageId: 'hf-a',
+    sender,
+    subject,
+    detectedType: 'confirmation',
+    confidenceScore: 0.92,
+    classificationConfidence: 0.92,
+    snippet: bodyA
+  });
+  const matchA = matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: eventAId,
+      sender,
+      subject,
+      snippet: bodyA,
+      detected_type: 'confirmation',
+      confidence_score: 0.92,
+      classification_confidence: 0.92,
+      role_title: identityA.jobTitle,
+      role_confidence: identityA.roleConfidence,
+      role_source: identityA.roleSource,
+      created_at: new Date().toISOString()
+    },
+    identity: identityA
+  });
+  assert.equal(matchA.action, 'created_application');
+
+  const eventBId = insertEmailEvent(db, {
+    userId,
+    messageId: 'hf-b',
+    sender,
+    subject,
+    detectedType: 'confirmation',
+    confidenceScore: 0.92,
+    classificationConfidence: 0.92,
+    snippet: bodyB
+  });
+  const sevenDaysLater = new Date(Date.now() + 7 * 24 * 3600000).toISOString();
+  const matchB = matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: eventBId,
+      sender,
+      subject,
+      snippet: bodyB,
+      detected_type: 'confirmation',
+      confidence_score: 0.92,
+      classification_confidence: 0.92,
+      role_title: identityB.jobTitle,
+      role_confidence: identityB.roleConfidence,
+      role_source: identityB.roleSource,
+      created_at: sevenDaysLater
+    },
+    identity: identityB
+  });
+
+  const appsAfter = db
+    .prepare(
+      'SELECT id, company_name, job_title, applied_at, created_at, source, archived FROM job_applications WHERE user_id = ?'
+    )
+    .all(userId);
+  console.log('HF matchB.action', matchB.action);
+  console.log('HF apps after B:', appsAfter);
+
+  const appsNow = db
+    .prepare(
+      'SELECT id, company_name, job_title, applied_at, created_at, source, archived FROM job_applications WHERE user_id = ?'
+    )
+    .all(userId);
+  console.log('HF apps before B assert:', appsNow);
+  assert.equal(matchB.action, 'created_application');
+
+  const apps = db.prepare('SELECT * FROM job_applications WHERE user_id = ?').all(userId);
+  assert.equal(apps.length, 2);
+  const titles = apps.map((a) => a.job_title).sort();
+  assert.ok(titles.includes('2026 Technology Early Career Development Program - Data//Cloud Engineer'));
+  assert.ok(titles.includes('2026 Technology Early Career Development Program - Full Stack Development'));
 });
