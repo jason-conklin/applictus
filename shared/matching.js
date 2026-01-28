@@ -279,6 +279,11 @@ const SENDER_COMPANY_PATTERNS = [
 
 const ROLE_PATTERNS = [
   {
+    name: 'thank_you_applying_for_role_tail',
+    regex: /thank you for applying for\s+(?:the\s+)?(.+?)\s+role\b/i,
+    confidence: 0.95
+  },
+  {
     name: 'thank_you_application_to_our_role',
     regex: /thank you for your application\s+(?:to|for)\s+(?:our\s+|the\s+)?(.+?)\s+(?:role|position|job|opening)\b/i,
     confidence: 0.95

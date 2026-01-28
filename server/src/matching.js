@@ -70,6 +70,79 @@ function isWeakRoleText(text) {
   return tokens.length < 2;
 }
 
+function getProgramParts(text) {
+  const key = normalizeRoleKey(text);
+  if (!key) return { prefix: null, tail: null, tailTokens: [] };
+  const idx = key.lastIndexOf(' - ');
+  if (idx === -1) return { prefix: null, tail: null, tailTokens: [] };
+  const prefix = key.slice(0, idx).trim();
+  const tail = key.slice(idx + 3).trim();
+  const tailInfo = extractProgramTail(text || '');
+  return { prefix, tail, tailTokens: tailInfo.tailTokens || [] };
+}
+
+function shouldAllowAutoAttach({ incomingIdentity, candidateApplication, incomingEvent }) {
+  const incomingRole = incomingIdentity.jobTitle || incomingEvent.role_title || '';
+  const candidateRole = candidateApplication.job_title || candidateApplication.role || '';
+  const incomingWeak = isWeakRoleText(incomingRole) || normalizeDisplayTitle(incomingRole) === UNKNOWN_ROLE;
+  const candidateWeak = isWeakRoleText(candidateRole) || normalizeDisplayTitle(candidateRole) === UNKNOWN_ROLE;
+  const incomingReq = getExternalReqId(incomingEvent);
+  const candidateReq = candidateApplication.external_req_id
+    ? normalizeExternalReqId(candidateApplication.external_req_id)
+    : null;
+
+  if (incomingReq && candidateReq) {
+    return {
+      allowed: incomingReq === candidateReq,
+      reason: incomingReq === candidateReq ? 'req_match' : 'req_mismatch'
+    };
+  }
+
+  const candidateAts =
+    (candidateApplication.source &&
+      /(workday|myworkday|greenhouse|lever|icims|workable|jobvite|applytojob|smartrecruiters)/i.test(
+        candidateApplication.source
+      )) ||
+    false;
+  const atsInvolved = incomingIdentity.isAtsDomain || incomingIdentity.isPlatformEmail || candidateAts;
+
+  if (incomingWeak || candidateWeak) {
+    if (incomingWeak && candidateWeak) {
+      if (atsInvolved) {
+        return { allowed: true, reason: 'both_weak_ats_ok' };
+      }
+      return { allowed: false, reason: 'both_roles_weak' };
+    }
+    if (atsInvolved) {
+      return { allowed: true, reason: 'weak_strong_ats_ok' };
+    }
+    return { allowed: false, reason: 'weak_no_ats' };
+  }
+
+  const incomingKey = normalizeRoleKey(incomingRole);
+  const candidateKey = normalizeRoleKey(candidateRole);
+  if (incomingKey && candidateKey && incomingKey === candidateKey) {
+    return { allowed: true, reason: 'role_key_match' };
+  }
+
+  const incProgram = isProgramRole(incomingRole);
+  const candProgram = isProgramRole(candidateRole);
+  if (incProgram && candProgram) {
+    const incParts = getProgramParts(incomingRole);
+    const candParts = getProgramParts(candidateRole);
+    if (incParts.prefix && candParts.prefix && incParts.prefix !== candParts.prefix) {
+      return { allowed: false, reason: 'program_prefix_mismatch' };
+    }
+    const tailSim = tailSimilarity(incParts.tailTokens, candParts.tailTokens);
+    if (tailSim >= 0.8) {
+      return { allowed: true, reason: 'program_tail_match' };
+    }
+    return { allowed: false, reason: 'program_tail_mismatch' };
+  }
+
+  return { allowed: false, reason: 'strong_roles_mismatch' };
+}
+
 function jaccardSimilarity(aTokens, bTokens) {
   if (!aTokens.length || !bTokens.length) return 0;
   const setA = new Set(aTokens);
@@ -89,6 +162,14 @@ function normalizeLocation(text) {
     .replace(/[^a-z0-9 ]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function normalizeRoleKey(text) {
+  if (!text) return null;
+  let t = String(text).toLowerCase();
+  t = t.replace(/\s*-\s*/g, ' - ');
+  t = t.replace(/\s+/g, ' ').trim();
+  return t || null;
 }
 
 function isDivergentStrongRoles(incomingTitle, candidateTitle) {
@@ -1035,6 +1116,21 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
         }
       }
     }
+    if (existing) {
+      const guard = shouldAllowAutoAttach({
+        incomingIdentity: identity,
+        candidateApplication: existing,
+        incomingEvent: event
+      });
+      if (!guard.allowed) {
+        logDebug('matching.auto_attach_blocked', {
+          eventId: event.id,
+          candidateId: existing.id,
+          reason: guard.reason
+        });
+        existing = null;
+      }
+    }
   }
 
   if (existing) {
@@ -1154,6 +1250,21 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
         candidate = null;
       }
     }
+    if (candidate) {
+      const guard = shouldAllowAutoAttach({
+        incomingIdentity: identity,
+        candidateApplication: candidate,
+        incomingEvent: event
+      });
+      if (!guard.allowed) {
+        logDebug('matching.auto_attach_blocked', {
+          eventId: event.id,
+          candidateId: candidate.id,
+          reason: guard.reason
+        });
+        candidate = null;
+      }
+    }
       if (candidate) {
         attachEventToApplication(db, event.id, candidate.id);
         updateApplicationActivity(db, candidate, event);
@@ -1221,6 +1332,19 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
       });
       if (recentRole.length === 1) {
         const candidate = recentRole[0];
+        const guard = shouldAllowAutoAttach({
+          incomingIdentity: identity,
+          candidateApplication: candidate,
+          incomingEvent: event
+        });
+        if (!guard.allowed) {
+          logDebug('matching.auto_attach_blocked', {
+            eventId: event.id,
+            candidateId: candidate.id,
+            reason: guard.reason
+          });
+          return { action: 'created_application', applicationId: null, identity };
+        }
         attachEventToApplication(db, event.id, candidate.id);
         updateApplicationActivity(db, candidate, event);
         applyCompanyCandidate(db, candidate, selectCompanyCandidate(identity));
@@ -1315,29 +1439,33 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
           const appRoleSlug = normalizeRoleSlug(appRoleRaw);
           const appTokens = roleTokens(appRoleSlug);
           const appTail = extractRoleTail(appRoleRaw);
-          const appTailTokens = appTail.tailTokens.length ? appTail.tailTokens : appTokens;
-          const appStrength = roleStrength(normalizeRoleTokens(appRoleRaw));
-          if (!appRoleSlug || !appTokens.length) continue;
+        const appTailTokens = appTail.tailTokens.length ? appTail.tailTokens : appTokens;
+        const appStrength = roleStrength(normalizeRoleTokens(appRoleRaw));
+        if (!appRoleSlug || !appTokens.length) continue;
 
-          const incomingProgram = isProgramRole(roleBase);
-          const appProgram = isProgramRole(appRoleRaw);
-          const incomingProgramTail = extractProgramTail(roleBase);
-          const appProgramTail = extractProgramTail(appRoleRaw);
+        const incomingProgram = isProgramRole(roleBase);
+        const appProgram = isProgramRole(appRoleRaw);
+        const incomingProgramTail = extractProgramTail(roleBase);
+        const appProgramTail = extractProgramTail(appRoleRaw);
 
-          // If both roles are strong and diverge materially, skip immediately
-          if (isDivergentStrongRoles(roleBase, appRoleRaw)) {
-            continue;
-          }
+        // If both roles are strong and diverge materially, skip immediately
+        if (isDivergentStrongRoles(roleBase, appRoleRaw)) {
+          continue;
+        }
 
-          const compareTokens =
-            incomingTailTokens.length && appTailTokens.length ? [incomingTailTokens, appTailTokens] : [incomingTokens, appTokens];
-          const jaccard = jaccardSimilarity(compareTokens[0], compareTokens[1]);
-          const prefixMatch =
-            incomingRoleSlug.startsWith(appRoleSlug) || appRoleSlug.startsWith(incomingRoleSlug);
-          const subset =
-            incomingTokens.length &&
-            incomingTokens.every((t) => appTokens.includes(t)) &&
-            appTokens.length >= 2;
+        const compareTokens =
+          incomingTailTokens.length && appTailTokens.length ? [incomingTailTokens, appTailTokens] : [incomingTokens, appTokens];
+        const jaccard = jaccardSimilarity(compareTokens[0], compareTokens[1]);
+        const prefixMatch =
+          incomingRoleSlug.startsWith(appRoleSlug) || appRoleSlug.startsWith(incomingRoleSlug);
+        const rawIncomingSlug = normalizeSlug(roleBase);
+        const rawPrefixMatch =
+          rawIncomingSlug &&
+          (appRoleSlug.startsWith(rawIncomingSlug) || rawIncomingSlug.startsWith(appRoleSlug));
+        const subset =
+          incomingTokens.length &&
+          incomingTokens.every((t) => appTokens.includes(t)) &&
+          appTokens.length >= 2;
 
           const incomingSpecs = new Set(compareTokens[0].filter((t) => specializationSet.has(t)));
           const appSpecs = new Set(compareTokens[1].filter((t) => specializationSet.has(t)));
@@ -1420,12 +1548,12 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
             }
           }
 
-          let roleMatch = false;
-          if (eitherWeak) {
-            roleMatch = prefixMatch || subset || jaccard >= 0.7;
-          } else {
-            roleMatch = jaccard >= 0.85 && !divergent && !specDiverge;
-          }
+        let roleMatch = false;
+        if (eitherWeak) {
+          roleMatch = prefixMatch || rawPrefixMatch || subset || jaccard >= 0.7;
+        } else {
+          roleMatch = jaccard >= 0.85 && !divergent && !specDiverge;
+        }
 
           const locOk = locationsCompatible(identity.jobLocation || identity.location || null, app.job_location);
 
@@ -1438,12 +1566,25 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
             continue;
           }
 
-          if (
-            roleMatch &&
-            locOk &&
-            companyConf >= MIN_COMPANY_CONFIDENCE &&
-            classificationConfidence >= MIN_CLASSIFICATION_CONFIDENCE
-          ) {
+        if (
+          roleMatch &&
+          locOk &&
+          companyConf >= MIN_COMPANY_CONFIDENCE &&
+          classificationConfidence >= MIN_CLASSIFICATION_CONFIDENCE
+        ) {
+            const guard = shouldAllowAutoAttach({
+              incomingIdentity: identity,
+              candidateApplication: app,
+              incomingEvent: event
+            });
+            if (!guard.allowed) {
+              logDebug('matching.auto_attach_blocked', {
+                eventId: event.id,
+                candidateId: app.id,
+                reason: guard.reason
+              });
+              continue;
+            }
             attachEventToApplication(db, event.id, app.id);
             updateApplicationActivity(db, app, event);
             applyCompanyCandidate(db, app, selectCompanyCandidate(identity));
@@ -1507,6 +1648,19 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
         if (identityCompanyConf < MIN_COMPANY_CONFIDENCE || appCompanyConf < MIN_COMPANY_CONFIDENCE) continue;
         if (weakIncoming && appWeak) continue;
 
+        const guard = shouldAllowAutoAttach({
+          incomingIdentity: identity,
+          candidateApplication: app,
+          incomingEvent: event
+        });
+        if (!guard.allowed) {
+          logDebug('matching.auto_attach_blocked', {
+            eventId: event.id,
+            candidateId: app.id,
+            reason: guard.reason
+          });
+          continue;
+        }
         attachEventToApplication(db, event.id, app.id);
         updateApplicationActivity(db, app, event);
         applyCompanyCandidate(db, app, selectCompanyCandidate(identity));
