@@ -64,7 +64,8 @@ const PROVIDER_DISPLAY_NAMES = new Set([
 ]);
 
 const ATS_LOCALPART_COMPANY_MAP = {
-  pru: 'Prudential'
+  pru: 'Prudential',
+  prudential: 'Prudential'
 };
 
 const GENERIC_SENDER_NAMES = [
@@ -538,6 +539,21 @@ const PROGRAM_TAIL_STOPWORDS = new Set([
   'position',
   'opening'
 ]);
+
+const STRONG_REJECTION_PATTERNS = [
+  /unable to move forward/i,
+  /we are unable to move forward/i,
+  /not move forward with your application/i,
+  /decided to pursue other candidates/i,
+  /we(?:'| )?ve decided to pursue other candidates/i,
+  /moving forward with other candidates/i,
+  /(will not|won't) be moving forward/i,
+  /not selected/i,
+  /regret to inform/i,
+  /position has been filled/i,
+  /after careful consideration[, ]+(?:we )?(?:are )?(?:not|unable|declined|declining|will not)/i,
+  /unfortunately[, ]+(?:we )?(?:are )?(?:not|unable|declined|declining|will not|can(?:not|'t) move forward|pursue other candidates)/i
+];
 
 function isProgramRole(text) {
   if (!text) return false;
@@ -1733,5 +1749,6 @@ module.exports = {
   extractRoleTail,
   extractProgramTail,
   isProgramRole,
-  tailSimilarity
+  tailSimilarity,
+  STRONG_REJECTION_PATTERNS
 };
