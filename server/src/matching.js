@@ -1049,20 +1049,29 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
       existing = findMatchingApplication(db, userId, identity, externalReqId);
     }
     if (!existing && roleForMatch) {
+      const companySlug = normalizeSlug(identity.companyName);
+      const roleSlug = normalizeSlug(roleForMatch);
       const matches = db
         .prepare(
           `SELECT * FROM job_applications
            WHERE user_id = ?
-             AND (company_name = ? OR company = ?)
-             AND (job_title = ? OR role = ?)
-             AND archived = 0`
+             AND archived = 0
+             AND (
+               (company_name = ? OR company = ?) AND (job_title = ? OR role = ?)
+               OR (lower(replace(company_name, ' ', '')) = ? AND lower(replace(job_title, ' ', '')) = ?)
+               OR (lower(replace(company, ' ', '')) = ? AND lower(replace(role, ' ', '')) = ?)
+             )`
         )
         .all(
           userId,
           identity.companyName,
           identity.companyName,
           roleForMatch,
-          roleForMatch
+          roleForMatch,
+          companySlug,
+          roleSlug,
+          companySlug,
+          roleSlug
         );
       if (matches.length === 1) {
         existing = matches[0];

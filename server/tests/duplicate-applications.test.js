@@ -6,11 +6,13 @@ const path = require('path');
 const Database = require('better-sqlite3');
 
 const { matchAndAssignEvent } = require('../src/matching');
+const { classifyEmail } = require('../../shared/emailClassifier');
 const {
   extractThreadIdentity,
   extractJobTitle,
   extractExternalReqId
 } = require('../../shared/matching');
+const { ApplicationStatus } = require('../../shared/types');
 
 function runMigrations(db) {
   const migrationsDir = path.join(__dirname, '..', 'migrations');
@@ -244,8 +246,6 @@ Trimble Talent Acquisition
   const identityB = extractThreadIdentity({ subject: subjectB, sender: senderB, bodyText: bodyB });
   assert.equal(identityB.companyName, 'Trimble');
   assert.ok(identityB.jobTitle && identityB.jobTitle.includes('Software Engineer'));
-  console.log('WD identityA', identityA);
-  console.log('WD identityB', identityB);
 
   const roleB = extractJobTitle({
     subject: subjectB,
@@ -288,14 +288,6 @@ Trimble Talent Acquisition
     },
     identity: identityB
   });
-
-  console.log('WD matchB.action', matchB.action);
-  const appsWD = db
-    .prepare(
-      'SELECT id, company_name, job_title, applied_at, created_at, source FROM job_applications WHERE user_id = ?'
-    )
-    .all(userId);
-  console.log('WD apps:', appsWD);
 
   assert.equal(matchB.action, 'matched_existing');
 
@@ -420,8 +412,6 @@ test('Distinct program role tails at same company do not dedupe', () => {
 
   const identityA = extractThreadIdentity({ subject, sender, bodyText: bodyA });
   const identityB = extractThreadIdentity({ subject, sender, bodyText: bodyB });
-  console.log('HF identityA', identityA);
-  console.log('HF identityB', identityB);
 
   const eventAId = insertEmailEvent(db, {
     userId,
@@ -483,20 +473,6 @@ test('Distinct program role tails at same company do not dedupe', () => {
     identity: identityB
   });
 
-  const appsAfter = db
-    .prepare(
-      'SELECT id, company_name, job_title, applied_at, created_at, source, archived FROM job_applications WHERE user_id = ?'
-    )
-    .all(userId);
-  console.log('HF matchB.action', matchB.action);
-  console.log('HF apps after B:', appsAfter);
-
-  const appsNow = db
-    .prepare(
-      'SELECT id, company_name, job_title, applied_at, created_at, source, archived FROM job_applications WHERE user_id = ?'
-    )
-    .all(userId);
-  console.log('HF apps before B assert:', appsNow);
   assert.equal(matchB.action, 'created_application');
 
   const apps = db.prepare('SELECT * FROM job_applications WHERE user_id = ?').all(userId);
@@ -504,4 +480,160 @@ test('Distinct program role tails at same company do not dedupe', () => {
   const titles = apps.map((a) => a.job_title).sort();
   assert.ok(titles.includes('2026 Technology Early Career Development Program - Data//Cloud Engineer'));
   assert.ok(titles.includes('2026 Technology Early Career Development Program - Full Stack Development'));
+});
+
+test('Healthfirst rejection overrides confirmation cues and attaches to existing application', () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+
+  const appId = crypto.randomUUID();
+  db.prepare(
+    `INSERT INTO job_applications
+     (id, user_id, company, role, company_name, job_title, status, current_status, status_updated_at, created_at, updated_at, source, company_confidence)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    appId,
+    userId,
+    'Healthfirst',
+    '2026 Technology Early Career Development Program - Full Stack Development',
+    'Healthfirst',
+    '2026 Technology Early Career Development Program - Full Stack Development',
+    ApplicationStatus.APPLIED,
+    ApplicationStatus.APPLIED,
+    new Date().toISOString(),
+    new Date().toISOString(),
+    new Date().toISOString(),
+    'healthfirst.com',
+    0.9
+  );
+
+  const subject = 'Healthfirst Application Update';
+  const snippet =
+    'Thank you for applying for the Full Stack Development role. Unfortunately we are unable to move forward with your application at this time.';
+  const classification = classifyEmail({ subject, snippet, sender: 'careeralerts@healthfirst.com' });
+  assert.equal(classification.detectedType, 'rejection');
+
+  const identity = extractThreadIdentity({
+    subject,
+    sender: 'careeralerts@healthfirst.com',
+    snippet,
+    bodyText: snippet
+  });
+
+  const eventId = insertEmailEvent(db, {
+    userId,
+    messageId: 'hf-reject',
+    sender: 'careeralerts@healthfirst.com',
+    subject,
+    detectedType: 'rejection',
+    confidenceScore: 0.94,
+    classificationConfidence: 0.94,
+    snippet
+  });
+
+  const match = matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: eventId,
+      sender: 'careeralerts@healthfirst.com',
+      subject,
+      snippet,
+      detected_type: 'rejection',
+      confidence_score: 0.94,
+      classification_confidence: 0.94,
+      role_title: identity.jobTitle,
+      role_confidence: identity.roleConfidence,
+      role_source: identity.roleSource,
+      created_at: new Date().toISOString()
+    },
+    identity
+  });
+
+  assert.equal(match.action, 'matched_existing');
+
+  const app = db.prepare('SELECT current_status FROM job_applications WHERE id = ?').get(appId);
+  assert.equal(app.current_status, ApplicationStatus.REJECTED);
+
+  const eventRow = db.prepare('SELECT application_id FROM email_events WHERE id = ?').get(eventId);
+  assert.equal(eventRow.application_id, appId);
+});
+
+test('Prudential Workday rejection attaches and extracts role from subject', () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+
+  const appId = crypto.randomUUID();
+  db.prepare(
+    `INSERT INTO job_applications
+     (id, user_id, company, role, company_name, job_title, status, current_status, status_updated_at, created_at, updated_at, source, company_confidence)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    appId,
+    userId,
+    'Prudential',
+    'Associate Software Engineer',
+    'Prudential',
+    'Associate Software Engineer',
+    ApplicationStatus.APPLIED,
+    ApplicationStatus.APPLIED,
+    new Date().toISOString(),
+    new Date().toISOString(),
+    new Date().toISOString(),
+    'myworkday.com',
+    0.9
+  );
+
+  const subject = 'Your Application: Associate Software Engineer';
+  const body =
+    'Thank you for your application. After careful consideration, we have decided to pursue other candidates for this role.';
+  const classification = classifyEmail({ subject, snippet: body, sender: 'prudential@myworkday.com' });
+  assert.equal(classification.detectedType, 'rejection');
+
+  const identity = extractThreadIdentity({
+    subject,
+    sender: 'prudential@myworkday.com',
+    bodyText: body
+  });
+  assert.equal(identity.jobTitle, 'Associate Software Engineer');
+
+  const eventId = insertEmailEvent(db, {
+    userId,
+    messageId: 'prudential-reject',
+    sender: 'prudential@myworkday.com',
+    subject,
+    detectedType: 'rejection',
+    confidenceScore: 0.94,
+    classificationConfidence: 0.94,
+    snippet: body
+  });
+
+  const match = matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: eventId,
+      sender: 'prudential@myworkday.com',
+      subject,
+      snippet: body,
+      detected_type: 'rejection',
+      confidence_score: 0.94,
+      classification_confidence: 0.94,
+      role_title: identity.jobTitle,
+      role_confidence: identity.roleConfidence,
+      role_source: identity.roleSource,
+      created_at: new Date().toISOString()
+    },
+    identity
+  });
+
+  assert.equal(match.action, 'matched_existing');
+
+  const app = db.prepare('SELECT current_status FROM job_applications WHERE id = ?').get(appId);
+  assert.equal(app.current_status, ApplicationStatus.REJECTED);
+
+  const eventRow = db.prepare('SELECT application_id FROM email_events WHERE id = ?').get(eventId);
+  assert.equal(eventRow.application_id, appId);
 });
