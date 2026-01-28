@@ -39,6 +39,21 @@ function extractSenderDomain(sender) {
   return match ? match[1].toLowerCase() : null;
 }
 
+function buildEventText(event = {}) {
+  const parts = [
+    event.subject,
+    event.snippet,
+    event.bodyText,
+    event.body_text,
+    event.bodyPlain,
+    event.body_plain
+  ];
+  return parts
+    .filter(Boolean)
+    .join('\n')
+    .toLowerCase();
+}
+
 function normalizeSlug(text) {
   return String(text || '')
     .toLowerCase()
@@ -907,18 +922,13 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
     providedIdentity ||
     extractThreadIdentity({ subject: event.subject, sender: event.sender, snippet: event.snippet });
   const STRONG_REJECTION_LIST = Array.isArray(STRONG_REJECTION_PATTERNS) ? STRONG_REJECTION_PATTERNS : [];
+  const eventText = buildEventText(event);
   const externalReqId = getExternalReqId(event);
   const roleForMatch = identity.jobTitle || event.role_title || null;
   const isConfirmation = event.detected_type === 'confirmation';
   const isRejectionEvent =
     event.detected_type === 'rejection' ||
-    STRONG_REJECTION_LIST.some((p) =>
-      p.test(
-        `${String(event.subject || '')} ${String(event.snippet || '')} ${String(
-          event.bodyText || ''
-        )}`.toLowerCase()
-      )
-    );
+    STRONG_REJECTION_LIST.some((p) => p.test(eventText));
   const eventTsIso = toIsoFromInternalDate(event.internal_date, new Date(event.created_at));
   const eventTimeMs = eventTsIso ? new Date(eventTsIso).getTime() : Date.now();
 

@@ -196,3 +196,21 @@ test('classifyEmail detects LinkedIn Easy Apply confirmation', () => {
   assert.equal(result.detectedType, 'confirmation');
   assert.ok(result.confidenceScore >= 0.92);
 });
+
+test('classifyEmail rejection wins when body contains rejection cues', () => {
+  const result = classifyEmail({
+    subject: 'Application Update',
+    snippet: 'Thank you for applying for the Full Stack role',
+    body: 'We appreciate your interest. Unfortunately we are unable to move forward with your application at this time.'
+  });
+  assert.equal(result.detectedType, 'rejection');
+});
+
+test('classifyEmail stays confirmation when no rejection cues present', () => {
+  const result = classifyEmail({
+    subject: 'Application Update',
+    snippet: 'Thank you for applying for the Backend Engineer role',
+    body: 'We received your application and will review soon.'
+  });
+  assert.equal(result.detectedType, 'confirmation');
+});

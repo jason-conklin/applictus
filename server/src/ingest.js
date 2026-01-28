@@ -428,7 +428,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
         }
       }
 
-      const classification = classifyEmail({ subject, snippet, sender });
+      const classification = classifyEmail({ subject, snippet, sender, body: bodyText });
       if (!classification.isJobRelated) {
         skippedNotJob += 1;
         let reasonCode = 'classified_not_job_related';
@@ -643,6 +643,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
           detected_type: effectiveClassification.detectedType,
           confidence_score: effectiveClassification.confidenceScore,
           classification_confidence: effectiveClassification.confidenceScore,
+          bodyText,
           role_title: effectiveRole?.jobTitle || null,
           role_confidence: Number.isFinite(effectiveRole?.confidence) ? effectiveRole.confidence : null,
           role_source: effectiveRole?.source || null,
