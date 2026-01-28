@@ -164,6 +164,11 @@ function normalizeLocation(text) {
     .trim();
 }
 
+function canonicalRoleKey(role) {
+  if (!role) return null;
+  return String(role).toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
 function normalizeRoleKey(text) {
   if (!text) return null;
   let t = String(text).toLowerCase();
@@ -984,6 +989,40 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
     }
     const unassigned = buildUnassignedReason(event, identity);
     return { action: 'unassigned', reason: unassigned.reason, reasonDetail: unassigned.detail, identity };
+  }
+
+  // Hard identity boundary for confirmations: company + normalized role must match
+  if (isConfirmation && roleForMatch) {
+    const incomingWeak = isWeakRoleText(roleForMatch) || normalizeDisplayTitle(roleForMatch) === UNKNOWN_ROLE;
+    if (!incomingWeak) {
+      const existingApps = db
+        .prepare(
+          `SELECT id, job_title, role FROM job_applications
+           WHERE user_id = ?
+             AND archived = 0
+             AND (company_name = ? OR company = ?)`
+        )
+        .all(userId, identity.companyName, identity.companyName);
+      const conflict = existingApps.some((app) => {
+        const appRole = app.job_title || app.role;
+        if (isWeakRoleText(appRole) || normalizeDisplayTitle(appRole) === UNKNOWN_ROLE) {
+          return false;
+        }
+        return isDivergentStrongRoles(roleForMatch, appRole);
+      });
+      if (conflict) {
+        const application = createApplicationFromEvent(db, userId, identity, event);
+        attachEventToApplication(db, event.id, application.id);
+        logDebug('matching.confirmation_role_boundary', {
+          eventId: event.id,
+          applicationId: application.id,
+          company: identity.companyName,
+          role: roleForMatch,
+          reason: 'strong_role_divergence'
+        });
+        return { action: 'created_application', applicationId: application.id, identity };
+      }
+    }
   }
 
   const matchConfidence = identity.matchConfidence || 0;
