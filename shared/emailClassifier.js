@@ -28,8 +28,39 @@ const STRONG_REJECTION_PATTERNS = [
   /we will not be moving forward/i,
   /we(?:'| )?ve decided to pursue other candidates/i,
   /after careful consideration[, ]+(?:we )?(?:are )?(?:not|unable|declined|declining|will not)/i,
-  /unfortunately[, ]+(?:we )?(?:are )?(?:not|unable|declined|declining|will not|can(?:not|'t) move forward)/i
+  /unfortunately[, ]+(?:we )?(?:are )?(?:not|unable|declined|declining|will not|can(?:not|'t) move forward|pursue other candidates)/i
 ];
+
+function isConditionalNotSelected(text) {
+  if (!text) return false;
+  const lower = String(text).toLowerCase();
+  const exact = /\bif\s+you(?:'re|\s+are)\s+not\s+selected\b/;
+  if (exact.test(lower)) return true;
+  const phrases = [
+    /\bif you are not selected for this (?:position|role)\b/,
+    /\bshould you not be selected\b/,
+    /\bin the event you are not selected\b/
+  ];
+  if (phrases.some((p) => p.test(lower))) return true;
+  const conditionalWindow =
+    /(if|should|in the event|whether|may|might|could|please note that if)[^]{0,80}?not selected/;
+  return conditionalWindow.test(lower);
+}
+
+function hasConfirmationReceiptCues(text) {
+  if (!text) return false;
+  return (
+    /we (?:have )?received your application/i.test(text) ||
+    /thank you for your application/i.test(text) ||
+    /thank you for applying/i.test(text) ||
+    /application received/i.test(text)
+  );
+}
+
+function hasDecisionRejectionCues(text) {
+  if (!text) return false;
+  return STRONG_REJECTION_PATTERNS.some((p) => p.test(text));
+}
 
 const RULES = [
   {
@@ -69,8 +100,7 @@ const RULES = [
     /we will not be moving forward/i,
     /application (?:was|has been) not selected/i,
     /your application was not selected/i,
-    /unfortunately.+(?:application|candidacy|role|position)/i,
-      /we appreciate your interest in the (?:position|role|opportunity)/i,
+      /unfortunately.+(?:application|candidacy|role|position)/i,
       /position has been filled/i,
       /application (?:was|has been) rejected/i,
       /application (?:was|has been) declined/i,
@@ -224,6 +254,21 @@ function classifyEmail({ subject, snippet, sender, body }) {
   const rules = RULES;
   const jobContext = hasJobContext(text) || hasSubjectRolePattern(normalize(subject));
 
+  // Conditional "not selected" disclaimers in receipts should not be treated as rejection.
+  if (
+    isConditionalNotSelected(textSource) &&
+    hasConfirmationReceiptCues(textSource) &&
+    !hasDecisionRejectionCues(textSource)
+  ) {
+    return {
+      isJobRelated: true,
+      detectedType: 'confirmation',
+      confidenceScore: 0.9,
+      explanation: 'Conditional not selected disclaimer treated as confirmation.',
+      reason: 'conditional_not_selected_receipt'
+    };
+  }
+
   // Strong rejection override regardless of confirmation cues
   const strongRejectionHit = STRONG_REJECTION_PATTERNS.find((p) => p.test(text));
   if (strongRejectionHit) {
@@ -277,13 +322,21 @@ function classifyEmail({ subject, snippet, sender, body }) {
   const rejectionRules = rules.filter((rule) => rule.detectedType === 'rejection');
   const rejectionMatch = findRuleMatch(rejectionRules, text, 0.9, jobContext);
   if (rejectionMatch) {
-    return {
-      isJobRelated: true,
-      detectedType: rejectionMatch.rule.detectedType,
-      confidenceScore: rejectionMatch.rule.confidence,
-      explanation: `Matched ${rejectionMatch.rule.name} via ${rejectionMatch.matched}.`,
-      reason: rejectionMatch.rule.name
-    };
+    const matchedPattern = rejectionMatch.matched;
+    const isNotSelected = matchedPattern && /not selected/i.test(String(matchedPattern));
+    const conditionalNotSelected =
+      isNotSelected && isConditionalNotSelected(text) && hasConfirmationReceiptCues(text);
+    const decisive = hasDecisionRejectionCues(text);
+    if (!(conditionalNotSelected && !decisive)) {
+      return {
+        isJobRelated: true,
+        detectedType: rejectionMatch.rule.detectedType,
+        confidenceScore: rejectionMatch.rule.confidence,
+        explanation: `Matched ${rejectionMatch.rule.name} via ${rejectionMatch.matched}.`,
+        reason: rejectionMatch.rule.name
+      };
+    }
+    // Conditional disclaimer present with receipt cues and no decisive rejection: allow confirmation path.
   }
 
   const confirmationMatch = findRuleMatch(confirmationRules, text, 0.9, jobContext);

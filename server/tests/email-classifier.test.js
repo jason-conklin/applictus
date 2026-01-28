@@ -214,3 +214,21 @@ test('classifyEmail stays confirmation when no rejection cues present', () => {
   });
   assert.equal(result.detectedType, 'confirmation');
 });
+
+test('classifyEmail does not misclassify conditional not selected in receipts', () => {
+  const result = classifyEmail({
+    subject: 'Thank you for your application to Figma',
+    snippet: 'We received your application for the Product Engineer role.',
+    body: 'If you are not selected for this position, we will keep your information on file. Thank you for applying.'
+  });
+  assert.equal(result.detectedType, 'confirmation');
+});
+
+test('classifyEmail still rejects decisive not selected wording', () => {
+  const result = classifyEmail({
+    subject: 'Application update',
+    snippet: 'Your application was not selected.',
+    body: 'After careful consideration, your application was not selected for this role.'
+  });
+  assert.equal(result.detectedType, 'rejection');
+});
