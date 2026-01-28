@@ -835,6 +835,7 @@ function startSyncPolling(syncId) {
   syncUiState.syncId = syncId;
   syncUiState.startTs = Date.now();
   syncUiState.state = 'running';
+  syncUiState.pollErrorCount = 0;
   if (syncUiState.pollTimer) {
     window.clearInterval(syncUiState.pollTimer);
   }
@@ -871,6 +872,7 @@ function startSyncPolling(syncId) {
   const poll = async () => {
     try {
       const progress = await api(`/api/email/sync/status?sync_id=${encodeURIComponent(syncId)}`);
+      syncUiState.pollErrorCount = 0;
       const total = Number(progress.total) || 0;
       const processed = Number(progress.processed) || 0;
       const status = progress.status || 'running';
@@ -899,9 +901,19 @@ function startSyncPolling(syncId) {
         syncUiState.pollTimer = null;
       }
     } catch (err) {
-      // Keep previous progress on poll error
+      // Treat intermittent poll errors as transient; only fail after a few consecutive errors.
+      syncUiState.pollErrorCount = (syncUiState.pollErrorCount || 0) + 1;
+      const transient = syncUiState.pollErrorCount < 3;
       if (isDev) {
-        console.debug('sync status poll failed', err?.message || err);
+        console.debug('sync status poll failed', err?.message || err, { count: syncUiState.pollErrorCount });
+      }
+      if (transient) {
+        setSyncProgressState({
+          visible: true,
+          label: 'Syncing…',
+          error: false
+        });
+        return;
       }
       setSyncProgressState({ visible: true, label: 'Sync failed', error: true });
       hideSyncProgress();

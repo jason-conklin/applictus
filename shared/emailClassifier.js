@@ -82,11 +82,11 @@ const RULES = [
     detectedType: 'offer',
     confidence: 0.95,
     patterns: [
-      /offer (?:letter|extended|of employment)/i,
-      /we (?:are|re) pleased to offer/i,
-      /congratulations.+offer/i,
-      /offer(?:ing)? you the (?:position|role)/i
-    ]
+    /offer (?:letter|extended|of employment)/i,
+    /we (?:are|re) pleased to offer/i,
+    /congratulations.+offer/i,
+    /offer(?:ing)? you the (?:position|role)/i
+  ]
   },
   {
     name: 'rejection',
@@ -125,15 +125,25 @@ const RULES = [
     name: 'interview',
     detectedType: 'interview',
     confidence: 0.9,
+    requiresJobContext: true,
+    negativePatterns: [
+      /\blinkedin\b/i,
+      /\breacted to this post\b/i,
+      /\bcommented on\b/i,
+      /\bshare their thoughts\b/i,
+      /\bview .* post\b/i,
+      /\bnew (?:followers|connections|notifications)\b/i,
+      /\bliked your post\b/i
+    ],
     patterns: [
       /schedule (?:an|your) interview/i,
       /interview (?:invite|invitation|confirmed|availability)/i,
       /interview (?:schedule|scheduled|scheduling)/i,
-      /phone screen/i,
       /video interview/i,
       /thank you for interviewing/i,
       /thank you for (?:the )?interview/i,
-      /select (?:a|your) time for an interview/i
+      /select (?:a|your) time for an interview/i,
+      /(?=.*phone screen)(?=.*(schedule|calendly|availability|select a time|invite|interview|recruiter|talent|hiring))/i
     ]
   },
   {
@@ -227,8 +237,27 @@ function normalize(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
+function isLinkedInSocialNotification(text, sender = '') {
+  const lower = text.toLowerCase();
+  const senderLower = String(sender || '').toLowerCase();
+  const isLinkedInSender = senderLower.includes('linkedin.com');
+  const socialCues = [
+    /reacted to this post/i,
+    /commented on/i,
+    /share their thoughts/i,
+    /view .* post/i,
+    /new follower/i,
+    /connections?/i,
+    /notifications?/i,
+    /liked your post/i,
+    /see what you missed/i
+  ];
+  const hasSocialCue = socialCues.some((p) => p.test(lower));
+  return isLinkedInSender && hasSocialCue;
+}
+
 function hasJobContext(text) {
-  return /\b(application|apply|applied|position|role|job|candidate|candidacy|hiring|recruit|interview)\b/i.test(
+  return /\b(application|apply|applied|position|role|job|candidate|candidacy|hiring|recruit|recruiter|recruiting|interview|screen|screening)\b/i.test(
     text
   );
 }
@@ -247,6 +276,9 @@ function findRuleMatch(rules, text, minConfidence, jobContext) {
     if (rule.requiresJobContext && !jobContext) {
       continue;
     }
+    if (rule.negativePatterns && rule.negativePatterns.some((p) => p.test(text))) {
+      continue;
+    }
     const matched = rule.patterns.find((pattern) => pattern.test(text));
     if (matched) {
       return { rule, matched };
@@ -262,6 +294,11 @@ function classifyEmail({ subject, snippet, sender, body }) {
   const text = textSource.toLowerCase();
   if (!text) {
     return { isJobRelated: false, explanation: 'Empty subject/snippet.' };
+  }
+
+  // Early guard: LinkedIn social/notification emails should not be classified as interview.
+  if (isLinkedInSocialNotification(textSource, sender)) {
+    return { isJobRelated: false, explanation: 'LinkedIn social notification.' };
   }
 
   const minConfidence = 0.6;

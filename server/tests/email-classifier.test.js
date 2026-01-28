@@ -145,6 +145,34 @@ test('classifyEmail detects other job related signals', () => {
   assert.equal(result.detectedType, 'other_job_related');
 });
 
+test('LinkedIn social notification is not interview (share their thoughts)', () => {
+  const result = classifyEmail({
+    subject: 'Ronald A. Brokenshire, PE, SE and others share their thoughts on LinkedIn',
+    snippet: 'See their reaction and join the conversation',
+    sender: 'notifications@linkedin.com'
+  });
+  assert.notEqual(result.detectedType, 'interview');
+});
+
+test('LinkedIn social notification reacted to post is not interview', () => {
+  const result = classifyEmail({
+    subject: 'Alex reacted to this post',
+    snippet: 'View Alex’s post and your next steps',
+    sender: 'notifications-noreply@linkedin.com'
+  });
+  assert.notEqual(result.detectedType, 'interview');
+});
+
+test('Phone screen invite with scheduling context stays interview', () => {
+  const result = classifyEmail({
+    subject: 'Phone screen availability',
+    snippet: 'Please select a time for a phone screen with our recruiter',
+    sender: 'recruiter@company.com',
+    body: 'We would like to schedule a phone screen. Please share your availability or use Calendly.'
+  });
+  assert.equal(result.detectedType, 'interview');
+});
+
 test('classifyEmail denylist overrides allowlist', () => {
   const result = classifyEmail({
     subject: 'Application received newsletter',
