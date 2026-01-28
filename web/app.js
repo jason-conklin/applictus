@@ -373,7 +373,13 @@ async function api(path, options = {}) {
     ...options
   });
   if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
+    const bodyText = await response.text().catch(() => '');
+    let body = {};
+    try {
+      body = bodyText ? JSON.parse(bodyText) : {};
+    } catch (err) {
+      body = {};
+    }
     const message = body.error || `Request failed (${response.status})`;
     const error = new Error(message);
     error.code = body.code || response.status;
@@ -381,7 +387,13 @@ async function api(path, options = {}) {
     error.status = response.status;
     throw error;
   }
-  return response.json();
+  const rawText = await response.text().catch(() => '');
+  if (!rawText) return {};
+  try {
+    return JSON.parse(rawText);
+  } catch (err) {
+    return { raw: rawText };
+  }
 }
 
 async function loadCsrfToken() {
@@ -1102,7 +1114,7 @@ function getKpiCountsFromColumns(columns) {
     counts.total += count;
     if (column.status === 'APPLIED') {
       counts.applied += count;
-    } else if (column.status === 'OFFER_RECEIVED') {
+    } else if (column.status === 'OFFER_RECEIVED' || column.status === 'INTERVIEW_REQUESTED') {
       counts.offer += count;
     } else if (column.status === 'REJECTED') {
       counts.rejected += count;
@@ -1668,7 +1680,8 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
       method: 'POST',
       body: JSON.stringify({ days, sync_id: syncId })
     });
-    if (result.status === 'not_connected') {
+    const status = result.status || 'success';
+    if (status === 'not_connected') {
       if (statusEl) {
         statusEl.textContent = 'Not connected';
       }
@@ -1677,10 +1690,9 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
         statusEl.textContent = 'Complete';
       }
     }
-    const rawDetails =
-      result.status === 'not_connected' ? 'Connect Gmail first.' : formatSyncSummary(result);
+    const rawDetails = status === 'not_connected' ? 'Connect Gmail first.' : formatSyncSummary(result);
     renderSyncSummary({
-      status: result.status === 'not_connected' ? 'not_connected' : 'success',
+      status: status === 'not_connected' ? 'not_connected' : 'success',
       result,
       rawDetails
     });
@@ -1737,14 +1749,13 @@ async function runQuickSync() {
       method: 'POST',
       body: JSON.stringify({ days: 30, sync_id: syncId })
     });
-    const rawDetails =
-      result.status === 'not_connected' ? 'Connect Gmail first.' : formatSyncSummary(result);
+    const status = result.status || 'success';
+    const rawDetails = status === 'not_connected' ? 'Connect Gmail first.' : formatSyncSummary(result);
     if (statusEl) {
-      statusEl.textContent =
-        result.status === 'not_connected' ? 'Connect Gmail first.' : 'Complete';
+      statusEl.textContent = status === 'not_connected' ? 'Connect Gmail first.' : 'Complete';
     }
     renderSyncSummary({
-      status: result.status === 'not_connected' ? 'not_connected' : 'success',
+      status: status === 'not_connected' ? 'not_connected' : 'success',
       result,
       rawDetails
     });
