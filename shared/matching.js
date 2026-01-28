@@ -122,7 +122,7 @@ const INVALID_COMPANY_TERMS = new Set([
 const ROLE_COMPANY_PATTERNS = [
   {
     name: 'profile_submitted_subject',
-    regex: /\bprofile submitted to\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})\s+for\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})(?:\s*[\/|]\s*#?[A-Za-z0-9-]{3,})?\s*$/i,
+    regex: /\bprofile submitted to\s+([A-Z][A-Za-z0-9&.'\- ]{2,80})\s+for\s+([A-Z][A-Za-z0-9&.'\- ]{2,80})(?:\s*[\/|]\s*#?[A-Za-z0-9-]{3,})?\s*$/i,
     roleIndex: 2,
     companyIndex: 1,
     confidence: 0.93

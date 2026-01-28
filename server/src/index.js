@@ -361,6 +361,7 @@ function parseListQuery(query) {
   const offset = Math.max(Number(query.offset) || 0, 0);
   const status = query.status && VALID_STATUSES.has(query.status) ? query.status : null;
   const company = query.company ? String(query.company).trim() : null;
+  const role = query.role ? String(query.role).trim() : null;
   const recencyDays = Number(query.recency_days);
   const minConfidence = Number(query.min_confidence);
   const suggestionsOnly = query.suggestions_only === '1' || query.suggestions_only === 'true';
@@ -374,6 +375,7 @@ function parseListQuery(query) {
     offset,
     status,
     company,
+    role,
     recencyDays: Number.isFinite(recencyDays) && recencyDays > 0 ? recencyDays : null,
     minConfidence: Number.isFinite(minConfidence) && minConfidence >= 0 ? minConfidence : null,
     suggestionsOnly,
@@ -383,7 +385,7 @@ function parseListQuery(query) {
   };
 }
 
-function buildApplicationFilters({ userId, archived, status, company, recencyDays, minConfidence, suggestionsOnly }) {
+function buildApplicationFilters({ userId, archived, status, company, role, recencyDays, minConfidence, suggestionsOnly }) {
   const clauses = ['user_id = ?'];
   const params = [userId];
 
@@ -398,6 +400,10 @@ function buildApplicationFilters({ userId, archived, status, company, recencyDay
   if (company) {
     clauses.push('LOWER(company_name) LIKE ?');
     params.push(`%${company.toLowerCase()}%`);
+  }
+  if (role) {
+    clauses.push('(LOWER(job_title) LIKE ? OR LOWER(role) LIKE ?)');
+    params.push(`%${role.toLowerCase()}%`, `%${role.toLowerCase()}%`);
   }
   if (recencyDays) {
     const cutoff = new Date(Date.now() - recencyDays * 24 * 60 * 60 * 1000).toISOString();
@@ -923,6 +929,7 @@ app.get('/api/applications', requireAuth, (req, res) => {
     archived: typeof listQuery.archived === 'boolean' ? listQuery.archived : false,
     status: listQuery.status,
     company: listQuery.company,
+    role: listQuery.role,
     recencyDays: listQuery.recencyDays,
     minConfidence: listQuery.minConfidence,
     suggestionsOnly: listQuery.suggestionsOnly
@@ -961,6 +968,7 @@ app.get('/api/applications/archived', requireAuth, (req, res) => {
     archived: true,
     status: listQuery.status,
     company: listQuery.company,
+    role: listQuery.role,
     recencyDays: listQuery.recencyDays,
     minConfidence: listQuery.minConfidence,
     suggestionsOnly: listQuery.suggestionsOnly
@@ -1003,6 +1011,7 @@ app.get('/api/applications/pipeline', requireAuth, (req, res) => {
       archived: typeof listQuery.archived === 'boolean' ? listQuery.archived : false,
       status,
       company: listQuery.company,
+      role: listQuery.role,
       recencyDays: listQuery.recencyDays,
       minConfidence: listQuery.minConfidence,
       suggestionsOnly: listQuery.suggestionsOnly

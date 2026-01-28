@@ -75,6 +75,8 @@ const viewToggle = document.getElementById('view-toggle');
 const filterStatus = document.getElementById('filter-status');
 const filterCompany = document.getElementById('filter-company');
 const filterCompanyClear = document.getElementById('filter-company-clear');
+const filterRole = document.getElementById('filter-role');
+const filterRoleClear = document.getElementById('filter-role-clear');
 const tablePrev = document.getElementById('table-prev');
 const tableNext = document.getElementById('table-next');
 const tablePageInfo = document.getElementById('table-page-info');
@@ -209,7 +211,8 @@ const state = {
   viewMode: getInitialViewMode(),
   filters: {
     status: '',
-    company: ''
+    company: '',
+    role: ''
   },
   sort: {
     key: 'lastActivity',
@@ -995,6 +998,7 @@ function buildListParams(overrides = {}) {
   const filters = state.filters;
   const status = overrides.status ?? filters.status;
   const company = overrides.company ?? filters.company;
+  const role = overrides.role ?? filters.role;
   const sortBy = 'last_activity_at';
   const sortDir = 'desc';
 
@@ -1003,6 +1007,9 @@ function buildListParams(overrides = {}) {
   }
   if (company) {
     params.set('company', company);
+  }
+  if (role) {
+    params.set('role', role);
   }
   if (sortBy) {
     params.set('sort_by', sortBy);
@@ -1048,6 +1055,9 @@ function getActiveFilters() {
   }
   if (filters.company) {
     active.push(`Company: ${filters.company}`);
+  }
+  if (filters.role) {
+    active.push(`Role: ${filters.role}`);
   }
 
   return active;
@@ -2759,6 +2769,7 @@ dashboardView?.addEventListener('click', async (event) => {
 });
 
 let filterCompanyTimer = null;
+let filterRoleTimer = null;
 const applyFilters = async () => {
   state.table.offset = 0;
   updateFilterSummary();
@@ -2786,6 +2797,25 @@ filterCompanyClear?.addEventListener('click', async () => {
   filterCompany.value = '';
   filterCompanyClear.classList.add('hidden');
   state.filters.company = '';
+  await applyFilters();
+});
+
+filterRole?.addEventListener('input', () => {
+  if (filterRoleClear) {
+    filterRoleClear.classList.toggle('hidden', !filterRole.value);
+  }
+  clearTimeout(filterRoleTimer);
+  filterRoleTimer = setTimeout(async () => {
+    state.filters.role = filterRole.value.trim();
+    await applyFilters();
+  }, 180);
+});
+
+filterRoleClear?.addEventListener('click', async () => {
+  if (!filterRole) return;
+  filterRole.value = '';
+  filterRoleClear.classList.add('hidden');
+  state.filters.role = '';
   await applyFilters();
 });
 
