@@ -232,3 +232,16 @@ test('classifyEmail still rejects decisive not selected wording', () => {
   });
   assert.equal(result.detectedType, 'rejection');
 });
+
+test('classifyEmail detects profile submitted confirmation', () => {
+  const subject = 'Profile submitted to Vertafore for Software Engineer I / #606810';
+  const body =
+    'We have received the profile you submitted for the Software Engineer I position. If your profile matches the requirements of the position, a member of the recruiting team will contact you.';
+  const result = classifyEmail({
+    subject,
+    snippet: 'Profile submitted to Vertafore for Software Engineer I / #606810',
+    body
+  });
+  assert.equal(result.detectedType, 'confirmation');
+  assert.ok(result.confidenceScore >= 0.85);
+});

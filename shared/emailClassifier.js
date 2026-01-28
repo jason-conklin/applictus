@@ -31,6 +31,20 @@ const STRONG_REJECTION_PATTERNS = [
   /unfortunately[, ]+(?:we )?(?:are )?(?:not|unable|declined|declining|will not|can(?:not|'t) move forward|pursue other candidates)/i
 ];
 
+const PROFILE_SUBMITTED_RULE = {
+  name: 'profile_submitted_confirmation',
+  detectedType: 'confirmation',
+  confidence: 0.92,
+  requiresJobContext: true,
+  patterns: [
+    /\bprofile submitted to\b/i,
+    /\bprofile submitted to\s+.+\s+for\s+.+\s*[\/|]\s*#?\d+/i,
+    /\bwe have received the profile you submitted\b/i,
+    /\breceived the profile you submitted for the\b/i,
+    /\bif your profile matches the requirements\b/i
+  ]
+};
+
 function isConditionalNotSelected(text) {
   if (!text) return false;
   const lower = String(text).toLowerCase();
@@ -251,7 +265,7 @@ function classifyEmail({ subject, snippet, sender, body }) {
   }
 
   const minConfidence = 0.6;
-  const rules = RULES;
+  const rules = [PROFILE_SUBMITTED_RULE, ...RULES];
   const jobContext = hasJobContext(text) || hasSubjectRolePattern(normalize(subject));
 
   // Conditional "not selected" disclaimers in receipts should not be treated as rejection.

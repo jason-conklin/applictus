@@ -121,6 +121,13 @@ const INVALID_COMPANY_TERMS = new Set([
 
 const ROLE_COMPANY_PATTERNS = [
   {
+    name: 'profile_submitted_subject',
+    regex: /\bprofile submitted to\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})\s+for\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})(?:\s*[\/|]\s*#?[A-Za-z0-9-]{3,})?\s*$/i,
+    roleIndex: 2,
+    companyIndex: 1,
+    confidence: 0.93
+  },
+  {
     name: 'subject_update_from_company',
     regex: /update on your application from\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})/i,
     roleIndex: null,
@@ -947,6 +954,7 @@ function sanitizeJobTitle(title) {
     text = text.slice(0, 120);
   }
   text = text.replace(/^["']+|["']+$/g, '');
+  text = text.replace(/[\\/|]+$/g, '');
   const clauseStops = [
     ', and',
     ', but',

@@ -565,6 +565,60 @@ test('Healthfirst rejection overrides confirmation cues and attaches to existing
   assert.equal(eventRow.application_id, appId);
 });
 
+test('Profile submitted confirmation creates application with role/title', () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+
+  const subject = 'Profile submitted to Vertafore for Software Engineer I / #606810';
+  const body =
+    'We have received the profile you submitted for the Software Engineer I position. If your profile matches the requirements of the position, a member of the recruiting team will contact you.';
+
+  const identity = extractThreadIdentity({
+    subject,
+    sender: 'notifications@hirebridge.com',
+    bodyText: body
+  });
+  assert.equal(identity.companyName, 'Vertafore');
+  assert.equal(identity.jobTitle, 'Software Engineer I');
+
+  const eventId = insertEmailEvent(db, {
+    userId,
+    messageId: 'vertafore-profile',
+    sender: 'notifications@hirebridge.com',
+    subject,
+    detectedType: 'confirmation',
+    confidenceScore: 0.92,
+    classificationConfidence: 0.92,
+    snippet: body
+  });
+
+  const match = matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: eventId,
+      sender: 'notifications@hirebridge.com',
+      subject,
+      snippet: body,
+      detected_type: 'confirmation',
+      confidence_score: 0.92,
+      classification_confidence: 0.92,
+      role_title: identity.jobTitle,
+      role_confidence: identity.roleConfidence,
+      role_source: identity.roleSource,
+      created_at: new Date().toISOString()
+    },
+    identity
+  });
+
+  assert.equal(match.action, 'created_application');
+  const app = db.prepare('SELECT company_name, job_title, current_status FROM job_applications WHERE user_id = ?').get(userId);
+  assert.equal(app.company_name, 'Vertafore');
+  assert.equal(app.job_title, 'Software Engineer I');
+  assert.equal(app.current_status, ApplicationStatus.APPLIED);
+});
+
 test('Prudential Workday rejection attaches and extracts role from subject', () => {
   const db = new Database(':memory:');
   runMigrations(db);
