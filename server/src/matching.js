@@ -11,7 +11,8 @@ const {
   extractRoleTail,
   extractProgramTail,
   isProgramRole,
-  tailSimilarity
+  tailSimilarity,
+  STRONG_REJECTION_PATTERNS
 } = require('../../shared/matching');
 const { logDebug } = require('./logger');
 const { TERMINAL_STATUSES, STATUS_PRIORITY } = require('../../shared/statusInference');
@@ -905,9 +906,19 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
   const identity =
     providedIdentity ||
     extractThreadIdentity({ subject: event.subject, sender: event.sender, snippet: event.snippet });
+  const STRONG_REJECTION_LIST = Array.isArray(STRONG_REJECTION_PATTERNS) ? STRONG_REJECTION_PATTERNS : [];
   const externalReqId = getExternalReqId(event);
   const roleForMatch = identity.jobTitle || event.role_title || null;
   const isConfirmation = event.detected_type === 'confirmation';
+  const isRejectionEvent =
+    event.detected_type === 'rejection' ||
+    STRONG_REJECTION_LIST.some((p) =>
+      p.test(
+        `${String(event.subject || '')} ${String(event.snippet || '')} ${String(
+          event.bodyText || ''
+        )}`.toLowerCase()
+      )
+    );
   const eventTsIso = toIsoFromInternalDate(event.internal_date, new Date(event.created_at));
   const eventTimeMs = eventTsIso ? new Date(eventTsIso).getTime() : Date.now();
 
@@ -992,7 +1003,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
   }
 
   // Hard identity boundary for confirmations: company + normalized role must match
-  if (isConfirmation && roleForMatch) {
+  if (isConfirmation && !isRejectionEvent && roleForMatch) {
     const incomingWeak = isWeakRoleText(roleForMatch) || normalizeDisplayTitle(roleForMatch) === UNKNOWN_ROLE;
     if (!incomingWeak) {
       const existingApps = db
@@ -1028,7 +1039,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
   const matchConfidence = identity.matchConfidence || 0;
   const isRejection = event.detected_type === 'rejection';
   // For confirmations, handle req-id match early and skip generic matching paths
-  if (isConfirmation && externalReqId) {
+  if (isConfirmation && !isRejectionEvent && externalReqId) {
     const reqMatch = findMatchingApplication(db, userId, identity, externalReqId);
     if (reqMatch) {
       attachEventToApplication(db, event.id, reqMatch.id);

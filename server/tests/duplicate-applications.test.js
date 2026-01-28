@@ -511,7 +511,12 @@ test('Healthfirst rejection overrides confirmation cues and attaches to existing
   const subject = 'Healthfirst Application Update';
   const snippet =
     'Thank you for applying for the Full Stack Development role. Unfortunately we are unable to move forward with your application at this time.';
-  const classification = classifyEmail({ subject, snippet, sender: 'careeralerts@healthfirst.com' });
+  const classification = classifyEmail({
+    subject,
+    snippet,
+    sender: 'careeralerts@healthfirst.com',
+    body: snippet
+  });
   assert.equal(classification.detectedType, 'rejection');
 
   const identity = extractThreadIdentity({
@@ -589,7 +594,7 @@ test('Prudential Workday rejection attaches and extracts role from subject', () 
   const subject = 'Your Application: Associate Software Engineer';
   const body =
     'Thank you for your application. After careful consideration, we have decided to pursue other candidates for this role.';
-  const classification = classifyEmail({ subject, snippet: body, sender: 'prudential@myworkday.com' });
+  const classification = classifyEmail({ subject, snippet: body, sender: 'prudential@myworkday.com', body });
   assert.equal(classification.detectedType, 'rejection');
 
   const identity = extractThreadIdentity({

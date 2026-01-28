@@ -19,6 +19,18 @@ const LINKEDIN_CONFIRMATION_RULE = {
   senderPattern: /linkedin\.com/i
 };
 
+const STRONG_REJECTION_PATTERNS = [
+  /unable to move forward/i,
+  /we are unable to move forward/i,
+  /not move forward with your application/i,
+  /decided to pursue other candidates/i,
+  /moving forward with other candidates/i,
+  /we will not be moving forward/i,
+  /we(?:'| )?ve decided to pursue other candidates/i,
+  /after careful consideration[, ]+(?:we )?(?:are )?(?:not|unable|declined|declining|will not)/i,
+  /unfortunately[, ]+(?:we )?(?:are )?(?:not|unable|declined|declining|will not|can(?:not|'t) move forward)/i
+];
+
 const RULES = [
   {
     name: 'offer',
@@ -199,8 +211,11 @@ function findRuleMatch(rules, text, minConfidence, jobContext) {
   return null;
 }
 
-function classifyEmail({ subject, snippet, sender }) {
-  const text = `${normalize(subject)} ${normalize(snippet)} ${normalize(sender)}`.trim();
+function classifyEmail({ subject, snippet, sender, body }) {
+  const textSource = `${normalize(body || '')} ${normalize(snippet)} ${normalize(subject)} ${normalize(
+    sender
+  )}`.trim();
+  const text = textSource.toLowerCase();
   if (!text) {
     return { isJobRelated: false, explanation: 'Empty subject/snippet.' };
   }
@@ -208,6 +223,18 @@ function classifyEmail({ subject, snippet, sender }) {
   const minConfidence = 0.6;
   const rules = RULES;
   const jobContext = hasJobContext(text) || hasSubjectRolePattern(normalize(subject));
+
+  // Strong rejection override regardless of confirmation cues
+  const strongRejectionHit = STRONG_REJECTION_PATTERNS.find((p) => p.test(text));
+  if (strongRejectionHit) {
+    return {
+      isJobRelated: true,
+      detectedType: 'rejection',
+      confidenceScore: 0.97,
+      explanation: 'Strong rejection phrase detected',
+      reason: 'rejection_override'
+    };
+  }
 
   // High-confidence LinkedIn Easy Apply confirmation override (before denylist).
   const senderMatchesLinkedIn = LINKEDIN_CONFIRMATION_RULE.senderPattern.test(sender || '');
