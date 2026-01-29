@@ -29,7 +29,7 @@
         <a href="#dashboard" class="nav-link">Dashboard</a>
         <a href="#archive" class="nav-link">Archive</a>
         <a href="#unsorted" class="nav-link">Unsorted Events</a>
-        <a href="/resume-curator.html" class="nav-link">Resume Curator</a>
+        <a href="#resume-curator" class="nav-link">Resume Curator</a>
       </nav>
       <div class="topbar-actions" id="session-actions">
         <button class="ghost" id="logout-btn" type="button">Log out</button>
@@ -383,6 +383,121 @@
           </div>
           <div class="table" id="unsorted-table"></div>
         </div>
+      </section>
+
+      <section class="view" id="resume-curator-view" hidden>
+        <div class="page-header">
+          <h2>Resume Curator</h2>
+          <p class="muted">Tailor a resume to a specific job description, then iterate and track versions.</p>
+        </div>
+
+        <section class="grid-2">
+          <div class="card stack" id="rc-inputs">
+            <h3>Inputs</h3>
+            <label>
+              Base resume
+              <select id="rc-resume-select"></select>
+            </label>
+            <button id="rc-new-resume" type="button" class="ghost">New Resume (Paste)</button>
+            <div id="rc-new-resume-panel" class="stack hidden">
+              <label>
+                Name
+                <input type="text" id="rc-new-resume-name" placeholder="e.g., General resume" />
+              </label>
+              <label>
+                Resume text
+                <textarea id="rc-new-resume-text" rows="6" placeholder="Paste your resume"></textarea>
+              </label>
+              <div class="inline">
+                <label class="checkbox">
+                  <input type="checkbox" id="rc-new-resume-default" /> Set as default
+                </label>
+                <button id="rc-save-resume" type="button">Save resume</button>
+              </div>
+            </div>
+
+            <label>
+              Company
+              <input type="text" id="rc-company" placeholder="Company name" />
+            </label>
+            <label>
+              Role title
+              <input type="text" id="rc-role" placeholder="Role title" />
+            </label>
+            <label>
+              Location (optional)
+              <input type="text" id="rc-location" placeholder="City, State" />
+            </label>
+            <label>
+              Job URL (optional)
+              <input type="url" id="rc-job-url" placeholder="https://…" />
+            </label>
+            <label>
+              Job description
+              <textarea id="rc-jd" rows="10" placeholder="Paste the job description"></textarea>
+            </label>
+
+            <div class="grid-3">
+              <label>
+                Tone
+                <select id="rc-tone">
+                  <option value="neutral">Neutral</option>
+                  <option value="confident">Confident</option>
+                  <option value="bold">Bold</option>
+                </select>
+              </label>
+              <label>
+                Focus
+                <select id="rc-focus">
+                  <option value="balanced">Balanced</option>
+                  <option value="ats">ATS</option>
+                  <option value="impact">Impact</option>
+                </select>
+              </label>
+              <label>
+                Length
+                <select id="rc-length">
+                  <option value="one_page">One page</option>
+                  <option value="one_to_two_pages">1-2 pages</option>
+                </select>
+              </label>
+            </div>
+            <label class="checkbox">
+              <input type="checkbox" id="rc-include-cover" /> Include cover letter
+            </label>
+            <label>
+              Target keywords (comma separated)
+              <input type="text" id="rc-keywords" placeholder="react, node, graphql" />
+            </label>
+
+            <button id="rc-generate" type="button" class="btn btn-primary">Generate Tailored Resume</button>
+            <div class="muted small" id="rc-status">Idle</div>
+          </div>
+
+          <div class="card stack" id="rc-output">
+            <h3>Output</h3>
+            <div class="ats-panel">
+              <div class="ats-score" id="rc-ats-score">ATS score: —</div>
+              <div class="ats-bar">
+                <div class="ats-fill" id="rc-ats-fill" style="width:0%"></div>
+              </div>
+              <div class="small">Matched: <span id="rc-ats-matched">—</span></div>
+              <div class="small">Missing: <span id="rc-ats-missing">—</span></div>
+            </div>
+            <label>
+              Tailored resume
+              <textarea id="rc-output-text" rows="16"></textarea>
+            </label>
+            <div class="inline">
+              <button id="rc-save-edits" type="button">Save edits</button>
+              <button id="rc-mark-exported" type="button" class="ghost">Mark Exported</button>
+            </div>
+            <div class="stack">
+              <h4>Versions</h4>
+              <div id="rc-versions" class="list"></div>
+            </div>
+          </div>
+        </section>
       </section>
     </main>
 

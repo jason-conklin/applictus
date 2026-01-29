@@ -45,6 +45,7 @@ const dashboardView = document.getElementById('dashboard-view');
 const accountView = document.getElementById('account-view');
 const archiveView = document.getElementById('archive-view');
 const unsortedView = document.getElementById('unsorted-view');
+const resumeCuratorView = document.getElementById('resume-curator-view');
 const nav = document.getElementById('nav');
 const topbar = document.getElementById('topbar');
 const accountAvatar = document.getElementById('account-avatar');
@@ -148,6 +149,35 @@ const modalDescription = document.getElementById('modal-description');
 const modalBody = document.getElementById('modal-body');
 const modalFooter = document.getElementById('modal-footer');
 
+// Resume Curator DOM refs
+const rcStatusEl = document.getElementById('rc-status');
+const rcResumeSelect = document.getElementById('rc-resume-select');
+const rcNewResumePanel = document.getElementById('rc-new-resume-panel');
+const rcNewResumeBtn = document.getElementById('rc-new-resume');
+const rcSaveResumeBtn = document.getElementById('rc-save-resume');
+const rcNewResumeName = document.getElementById('rc-new-resume-name');
+const rcNewResumeText = document.getElementById('rc-new-resume-text');
+const rcNewResumeDefault = document.getElementById('rc-new-resume-default');
+const rcCompanyInput = document.getElementById('rc-company');
+const rcRoleInput = document.getElementById('rc-role');
+const rcLocationInput = document.getElementById('rc-location');
+const rcJobUrlInput = document.getElementById('rc-job-url');
+const rcJdInput = document.getElementById('rc-jd');
+const rcToneSelect = document.getElementById('rc-tone');
+const rcFocusSelect = document.getElementById('rc-focus');
+const rcLengthSelect = document.getElementById('rc-length');
+const rcIncludeCover = document.getElementById('rc-include-cover');
+const rcKeywordsInput = document.getElementById('rc-keywords');
+const rcGenerateBtn = document.getElementById('rc-generate');
+const rcOutputText = document.getElementById('rc-output-text');
+const rcSaveEditsBtn = document.getElementById('rc-save-edits');
+const rcMarkExportedBtn = document.getElementById('rc-mark-exported');
+const rcVersionsEl = document.getElementById('rc-versions');
+const rcAtsScoreEl = document.getElementById('rc-ats-score');
+const rcAtsFillEl = document.getElementById('rc-ats-fill');
+const rcAtsMatchedEl = document.getElementById('rc-ats-matched');
+const rcAtsMissingEl = document.getElementById('rc-ats-missing');
+
 let sessionUser = null;
 let currentDetail = null;
 let csrfToken = null;
@@ -156,6 +186,10 @@ const PAGE_SIZE = 25;
 const PIPELINE_LIMIT = 15;
 const VIEW_MODE_KEY = 'applictus:viewMode';
 const SYNC_DETAILS_KEY = 'applictus:syncDetailsOpen';
+let rcInitialized = false;
+let rcSessionId = null;
+let rcVersionId = null;
+let rcLastResumeId = null;
 function formatRoleSource(application) {
   const source = application?.role_source;
   if (!source) {
@@ -1170,6 +1204,7 @@ function setView(view) {
   toggleSection(accountView, view === 'account');
   toggleSection(archiveView, view === 'archive');
   toggleSection(unsortedView, view === 'unsorted');
+  toggleSection(resumeCuratorView, view === 'resume-curator');
   const isAuthed = Boolean(sessionUser);
   if (topbar) {
     topbar.classList.toggle('hidden', !isAuthed);
@@ -2633,6 +2668,212 @@ async function openDetail(applicationId) {
   }
 }
 
+// ---------------- Resume Curator ----------------
+function setRcStatus(text) {
+  if (rcStatusEl) {
+    rcStatusEl.textContent = text;
+  }
+}
+
+function rcGetOptions() {
+  const keywords = (rcKeywordsInput?.value || '')
+    .split(',')
+    .map((k) => k.trim())
+    .filter(Boolean);
+  return {
+    tone: rcToneSelect?.value || 'neutral',
+    focus: rcFocusSelect?.value || 'balanced',
+    length: rcLengthSelect?.value || 'one_page',
+    includeCoverLetter: Boolean(rcIncludeCover?.checked),
+    targetKeywords: keywords
+  };
+}
+
+async function rcLoadResumes() {
+  if (!rcResumeSelect) return;
+  setRcStatus('Loading resumes…');
+  try {
+    const data = await api('/api/resume-curator/resumes');
+    rcResumeSelect.innerHTML = '';
+    let defaultId = null;
+    (data.resumes || []).forEach((r) => {
+      const opt = document.createElement('option');
+      opt.value = r.id;
+      opt.textContent = `${r.name}${r.is_default ? ' (default)' : ''}`;
+      if (r.is_default) defaultId = r.id;
+      rcResumeSelect.appendChild(opt);
+    });
+    if (defaultId) {
+      rcResumeSelect.value = defaultId;
+    }
+    rcSessionId = null;
+    rcVersionId = null;
+    setRcStatus('Ready');
+  } catch (err) {
+    setRcStatus(err.message || 'Failed to load resumes');
+  }
+}
+
+async function rcEnsureSession() {
+  if (rcSessionId) return rcSessionId;
+  if (!rcResumeSelect?.value || !rcJdInput?.value) {
+    throw new Error('Select a resume and paste the JD.');
+  }
+  const payload = {
+    resume_id: rcResumeSelect.value,
+    company_name: rcCompanyInput?.value || '',
+    job_title: rcRoleInput?.value || '',
+    job_location: rcLocationInput?.value || '',
+    job_url: rcJobUrlInput?.value || '',
+    jd_source: 'paste',
+    job_description_text: rcJdInput.value,
+    options: rcGetOptions()
+  };
+  const res = await api('/api/resume-curator/sessions', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  rcSessionId = res.session.id;
+  rcLastResumeId = rcResumeSelect.value;
+  return rcSessionId;
+}
+
+function rcRenderAts(ats) {
+  if (!ats) return;
+  rcAtsScoreEl.textContent = `ATS score: ${ats.score}`;
+  rcAtsFillEl.style.width = `${Math.max(0, Math.min(100, ats.score || 0))}%`;
+  rcAtsMatchedEl.textContent = (ats.matched_keywords || []).join(', ') || '—';
+  rcAtsMissingEl.textContent = (ats.missing_keywords || []).join(', ') || '—';
+}
+
+async function rcLoadVersions(sessionId) {
+  if (!rcVersionsEl) return;
+  const data = await api(`/api/resume-curator/sessions/${sessionId}`);
+  rcVersionsEl.innerHTML = '';
+  (data.versions || []).forEach((v) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ghost';
+    btn.textContent = `v${v.version_number} • ATS ${v.ats_score ?? '—'}`;
+    btn.addEventListener('click', () => {
+      rcVersionId = v.id;
+      if (rcOutputText) {
+        rcOutputText.value = v.generated_resume_text || '';
+      }
+      rcRenderAts({
+        score: v.ats_score ?? 0,
+        matched_keywords: v.ats_matched_keywords || [],
+        missing_keywords: v.ats_missing_keywords || []
+      });
+    });
+    rcVersionsEl.appendChild(btn);
+  });
+}
+
+async function rcGenerate() {
+  if (!rcResumeSelect?.value || !rcJdInput?.value) {
+    setRcStatus('Select a resume and paste JD');
+    return;
+  }
+  setRcStatus('Generating…');
+  try {
+    const sessionId = await rcEnsureSession();
+    const res = await api(`/api/resume-curator/sessions/${sessionId}/generate`, {
+      method: 'POST',
+      body: JSON.stringify({ options: rcGetOptions() })
+    });
+    rcVersionId = res.version.id;
+    if (rcOutputText) {
+      rcOutputText.value = res.version.generated_resume_text || '';
+    }
+    rcRenderAts(res.ats);
+    await rcLoadVersions(sessionId);
+    setRcStatus('Generated');
+  } catch (err) {
+    setRcStatus(err.message || 'Generation failed');
+  }
+}
+
+async function rcSaveEdits() {
+  if (!rcSessionId || !rcVersionId) {
+    setRcStatus('Generate first');
+    return;
+  }
+  setRcStatus('Saving edits…');
+  try {
+    await api(`/api/resume-curator/sessions/${rcSessionId}/versions/${rcVersionId}/save`, {
+      method: 'POST',
+      body: JSON.stringify({ user_edited_resume_text: rcOutputText?.value || '' })
+    });
+    setRcStatus('Saved');
+  } catch (err) {
+    setRcStatus(err.message || 'Save failed');
+  }
+}
+
+async function rcMarkExported() {
+  if (!rcSessionId || !rcVersionId) {
+    setRcStatus('Generate first');
+    return;
+  }
+  setRcStatus('Marking exported…');
+  try {
+    await api(`/api/resume-curator/sessions/${rcSessionId}/versions/${rcVersionId}/exported`, {
+      method: 'POST'
+    });
+    setRcStatus('Exported');
+  } catch (err) {
+    setRcStatus(err.message || 'Export failed');
+  }
+}
+
+function initResumeCurator() {
+  if (rcInitialized) return;
+  rcInitialized = true;
+
+  rcNewResumeBtn?.addEventListener('click', () => {
+    rcNewResumePanel?.classList.toggle('hidden');
+  });
+
+  rcResumeSelect?.addEventListener('change', () => {
+    rcSessionId = null;
+    rcVersionId = null;
+  });
+
+  rcSaveResumeBtn?.addEventListener('click', async () => {
+    if (!rcNewResumeName?.value || !rcNewResumeText?.value) {
+      setRcStatus('Name and resume text required');
+      return;
+    }
+    setRcStatus('Saving resume…');
+    try {
+      await api('/api/resume-curator/resumes', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: rcNewResumeName.value,
+          source_type: 'paste',
+          resume_text: rcNewResumeText.value,
+          is_default: rcNewResumeDefault?.checked || false
+        })
+      });
+      rcNewResumeName.value = '';
+      rcNewResumeText.value = '';
+      if (rcNewResumeDefault) rcNewResumeDefault.checked = false;
+      rcNewResumePanel?.classList.add('hidden');
+      await rcLoadResumes();
+      setRcStatus('Resume saved');
+    } catch (err) {
+      setRcStatus(err.message || 'Save failed');
+    }
+  });
+
+  rcGenerateBtn?.addEventListener('click', rcGenerate);
+  rcSaveEditsBtn?.addEventListener('click', rcSaveEdits);
+  rcMarkExportedBtn?.addEventListener('click', rcMarkExported);
+
+  rcLoadResumes();
+}
+
 function route() {
   if (!sessionUser) {
     setView('auth');
@@ -2655,6 +2896,9 @@ function route() {
   } else if (hash === 'account') {
     setView('account');
     refreshEmailStatus();
+  } else if (hash === 'resume-curator') {
+    setView('resume-curator');
+    initResumeCurator();
   } else {
     setView('dashboard');
     syncViewToggle();
