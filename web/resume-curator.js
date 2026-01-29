@@ -34,12 +34,27 @@
     statusEl.textContent = text;
   }
 
+  let csrfToken = '';
+
+  async function loadCsrf() {
+    try {
+      const res = await fetch('/api/auth/csrf');
+      const json = await res.json().catch(() => ({}));
+      csrfToken = json.csrfToken || '';
+    } catch (err) {
+      // ignore
+    }
+  }
+
   async function api(path, opts = {}) {
+    const headers = { 'Content-Type': 'application/json' };
+    const method = opts.method || 'GET';
+    if (method !== 'GET' && method !== 'HEAD' && csrfToken) {
+      headers['X-CSRF-Token'] = csrfToken;
+    }
     const res = await fetch(path, {
-      method: opts.method || 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      method,
+      headers,
       body: opts.body ? JSON.stringify(opts.body) : undefined
     });
     if (res.status === 401) {
@@ -219,6 +234,16 @@
 
   generateBtn.addEventListener('click', generate);
 
+  // logout
+  document.getElementById('logout-btn')?.addEventListener('click', async () => {
+    try {
+      await api('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/';
+    } catch (err) {
+      setStatus(err.message || 'Logout failed');
+    }
+  });
+
   // init
-  loadResumes();
+  loadCsrf().then(loadResumes);
 })();
