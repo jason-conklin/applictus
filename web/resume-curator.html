@@ -9,19 +9,26 @@
   </head>
   <body>
     <div class="noise"></div>
-    <header class="topbar">
-      <a class="brand" href="/" aria-label="Applictus dashboard">
+    <header class="topbar" id="topbar">
+      <a class="brand" id="brand-link" href="/#dashboard" aria-label="Applictus dashboard">
         <span class="logo-wrap brand-mark" aria-hidden="true">
           <span class="logo-fallback">A</span>
-          <img src="/public/Applictus_logo.png" alt="Applictus logo" class="brand-logo" />
+          <img
+            src="/public/Applictus_logo.png"
+            alt="Applictus logo"
+            class="brand-logo"
+            data-logo
+          />
         </span>
         <div>
           <div class="brand-name">Applictus</div>
           <div class="brand-sub">Resume Curator</div>
         </div>
       </a>
-      <nav class="nav">
-        <a href="/" class="nav-link">Dashboard</a>
+      <nav class="nav" id="nav">
+        <a href="/#dashboard" class="nav-link">Dashboard</a>
+        <a href="/#archive" class="nav-link">Archive</a>
+        <a href="/#unsorted" class="nav-link">Unsorted Events</a>
         <a href="/resume-curator.html" class="nav-link active">Resume Curator</a>
       </nav>
     </header>
