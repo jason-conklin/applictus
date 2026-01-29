@@ -34,10 +34,12 @@ const { runStatusInferenceForApplication } = require('./statusInferenceRunner');
 const { createUserAction } = require('./userActions');
 const { applyStatusOverride } = require('./overrides');
 const { mergeApplications } = require('./merge');
+const resumeCuratorRouter = require('./routes/resumeCurator');
 
 // Stack choice: Express + SQLite keeps the backend lightweight and easy to ship locally.
 const app = express();
 const db = openDb();
+app.locals.db = db;
 
 migrate(db);
 cleanupExpiredSessions();
@@ -465,6 +467,8 @@ app.get('/api/auth/csrf', (req, res) => {
   const csrfToken = issueCsrfToken(req, res);
   return res.json({ csrfToken });
 });
+
+app.use('/api/resume-curator', resumeCuratorRouter);
 
 app.get('/api/auth/session', (req, res) => {
   if (!req.user) {

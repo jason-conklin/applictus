@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 let Database;
 try {
@@ -75,6 +76,64 @@ function migrate(db) {
       new Date().toISOString()
     );
   }
+
+  // Resume Curator tables (idempotent, ensure present even before dedicated migrations ship)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS resumes (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      source_type TEXT NOT NULL CHECK (source_type IN ('upload','paste')),
+      original_filename TEXT,
+      resume_text TEXT NOT NULL,
+      resume_json TEXT,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id);
+    CREATE INDEX IF NOT EXISTS idx_resumes_user_default ON resumes(user_id, is_default);
+
+    CREATE TABLE IF NOT EXISTS resume_tailor_sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      company_name TEXT,
+      job_title TEXT,
+      job_location TEXT,
+      job_url TEXT,
+      jd_source TEXT NOT NULL CHECK (jd_source IN ('paste','url')),
+      job_description_text TEXT NOT NULL,
+      resume_id TEXT NOT NULL,
+      options_json TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','generated','exported')),
+      linked_application_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (resume_id) REFERENCES resumes(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_rts_user_id ON resume_tailor_sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_rts_resume_id ON resume_tailor_sessions(resume_id);
+    CREATE INDEX IF NOT EXISTS idx_rts_company_job ON resume_tailor_sessions(user_id, company_name, job_title);
+    CREATE INDEX IF NOT EXISTS idx_rts_updated ON resume_tailor_sessions(user_id, updated_at);
+
+    CREATE TABLE IF NOT EXISTS resume_tailor_versions (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      version_number INTEGER NOT NULL,
+      generated_resume_text TEXT NOT NULL,
+      generated_resume_json TEXT,
+      change_log_json TEXT NOT NULL,
+      ats_score INTEGER,
+      ats_keywords_json TEXT,
+      model_info_json TEXT,
+      user_edited_resume_text TEXT,
+      exported_at TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (session_id) REFERENCES resume_tailor_sessions(id) ON DELETE CASCADE
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_rtv_session_version ON resume_tailor_versions(session_id, version_number);
+    CREATE INDEX IF NOT EXISTS idx_rtv_session_id ON resume_tailor_versions(session_id);
+  `);
 }
 
 let emailEventColumnsCache = null;
@@ -87,8 +146,214 @@ function getEmailEventColumns(db) {
   return emailEventColumnsCache;
 }
 
+function toJsonString(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value);
+  } catch (err) {
+    return null;
+  }
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function uuid() {
+  return crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex');
+}
+
+function createResume(db, { userId, name, sourceType, originalFilename, resumeText, resumeJson, isDefault }) {
+  const id = uuid();
+  const ts = nowIso();
+  db.prepare(
+    `INSERT INTO resumes
+     (id, user_id, name, source_type, original_filename, resume_text, resume_json, is_default, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    userId,
+    name,
+    sourceType,
+    originalFilename || null,
+    resumeText,
+    toJsonString(resumeJson),
+    isDefault ? 1 : 0,
+    ts,
+    ts
+  );
+  return getResume(db, userId, id);
+}
+
+function setDefaultResume(db, { userId, resumeId }) {
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE resumes SET is_default = 0 WHERE user_id = ?').run(userId);
+    db.prepare('UPDATE resumes SET is_default = 1 WHERE id = ? AND user_id = ?').run(resumeId, userId);
+  });
+  tx();
+  return getResume(db, userId, resumeId);
+}
+
+function listResumes(db, userId) {
+  return db
+    .prepare(
+      `SELECT * FROM resumes
+       WHERE user_id = ?
+       ORDER BY created_at DESC`
+    )
+    .all(userId);
+}
+
+function getResume(db, userId, resumeId) {
+  return db
+    .prepare('SELECT * FROM resumes WHERE id = ? AND user_id = ?')
+    .get(resumeId, userId);
+}
+
+function createTailorSession(
+  db,
+  {
+    userId,
+    resumeId,
+    companyName,
+    jobTitle,
+    jobLocation,
+    jobUrl,
+    jdSource,
+    jobDescriptionText,
+    optionsJson,
+    linkedApplicationId
+  }
+) {
+  const id = uuid();
+  const ts = nowIso();
+  db.prepare(
+    `INSERT INTO resume_tailor_sessions
+     (id, user_id, company_name, job_title, job_location, job_url, jd_source, job_description_text, resume_id, options_json, status, linked_application_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)`
+  ).run(
+    id,
+    userId,
+    companyName || null,
+    jobTitle || null,
+    jobLocation || null,
+    jobUrl || null,
+    jdSource,
+    jobDescriptionText,
+    resumeId,
+    toJsonString(optionsJson) || '{}',
+    linkedApplicationId || null,
+    ts,
+    ts
+  );
+  return getTailorSession(db, userId, id);
+}
+
+function listTailorSessions(db, userId, { limit = 20, offset = 0 } = {}) {
+  return db
+    .prepare(
+      `SELECT * FROM resume_tailor_sessions
+       WHERE user_id = ?
+       ORDER BY updated_at DESC
+       LIMIT ? OFFSET ?`
+    )
+    .all(userId, limit, offset);
+}
+
+function getTailorSession(db, userId, sessionId) {
+  return db
+    .prepare('SELECT * FROM resume_tailor_sessions WHERE id = ? AND user_id = ?')
+    .get(sessionId, userId);
+}
+
+function createTailorVersion(
+  db,
+  {
+    sessionId,
+    versionNumber,
+    generatedResumeText,
+    generatedResumeJson,
+    changeLogJson,
+    atsScore,
+    atsKeywordsJson,
+    modelInfoJson
+  }
+) {
+  const id = uuid();
+  const ts = nowIso();
+  db.prepare(
+    `INSERT INTO resume_tailor_versions
+     (id, session_id, version_number, generated_resume_text, generated_resume_json, change_log_json, ats_score, ats_keywords_json, model_info_json, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    sessionId,
+    versionNumber,
+    generatedResumeText,
+    toJsonString(generatedResumeJson),
+    toJsonString(changeLogJson) || '{}',
+    Number.isFinite(atsScore) ? atsScore : null,
+    toJsonString(atsKeywordsJson),
+    toJsonString(modelInfoJson),
+    ts
+  );
+  return db.prepare('SELECT * FROM resume_tailor_versions WHERE id = ?').get(id);
+}
+
+function listTailorVersions(db, sessionId) {
+  return db
+    .prepare(
+      `SELECT * FROM resume_tailor_versions
+       WHERE session_id = ?
+       ORDER BY version_number ASC`
+    )
+    .all(sessionId);
+}
+
+function updateTailorSessionStatus(db, { userId, sessionId, status }) {
+  const ts = nowIso();
+  db.prepare(
+    `UPDATE resume_tailor_sessions
+     SET status = ?, updated_at = ?
+     WHERE id = ? AND user_id = ?`
+  ).run(status, ts, sessionId, userId);
+  return getTailorSession(db, userId, sessionId);
+}
+
+function saveUserEditedVersionText(db, { sessionId, versionId, userEditedResumeText }) {
+  db.prepare(
+    `UPDATE resume_tailor_versions
+     SET user_edited_resume_text = ?
+     WHERE id = ? AND session_id = ?`
+  ).run(userEditedResumeText || null, versionId, sessionId);
+  return db.prepare('SELECT * FROM resume_tailor_versions WHERE id = ?').get(versionId);
+}
+
+function markVersionExported(db, { sessionId, versionId }) {
+  const ts = nowIso();
+  db.prepare(
+    `UPDATE resume_tailor_versions
+     SET exported_at = ?
+     WHERE id = ? AND session_id = ?`
+  ).run(ts, versionId, sessionId);
+  return db.prepare('SELECT * FROM resume_tailor_versions WHERE id = ?').get(versionId);
+}
+
 module.exports = {
   openDb,
   migrate,
-  getEmailEventColumns
+  getEmailEventColumns,
+  createResume,
+  setDefaultResume,
+  listResumes,
+  getResume,
+  createTailorSession,
+  listTailorSessions,
+  getTailorSession,
+  createTailorVersion,
+  listTailorVersions,
+  updateTailorSessionStatus,
+  saveUserEditedVersionText,
+  markVersionExported
 };
