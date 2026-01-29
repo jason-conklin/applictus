@@ -152,12 +152,7 @@ const modalFooter = document.getElementById('modal-footer');
 // Resume Curator DOM refs
 const rcStatusEl = document.getElementById('rc-status');
 const rcResumeSelect = document.getElementById('rc-resume-select');
-const rcNewResumePanel = document.getElementById('rc-new-resume-panel');
 const rcNewResumeBtn = document.getElementById('rc-new-resume');
-const rcSaveResumeBtn = document.getElementById('rc-save-resume');
-const rcNewResumeName = document.getElementById('rc-new-resume-name');
-const rcNewResumeText = document.getElementById('rc-new-resume-text');
-const rcNewResumeDefault = document.getElementById('rc-new-resume-default');
 const rcCompanyInput = document.getElementById('rc-company');
 const rcRoleInput = document.getElementById('rc-role');
 const rcLocationInput = document.getElementById('rc-location');
@@ -2689,7 +2684,7 @@ function rcGetOptions() {
   };
 }
 
-async function rcLoadResumes() {
+async function rcLoadResumes(selectId) {
   if (!rcResumeSelect) return;
   setRcStatus('Loading resumes…');
   try {
@@ -2703,7 +2698,9 @@ async function rcLoadResumes() {
       if (r.is_default) defaultId = r.id;
       rcResumeSelect.appendChild(opt);
     });
-    if (defaultId) {
+    if (selectId) {
+      rcResumeSelect.value = selectId;
+    } else if (defaultId) {
       rcResumeSelect.value = defaultId;
     }
     rcSessionId = null;
@@ -2827,44 +2824,131 @@ async function rcMarkExported() {
   }
 }
 
+async function rcUploadResume({ file, name, setDefault, pasteText }) {
+  if (file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (name) formData.append('name', name);
+    if (setDefault) formData.append('setDefault', 'true');
+    const headers = {};
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+    const res = await fetch('/api/resume-curator/resumes/upload', {
+      method: 'POST',
+      headers,
+      body: formData,
+      credentials: 'same-origin'
+    });
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : {};
+    if (!res.ok) {
+      const msg = json.error || `Upload failed (${res.status})`;
+      throw new Error(msg);
+    }
+    return json.resume;
+  }
+  if (pasteText) {
+    const payload = {
+      name: name || 'Pasted resume',
+      source_type: 'paste',
+      resume_text: pasteText,
+      is_default: setDefault
+    };
+    const res = await api('/api/resume-curator/resumes', { method: 'POST', body: JSON.stringify(payload) });
+    return res.resume;
+  }
+  throw new Error('Select a file or paste text');
+}
+
+function showUploadResumeModal() {
+  const form = document.createElement('form');
+  form.id = 'rc-upload-form';
+  form.className = 'stack';
+
+  const fileLabel = document.createElement('label');
+  fileLabel.textContent = 'Resume file (PDF or DOCX)';
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept =
+    '.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  fileLabel.appendChild(fileInput);
+
+  const nameLabel = document.createElement('label');
+  nameLabel.textContent = 'Name';
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.placeholder = 'General resume';
+  nameLabel.appendChild(nameInput);
+
+  const defaultLabel = document.createElement('label');
+  defaultLabel.className = 'checkbox';
+  const defaultInput = document.createElement('input');
+  defaultInput.type = 'checkbox';
+  defaultLabel.appendChild(defaultInput);
+  defaultLabel.appendChild(document.createTextNode(' Set as default'));
+
+  const pasteToggle = document.createElement('button');
+  pasteToggle.type = 'button';
+  pasteToggle.className = 'ghost';
+  pasteToggle.textContent = 'Prefer to paste instead';
+
+  const pasteLabel = document.createElement('label');
+  pasteLabel.textContent = 'Paste resume text (optional fallback)';
+  const pasteInput = document.createElement('textarea');
+  pasteInput.rows = 6;
+  pasteInput.placeholder = 'Paste your resume text';
+  pasteLabel.appendChild(pasteInput);
+  pasteLabel.classList.add('hidden');
+
+  pasteToggle.addEventListener('click', () => {
+    pasteLabel.classList.toggle('hidden');
+  });
+
+  form.appendChild(fileLabel);
+  form.appendChild(nameLabel);
+  form.appendChild(defaultLabel);
+  form.appendChild(pasteToggle);
+  form.appendChild(pasteLabel);
+
+  const footer = buildModalFooter({ confirmText: 'Upload & Save', cancelText: 'Cancel', formId: form.id });
+  footer.querySelector('[data-role=\"confirm\"]')?.classList.add('btn', 'btn-primary');
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const file = fileInput.files && fileInput.files[0];
+    const name = nameInput.value || (file ? file.name.replace(/\\.[^.]+$/, '') : '');
+    const setDefault = defaultInput.checked;
+    const pasted = pasteLabel.classList.contains('hidden') ? '' : pasteInput.value.trim();
+    try {
+      setRcStatus(file ? 'Uploading…' : 'Saving…');
+      const resume = await rcUploadResume({ file, name, setDefault, pasteText: pasted });
+      await rcLoadResumes(resume?.id);
+      setRcStatus('Resume saved');
+      closeModal('confirm');
+    } catch (err) {
+      setRcStatus(err.message || 'Upload failed');
+    }
+  });
+
+  openModal({
+    title: 'Upload resume',
+    body: form,
+    footer,
+    allowBackdropClose: true,
+    initialFocus: 'input[type=\"file\"]'
+  });
+}
+
 function initResumeCurator() {
   if (rcInitialized) return;
   rcInitialized = true;
 
   rcNewResumeBtn?.addEventListener('click', () => {
-    rcNewResumePanel?.classList.toggle('hidden');
+    showUploadResumeModal();
   });
 
   rcResumeSelect?.addEventListener('change', () => {
     rcSessionId = null;
     rcVersionId = null;
-  });
-
-  rcSaveResumeBtn?.addEventListener('click', async () => {
-    if (!rcNewResumeName?.value || !rcNewResumeText?.value) {
-      setRcStatus('Name and resume text required');
-      return;
-    }
-    setRcStatus('Saving resume…');
-    try {
-      await api('/api/resume-curator/resumes', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: rcNewResumeName.value,
-          source_type: 'paste',
-          resume_text: rcNewResumeText.value,
-          is_default: rcNewResumeDefault?.checked || false
-        })
-      });
-      rcNewResumeName.value = '';
-      rcNewResumeText.value = '';
-      if (rcNewResumeDefault) rcNewResumeDefault.checked = false;
-      rcNewResumePanel?.classList.add('hidden');
-      await rcLoadResumes();
-      setRcStatus('Resume saved');
-    } catch (err) {
-      setRcStatus(err.message || 'Save failed');
-    }
   });
 
   rcGenerateBtn?.addEventListener('click', rcGenerate);

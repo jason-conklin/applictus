@@ -27,9 +27,9 @@
       </a>
       <nav class="nav" id="nav">
         <a href="#dashboard" class="nav-link">Dashboard</a>
+        <a href="#resume-curator" class="nav-link">Resume Curator</a>
         <a href="#archive" class="nav-link">Archive</a>
         <a href="#unsorted" class="nav-link">Unsorted Events</a>
-        <a href="#resume-curator" class="nav-link">Resume Curator</a>
       </nav>
       <div class="topbar-actions" id="session-actions">
         <button class="ghost" id="logout-btn" type="button">Log out</button>
@@ -398,23 +398,7 @@
               Base resume
               <select id="rc-resume-select"></select>
             </label>
-            <button id="rc-new-resume" type="button" class="ghost">New Resume (Paste)</button>
-            <div id="rc-new-resume-panel" class="stack hidden">
-              <label>
-                Name
-                <input type="text" id="rc-new-resume-name" placeholder="e.g., General resume" />
-              </label>
-              <label>
-                Resume text
-                <textarea id="rc-new-resume-text" rows="6" placeholder="Paste your resume"></textarea>
-              </label>
-              <div class="inline">
-                <label class="checkbox">
-                  <input type="checkbox" id="rc-new-resume-default" /> Set as default
-                </label>
-                <button id="rc-save-resume" type="button">Save resume</button>
-              </div>
-            </div>
+            <button id="rc-new-resume" type="button" class="ghost">Upload Resume (PDF/DOCX)</button>
 
             <label>
               Company

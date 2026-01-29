@@ -85,6 +85,10 @@ function migrate(db) {
       name TEXT NOT NULL,
       source_type TEXT NOT NULL CHECK (source_type IN ('upload','paste')),
       original_filename TEXT,
+      mime_type TEXT,
+      file_size INTEGER,
+      extraction_method TEXT,
+      extraction_warnings TEXT,
       resume_text TEXT NOT NULL,
       resume_json TEXT,
       is_default INTEGER NOT NULL DEFAULT 0,
@@ -134,6 +138,7 @@ function migrate(db) {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_rtv_session_version ON resume_tailor_versions(session_id, version_number);
     CREATE INDEX IF NOT EXISTS idx_rtv_session_id ON resume_tailor_versions(session_id);
   `);
+  ensureResumeColumns(db);
 }
 
 let emailEventColumnsCache = null;
@@ -144,6 +149,24 @@ function getEmailEventColumns(db) {
   const rows = db.prepare('PRAGMA table_info(email_events)').all();
   emailEventColumnsCache = new Set(rows.map((r) => r.name));
   return emailEventColumnsCache;
+}
+
+function ensureResumeColumns(db) {
+  const rows = db.prepare('PRAGMA table_info(resumes)').all();
+  const cols = new Set(rows.map((r) => r.name));
+  const alter = (sql) => db.exec(sql);
+  if (!cols.has('mime_type')) {
+    alter("ALTER TABLE resumes ADD COLUMN mime_type TEXT");
+  }
+  if (!cols.has('file_size')) {
+    alter("ALTER TABLE resumes ADD COLUMN file_size INTEGER");
+  }
+  if (!cols.has('extraction_method')) {
+    alter("ALTER TABLE resumes ADD COLUMN extraction_method TEXT");
+  }
+  if (!cols.has('extraction_warnings')) {
+    alter("ALTER TABLE resumes ADD COLUMN extraction_warnings TEXT");
+  }
 }
 
 function toJsonString(value) {
@@ -164,19 +187,38 @@ function uuid() {
   return crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex');
 }
 
-function createResume(db, { userId, name, sourceType, originalFilename, resumeText, resumeJson, isDefault }) {
+function createResume(
+  db,
+  {
+    userId,
+    name,
+    sourceType,
+    originalFilename,
+    mimeType,
+    fileSize,
+    extractionMethod,
+    extractionWarnings,
+    resumeText,
+    resumeJson,
+    isDefault
+  }
+) {
   const id = uuid();
   const ts = nowIso();
   db.prepare(
     `INSERT INTO resumes
-     (id, user_id, name, source_type, original_filename, resume_text, resume_json, is_default, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     (id, user_id, name, source_type, original_filename, mime_type, file_size, extraction_method, extraction_warnings, resume_text, resume_json, is_default, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     userId,
     name,
     sourceType,
     originalFilename || null,
+    mimeType || null,
+    fileSize || null,
+    extractionMethod || null,
+    extractionWarnings || null,
     resumeText,
     toJsonString(resumeJson),
     isDefault ? 1 : 0,

@@ -1,4 +1,6 @@
 const express = require('express');
+const path = require('path');
+const multer = require('multer');
 const {
   listResumes,
   createResume,
@@ -15,9 +17,17 @@ const {
 } = require('../db');
 const { runLlmExtraction } = require('../llmClient');
 const { buildResumeTailorPrompt, computeAtsScore } = require('../../../shared/resumeCurator');
+const {
+  detectSupportedResumeMime,
+  extractTextFromDocx,
+  extractTextFromPdf,
+  normalizeExtractedResumeText,
+  MAX_UPLOAD_BYTES
+} = require('../../../shared/resumeParsing');
 const { parseModelJson } = require('../llm/client');
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_UPLOAD_BYTES } });
 
 function jsonError(res, status, error, detail) {
   return res.status(status).json({ error, detail });
@@ -38,6 +48,68 @@ router.get('/resumes', (req, res) => {
   return res.json({ resumes });
 });
 
+router.post('/resumes/upload', upload.single('file'), async (req, res) => {
+  const db = req.app.locals.db;
+  const file = req.file;
+  if (!file) {
+    return jsonError(res, 400, 'INVALID_REQUEST', 'file required');
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return jsonError(res, 413, 'FILE_TOO_LARGE', 'Max file size is 5MB');
+  }
+  const mime = detectSupportedResumeMime(file.mimetype, file.originalname);
+  if (!mime) {
+    return jsonError(res, 400, 'UNSUPPORTED_FILE', 'Please upload a PDF or DOCX file.');
+  }
+  let extraction = { text: '', method: 'unknown', warnings: [] };
+  try {
+    if (mime.includes('pdf')) {
+      extraction = await extractTextFromPdf(file.buffer);
+    } else {
+      extraction = await extractTextFromDocx(file.buffer);
+    }
+  } catch (err) {
+    extraction = { text: '', method: 'error', warnings: [err.message || 'Failed to extract text'] };
+  }
+  const normalized = normalizeExtractedResumeText(extraction.text);
+  if (!normalized || normalized.length < 200) {
+    return jsonError(
+      res,
+      422,
+      'EXTRACTION_FAILED',
+      'We could not extract readable text. If this is a scanned PDF, try uploading a DOCX or paste the text instead.'
+    );
+  }
+
+  const name =
+    (req.body && (req.body.name || req.body.filename)) ||
+    (file.originalname ? file.originalname.replace(path.extname(file.originalname), '') : 'Resume');
+  const setDefault = req.body && (req.body.setDefault === 'true' || req.body.setDefault === true);
+
+  const resume = createResume(db, {
+    userId: req.user.id,
+    name,
+    sourceType: 'upload',
+    originalFilename: file.originalname || null,
+    mimeType: mime,
+    fileSize: file.size,
+    extractionMethod: extraction.method,
+    extractionWarnings: extraction.warnings ? JSON.stringify(extraction.warnings) : null,
+    resumeText: normalized,
+    resumeJson: null,
+    isDefault: Boolean(setDefault)
+  });
+  if (setDefault) {
+    setDefaultResume(db, { userId: req.user.id, resumeId: resume.id });
+  }
+
+  return res.json({
+    ok: true,
+    resume,
+    extractedPreview: normalized.slice(0, 800)
+  });
+});
+
 router.post('/resumes', (req, res) => {
   const db = req.app.locals.db;
   const { name, source_type, original_filename, resume_text, resume_json, is_default } = req.body || {};
@@ -52,6 +124,10 @@ router.post('/resumes', (req, res) => {
     name,
     sourceType: source_type,
     originalFilename: original_filename,
+    mimeType: req.body?.mime_type || null,
+    fileSize: req.body?.file_size || null,
+    extractionMethod: req.body?.extraction_method || null,
+    extractionWarnings: req.body?.extraction_warnings || null,
     resumeText: resume_text,
     resumeJson: resume_json,
     isDefault: Boolean(is_default)
