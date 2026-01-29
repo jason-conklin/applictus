@@ -1828,6 +1828,12 @@ details summary {
   color: var(--color-muted);
 }
 
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .drawer {
   position: fixed;
   inset: 0;
