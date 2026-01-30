@@ -6,6 +6,13 @@ const {
   createResume,
   setDefaultResume,
   getResume,
+  createCuratorRun,
+  getCuratorRun,
+  createCuratorSuggestions,
+  listCuratorSuggestions,
+  updateCuratorSuggestionStatus,
+  createCuratorVersion,
+  listCuratorVersions,
   createTailorSession,
   listTailorSessions,
   getTailorSession,
@@ -24,6 +31,7 @@ const {
   normalizeExtractedResumeText,
   MAX_UPLOAD_BYTES
 } = require('../../../shared/resumeParsing');
+const { buildSuggestions } = require('../../../shared/resumeCuratorSuggestions');
 const { parseModelJson } = require('../llm/client');
 
 const router = express.Router();
@@ -328,6 +336,103 @@ router.post('/sessions/:sessionId/versions/:versionId/exported', (req, res) => {
   markVersionExported(db, { sessionId: req.params.sessionId, versionId: req.params.versionId });
   updateTailorSessionStatus(db, { userId: req.user.id, sessionId: req.params.sessionId, status: 'exported' });
   return res.json({ ok: true });
+});
+
+// ----- New structured run + suggestions workflow -----
+router.post('/run', (req, res) => {
+  const db = req.app.locals.db;
+  const body = req.body || {};
+  if (!body.base_resume_id || !body.job_description) {
+    return jsonError(res, 400, 'INVALID_REQUEST', 'base_resume_id and job_description required');
+  }
+  const resume = getResume(db, req.user.id, body.base_resume_id);
+  if (!resume) {
+    return jsonError(res, 404, 'RESUME_NOT_FOUND');
+  }
+  const run = createCuratorRun(db, {
+    userId: req.user.id,
+    baseResumeId: resume.id,
+    company: body.company || null,
+    roleTitle: body.role_title || null,
+    jobUrl: body.job_url || null,
+    jobDescription: body.job_description,
+    targetKeywords: body.target_keywords || [],
+    tone: body.tone || 'neutral',
+    focus: body.focus || 'balanced',
+    length: body.length || 'one_page',
+    includeCoverLetter: Boolean(body.include_cover_letter)
+  });
+  const { suggestions, ats } = buildSuggestions({
+    baseResumeText: resume.resume_text,
+    jobDescriptionText: body.job_description,
+    targetKeywords: body.target_keywords || []
+  });
+  const stored = createCuratorSuggestions(db, run.id, suggestions);
+  return res.json({
+    run,
+    ats: { score: ats.score, matched: ats.matched_keywords, missing: ats.missing_keywords },
+    suggestions: stored
+  });
+});
+
+router.get('/:runId', (req, res) => {
+  const db = req.app.locals.db;
+  const run = getCuratorRun(db, req.user.id, req.params.runId);
+  if (!run) return jsonError(res, 404, 'NOT_FOUND');
+  const resume = getResume(db, req.user.id, run.base_resume_id);
+  const ats = computeAtsScore({ resumeText: resume?.resume_text || '', jobDescriptionText: run.job_description || '' });
+  return res.json({
+    run,
+    ats: { score: ats.score, matched: ats.matched_keywords, missing: ats.missing_keywords },
+    suggestions: listCuratorSuggestions(db, run.id),
+    versions: listCuratorVersions(db, run.id)
+  });
+});
+
+router.patch('/suggestions/:id', (req, res) => {
+  const db = req.app.locals.db;
+  const status = req.body?.status;
+  if (!['applied', 'dismissed', 'proposed'].includes(status)) {
+    return jsonError(res, 400, 'INVALID_STATUS');
+  }
+  const suggestion = db.prepare('SELECT * FROM resume_curator_suggestions WHERE id = ?').get(req.params.id);
+  if (!suggestion) return jsonError(res, 404, 'NOT_FOUND');
+  const run = getCuratorRun(db, req.user.id, suggestion.run_id);
+  if (!run) return jsonError(res, 404, 'NOT_FOUND');
+  const updated = updateCuratorSuggestionStatus(db, run.id, suggestion.id, status);
+  return res.json({ suggestion: updated });
+});
+
+router.post('/:runId/version', (req, res) => {
+  const db = req.app.locals.db;
+  const run = getCuratorRun(db, req.user.id, req.params.runId);
+  if (!run) return jsonError(res, 404, 'NOT_FOUND');
+  const resume = getResume(db, req.user.id, run.base_resume_id);
+  if (!resume) return jsonError(res, 404, 'RESUME_NOT_FOUND');
+  const suggestions = listCuratorSuggestions(db, run.id);
+  const applied = suggestions.filter((s) => s.status === 'applied');
+  let tailored = resume.resume_text || '';
+  const skillsAdds = applied.filter((s) => s.kind === 'add_keyword').map((s) => s.evidence_text || s.change_text);
+  if (skillsAdds.length) {
+    tailored = `${tailored}\n\nSkills Additions: ${skillsAdds.join(', ')}`;
+  }
+  if (applied.some((s) => s.kind === 'add_metrics')) {
+    tailored = `${tailored}\n\n[Add metric-driven bullet to experience]`;
+  }
+  const ats = computeAtsScore({ resumeText: tailored, jobDescriptionText: run.job_description || '' });
+  const versions = listCuratorVersions(db, run.id);
+  const label = `v${(versions.length || 0) + 1}`;
+  const version = createCuratorVersion(db, {
+    runId: run.id,
+    versionLabel: label,
+    atsScore: ats.score,
+    tailoredText: tailored,
+    exportedAt: null
+  });
+  return res.json({
+    version,
+    ats: { score: ats.score, matched: ats.matched_keywords, missing: ats.missing_keywords }
+  });
 });
 
 module.exports = router;

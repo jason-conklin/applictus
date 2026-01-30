@@ -137,6 +137,52 @@ function migrate(db) {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_rtv_session_version ON resume_tailor_versions(session_id, version_number);
     CREATE INDEX IF NOT EXISTS idx_rtv_session_id ON resume_tailor_versions(session_id);
+
+    CREATE TABLE IF NOT EXISTS resume_curator_runs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      base_resume_id TEXT NOT NULL,
+      company TEXT,
+      role_title TEXT,
+      job_url TEXT,
+      job_description TEXT NOT NULL,
+      target_keywords TEXT,
+      tone TEXT,
+      focus TEXT,
+      length TEXT,
+      include_cover_letter INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_rcr_user ON resume_curator_runs(user_id);
+    CREATE INDEX IF NOT EXISTS idx_rcr_resume ON resume_curator_runs(base_resume_id);
+
+    CREATE TABLE IF NOT EXISTS resume_curator_suggestions (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      kind TEXT,
+      section TEXT,
+      change_text TEXT NOT NULL,
+      reason_text TEXT,
+      evidence_text TEXT,
+      impact TEXT,
+      status TEXT NOT NULL DEFAULT 'proposed' CHECK (status IN ('proposed','applied','dismissed')),
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES resume_curator_runs(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_rcs_run ON resume_curator_suggestions(run_id);
+    CREATE INDEX IF NOT EXISTS idx_rcs_status ON resume_curator_suggestions(run_id, status);
+
+    CREATE TABLE IF NOT EXISTS resume_curator_versions (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      version_label TEXT NOT NULL,
+      ats_score INTEGER,
+      tailored_text TEXT NOT NULL,
+      exported_at TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES resume_curator_runs(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_rcv_run ON resume_curator_versions(run_id);
   `);
   ensureResumeColumns(db);
 }
@@ -382,6 +428,89 @@ function markVersionExported(db, { sessionId, versionId }) {
   return db.prepare('SELECT * FROM resume_tailor_versions WHERE id = ?').get(versionId);
 }
 
+function createCuratorRun(db, payload) {
+  const id = uuid();
+  const ts = nowIso();
+  db.prepare(
+    `INSERT INTO resume_curator_runs
+     (id, user_id, base_resume_id, company, role_title, job_url, job_description, target_keywords, tone, focus, length, include_cover_letter, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    payload.userId,
+    payload.baseResumeId,
+    payload.company || null,
+    payload.roleTitle || null,
+    payload.jobUrl || null,
+    payload.jobDescription,
+    payload.targetKeywords ? toJsonString(payload.targetKeywords) : null,
+    payload.tone || null,
+    payload.focus || null,
+    payload.length || null,
+    payload.includeCoverLetter ? 1 : 0,
+    ts
+  );
+  return getCuratorRun(db, payload.userId, id);
+}
+
+function getCuratorRun(db, userId, runId) {
+  return db.prepare('SELECT * FROM resume_curator_runs WHERE id = ? AND user_id = ?').get(runId, userId);
+}
+
+function createCuratorSuggestions(db, runId, suggestions) {
+  const ts = nowIso();
+  const stmt = db.prepare(
+    `INSERT INTO resume_curator_suggestions
+     (id, run_id, kind, section, change_text, reason_text, evidence_text, impact, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'proposed', ?)`
+  );
+  const tx = db.transaction((items) => {
+    (items || []).forEach((s) => {
+      stmt.run(
+        uuid(),
+        runId,
+        s.kind || null,
+        s.section || null,
+        s.change_text,
+        s.reason_text || null,
+        s.evidence_text || null,
+        s.impact || null,
+        ts
+      );
+    });
+  });
+  tx(suggestions);
+  return listCuratorSuggestions(db, runId);
+}
+
+function listCuratorSuggestions(db, runId) {
+  return db
+    .prepare('SELECT * FROM resume_curator_suggestions WHERE run_id = ? ORDER BY created_at ASC')
+    .all(runId);
+}
+
+function updateCuratorSuggestionStatus(db, runId, suggestionId, status) {
+  db.prepare(
+    'UPDATE resume_curator_suggestions SET status = ? WHERE id = ? AND run_id = ?'
+  ).run(status, suggestionId, runId);
+  return db.prepare('SELECT * FROM resume_curator_suggestions WHERE id = ? AND run_id = ?').get(suggestionId, runId);
+}
+
+function createCuratorVersion(db, { runId, versionLabel, atsScore, tailoredText, exportedAt = null }) {
+  const id = uuid();
+  const ts = nowIso();
+  db.prepare(
+    `INSERT INTO resume_curator_versions
+     (id, run_id, version_label, ats_score, tailored_text, exported_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, runId, versionLabel, atsScore ?? null, tailoredText, exportedAt, ts);
+  return db.prepare('SELECT * FROM resume_curator_versions WHERE id = ?').get(id);
+}
+
+function listCuratorVersions(db, runId) {
+  return db.prepare('SELECT * FROM resume_curator_versions WHERE run_id = ? ORDER BY created_at DESC').all(runId);
+}
+
 module.exports = {
   openDb,
   migrate,
@@ -397,5 +526,12 @@ module.exports = {
   listTailorVersions,
   updateTailorSessionStatus,
   saveUserEditedVersionText,
-  markVersionExported
+  markVersionExported,
+  createCuratorRun,
+  getCuratorRun,
+  createCuratorSuggestions,
+  listCuratorSuggestions,
+  updateCuratorSuggestionStatus,
+  createCuratorVersion,
+  listCuratorVersions
 };

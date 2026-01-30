@@ -164,14 +164,16 @@ const rcLengthSelect = document.getElementById('rc-length');
 const rcIncludeCover = document.getElementById('rc-include-cover');
 const rcKeywordsInput = document.getElementById('rc-keywords');
 const rcGenerateBtn = document.getElementById('rc-generate');
-const rcOutputText = document.getElementById('rc-output-text');
-const rcSaveEditsBtn = document.getElementById('rc-save-edits');
 const rcMarkExportedBtn = document.getElementById('rc-mark-exported');
 const rcVersionsEl = document.getElementById('rc-versions');
 const rcAtsScoreEl = document.getElementById('rc-ats-score');
 const rcAtsFillEl = document.getElementById('rc-ats-fill');
 const rcAtsMatchedEl = document.getElementById('rc-ats-matched');
 const rcAtsMissingEl = document.getElementById('rc-ats-missing');
+const rcSuggestionsEl = document.getElementById('rc-suggestions');
+const rcCreateVersionBtn = document.getElementById('rc-create-version');
+const rcPreviewBlock = document.getElementById('rc-preview-block');
+const rcPreviewText = document.getElementById('rc-preview-text');
 
 let sessionUser = null;
 let currentDetail = null;
@@ -185,6 +187,7 @@ let rcInitialized = false;
 let rcSessionId = null;
 let rcVersionId = null;
 let rcLastResumeId = null;
+let rcRunId = null;
 function formatRoleSource(application) {
   const source = application?.role_source;
   if (!source) {
@@ -2745,18 +2748,17 @@ function rcRenderAts(ats) {
 
 async function rcLoadVersions(sessionId) {
   if (!rcVersionsEl) return;
-  const data = await api(`/api/resume-curator/sessions/${sessionId}`);
+  const data = await api(`/api/resume-curator/${sessionId}`);
   rcVersionsEl.innerHTML = '';
   (data.versions || []).forEach((v) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'ghost';
-    btn.textContent = `v${v.version_number} • ATS ${v.ats_score ?? '—'}`;
+    btn.textContent = `${v.version_label || v.version_number || 'v'} • ATS ${v.ats_score ?? '—'}`;
     btn.addEventListener('click', () => {
       rcVersionId = v.id;
-      if (rcOutputText) {
-        rcOutputText.value = v.generated_resume_text || '';
-      }
+      if (rcPreviewBlock) rcPreviewBlock.removeAttribute('hidden');
+      if (rcPreviewText) rcPreviewText.textContent = v.tailored_text || v.generated_resume_text || '';
       rcRenderAts({
         score: v.ats_score ?? 0,
         matched_keywords: v.ats_matched_keywords || [],
@@ -2772,55 +2774,34 @@ async function rcGenerate() {
     setRcStatus('Select a resume and paste JD');
     return;
   }
-  setRcStatus('Generating…');
+  setRcStatus('Running…');
   try {
-    const sessionId = await rcEnsureSession();
-    const res = await api(`/api/resume-curator/sessions/${sessionId}/generate`, {
+    const body = {
+      base_resume_id: rcResumeSelect.value,
+      company: rcCompanyInput?.value || '',
+      role_title: rcRoleInput?.value || '',
+      job_url: rcJobUrlInput?.value || '',
+      job_description: rcJdInput.value,
+      target_keywords: (rcKeywordsInput?.value || '')
+        .split(',')
+        .map((k) => k.trim())
+        .filter(Boolean),
+      tone: rcToneSelect?.value || 'neutral',
+      focus: rcFocusSelect?.value || 'balanced',
+      length: rcLengthSelect?.value || 'one_page',
+      include_cover_letter: rcIncludeCover?.checked || false
+    };
+    const res = await api('/api/resume-curator/run', {
       method: 'POST',
-      body: JSON.stringify({ options: rcGetOptions() })
+      body: JSON.stringify(body)
     });
-    rcVersionId = res.version.id;
-    if (rcOutputText) {
-      rcOutputText.value = res.version.generated_resume_text || '';
-    }
-    rcRenderAts(res.ats);
-    await rcLoadVersions(sessionId);
-    setRcStatus('Generated');
+    rcRunId = res.run.id;
+    rcRenderAts({ score: res.ats.score, matched_keywords: res.ats.matched, missing_keywords: res.ats.missing });
+    renderSuggestions(res.suggestions || []);
+    rcPreviewBlock?.setAttribute('hidden', 'hidden');
+    setRcStatus('Ready');
   } catch (err) {
-    setRcStatus(err.message || 'Generation failed');
-  }
-}
-
-async function rcSaveEdits() {
-  if (!rcSessionId || !rcVersionId) {
-    setRcStatus('Generate first');
-    return;
-  }
-  setRcStatus('Saving edits…');
-  try {
-    await api(`/api/resume-curator/sessions/${rcSessionId}/versions/${rcVersionId}/save`, {
-      method: 'POST',
-      body: JSON.stringify({ user_edited_resume_text: rcOutputText?.value || '' })
-    });
-    setRcStatus('Saved');
-  } catch (err) {
-    setRcStatus(err.message || 'Save failed');
-  }
-}
-
-async function rcMarkExported() {
-  if (!rcSessionId || !rcVersionId) {
-    setRcStatus('Generate first');
-    return;
-  }
-  setRcStatus('Marking exported…');
-  try {
-    await api(`/api/resume-curator/sessions/${rcSessionId}/versions/${rcVersionId}/exported`, {
-      method: 'POST'
-    });
-    setRcStatus('Exported');
-  } catch (err) {
-    setRcStatus(err.message || 'Export failed');
+    setRcStatus(err.message || 'Run failed');
   }
 }
 
@@ -2949,11 +2930,31 @@ function initResumeCurator() {
   rcResumeSelect?.addEventListener('change', () => {
     rcSessionId = null;
     rcVersionId = null;
+    rcRunId = null;
   });
 
   rcGenerateBtn?.addEventListener('click', rcGenerate);
-  rcSaveEditsBtn?.addEventListener('click', rcSaveEdits);
-  rcMarkExportedBtn?.addEventListener('click', rcMarkExported);
+  rcCreateVersionBtn?.addEventListener('click', async () => {
+    if (!rcRunId) {
+      setRcStatus('Run first');
+      return;
+    }
+    setRcStatus('Creating version…');
+    try {
+      const res = await api(`/api/resume-curator/${rcRunId}/version`, { method: 'POST' });
+      rcVersionId = res.version.id;
+      rcRenderAts({ score: res.ats.score, matched_keywords: res.ats.matched, missing_keywords: res.ats.missing });
+      if (rcPreviewBlock) rcPreviewBlock.removeAttribute('hidden');
+      if (rcPreviewText) rcPreviewText.textContent = res.version.tailored_text || '';
+      await rcLoadRun(rcRunId);
+      setRcStatus('Version created');
+    } catch (err) {
+      setRcStatus(err.message || 'Version failed');
+    }
+  });
+  rcMarkExportedBtn?.addEventListener('click', async () => {
+    setRcStatus('Export flag set');
+  });
 
   rcLoadResumes();
 }
@@ -3477,3 +3478,86 @@ window.addEventListener('hashchange', route);
   await loadSession();
   route();
 })();
+async function rcLoadRun(runId) {
+  const data = await api(`/api/resume-curator/${runId}`);
+  rcRenderAts({ score: data.ats.score, matched_keywords: data.ats.matched, missing_keywords: data.ats.missing });
+  renderSuggestions(data.suggestions || []);
+  rcVersionsEl && (rcVersionsEl.innerHTML = '');
+  (data.versions || []).forEach((v) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ghost';
+    btn.textContent = `${v.version_label || 'v'} • ATS ${v.ats_score ?? '—'}`;
+    btn.addEventListener('click', () => {
+      rcVersionId = v.id;
+      rcPreviewBlock?.removeAttribute('hidden');
+      if (rcPreviewText) rcPreviewText.textContent = v.tailored_text || '';
+    });
+    rcVersionsEl?.appendChild(btn);
+  });
+}
+
+function renderSuggestions(suggestions) {
+  if (!rcSuggestionsEl) return;
+  rcSuggestionsEl.innerHTML = '';
+  if (!suggestions || !suggestions.length) {
+    const empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.textContent = 'No suggestions yet.';
+    rcSuggestionsEl.appendChild(empty);
+    return;
+  }
+  suggestions.forEach((s) => {
+    const card = document.createElement('div');
+    card.className = 'card stack';
+    const top = document.createElement('div');
+    top.className = 'inline';
+    const title = document.createElement('strong');
+    title.textContent = s.change_text;
+    const impact = document.createElement('span');
+    impact.className = 'pill subtle';
+    impact.textContent = s.impact || 'med';
+    top.appendChild(title);
+    top.appendChild(impact);
+    const reason = document.createElement('div');
+    reason.className = 'muted small';
+    reason.textContent = s.reason_text || '';
+    const actions = document.createElement('div');
+    actions.className = 'inline';
+    const applyBtn = document.createElement('button');
+    applyBtn.type = 'button';
+    applyBtn.className = 'btn btn-secondary btn-sm';
+    applyBtn.textContent = s.status === 'applied' ? 'Applied' : 'Apply';
+    applyBtn.disabled = s.status === 'applied';
+    applyBtn.addEventListener('click', async () => {
+      await api(`/api/resume-curator/suggestions/${s.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'applied' })
+      });
+      renderSuggestions(
+        suggestions.map((item) => (item.id === s.id ? { ...item, status: 'applied' } : item))
+      );
+    });
+    const dismissBtn = document.createElement('button');
+    dismissBtn.type = 'button';
+    dismissBtn.className = 'ghost';
+    dismissBtn.textContent = s.status === 'dismissed' ? 'Dismissed' : 'Dismiss';
+    dismissBtn.disabled = s.status === 'dismissed';
+    dismissBtn.addEventListener('click', async () => {
+      await api(`/api/resume-curator/suggestions/${s.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'dismissed' })
+      });
+      renderSuggestions(
+        suggestions.map((item) => (item.id === s.id ? { ...item, status: 'dismissed' } : item))
+      );
+    });
+    actions.appendChild(applyBtn);
+    actions.appendChild(dismissBtn);
+    card.appendChild(top);
+    card.appendChild(reason);
+    actions.style.gap = '8px';
+    card.appendChild(actions);
+    rcSuggestionsEl.appendChild(card);
+  });
+}

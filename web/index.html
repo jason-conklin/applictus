@@ -468,13 +468,25 @@
               <div class="small">Matched: <span id="rc-ats-matched">—</span></div>
               <div class="small">Missing: <span id="rc-ats-missing">—</span></div>
             </div>
-            <label>
-              Tailored resume
-              <textarea id="rc-output-text" rows="16"></textarea>
-            </label>
-            <div class="inline">
-              <button id="rc-save-edits" type="button">Save edits</button>
-              <button id="rc-mark-exported" type="button" class="ghost">Mark Exported</button>
+            <div class="stack" id="rc-suggestions-block">
+              <div class="card-header">
+                <div>
+                  <h4>Suggested Changes</h4>
+                  <div class="muted small">Apply or dismiss to build a version.</div>
+                </div>
+                <button type="button" id="rc-create-version" class="ghost">Create Version</button>
+              </div>
+              <div id="rc-suggestions" class="stack"></div>
+            </div>
+            <div class="stack" id="rc-preview-block" hidden>
+              <div class="card-header">
+                <div>
+                  <h4>Preview</h4>
+                  <div class="muted small">Latest tailored version</div>
+                </div>
+                <button type="button" id="rc-mark-exported" class="ghost">Mark Exported</button>
+              </div>
+              <pre class="preview" id="rc-preview-text"></pre>
             </div>
             <div class="stack">
               <h4>Versions</h4>
