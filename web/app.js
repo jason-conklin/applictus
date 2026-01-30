@@ -2742,8 +2742,25 @@ function rcRenderAts(ats) {
   if (!ats) return;
   rcAtsScoreEl.textContent = `ATS score: ${ats.score}`;
   rcAtsFillEl.style.width = `${Math.max(0, Math.min(100, ats.score || 0))}%`;
-  rcAtsMatchedEl.textContent = (ats.matched_keywords || []).join(', ') || '—';
-  rcAtsMissingEl.textContent = (ats.missing_keywords || []).join(', ') || '—';
+  const matched = ats.matched_keywords || ats.matchedSignals || [];
+  const missing = ats.missing_keywords || ats.missingSignals || [];
+  rcAtsMatchedEl.textContent = matched.slice(0, 12).join(', ') || '—';
+  rcAtsMissingEl.textContent = missing.slice(0, 12).join(', ') || '—';
+
+  // coverage bars (if present)
+  if (ats.coverage) {
+    const cov = ats.coverage;
+    const reqText =
+      cov.required && cov.required.total
+        ? `${cov.required.matched}/${cov.required.total} required`
+        : '';
+    const prefText =
+      cov.preferred && cov.preferred.total ? `${cov.preferred.matched}/${cov.preferred.total} preferred` : '';
+    if (reqText || prefText) {
+      rcAtsScoreEl.textContent += reqText ? ` • ${reqText}` : '';
+      rcAtsScoreEl.textContent += prefText ? ` • ${prefText}` : '';
+    }
+  }
 }
 
 async function rcLoadVersions(sessionId) {
@@ -2943,7 +2960,12 @@ function initResumeCurator() {
     try {
       const res = await api(`/api/resume-curator/${rcRunId}/version`, { method: 'POST' });
       rcVersionId = res.version.id;
-      rcRenderAts({ score: res.ats.score, matched_keywords: res.ats.matched, missing_keywords: res.ats.missing });
+      rcRenderAts({
+        score: res.ats.score,
+        matched_keywords: res.ats.matched,
+        missing_keywords: res.ats.missing,
+        coverage: res.ats.coverage
+      });
       if (rcPreviewBlock) rcPreviewBlock.removeAttribute('hidden');
       if (rcPreviewText) rcPreviewText.textContent = res.version.tailored_text || '';
       await rcLoadRun(rcRunId);
@@ -3480,7 +3502,12 @@ window.addEventListener('hashchange', route);
 })();
 async function rcLoadRun(runId) {
   const data = await api(`/api/resume-curator/${runId}`);
-  rcRenderAts({ score: data.ats.score, matched_keywords: data.ats.matched, missing_keywords: data.ats.missing });
+  rcRenderAts({
+    score: data.ats.score,
+    matched_keywords: data.ats.matched,
+    missing_keywords: data.ats.missing,
+    coverage: data.ats.coverage
+  });
   renderSuggestions(data.suggestions || []);
   rcVersionsEl && (rcVersionsEl.innerHTML = '');
   (data.versions || []).forEach((v) => {

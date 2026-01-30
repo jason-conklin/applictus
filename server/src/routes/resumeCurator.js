@@ -24,6 +24,7 @@ const {
 } = require('../db');
 const { runLlmExtraction } = require('../llmClient');
 const { buildResumeTailorPrompt, computeAtsScore } = require('../../../shared/resumeCurator');
+const { scoreAts } = require('../../../shared/resumeAtsScore');
 const {
   detectSupportedResumeMime,
   extractTextFromDocx,
@@ -262,7 +263,12 @@ async function generateVersion({ db, session, resume, options }) {
     throw err;
   }
 
-  const ats = computeAtsScore({ resumeText, jobDescriptionText: session.job_description_text });
+  const ats = scoreAts({
+    resumeText,
+    jobDescriptionText: session.job_description_text,
+    companyName: session.company_name,
+    roleTitle: session.job_title
+  });
   const versions = listTailorVersions(db, session.id);
   const nextVersion = (versions.reduce((max, v) => Math.max(max, v.version_number), 0) || 0) + 1;
 
@@ -380,7 +386,12 @@ router.get('/:runId', (req, res) => {
   const run = getCuratorRun(db, req.user.id, req.params.runId);
   if (!run) return jsonError(res, 404, 'NOT_FOUND');
   const resume = getResume(db, req.user.id, run.base_resume_id);
-  const ats = computeAtsScore({ resumeText: resume?.resume_text || '', jobDescriptionText: run.job_description || '' });
+  const ats = scoreAts({
+    resumeText: resume?.resume_text || '',
+    jobDescriptionText: run.job_description || '',
+    companyName: run.company,
+    roleTitle: run.role_title
+  });
   return res.json({
     run,
     ats: { score: ats.score, matched: ats.matched_keywords, missing: ats.missing_keywords },
@@ -419,7 +430,12 @@ router.post('/:runId/version', (req, res) => {
   if (applied.some((s) => s.kind === 'add_metrics')) {
     tailored = `${tailored}\n\n[Add metric-driven bullet to experience]`;
   }
-  const ats = computeAtsScore({ resumeText: tailored, jobDescriptionText: run.job_description || '' });
+  const ats = scoreAts({
+    resumeText: tailored,
+    jobDescriptionText: run.job_description || '',
+    companyName: run.company,
+    roleTitle: run.role_title
+  });
   const versions = listCuratorVersions(db, run.id);
   const label = `v${(versions.length || 0) + 1}`;
   const version = createCuratorVersion(db, {
