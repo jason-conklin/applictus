@@ -1,11 +1,31 @@
 const SECTION_HEADINGS = [
-  { key: 'required', patterns: [/^required/i, /^basic qualifications/i, /^must have/i] },
+  { key: 'required', patterns: [/^required/i, /^requirements/i, /^basic qualifications/i, /^must have/i] },
   { key: 'preferred', patterns: [/^preferred/i, /^nice to have/i, /^desired/i] },
   { key: 'responsibilities', patterns: [/^responsibil/i, /^you will/i, /^what you will do/i] },
-  { key: 'gains', patterns: [/gain experience/i, /will learn/i] }
+  { key: 'qualifications', patterns: [/^qualifications/i, /^skills/i, /^experience/i] },
+  { key: 'education', patterns: [/^education/i, /degree/i] },
+  { key: 'clearance', patterns: [/clearance/i] }
 ];
 
-const IGNORE_HEADINGS = [/benefit/i, /culture/i, /mission/i, /about/i, /salary/i, /compensation/i, /insurance/i, /leave/i, /vacation/i, /perk/i];
+const IGNORE_CUES = [
+  /benefit/i,
+  /insurance/i,
+  /401k/i,
+  /401\(k\)/i,
+  /paid time off/i,
+  /pto/i,
+  /vacation/i,
+  /leave/i,
+  /life insurance/i,
+  /wellness/i,
+  /recognition/i,
+  /perks/i,
+  /about us/i,
+  /our (mission|values|culture|employees)/i,
+  /equal opportunity/i,
+  /salary/i,
+  /compensation/i
+];
 
 function splitSections(text = '') {
   const lines = text.split(/\r?\n/).map((l) => l.trim());
@@ -19,7 +39,7 @@ function splitSections(text = '') {
   };
   lines.forEach((line) => {
     if (!line) return;
-    if (IGNORE_HEADINGS.some((rx) => rx.test(line))) {
+    if (IGNORE_CUES.some((rx) => rx.test(line))) {
       flush();
       current = { key: 'ignore', content: [] };
       return;

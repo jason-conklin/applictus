@@ -368,15 +368,15 @@ router.post('/run', (req, res) => {
     length: body.length || 'one_page',
     includeCoverLetter: Boolean(body.include_cover_letter)
   });
-  const { suggestions, ats } = buildSuggestions({
-    baseResumeText: resume.resume_text,
+  const { suggestions, score, matchedSignals, missingSignals, coverage } = scoreAts({
+    resumeText: resume.resume_text,
     jobDescriptionText: body.job_description,
-    targetKeywords: body.target_keywords || []
+    companyName: body.company || ''
   });
   const stored = createCuratorSuggestions(db, run.id, suggestions);
   return res.json({
     run,
-    ats: { score: ats.score, matched: ats.matched_keywords, missing: ats.missing_keywords },
+    ats: { score, matched: matchedSignals, missing: missingSignals, coverage },
     suggestions: stored
   });
 });
@@ -394,7 +394,7 @@ router.get('/:runId', (req, res) => {
   });
   return res.json({
     run,
-    ats: { score: ats.score, matched: ats.matched_keywords, missing: ats.missing_keywords },
+    ats: { score: ats.score, matched: ats.matchedSignals, missing: ats.missingSignals, coverage: ats.coverage },
     suggestions: listCuratorSuggestions(db, run.id),
     versions: listCuratorVersions(db, run.id)
   });

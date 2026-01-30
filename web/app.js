@@ -2742,8 +2742,8 @@ function rcRenderAts(ats) {
   if (!ats) return;
   rcAtsScoreEl.textContent = `ATS score: ${ats.score}`;
   rcAtsFillEl.style.width = `${Math.max(0, Math.min(100, ats.score || 0))}%`;
-  const matched = ats.matched_keywords || ats.matchedSignals || [];
-  const missing = ats.missing_keywords || ats.missingSignals || [];
+  const matched = ats.matchedSignals || ats.matched_keywords || [];
+  const missing = ats.missingSignals || ats.missing_keywords || [];
   rcAtsMatchedEl.textContent = matched.slice(0, 12).join(', ') || '—';
   rcAtsMissingEl.textContent = missing.slice(0, 12).join(', ') || '—';
 
@@ -3540,15 +3540,18 @@ function renderSuggestions(suggestions) {
     const top = document.createElement('div');
     top.className = 'inline';
     const title = document.createElement('strong');
-    title.textContent = s.change_text;
+    title.textContent = s.change || s.change_text || 'Suggestion';
     const impact = document.createElement('span');
     impact.className = 'pill subtle';
-    impact.textContent = s.impact || 'med';
+    impact.textContent = s.importance || s.impact || 'med';
     top.appendChild(title);
     top.appendChild(impact);
     const reason = document.createElement('div');
     reason.className = 'muted small';
-    reason.textContent = s.reason_text || '';
+    reason.textContent = s.reason || s.reason_text || '';
+    const evidence = document.createElement('div');
+    evidence.className = 'muted xsmall';
+    if (s.evidence_text || s.evidence) evidence.textContent = s.evidence_text || s.evidence;
     const actions = document.createElement('div');
     actions.className = 'inline';
     const applyBtn = document.createElement('button');
@@ -3583,6 +3586,7 @@ function renderSuggestions(suggestions) {
     actions.appendChild(dismissBtn);
     card.appendChild(top);
     card.appendChild(reason);
+    if (evidence.textContent) card.appendChild(evidence);
     actions.style.gap = '8px';
     card.appendChild(actions);
     rcSuggestionsEl.appendChild(card);

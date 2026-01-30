@@ -1,5 +1,14 @@
 const { extractSignals, extractResumeSignals } = require('./resumeSignals');
 
+const SECTION_MAP = {
+  default: 'Skills',
+  clearance: 'Compliance',
+  degree: 'Education',
+  methods: 'Experience',
+  testing: 'Experience',
+  documentation: 'Experience'
+};
+
 function scoreAts({ resumeText, jobDescriptionText, companyName }) {
   const jdSignals = extractSignals({ jobDescriptionText, companyName });
   const resumeSignals = extractResumeSignals(resumeText || '');
@@ -16,9 +25,9 @@ function scoreAts({ resumeText, jobDescriptionText, companyName }) {
   const total = Math.round(Math.min(100, requiredScore + preferredScore + structureScore));
 
   const matchedSignals = [...matchedRequired, ...matchedPreferred].slice(0, 12);
-  const missingSignals = [...missingRequired, ...missingPreferred].slice(0, 12);
+  const missingSignals = rankSignals([...missingRequired, ...missingPreferred]).slice(0, 12);
 
-  const suggestions = buildSuggestions({ missingRequired, missingPreferred });
+  const suggestions = buildSuggestions({ missingRequired, missingPreferred }).slice(0, 10);
 
   return {
     score: total,
@@ -37,36 +46,55 @@ function hasStructure(text = '') {
   return lower.includes('skills') && lower.includes('education') && /\d/.test(text);
 }
 
-function buildSuggestions({ missingRequired, missingPreferred }) {
-  const suggestions = [];
-  const add = (section, impact, change, reason) => {
-    suggestions.push({
-      id: `${section}-${change}-${impact}`,
-      section,
-      impact,
-      change,
-      reason
-    });
+function rankSignals(signals) {
+  const weight = (sig) => {
+    const s = sig.toLowerCase();
+    if (s.includes('clearance')) return 100;
+    if (s.includes('c++') || s.includes('c#') || s.includes('java') || s.includes('python')) return 90;
+    if (s.includes('linux') || s.includes('unix')) return 85;
+    if (s.includes('agile') || s.includes('object')) return 80;
+    if (s.includes('testing')) return 75;
+    if (s.includes('degree')) return 70;
+    return 50;
   };
-  missingRequired.forEach((sig) => {
-    const section = pickSection(sig);
-    add(section, 'High', `Add ${sig} to ${section}`, 'Required by the job description.');
-  });
-  missingPreferred.forEach((sig) => {
-    const section = pickSection(sig);
-    add(section, 'Medium', `Consider adding ${sig} to ${section}`, 'Preferred by the job description.');
-  });
-  if (!suggestions.some((s) => s.change.includes('metric'))) {
-    add('Experience', 'Medium', 'Add metrics to key bullets', 'Quantified impact improves screening.');
-  }
-  return suggestions.slice(0, 12);
+  return Array.from(new Set(signals)).sort((a, b) => weight(b) - weight(a));
 }
 
-function pickSection(sig) {
+function buildSuggestions({ missingRequired, missingPreferred }) {
+  const suggestions = [];
+  const add = (type, section, importance, change, reason, evidence) => {
+    suggestions.push({
+      id: `${type}-${change}-${section}`,
+      type,
+      section,
+      importance,
+      change,
+      reason,
+      evidence
+    });
+  };
+
+  missingRequired.forEach((sig) => {
+    const section = mapSection(sig);
+    add('missing-required', section, 'High', `Add ${sig} to your ${section}`, 'Required by the JD.', sig);
+  });
+  missingPreferred.forEach((sig) => {
+    const section = mapSection(sig);
+    add('missing-preferred', section, 'Medium', `Consider adding ${sig} to your ${section}`, 'Preferred by the JD.', sig);
+  });
+  if (!suggestions.some((s) => s.type === 'metrics')) {
+    add('metrics', 'Experience', 'Medium', 'Add metrics to key bullets', 'Quantified impact improves screening.', null);
+  }
+  return suggestions;
+}
+
+function mapSection(sig) {
   const lower = sig.toLowerCase();
-  if (lower.includes('degree')) return 'Education';
-  if (lower.includes('clearance')) return 'Compliance';
-  return 'Skills';
+  if (lower.includes('degree')) return SECTION_MAP.degree;
+  if (lower.includes('clearance')) return SECTION_MAP.clearance;
+  if (lower.includes('agile') || lower.includes('object') || lower.includes('testing') || lower.includes('documentation'))
+    return SECTION_MAP.methods;
+  return SECTION_MAP.default;
 }
 
 module.exports = { scoreAts };
