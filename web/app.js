@@ -3047,7 +3047,13 @@ loginForm?.addEventListener('submit', async (event) => {
     await loadCsrfToken();
     sessionUser = { email: payload.email };
     window.location.hash = '#dashboard';
-    await loadSession();
+    try {
+      await loadSession();
+    } catch (sessionErr) {
+      showNotice('Session cookie not set; check cookie settings.', 'Sign in issue');
+      setView('auth');
+      return;
+    }
   } catch (err) {
     showNotice(authErrorMessage(err.message), 'Sign in failed');
   }
@@ -3062,7 +3068,14 @@ signupForm?.addEventListener('submit', async (event) => {
     await loadCsrfToken();
     sessionUser = { email: payload.email };
     window.location.hash = '#dashboard';
-    await loadSession();
+    try {
+      await loadSession();
+    } catch (sessionErr) {
+      showNotice('Account created. Please sign in to continue.', 'Signup succeeded');
+      window.location.hash = '#account';
+      setView('auth');
+      return;
+    }
   } catch (err) {
     showNotice(authErrorMessage(err.message), 'Sign up failed');
   }
