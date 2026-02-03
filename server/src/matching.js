@@ -16,6 +16,7 @@ const {
 } = require('../../shared/matching');
 const { logDebug } = require('./logger');
 const { TERMINAL_STATUSES, STATUS_PRIORITY } = require('../../shared/statusInference');
+const { coalesceTimestamps } = require('./sqlHelpers');
 
 const AUTO_CREATE_TYPES = new Set([
   'confirmation',
@@ -702,7 +703,7 @@ function findLooseMatchingApplication(db, userId, identity, externalReqId) {
            AND (company_name = ? OR company = ?)
            AND (job_title = ? OR role = ?)
            AND archived = 0
-         ORDER BY COALESCE(last_activity_at, updated_at, created_at) DESC
+         ORDER BY ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} DESC
          LIMIT 1`
       )
       .get(
@@ -720,7 +721,7 @@ function findLooseMatchingApplication(db, userId, identity, externalReqId) {
        WHERE user_id = ?
          AND (company_name = ? OR company = ?)
          AND archived = 0
-       ORDER BY COALESCE(last_activity_at, updated_at, created_at) DESC
+       ORDER BY ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} DESC
        LIMIT 1`
     )
     .get(userId, identity.companyName, identity.companyName);
@@ -738,7 +739,7 @@ function findCompanyMatches(db, userId, identity, senderDomain, recencyDays = nu
     senderDomain ? `AND source = ?` : null,
     `AND archived = 0`,
     recencyDays
-      ? `AND COALESCE(last_activity_at, updated_at, created_at) >= date('now', ?)`
+      ? `AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= date('now', ?)`
       : null
   ]
     .filter(Boolean)
@@ -987,8 +988,8 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
            WHERE user_id = ?
              AND archived = 0
              AND (job_title = ? OR role = ?)
-             AND COALESCE(last_activity_at, updated_at, created_at) >= date('now', '-7 days')
-           ORDER BY COALESCE(last_activity_at, updated_at, created_at) DESC
+          AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= date('now', '-7 days')
+          ORDER BY ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} DESC
            LIMIT 1`
         )
         .get(userId, roleForMatch, roleForMatch);
@@ -1361,7 +1362,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
              AND archived = 0
              AND lower(replace(company_name, ' ', '')) = ?
              AND lower(replace(job_title, ' ', '')) = ?
-             AND COALESCE(last_activity_at, updated_at, created_at) >= ?`
+            AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= ?`
         )
         .all(userId, companySlug, roleSlug, windowStart);
       logDedupe('matching.final_confirmation_dedupe', {
@@ -1391,7 +1392,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
            WHERE user_id = ?
              AND archived = 0
              AND lower(replace(job_title, ' ', '')) = ?
-             AND COALESCE(last_activity_at, updated_at, created_at) >= date('now', '-1 days')`
+            AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= date('now', '-1 days')`
         )
         .all(userId, roleSlug);
       logDedupe('matching.role_only_confirmation_dedupe', {
@@ -1456,7 +1457,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
              AND archived = 0
              AND company_name IS NOT NULL
              AND lower(replace(company_name, ' ', '')) = ?
-             AND COALESCE(last_activity_at, updated_at, created_at) >= ?`
+            AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= ?`
         )
         .all(userId, companySlug, windowStart);
 
@@ -1691,7 +1692,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
            WHERE user_id = ?
              AND archived = 0
              AND lower(replace(company_name, ' ', '')) = ?
-             AND COALESCE(last_activity_at, updated_at, created_at) >= ?`
+            AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= ?`
         )
         .all(userId, companySlug, windowStart);
       for (const app of candidates) {

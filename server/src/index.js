@@ -35,6 +35,7 @@ const { createUserAction } = require('./userActions');
 const { applyStatusOverride } = require('./overrides');
 const { mergeApplications } = require('./merge');
 const resumeCuratorRouter = require('./routes/resumeCurator');
+const { coalesceTimestamps } = require('./sqlHelpers');
 
 // Stack choice: Express + SQLite keeps the backend lightweight and easy to ship locally.
 const app = express();
@@ -343,7 +344,7 @@ function applyEventToApplication(application, event) {
 }
 
 const SORTABLE_FIELDS = {
-  last_activity_at: 'COALESCE(last_activity_at, updated_at)',
+  last_activity_at: coalesceTimestamps(['last_activity_at', 'updated_at']),
   company_name: 'company_name',
   job_title: 'job_title',
   status: 'current_status',
@@ -409,7 +410,7 @@ function buildApplicationFilters({ userId, archived, status, company, role, rece
   }
   if (recencyDays) {
     const cutoff = new Date(Date.now() - recencyDays * 24 * 60 * 60 * 1000).toISOString();
-    clauses.push('COALESCE(last_activity_at, updated_at) >= ?');
+    clauses.push(`${coalesceTimestamps(['last_activity_at', 'updated_at'])} >= ?`);
     params.push(cutoff);
   }
   if (minConfidence !== null) {
@@ -1034,7 +1035,7 @@ app.get('/api/applications/pipeline', requireAuth, (req, res) => {
                 created_at, updated_at
          FROM job_applications
          WHERE ${whereClause}
-         ORDER BY COALESCE(last_activity_at, updated_at) DESC
+         ORDER BY ${coalesceTimestamps(['last_activity_at', 'updated_at'])} DESC
          LIMIT ?`
       )
       .all(...params, perStatusLimit);

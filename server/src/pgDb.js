@@ -67,6 +67,10 @@ function prepareFactory(pool, clientOverride) {
     const runQuery = async (params = []) => {
       const client = clientOverride || (await pool.connect());
       try {
+        if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+          // eslint-disable-next-line no-console
+          console.debug('[pgDb] query', text, params);
+        }
         const result = await client.query(text, params);
         return result;
       } finally {

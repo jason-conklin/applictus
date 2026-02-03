@@ -16,15 +16,20 @@ CREATE TABLE IF NOT EXISTS users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email text NOT NULL UNIQUE,
   name text,
-  created_at timestamptz NOT NULL
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz,
+  password_hash text,
+  auth_provider text NOT NULL DEFAULT 'password'
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES users(id),
   created_at timestamptz NOT NULL,
-  expires_at timestamptz NOT NULL
+  expires_at timestamptz NOT NULL,
+  csrf_token text
 );
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 
 CREATE TABLE IF NOT EXISTS job_applications (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -35,8 +40,36 @@ CREATE TABLE IF NOT EXISTS job_applications (
   status_updated_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
-  archived boolean NOT NULL DEFAULT false
+  archived boolean NOT NULL DEFAULT false,
+  company_name text,
+  job_title text,
+  job_location text,
+  source text,
+  applied_at timestamptz,
+  current_status text,
+  status_confidence double precision,
+  last_activity_at timestamptz,
+  user_override boolean NOT NULL DEFAULT false,
+  status_explanation text,
+  status_source text,
+  suggested_status text,
+  suggested_confidence double precision,
+  suggested_explanation text,
+  inference_updated_at timestamptz,
+  external_req_id text,
+  company_confidence double precision,
+  company_source text,
+  company_explanation text,
+  role_confidence double precision,
+  role_source text,
+  role_explanation text
 );
+CREATE INDEX IF NOT EXISTS idx_job_apps_user_id ON job_applications(user_id);
+CREATE INDEX IF NOT EXISTS idx_job_apps_status ON job_applications(status);
+CREATE INDEX IF NOT EXISTS idx_job_apps_updated ON job_applications(updated_at);
+CREATE INDEX IF NOT EXISTS idx_job_apps_last_activity ON job_applications(last_activity_at);
+CREATE INDEX IF NOT EXISTS idx_job_apps_identity ON job_applications(company_name, job_title, source);
+CREATE INDEX IF NOT EXISTS idx_job_apps_external_req ON job_applications(company_name, external_req_id);
 
 CREATE TABLE IF NOT EXISTS email_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
