@@ -36,6 +36,7 @@ const { applyStatusOverride } = require('./overrides');
 const { mergeApplications } = require('./merge');
 const resumeCuratorRouter = require('./routes/resumeCurator');
 const { coalesceTimestamps } = require('./sqlHelpers');
+const { pgMigrate, assertPgSchema } = require('./pgMigrate');
 
 // Stack choice: Express + SQLite keeps the backend lightweight and easy to ship locally.
 const app = express();
@@ -43,7 +44,6 @@ const db = openDb();
 app.locals.db = db;
 
 migrate(db);
-cleanupExpiredSessions();
 
 if (process.env.NODE_ENV === 'production' || process.env.TRUST_PROXY === '1') {
   app.set('trust proxy', 1);
@@ -740,13 +740,13 @@ app.post('/api/auth/logout', requireAuth, async (req, res) => {
   return res.json({ ok: true });
 });
 
-app.get('/api/email/status', requireAuth, (req, res) => {
+app.get('/api/email/status', requireAuth, async (req, res) => {
   const configured = Boolean(getOAuthClient());
   const encryptionReady = isEncryptionReady();
   let tokens = null;
   if (encryptionReady) {
     try {
-      tokens = getStoredTokens(db, req.user.id);
+      tokens = await getStoredTokens(db, req.user.id);
     } catch (err) {
       return res.json({
         configured,
@@ -798,7 +798,7 @@ app.get('/api/email/callback', requireAuth, async (req, res) => {
     } catch (err) {
       connectedEmail = null;
     }
-    upsertTokens(db, req.user.id, tokens, connectedEmail);
+    await upsertTokens(db, req.user.id, tokens, connectedEmail);
     return res.redirect('/#gmail');
   } catch (err) {
     return res.status(500).send('Failed to connect Gmail.');
@@ -1625,21 +1625,31 @@ let server = null;
 function startServer(port = PORT, options = {}) {
   const shouldLog = options.log !== false;
   const host = options.host || process.env.HOST || '0.0.0.0';
-  return new Promise((resolve, reject) => {
-    server = app
-      .listen(port, host, () => {
-        if (shouldLog) {
-          const address = server.address();
-          const actualPort =
-            address && typeof address === 'object' && address.port ? address.port : port;
-          console.log(`Applictus running on http://${host}:${actualPort}`);
-        }
-        resolve(server);
-      })
-      .on('error', (err) => {
-        reject(err);
-      });
-  });
+  return (async () => {
+    const shouldRunPgMigrations =
+      Boolean(process.env.DATABASE_URL) && db && db.isAsync && process.env.NODE_ENV !== 'test';
+    if (shouldRunPgMigrations) {
+      await pgMigrate(db, { log: shouldLog });
+      await assertPgSchema(db);
+    }
+    await cleanupExpiredSessions();
+
+    return new Promise((resolve, reject) => {
+      server = app
+        .listen(port, host, () => {
+          if (shouldLog) {
+            const address = server.address();
+            const actualPort =
+              address && typeof address === 'object' && address.port ? address.port : port;
+            console.log(`Applictus running on http://${host}:${actualPort}`);
+          }
+          resolve(server);
+        })
+        .on('error', (err) => {
+          reject(err);
+        });
+    });
+  })();
 }
 
 function stopServer() {
@@ -1659,7 +1669,11 @@ function stopServer() {
 }
 
 if (require.main === module) {
-  startServer(PORT, { log: true });
+  startServer(PORT, { log: true }).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error('Failed to start server:', err && err.message ? err.message : err);
+    process.exit(1);
+  });
 }
 
 module.exports = {

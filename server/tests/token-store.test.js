@@ -26,7 +26,7 @@ function runMigrations(db) {
   }
 }
 
-test('token persistence encrypts and preserves refresh token', () => {
+test('token persistence encrypts and preserves refresh token', async () => {
   const db = new Database(':memory:');
   runMigrations(db);
 
@@ -38,7 +38,7 @@ test('token persistence encrypts and preserves refresh token', () => {
     new Date().toISOString()
   );
 
-  upsertTokens(
+  await upsertTokens(
     db,
     userId,
     {
@@ -50,9 +50,9 @@ test('token persistence encrypts and preserves refresh token', () => {
     'test@example.com'
   );
 
-  upsertTokens(db, userId, { access_token: 'access-2' });
+  await upsertTokens(db, userId, { access_token: 'access-2' });
 
-  const stored = getStoredTokens(db, userId);
+  const stored = await getStoredTokens(db, userId);
   assert.equal(stored.access_token, 'access-2');
   assert.equal(stored.refresh_token, 'refresh-1');
   assert.equal(stored.connected_email, 'test@example.com');

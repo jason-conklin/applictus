@@ -29,7 +29,7 @@ async function main() {
 
     if (!table) {
       console.error(
-        "Tables not found. Run the SQL in Supabase SQL Editor:\n  node server/scripts/print-postgres-schema.js"
+        "Tables not found. Run migrations:\n  node server/scripts/migrate-postgres.js\n\nIf you need the base schema for inspection:\n  node server/scripts/print-postgres-schema.js"
       );
       process.exit(1);
     }

@@ -407,6 +407,13 @@ async function api(path, options = {}) {
     credentials: 'include',
     ...options
   });
+  if (DEBUG_APP && path.startsWith('/api/applications')) {
+    // eslint-disable-next-line no-console
+    console.debug('[api]', path, {
+      status: response.status,
+      contentType: response.headers.get('content-type')
+    });
+  }
   if (!response.ok) {
     const bodyText = await response.text().catch(() => '');
     let body = {};
@@ -425,7 +432,17 @@ async function api(path, options = {}) {
   const rawText = await response.text().catch(() => '');
   if (!rawText) return {};
   try {
-    return JSON.parse(rawText);
+    const parsed = JSON.parse(rawText);
+    if (DEBUG_APP && path.startsWith('/api/applications')) {
+      // eslint-disable-next-line no-console
+      console.debug('[api] parsed', {
+        path,
+        type: typeof parsed,
+        isArray: Array.isArray(parsed),
+        preview: Array.isArray(parsed) ? parsed.slice(0, 1) : parsed
+      });
+    }
+    return parsed;
   } catch (err) {
     return { raw: rawText };
   }
@@ -993,9 +1010,7 @@ function normalizeApplicationsList(payload) {
 }
 
 function sortApplications(list) {
-  if (!Array.isArray(list)) {
-    return [];
-  }
+  if (!Array.isArray(list)) return [];
   const key = state.sort.key;
   const dir = state.sort.dir === 'asc' ? 1 : -1;
   const sorted = [...list].sort((a, b) => {
@@ -1252,27 +1267,9 @@ function setAuthPanel(panel) {
 }
 
 async function loadSession() {
+  let data;
   try {
-    const data = await api('/api/auth/session');
-    sessionUser = data.user;
-    if (accountEmail) {
-      accountEmail.textContent = sessionUser.email || '—';
-    }
-    if (accountAuth) {
-      accountAuth.textContent = formatAuthProvider(sessionUser.auth_provider);
-    }
-    if (avatarInitials) {
-      avatarInitials.textContent = getAvatarInitials(sessionUser.email);
-    }
-    if (accountAvatar) {
-      accountAvatar.title = sessionUser.email || 'Account';
-    }
-    updateFilterSummary();
-    addToggle?.setAttribute('aria-expanded', 'false');
-    setView('dashboard');
-    syncViewToggle();
-    await loadActiveApplications();
-    await refreshEmailStatus();
+    data = await api('/api/auth/session');
   } catch (err) {
     if (DEBUG_AUTH) {
       // eslint-disable-next-line no-console
@@ -1280,7 +1277,46 @@ async function loadSession() {
     }
     sessionUser = null;
     setView('auth');
+    return false;
   }
+
+  sessionUser = data.user;
+  if (accountEmail) {
+    accountEmail.textContent = sessionUser.email || '—';
+  }
+  if (accountAuth) {
+    accountAuth.textContent = formatAuthProvider(sessionUser.auth_provider);
+  }
+  if (avatarInitials) {
+    avatarInitials.textContent = getAvatarInitials(sessionUser.email);
+  }
+  if (accountAvatar) {
+    accountAvatar.title = sessionUser.email || 'Account';
+  }
+  updateFilterSummary();
+  addToggle?.setAttribute('aria-expanded', 'false');
+
+  setView('dashboard');
+  syncViewToggle();
+
+  try {
+    await loadActiveApplications();
+  } catch (err) {
+    const authFailure = err?.status === 401 || err?.message === 'AUTH_REQUIRED';
+    if (authFailure) {
+      sessionUser = null;
+      setView('auth');
+      return false;
+    }
+    if (DEBUG_APP) {
+      // eslint-disable-next-line no-console
+      console.debug('[apps] loadActiveApplications failed', err);
+    }
+    showNotice('Unable to load applications.', 'Dashboard');
+  }
+
+  await refreshEmailStatus();
+  return true;
 }
 
 async function loadActiveApplications() {
@@ -3031,6 +3067,8 @@ function initResumeCurator() {
 
 function route() {
   if (!sessionUser) {
+    // Always default to Sign in when unauthenticated (prevents accidental signup submissions after redirects).
+    setAuthPanel('signin');
     setView('auth');
     return;
   }
@@ -3040,43 +3078,68 @@ function route() {
   const hash = window.location.hash.replace('#', '');
   if (hash === 'gmail') {
     setView('account');
-    refreshEmailStatus();
+    void refreshEmailStatus();
   } else if (hash === 'archive') {
     setView('archive');
     state.archived.offset = 0;
-    refreshArchivedApplications();
+    void refreshArchivedApplications().catch((err) => {
+      if (DEBUG_APP) {
+        // eslint-disable-next-line no-console
+        console.debug('[archive] load failed', err);
+      }
+      showNotice('Unable to load archived applications.', 'Archive');
+    });
   } else if (hash === 'unsorted') {
     setView('unsorted');
-    refreshUnsortedEvents();
+    void refreshUnsortedEvents();
   } else if (hash === 'account') {
     setView('account');
-    refreshEmailStatus();
+    void refreshEmailStatus();
   } else if (hash === 'resume-curator') {
     setView('resume-curator');
     initResumeCurator();
   } else {
     setView('dashboard');
     syncViewToggle();
-    loadActiveApplications();
+    void loadActiveApplications().catch((err) => {
+      const authFailure = err?.status === 401 || err?.message === 'AUTH_REQUIRED';
+      if (authFailure) {
+        sessionUser = null;
+        setAuthPanel('signin');
+        setView('auth');
+        return;
+      }
+      if (DEBUG_APP) {
+        // eslint-disable-next-line no-console
+        console.debug('[dashboard] load failed', err);
+      }
+      showNotice('Unable to load applications.', 'Dashboard');
+    });
   }
 }
 
-authSwitch?.addEventListener('click', (event) => {
-  const button = event.target.closest('button[data-auth]');
-  if (!button) {
-    return;
-  }
-  if (DEBUG_AUTH) {
-    // eslint-disable-next-line no-console
-    console.debug('[auth] switch', button.dataset.auth);
-  }
-  setAuthPanel(button.dataset.auth);
-});
+if (authSwitch && !authSwitch.dataset.bound) {
+  authSwitch.dataset.bound = '1';
+  authSwitch.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-auth]');
+    if (!button) {
+      return;
+    }
+    if (DEBUG_AUTH) {
+      // eslint-disable-next-line no-console
+      console.debug('[auth] switch', { next: button.dataset.auth, current: authMode });
+    }
+    setAuthPanel(button.dataset.auth);
+  });
+}
 
 googleAuth?.addEventListener('click', () => {
   (async () => {
     try {
-      const response = await fetch('/api/auth/google/start', { redirect: 'manual' });
+      const response = await fetch('/api/auth/google/start', {
+        redirect: 'manual',
+        credentials: 'include'
+      });
       const redirectUrl = response.headers.get('location');
       if (response.status === 302 && redirectUrl) {
         window.location.href = redirectUrl;
@@ -3090,96 +3153,107 @@ googleAuth?.addEventListener('click', () => {
   })();
 });
 
-loginForm?.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  if (authMode !== 'signin') return;
-  if (loginForm.__submitting) return;
-  loginForm.__submitting = true;
-  const formData = new FormData(loginForm);
-  const payload = Object.fromEntries(formData.entries());
-  try {
-    if (DEBUG_AUTH) {
-      // eslint-disable-next-line no-console
-      console.debug('[auth] login submit -> /api/auth/login', payload.email);
-    }
-    await api('/api/auth/login', { method: 'POST', body: JSON.stringify(payload) });
-    await loadCsrfToken();
-    sessionUser = { email: payload.email };
-    window.location.hash = '#dashboard';
+if (loginForm && !loginForm.dataset.bound) {
+  loginForm.dataset.bound = '1';
+  loginForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (authMode !== 'signin') return;
+    if (loginForm.__submitting) return;
+    loginForm.__submitting = true;
+    const submitBtn = loginForm.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
+    const formData = new FormData(loginForm);
+    const payload = Object.fromEntries(formData.entries());
     try {
-      await loadSession();
-    } catch (sessionErr) {
-      showNotice('Session cookie not set; check cookie settings.', 'Sign in issue');
-      setView('auth');
-      return;
+      if (DEBUG_AUTH) {
+        // eslint-disable-next-line no-console
+        console.debug('[auth] submit', { mode: authMode, endpoint: '/api/auth/login', email: payload.email });
+      }
+      await api('/api/auth/login', { method: 'POST', body: JSON.stringify(payload) });
+      await loadCsrfToken();
+      const ok = await loadSession();
+      if (!ok) {
+        showNotice('Login succeeded but session not established (cookie not set).', 'Sign in issue');
+        setAuthPanel('signin');
+        return;
+      }
+      // Route only after session is confirmed to avoid the "dashboard flash then bounce".
+      window.location.hash = '#dashboard';
+      if (DEBUG_AUTH) {
+        // eslint-disable-next-line no-console
+        console.debug('[auth] login ok', { userId: sessionUser?.id });
+      }
+    } catch (err) {
+      showNotice(authErrorMessage(err.message), 'Sign in failed');
+      if (DEBUG_AUTH) {
+        // eslint-disable-next-line no-console
+        console.debug('[auth] login error', err);
+      }
+    } finally {
+      loginForm.__submitting = false;
+      if (submitBtn) submitBtn.disabled = false;
     }
-    if (DEBUG_AUTH) {
-      // eslint-disable-next-line no-console
-      console.debug('[auth] login success, session user', sessionUser);
-    }
-  } catch (err) {
-    showNotice(authErrorMessage(err.message), 'Sign in failed');
-    if (DEBUG_AUTH) {
-      // eslint-disable-next-line no-console
-      console.debug('[auth] login error', err);
-    }
-  }
-  finally {
-    loginForm.__submitting = false;
-  }
-});
+  });
+}
 
-signupForm?.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  if (authMode !== 'signup') return;
-  if (signupForm.__submitting) return;
-  signupForm.__submitting = true;
-  const submitBtn = signupForm.querySelector('button[type="submit"]');
-  if (submitBtn) submitBtn.disabled = true;
-  const formData = new FormData(signupForm);
-  const payload = Object.fromEntries(formData.entries());
-  try {
-    if (DEBUG_AUTH) {
-      // eslint-disable-next-line no-console
-      console.debug('[auth] signup submit -> /api/auth/signup', payload.email);
-    }
-    await api('/api/auth/signup', { method: 'POST', body: JSON.stringify(payload) });
-    await loadCsrfToken();
-    sessionUser = { email: payload.email };
-    window.location.hash = '#dashboard';
+if (signupForm && !signupForm.dataset.bound) {
+  signupForm.dataset.bound = '1';
+  signupForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (authMode !== 'signup') return;
+    if (signupForm.__submitting) return;
+    signupForm.__submitting = true;
+    const submitBtn = signupForm.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
+    const formData = new FormData(signupForm);
+    const payload = Object.fromEntries(formData.entries());
     try {
-      await loadSession();
-    } catch (sessionErr) {
-      showNotice('Account created. Please sign in to continue.', 'Signup succeeded');
-      window.location.hash = '#account';
-      setView('auth');
-      return;
+      if (DEBUG_AUTH) {
+        // eslint-disable-next-line no-console
+        console.debug('[auth] submit', { mode: authMode, endpoint: '/api/auth/signup', email: payload.email });
+      }
+      await api('/api/auth/signup', { method: 'POST', body: JSON.stringify(payload) });
+      await loadCsrfToken();
+      const ok = await loadSession();
+      if (!ok) {
+        showNotice('Account created — please sign in to continue.', 'Signup succeeded');
+        setAuthPanel('signin');
+        const emailInput = loginForm?.querySelector('input[name="email"]');
+        if (emailInput && payload.email) {
+          emailInput.value = payload.email;
+          emailInput.focus();
+        }
+        return;
+      }
+      window.location.hash = '#dashboard';
+      if (DEBUG_AUTH) {
+        // eslint-disable-next-line no-console
+        console.debug('[auth] signup ok', { userId: sessionUser?.id });
+      }
+    } catch (err) {
+      if (err.status === 409 || err.code === 'ACCOUNT_EXISTS') {
+        showNotice('Account already exists — please sign in.', 'Sign up');
+        setAuthPanel('signin');
+        const emailInput = loginForm?.querySelector('input[name="email"]');
+        if (emailInput && payload.email) {
+          emailInput.value = payload.email;
+          emailInput.focus();
+        }
+      } else {
+        showNotice(authErrorMessage(err.message), 'Sign up failed');
+      }
+    } finally {
+      signupForm.__submitting = false;
+      if (submitBtn) submitBtn.disabled = false;
     }
-    if (DEBUG_AUTH) {
-      // eslint-disable-next-line no-console
-      console.debug('[auth] signup success, session user', sessionUser);
-    }
-  } catch (err) {
-    if (err.status === 409 || err.code === 'ACCOUNT_EXISTS') {
-      showNotice('Account already exists — please sign in.', 'Sign up');
-      window.location.hash = '#account';
-      setView('auth');
-      const emailInput = signupForm.querySelector('input[name=\"email\"]');
-      if (emailInput) emailInput.focus();
-    } else {
-      showNotice(authErrorMessage(err.message), 'Sign up failed');
-    }
-  }
-  finally {
-    signupForm.__submitting = false;
-    if (submitBtn) submitBtn.disabled = false;
-  }
-});
+  });
+}
 
 logoutBtn?.addEventListener('click', async () => {
   await api('/api/auth/logout', { method: 'POST' });
   sessionUser = null;
   window.location.hash = '#account';
+  setAuthPanel('signin');
   setView('auth');
   await loadCsrfToken();
 });
@@ -3188,6 +3262,7 @@ accountLogout?.addEventListener('click', async () => {
   await api('/api/auth/logout', { method: 'POST' });
   sessionUser = null;
   window.location.hash = '#account';
+  setAuthPanel('signin');
   setView('auth');
   await loadCsrfToken();
 });

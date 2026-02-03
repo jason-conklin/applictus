@@ -144,11 +144,13 @@ CREATE TABLE IF NOT EXISTS oauth_tokens (
   refresh_token_enc text,
   scope text,
   token_type text,
-  expiry_date timestamptz,
+  expiry_date bigint,
   connected_email text,
   created_at timestamptz,
   updated_at timestamptz
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_oauth_tokens_provider_user_id ON oauth_tokens(provider, user_id);
+CREATE INDEX IF NOT EXISTS idx_oauth_tokens_user_id ON oauth_tokens(user_id);
 
 CREATE TABLE IF NOT EXISTS email_skip_samples (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

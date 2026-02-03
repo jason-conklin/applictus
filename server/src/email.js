@@ -24,30 +24,31 @@ function getAuthUrl(oAuthClient) {
   });
 }
 
-function getStoredRow(db, userId) {
-  return db
+async function getStoredRow(db, userId) {
+  const res = db
     .prepare('SELECT * FROM oauth_tokens WHERE provider = ? AND user_id = ?')
     .get('gmail', userId);
+  return res && typeof res.then === 'function' ? await res : res;
 }
 
-function upsertTokens(db, userId, tokens, connectedEmail) {
+async function upsertTokens(db, userId, tokens, connectedEmail) {
   if (!isEncryptionReady()) {
     throw new Error('TOKEN_ENC_KEY_REQUIRED');
   }
   const now = new Date().toISOString();
-  const existing = getStoredRow(db, userId);
+  const existing = await getStoredRow(db, userId);
 
   const accessTokenEnc = tokens.access_token
     ? encryptText(tokens.access_token)
-    : existing?.access_token_enc || null;
+    : existing?.access_token_enc || (existing?.access_token ? encryptText(existing.access_token) : null);
   const refreshTokenEnc = tokens.refresh_token
     ? encryptText(tokens.refresh_token)
-    : existing?.refresh_token_enc || null;
+    : existing?.refresh_token_enc || (existing?.refresh_token ? encryptText(existing.refresh_token) : null);
   const scope = tokens.scope || existing?.scope || null;
   const expiryDate = tokens.expiry_date || existing?.expiry_date || null;
   const email = connectedEmail || existing?.connected_email || null;
 
-  db.prepare(
+  const res = db.prepare(
     `INSERT INTO oauth_tokens
       (provider, user_id, access_token_enc, refresh_token_enc, scope, expiry_date, connected_email, created_at, updated_at)
      VALUES ('gmail', ?, ?, ?, ?, ?, ?, ?, ?)
@@ -57,12 +58,15 @@ function upsertTokens(db, userId, tokens, connectedEmail) {
                    scope = excluded.scope,
                    expiry_date = excluded.expiry_date,
                    connected_email = excluded.connected_email,
-                   updated_at = excluded.updated_at`
+      updated_at = excluded.updated_at`
   ).run(userId, accessTokenEnc, refreshTokenEnc, scope, expiryDate, email, now, now);
+  if (res && typeof res.then === 'function') {
+    await res;
+  }
 }
 
-function getStoredTokens(db, userId) {
-  const stored = getStoredRow(db, userId);
+async function getStoredTokens(db, userId) {
+  const stored = await getStoredRow(db, userId);
   if (!stored) {
     return null;
   }
@@ -75,7 +79,12 @@ function getStoredTokens(db, userId) {
   // Optional one-time backfill from plaintext to encrypted storage
   if (!stored.access_token_enc && stored.access_token && isEncryptionReady()) {
     try {
-      upsertTokens(db, userId, { access_token: stored.access_token, refresh_token: stored.refresh_token }, stored.connected_email);
+      await upsertTokens(
+        db,
+        userId,
+        { access_token: stored.access_token, refresh_token: stored.refresh_token },
+        stored.connected_email
+      );
     } catch (_) {
       /* ignore backfill errors */
     }
@@ -84,7 +93,8 @@ function getStoredTokens(db, userId) {
     access_token: access,
     refresh_token: refresh,
     scope: stored.scope || undefined,
-    expiry_date: stored.expiry_date || undefined,
+    // pg returns BIGINT as string by default; epoch ms fits safely in JS Number.
+    expiry_date: stored.expiry_date ? Number(stored.expiry_date) : undefined,
     connected_email: stored.connected_email || null
   };
 }
@@ -94,7 +104,7 @@ async function getAuthorizedClient(db, userId) {
   if (!oAuthClient) {
     return null;
   }
-  const stored = getStoredTokens(db, userId);
+  const stored = await getStoredTokens(db, userId);
   if (!stored) {
     return null;
   }
@@ -107,7 +117,7 @@ async function getAuthorizedClient(db, userId) {
 
   oAuthClient.on('tokens', (tokens) => {
     if (tokens && tokens.access_token) {
-      upsertTokens(db, userId, tokens);
+      upsertTokens(db, userId, tokens).catch(() => {});
     }
   });
 
