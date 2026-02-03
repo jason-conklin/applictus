@@ -88,26 +88,31 @@ function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
 }
 
-function getUserByEmail(email) {
-  return db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+async function getUserByEmail(email) {
+  const res = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+  return res && typeof res.then === 'function' ? await res : res;
 }
 
-function getUserById(id) {
-  return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+async function getUserById(id) {
+  const res = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+  return res && typeof res.then === 'function' ? await res : res;
 }
 
-function createUser({ email, name, passwordHash, authProvider }) {
+async function createUser({ email, name, passwordHash, authProvider }) {
   const id = crypto.randomUUID();
   const createdAt = nowIso();
   const provider = authProvider || 'password';
-  db.prepare(
+  const runRes = db.prepare(
     `INSERT INTO users (id, email, name, password_hash, auth_provider, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   ).run(id, email, name || null, passwordHash || null, provider, createdAt, createdAt);
+  if (runRes && typeof runRes.then === 'function') {
+    await runRes;
+  }
   return getUserById(id);
 }
 
-function updateUser(userId, fields) {
+async function updateUser(userId, fields) {
   const keys = Object.keys(fields || {});
   if (!keys.length) {
     return;
@@ -116,7 +121,10 @@ function updateUser(userId, fields) {
   const setClause = [...keys.map((key) => `${key} = ?`), 'updated_at = ?'].join(', ');
   const values = keys.map((key) => fields[key]);
   values.push(updatedAt, userId);
-  db.prepare(`UPDATE users SET ${setClause} WHERE id = ?`).run(...values);
+  const res = db.prepare(`UPDATE users SET ${setClause} WHERE id = ?`).run(...values);
+  if (res && typeof res.then === 'function') {
+    await res;
+  }
 }
 
 function mergeAuthProvider(existing, incoming) {
@@ -144,20 +152,27 @@ function isPasswordValid(password) {
   return typeof password === 'string' && password.length >= PASSWORD_MIN_LENGTH;
 }
 
-function createSession(userId) {
+async function createSession(userId) {
   if (!userId) {
     const err = new Error('Missing user_id for session creation');
     err.code = 'AUTH_USER_ID_MISSING';
     throw err;
   }
-  cleanupExpiredSessions();
+  await cleanupExpiredSessions();
   const token = crypto.randomUUID();
   const createdAt = nowIso();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
   const csrfToken = crypto.randomBytes(32).toString('hex');
-  db.prepare(
+  const res = db.prepare(
     'INSERT INTO sessions (id, user_id, created_at, expires_at, csrf_token) VALUES (?, ?, ?, ?, ?)'
   ).run(token, userId, createdAt, expiresAt, csrfToken);
+  if (res && typeof res.then === 'function') {
+    await res;
+  }
+  if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+    // eslint-disable-next-line no-console
+    console.debug('[auth] created session for user', userId);
+  }
   return { token, expiresAt, csrfToken };
 }
 
@@ -182,17 +197,24 @@ function clearSessionCookie(res) {
   });
 }
 
-function getSession(token) {
-  return db.prepare('SELECT * FROM sessions WHERE id = ?').get(token);
+async function getSession(token) {
+  const res = db.prepare('SELECT * FROM sessions WHERE id = ?').get(token);
+  return res && typeof res.then === 'function' ? await res : res;
 }
 
-function deleteSession(token) {
-  db.prepare('DELETE FROM sessions WHERE id = ?').run(token);
+async function deleteSession(token) {
+  const res = db.prepare('DELETE FROM sessions WHERE id = ?').run(token);
+  if (res && typeof res.then === 'function') {
+    await res;
+  }
 }
 
-function cleanupExpiredSessions() {
+async function cleanupExpiredSessions() {
   const now = nowIso();
-  db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(now);
+  const res = db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(now);
+  if (res && typeof res.then === 'function') {
+    await res;
+  }
 }
 
 function setCsrfCookie(res, csrfId) {
@@ -442,26 +464,26 @@ const authEmailLimiter = createRateLimiter({
   }
 });
 
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   const token = req.cookies[SESSION_COOKIE];
   if (!token) {
     req.user = null;
     req.session = null;
     return next();
   }
-  const session = getSession(token);
+  const session = await getSession(token);
   if (!session) {
     req.user = null;
     req.session = null;
     return next();
   }
   if (new Date(session.expires_at).getTime() < Date.now()) {
-    deleteSession(token);
+    await deleteSession(token);
     req.user = null;
     req.session = null;
     return next();
   }
-  const user = getUserById(session.user_id);
+  const user = await getUserById(session.user_id);
   req.user = user || null;
   req.session = session;
   return next();
@@ -490,43 +512,52 @@ app.get('/api/auth/session', (req, res) => {
   });
 });
 
-app.post('/api/auth/login', authIpLimiter, authEmailLimiter, (req, res) => {
-  const email = normalizeEmail(req.body.email);
-  const password = req.body.password ? String(req.body.password) : '';
-  if (!email) {
-    return res.status(400).json({ error: 'EMAIL_REQUIRED' });
-  }
-  if (!password) {
-    return res.status(400).json({ error: 'PASSWORD_REQUIRED' });
-  }
+app.post('/api/auth/login', authIpLimiter, authEmailLimiter, async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body.email);
+    const password = req.body.password ? String(req.body.password) : '';
+    if (!email) {
+      return res.status(400).json({ error: 'EMAIL_REQUIRED' });
+    }
+    if (!password) {
+      return res.status(400).json({ error: 'PASSWORD_REQUIRED' });
+    }
 
-  const user = getUserByEmail(email);
-  if (!user || !user.password_hash) {
-    return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
-  }
-  if (!verifyPassword(password, user.password_hash)) {
-    return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
-  }
+    const user = await getUserByEmail(email);
+    if (!user || !user.password_hash) {
+      return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
+    }
+    if (!verifyPassword(password, user.password_hash)) {
+      return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
+    }
 
-  const existingToken = req.cookies[SESSION_COOKIE];
-  if (existingToken) {
-    deleteSession(existingToken);
+    const existingToken = req.cookies[SESSION_COOKIE];
+    if (existingToken) {
+      await deleteSession(existingToken);
+    }
+
+    const session = await createSession(user.id);
+    setSessionCookie(res, session.token);
+    clearCsrfCookie(res);
+
+    return res.json({
+      user: { id: user.id, email: user.email, name: user.name, auth_provider: user.auth_provider }
+    });
+  } catch (err) {
+    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+      // eslint-disable-next-line no-console
+      console.error('login failed', err);
+    }
+    return res.status(500).json({ error: err.code || 'LOGIN_FAILED' });
   }
-
-  const session = createSession(user.id);
-  setSessionCookie(res, session.token);
-  clearCsrfCookie(res);
-
-  return res.json({
-    user: { id: user.id, email: user.email, name: user.name, auth_provider: user.auth_provider }
-  });
 });
 
-app.post('/api/auth/signup', authIpLimiter, authEmailLimiter, (req, res) => {
+app.post('/api/auth/signup', authIpLimiter, authEmailLimiter, async (req, res) => {
   const email = normalizeEmail(req.body.email);
   const name = req.body.name ? String(req.body.name).trim() : null;
   const password = req.body.password ? String(req.body.password) : '';
 
+  // Validation must short-circuit before any session logic runs
   if (!email) {
     return res.status(400).json({ error: 'EMAIL_REQUIRED' });
   }
@@ -537,38 +568,55 @@ app.post('/api/auth/signup', authIpLimiter, authEmailLimiter, (req, res) => {
     return res.status(400).json({ error: 'PASSWORD_TOO_SHORT', minLength: PASSWORD_MIN_LENGTH });
   }
 
-  let user = getUserByEmail(email);
-  const passwordHash = hashPassword(password);
+  try {
+    let user = await getUserByEmail(email);
+    const passwordHash = hashPassword(password);
 
-  if (user) {
-    if (user.password_hash) {
-      return res.status(409).json({ error: 'EMAIL_IN_USE' });
+    if (user) {
+      if (user.password_hash) {
+        return res.status(409).json({ error: 'EMAIL_IN_USE' });
+      }
+      const updates = {
+        password_hash: passwordHash,
+        auth_provider: mergeAuthProvider(user.auth_provider, 'password')
+      };
+      if (!user.name && name) {
+        updates.name = name;
+      }
+      await updateUser(user.id, updates);
+      user = await getUserById(user.id);
+    } else {
+      user = await createUser({ email, name, passwordHash, authProvider: 'password' });
     }
-    const updates = {
-      password_hash: passwordHash,
-      auth_provider: mergeAuthProvider(user.auth_provider, 'password')
-    };
-    if (!user.name && name) {
-      updates.name = name;
+
+    if (!user || !user.id) {
+      return res.status(500).json({ error: 'AUTH_USER_ID_MISSING' });
     }
-    updateUser(user.id, updates);
-    user = getUserById(user.id);
-  } else {
-    user = createUser({ email, name, passwordHash, authProvider: 'password' });
+
+    const existingToken = req.cookies[SESSION_COOKIE];
+    if (existingToken) {
+      await deleteSession(existingToken);
+    }
+
+    const session = await createSession(user.id);
+    setSessionCookie(res, session.token);
+    clearCsrfCookie(res);
+
+    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+      // eslint-disable-next-line no-console
+      console.debug('[auth] created user id:', user.id);
+    }
+
+    return res.json({
+      user: { id: user.id, email: user.email, name: user.name, auth_provider: user.auth_provider }
+    });
+  } catch (err) {
+    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+      // eslint-disable-next-line no-console
+      console.error('signup failed', err);
+    }
+    return res.status(500).json({ error: err.code || 'SIGNUP_FAILED' });
   }
-
-  const existingToken = req.cookies[SESSION_COOKIE];
-  if (existingToken) {
-    deleteSession(existingToken);
-  }
-
-  const session = createSession(user.id);
-  setSessionCookie(res, session.token);
-  clearCsrfCookie(res);
-
-  return res.json({
-    user: { id: user.id, email: user.email, name: user.name, auth_provider: user.auth_provider }
-  });
 });
 
 app.get('/api/auth/google/start', authIpLimiter, (req, res) => {
@@ -633,14 +681,15 @@ app.get('/api/auth/google/callback', authIpLimiter, async (req, res) => {
   }
 
   const email = normalizeEmail(profile.email);
-  let user = getUserByEmail(email);
+  let user = await getUserByEmail(email);
   if (!user) {
-    user = createUser({
+    await createUser({
       email,
       name: profile.name,
       passwordHash: null,
       authProvider: 'google'
     });
+    user = await getUserByEmail(email);
   } else {
     const updates = {};
     const nextProvider = mergeAuthProvider(user.auth_provider, 'google');
@@ -650,27 +699,41 @@ app.get('/api/auth/google/callback', authIpLimiter, async (req, res) => {
     if (!user.name && profile.name) {
       updates.name = profile.name;
     }
-  if (Object.keys(updates).length) {
-    updateUser(user.id, updates);
-    user = getUserById(user.id);
+    if (Object.keys(updates).length) {
+      await updateUser(user.id, updates);
+      user = await getUserById(user.id);
+    }
   }
+
+  // Guard against missing user id before session creation (dialect-safe)
+  if (!user || !user.id) {
+    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+      // eslint-disable-next-line no-console
+      console.error('[auth][google] user missing after create/update', { email });
+    }
+    clearSessionCookie(res);
+    clearCsrfCookie(res);
+    if (process.env.NODE_ENV === 'test') {
+      return res.status(500).json({ error: 'OAUTH_USER_CREATE_FAILED' });
+    }
+    return res.redirect('/#account?error=OAUTH_USER_CREATE_FAILED');
   }
 
   const existingToken = req.cookies[SESSION_COOKIE];
   if (existingToken) {
-    deleteSession(existingToken);
+    await deleteSession(existingToken);
   }
 
-  const session = createSession(user.id);
+  const session = await createSession(user.id);
   setSessionCookie(res, session.token);
   clearCsrfCookie(res);
   return res.redirect('/#dashboard');
 });
 
-app.post('/api/auth/logout', requireAuth, (req, res) => {
+app.post('/api/auth/logout', requireAuth, async (req, res) => {
   const token = req.cookies[SESSION_COOKIE];
   if (token) {
-    deleteSession(token);
+    await deleteSession(token);
     clearSessionCookie(res);
   }
   return res.json({ ok: true });

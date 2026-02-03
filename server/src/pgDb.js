@@ -99,7 +99,7 @@ function prepareFactory(pool, clientOverride) {
 
 function createDb(databaseUrl, poolOverride = null) {
   const pool = poolOverride || createPool(databaseUrl);
-  const db = {};
+  const db = { isAsync: true };
   db.prepare = prepareFactory(pool, null);
   db.transaction = async (fn) => {
     const client = await pool.connect();

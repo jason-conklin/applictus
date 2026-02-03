@@ -77,7 +77,8 @@ async function createClient(baseUrl) {
     const text = await res.text();
     const json = text ? JSON.parse(text) : {};
     if (!res.ok) {
-      throw new Error(json.error || `Request failed ${res.status}`);
+      const detail = json.error || JSON.stringify(json);
+      throw new Error(`${path} ${res.status} ${detail}`);
     }
     if (pathname === '/api/auth/login' || pathname === '/api/auth/signup') {
       await refreshCsrf();

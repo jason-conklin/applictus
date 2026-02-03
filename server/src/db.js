@@ -31,7 +31,9 @@ function openDb() {
   const forcePg = process.env.FORCE_POSTGRES === '1';
 
   if (process.env.DATABASE_URL && !isTestEnv && (forcePg || process.env.NODE_ENV === 'production')) {
-    return createPgDb(process.env.DATABASE_URL);
+    const pg = createPgDb(process.env.DATABASE_URL);
+    pg.isAsync = true;
+    return pg;
   }
   const dbPath = process.env.JOBTRACK_DB_PATH || DEFAULT_DB_PATH;
   const dir = path.dirname(dbPath);
@@ -54,6 +56,7 @@ function openDb() {
     throw wrapped;
   }
   db.pragma('foreign_keys = ON');
+  db.isAsync = false;
   return db;
 }
 

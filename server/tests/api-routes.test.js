@@ -79,7 +79,13 @@ async function createClient(baseUrl) {
 
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(body.error || `Request failed (${response.status})`);
+      const detail = body.error || body.message || `HTTP ${response.status}`;
+      if (process.env.DEBUG_TEST_REQUESTS) {
+        // Preserve rich context for debugging without polluting the canonical error code expected by tests
+        // eslint-disable-next-line no-console
+        console.error(`${pathname} ${response.status} ${detail}`);
+      }
+      throw new Error(detail);
     }
     if (pathname === '/api/auth/login' || pathname === '/api/auth/signup') {
       await refreshCsrf();
