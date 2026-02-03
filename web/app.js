@@ -12,6 +12,8 @@ const STATUS_LABELS = {
 
 const STATUS_DEBUG_ENABLED = typeof location !== 'undefined' && location.hostname === 'localhost';
 let statusDebugLogged = false;
+const DEBUG_AUTH = typeof window !== 'undefined' && window.DEBUG_AUTH;
+let authMode = 'signin';
 
 function normalizeStatusValue(status) {
   if (!status) return 'UNKNOWN';
@@ -412,9 +414,9 @@ async function api(path, options = {}) {
     } catch (err) {
       body = {};
     }
-    const message = body.error || `Request failed (${response.status})`;
+    const message = body.error || body.message || `Request failed (${response.status})`;
     const error = new Error(message);
-    error.code = body.code || response.status;
+    error.code = body.error || body.code || response.status;
     error.detail = body.detail || null;
     error.status = response.status;
     throw error;
@@ -1043,6 +1045,7 @@ function authErrorMessage(code) {
     PASSWORD_REQUIRED: 'Enter your password.',
     PASSWORD_TOO_SHORT: 'Password must be at least 12 characters.',
     EMAIL_IN_USE: 'That email already exists. Try signing in.',
+    ACCOUNT_EXISTS: 'Account already exists. Please sign in.',
     INVALID_CREDENTIALS: 'Invalid email or password.',
     NO_SESSION: 'Your session expired. Please sign in again.'
   };
@@ -1231,6 +1234,9 @@ function setAuthPanel(panel) {
   document.querySelectorAll('[data-panel]').forEach((el) => {
     el.classList.toggle('hidden', el.dataset.panel !== panel);
   });
+  if (panel === 'signup' || panel === 'signin') {
+    authMode = panel;
+  }
 }
 
 async function loadSession() {
@@ -3040,6 +3046,7 @@ googleAuth?.addEventListener('click', () => {
 
 loginForm?.addEventListener('submit', async (event) => {
   event.preventDefault();
+  if (authMode !== 'signin') return;
   const formData = new FormData(loginForm);
   const payload = Object.fromEntries(formData.entries());
   try {
@@ -3054,6 +3061,10 @@ loginForm?.addEventListener('submit', async (event) => {
       setView('auth');
       return;
     }
+    if (DEBUG_AUTH) {
+      // eslint-disable-next-line no-console
+      console.debug('[auth] login success, session user', sessionUser);
+    }
   } catch (err) {
     showNotice(authErrorMessage(err.message), 'Sign in failed');
   }
@@ -3061,6 +3072,11 @@ loginForm?.addEventListener('submit', async (event) => {
 
 signupForm?.addEventListener('submit', async (event) => {
   event.preventDefault();
+  if (authMode !== 'signup') return;
+  if (signupForm.__submitting) return;
+  signupForm.__submitting = true;
+  const submitBtn = signupForm.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
   const formData = new FormData(signupForm);
   const payload = Object.fromEntries(formData.entries());
   try {
@@ -3076,8 +3092,24 @@ signupForm?.addEventListener('submit', async (event) => {
       setView('auth');
       return;
     }
+    if (DEBUG_AUTH) {
+      // eslint-disable-next-line no-console
+      console.debug('[auth] signup success, session user', sessionUser);
+    }
   } catch (err) {
-    showNotice(authErrorMessage(err.message), 'Sign up failed');
+    if (err.status === 409 || err.code === 'ACCOUNT_EXISTS') {
+      showNotice('Account already exists — please sign in.', 'Sign up');
+      window.location.hash = '#account';
+      setView('auth');
+      const emailInput = signupForm.querySelector('input[name=\"email\"]');
+      if (emailInput) emailInput.focus();
+    } else {
+      showNotice(authErrorMessage(err.message), 'Sign up failed');
+    }
+  }
+  finally {
+    signupForm.__submitting = false;
+    if (submitBtn) submitBtn.disabled = false;
   }
 });
 

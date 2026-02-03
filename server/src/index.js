@@ -574,7 +574,7 @@ app.post('/api/auth/signup', authIpLimiter, authEmailLimiter, async (req, res) =
 
     if (user) {
       if (user.password_hash) {
-        return res.status(409).json({ error: 'EMAIL_IN_USE' });
+        return res.status(409).json({ error: 'ACCOUNT_EXISTS' });
       }
       const updates = {
         password_hash: passwordHash,
@@ -608,6 +608,7 @@ app.post('/api/auth/signup', authIpLimiter, authEmailLimiter, async (req, res) =
     }
 
     return res.json({
+      ok: true,
       user: { id: user.id, email: user.email, name: user.name, auth_provider: user.auth_provider }
     });
   } catch (err) {

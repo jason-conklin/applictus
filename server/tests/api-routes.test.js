@@ -140,6 +140,13 @@ test('critical API routes respond with expected shape', async (t) => {
   });
   assert.ok(signup.user);
 
+  // duplicate signup returns conflict
+  const dup = await request('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({ email, password })
+  }).catch((err) => err);
+  assert.equal(dup.message || dup.error, 'ACCOUNT_EXISTS');
+
   const storedUser = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
   assert.ok(storedUser.password_hash);
   assert.notEqual(storedUser.password_hash, password);
