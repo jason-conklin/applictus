@@ -244,6 +244,7 @@ const COLUMN_TO_PAYLOAD = {
   external_req_id: 'externalReqId',
   ingest_decision: 'ingestDecision',
   created_at: 'createdAt',
+  updated_at: 'updatedAt',
   llm_ran: 'llmRan',
   llm_status: 'llmStatus',
   llm_error: 'llmError',
@@ -270,6 +271,10 @@ function normalizeSqliteValue(v) {
 }
 
 function insertEmailEventRecord(db, payload) {
+  const now = new Date().toISOString();
+  const createdAt = payload.createdAt || now;
+  const updatedAt = payload.updatedAt || createdAt;
+
   // SQLite evolves via ALTER TABLE migrations; we probe columns at runtime.
   // Postgres schema is migration-managed; avoid SQLite PRAGMA queries.
   const columnsAvailable = db && db.isAsync ? null : getEmailEventColumns(db);
@@ -284,6 +289,10 @@ function insertEmailEventRecord(db, payload) {
     placeholders.push('?');
     if (column === 'llm_ran') {
       values.push(normalizeSqliteValue(payload.llmRan ?? (payload.llmStatus ? 1 : 0)));
+    } else if (column === 'created_at') {
+      values.push(createdAt);
+    } else if (column === 'updated_at') {
+      values.push(updatedAt);
     } else if (db && db.isAsync && column === 'internal_date') {
       const raw = payload[prop];
       values.push(raw === null || raw === undefined ? null : new Date(Number(raw)).toISOString());

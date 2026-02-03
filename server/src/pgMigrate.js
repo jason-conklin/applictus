@@ -126,6 +126,45 @@ async function assertPgSchema(db) {
       throw err;
     }
   }
+
+  const emailEventsTimestampCols = await db
+    .prepare(
+      `SELECT column_name, is_nullable, column_default
+       FROM information_schema.columns
+       WHERE table_schema='public'
+         AND table_name='email_events'
+         AND column_name IN ('created_at', 'updated_at')`
+    )
+    .all();
+  const tsPresent = new Map(
+    (emailEventsTimestampCols || []).map((row) => [row.column_name, row])
+  );
+  const tsMissing = ['created_at', 'updated_at'].filter((name) => !tsPresent.has(name));
+  const tsNullable = ['created_at', 'updated_at'].filter((name) => {
+    const row = tsPresent.get(name);
+    return row && row.is_nullable === 'YES';
+  });
+
+  if (tsMissing.length || tsNullable.length) {
+    const lines = [
+      'Postgres schema is missing required email_events timestamp columns or constraints:',
+      ...(tsMissing.length ? [`  Missing: email_events.${tsMissing.join(', email_events.')}`] : []),
+      ...(tsNullable.length ? [`  Nullable: email_events.${tsNullable.join(', email_events.')}`] : []),
+      'Run migrations (or ensure startup migrations run). The migration that sets defaults is:',
+      '  server/migrations/020_email_events_timestamp_defaults_postgres.sql',
+      'Set SKIP_SCHEMA_CHECK=1 to bypass this check (not recommended).'
+    ];
+    const message = lines.join('\n');
+
+    // eslint-disable-next-line no-console
+    console.error(message);
+
+    if (process.env.NODE_ENV === 'production') {
+      const err = new Error(message);
+      err.code = 'PG_SCHEMA_INVALID';
+      throw err;
+    }
+  }
 }
 
 module.exports = {

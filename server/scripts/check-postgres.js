@@ -56,6 +56,31 @@ async function main() {
       process.exit(1);
     }
 
+    const emailEventTimestamps = await db
+      .prepare(
+        "select column_name, is_nullable from information_schema.columns where table_schema='public' and table_name='email_events' and column_name in ('created_at','updated_at')"
+      )
+      .all();
+    const present = new Map((emailEventTimestamps || []).map((row) => [row.column_name, row.is_nullable]));
+    const missingTs = ['created_at', 'updated_at'].filter((name) => !present.has(name));
+    const nullableTs = ['created_at', 'updated_at'].filter((name) => present.get(name) === 'YES');
+    if (missingTs.length || nullableTs.length) {
+      console.error(
+        [
+          'email_events timestamp columns are not in the expected state.',
+          ...(missingTs.length ? [`Missing: email_events.${missingTs.join(', email_events.')}`] : []),
+          ...(nullableTs.length ? [`Nullable: email_events.${nullableTs.join(', email_events.')}`] : []),
+          '',
+          'Run migrations:',
+          '  node server/scripts/migrate-postgres.js',
+          '',
+          'Expected migration:',
+          '  server/migrations/020_email_events_timestamp_defaults_postgres.sql'
+        ].join('\n')
+      );
+      process.exit(1);
+    }
+
     console.log('Postgres connection and schema look OK.');
     process.exit(0);
   } catch (err) {

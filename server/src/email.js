@@ -25,10 +25,10 @@ function getAuthUrl(oAuthClient) {
 }
 
 async function getStoredRow(db, userId) {
-  const res = db
+  const rowOrPromise = db
     .prepare('SELECT * FROM oauth_tokens WHERE provider = ? AND user_id = ?')
     .get('gmail', userId);
-  return res && typeof res.then === 'function' ? await res : res;
+  return rowOrPromise && typeof rowOrPromise.then === 'function' ? await rowOrPromise : rowOrPromise;
 }
 
 async function upsertTokens(db, userId, tokens, connectedEmail) {
@@ -48,7 +48,7 @@ async function upsertTokens(db, userId, tokens, connectedEmail) {
   const expiryDate = tokens.expiry_date || existing?.expiry_date || null;
   const email = connectedEmail || existing?.connected_email || null;
 
-  const res = db.prepare(
+  const result = db.prepare(
     `INSERT INTO oauth_tokens
       (provider, user_id, access_token_enc, refresh_token_enc, scope, expiry_date, connected_email, created_at, updated_at)
      VALUES ('gmail', ?, ?, ?, ?, ?, ?, ?, ?)
@@ -60,8 +60,8 @@ async function upsertTokens(db, userId, tokens, connectedEmail) {
                    connected_email = excluded.connected_email,
       updated_at = excluded.updated_at`
   ).run(userId, accessTokenEnc, refreshTokenEnc, scope, expiryDate, email, now, now);
-  if (res && typeof res.then === 'function') {
-    await res;
+  if (result && typeof result.then === 'function') {
+    await result;
   }
 }
 
