@@ -66,9 +66,23 @@ function getStoredTokens(db, userId) {
   if (!stored) {
     return null;
   }
+  const access = stored.access_token_enc
+    ? decryptText(stored.access_token_enc)
+    : stored.access_token || null;
+  const refresh = stored.refresh_token_enc
+    ? decryptText(stored.refresh_token_enc)
+    : stored.refresh_token || null;
+  // Optional one-time backfill from plaintext to encrypted storage
+  if (!stored.access_token_enc && stored.access_token && isEncryptionReady()) {
+    try {
+      upsertTokens(db, userId, { access_token: stored.access_token, refresh_token: stored.refresh_token }, stored.connected_email);
+    } catch (_) {
+      /* ignore backfill errors */
+    }
+  }
   return {
-    access_token: decryptText(stored.access_token_enc),
-    refresh_token: decryptText(stored.refresh_token_enc),
+    access_token: access,
+    refresh_token: refresh,
     scope: stored.scope || undefined,
     expiry_date: stored.expiry_date || undefined,
     connected_email: stored.connected_email || null

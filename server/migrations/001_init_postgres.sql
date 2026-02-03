@@ -138,11 +138,16 @@ CREATE INDEX IF NOT EXISTS idx_email_events_llm_external_req_id ON email_events(
 CREATE TABLE IF NOT EXISTS oauth_tokens (
   user_id uuid PRIMARY KEY REFERENCES users(id),
   provider text NOT NULL,
-  access_token text NOT NULL,
+  access_token text,
   refresh_token text,
+  access_token_enc text,
+  refresh_token_enc text,
   scope text,
   token_type text,
-  expiry_date timestamptz
+  expiry_date timestamptz,
+  connected_email text,
+  created_at timestamptz,
+  updated_at timestamptz
 );
 
 CREATE TABLE IF NOT EXISTS email_skip_samples (
