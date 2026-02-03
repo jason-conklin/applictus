@@ -924,6 +924,15 @@ function startSyncPolling(syncId) {
   const poll = async () => {
     try {
       const progress = await api(`/api/email/sync/status?sync_id=${encodeURIComponent(syncId)}`);
+      if (progress && (progress.ok === false || progress.status === 'unknown_sync_id')) {
+        // Backend doesn't know this sync id (or restarted). Stop polling but keep UI running;
+        // the main /api/email/sync request will still resolve with success/failure.
+        if (syncUiState.pollTimer) {
+          window.clearInterval(syncUiState.pollTimer);
+          syncUiState.pollTimer = null;
+        }
+        return;
+      }
       syncUiState.pollErrorCount = 0;
       const total = Number(progress.total) || 0;
       const processed = Number(progress.processed) || 0;
@@ -953,6 +962,14 @@ function startSyncPolling(syncId) {
         syncUiState.pollTimer = null;
       }
     } catch (err) {
+      // If the status record isn't found, stop polling and rely on the main sync request.
+      if (err && (err.status === 404 || err.code === 'NOT_FOUND')) {
+        if (syncUiState.pollTimer) {
+          window.clearInterval(syncUiState.pollTimer);
+          syncUiState.pollTimer = null;
+        }
+        return;
+      }
       // Treat intermittent poll errors as transient; only fail after a few consecutive errors.
       syncUiState.pollErrorCount = (syncUiState.pollErrorCount || 0) + 1;
       const transient = syncUiState.pollErrorCount < 3;

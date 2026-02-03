@@ -847,7 +847,7 @@ app.get('/api/email/sync/status', requireAuth, (req, res) => {
   }
   const progress = getSyncProgress(syncId);
   if (!progress) {
-    return res.status(404).json({ error: 'NOT_FOUND' });
+    return res.json({ ok: false, status: 'unknown_sync_id', syncId });
   }
   return res.json(progress);
 });

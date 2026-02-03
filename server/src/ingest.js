@@ -14,6 +14,10 @@ const { runLlmExtraction, getConfig: getLlmConfig } = require('./llmClient');
 const { shouldInvokeLlm } = require('./llmGate');
 const { getEmailEventColumns } = require('./db');
 
+async function awaitMaybe(value) {
+  return value && typeof value.then === 'function' ? await value : value;
+}
+
 const REASON_KEYS = [
   'classified_not_job_related',
   'denylisted',
@@ -43,9 +47,22 @@ function initReasonCounters() {
 
 // Simple in-memory sync progress tracker keyed by sync_id
 const syncProgressStore = new Map();
+const SYNC_PROGRESS_TTL_MS = 10 * 60 * 1000; // keep completed records around briefly for UI polling
+
+function pruneSyncProgressStore(now = Date.now()) {
+  for (const [syncId, entry] of syncProgressStore.entries()) {
+    if (!entry) continue;
+    if (entry.status === 'running') continue;
+    const updatedAt = entry.updatedAt ? Date.parse(entry.updatedAt) : NaN;
+    if (!Number.isNaN(updatedAt) && now - updatedAt > SYNC_PROGRESS_TTL_MS) {
+      syncProgressStore.delete(syncId);
+    }
+  }
+}
 
 function setSyncProgress(syncId, payload) {
   if (!syncId) return;
+  pruneSyncProgressStore();
   const existing = syncProgressStore.get(syncId) || {};
   const total =
     payload.total !== undefined ? payload.total : existing.total !== undefined ? existing.total : null;
@@ -66,6 +83,7 @@ function setSyncProgress(syncId, payload) {
 
 function getSyncProgress(syncId) {
   if (!syncId) return null;
+  pruneSyncProgressStore();
   return syncProgressStore.get(syncId) || null;
 }
 
@@ -173,22 +191,25 @@ function categorizeSenderDomain(sender = '') {
   return domain;
 }
 
-function recordSkipSample({ db, userId, provider, messageId, sender, subject, reasonCode }) {
+async function recordSkipSample({ db, userId, provider, messageId, sender, subject, reasonCode }) {
   try {
-    db.prepare(
-      `INSERT INTO email_skip_samples
-       (id, user_id, provider, provider_message_id, sender, subject, reason_code, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      crypto.randomUUID(),
-      userId,
-      provider,
-      messageId,
-      sender || null,
-      subject || null,
-      reasonCode,
-      new Date().toISOString()
-    );
+    const res = db
+      .prepare(
+        `INSERT INTO email_skip_samples
+         (id, user_id, provider, provider_message_id, sender, subject, reason_code, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        crypto.randomUUID(),
+        userId,
+        provider,
+        messageId,
+        sender || null,
+        subject || null,
+        reasonCode,
+        new Date().toISOString()
+      );
+    await awaitMaybe(res);
   } catch (err) {
     logDebug('ingest.skip_sample_failed', { userId, messageId, reasonCode });
   }
@@ -249,18 +270,23 @@ function normalizeSqliteValue(v) {
 }
 
 function insertEmailEventRecord(db, payload) {
-  const columnsAvailable = getEmailEventColumns(db);
+  // SQLite evolves via ALTER TABLE migrations; we probe columns at runtime.
+  // Postgres schema is migration-managed; avoid SQLite PRAGMA queries.
+  const columnsAvailable = db && db.isAsync ? null : getEmailEventColumns(db);
   const cols = [];
   const placeholders = [];
   const values = [];
   for (const [column, prop] of Object.entries(COLUMN_TO_PAYLOAD)) {
-    if (!columnsAvailable.has(column)) {
+    if (columnsAvailable && !columnsAvailable.has(column)) {
       continue;
     }
     cols.push(column);
     placeholders.push('?');
     if (column === 'llm_ran') {
       values.push(normalizeSqliteValue(payload.llmRan ?? (payload.llmStatus ? 1 : 0)));
+    } else if (db && db.isAsync && column === 'internal_date') {
+      const raw = payload[prop];
+      values.push(raw === null || raw === undefined ? null : new Date(Number(raw)).toISOString());
     } else {
       values.push(normalizeSqliteValue(payload[prop]));
     }
@@ -276,7 +302,7 @@ function insertEmailEventRecord(db, payload) {
       }
     });
   }
-  db.prepare(sql).run(...values);
+  return db.prepare(sql).run(...values);
 }
 
 async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, syncId = null }) {
@@ -373,11 +399,13 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
       if (fetched >= limit) {
         break;
       }
-      const existingProvider = db
-        .prepare(
-          'SELECT id FROM email_events WHERE user_id = ? AND (provider_message_id = ? OR message_id = ?)'
-        )
-        .get(userId, message.id, message.id);
+      const existingProvider = await awaitMaybe(
+        db
+          .prepare(
+            'SELECT id FROM email_events WHERE user_id = ? AND provider = ? AND (provider_message_id = ? OR message_id = ?)'
+          )
+          .get(userId, 'gmail', message.id, message.id)
+      );
       if (existingProvider) {
         skippedDuplicate += 1;
         reasons.duplicate += 1;
@@ -410,9 +438,11 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
       messageSourceCounts[sourceBucket] = (messageSourceCounts[sourceBucket] || 0) + 1;
 
       if (rfcMessageId) {
-        const existingRfc = db
-          .prepare('SELECT id FROM email_events WHERE user_id = ? AND rfc_message_id = ?')
-          .get(userId, rfcMessageId);
+        const existingRfc = await awaitMaybe(
+          db
+            .prepare('SELECT id FROM email_events WHERE user_id = ? AND provider = ? AND rfc_message_id = ?')
+            .get(userId, 'gmail', rfcMessageId)
+        );
         if (existingRfc) {
           skippedDuplicate += 1;
           reasons.duplicate += 1;
@@ -445,7 +475,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
         } else {
           reasons.classified_not_job_related += 1;
         }
-        recordSkipSample({
+        await recordSkipSample({
           db,
           userId,
           provider: 'gmail',
@@ -582,7 +612,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
         ? classification.confidenceScore
         : 0;
       const identityConfidence = identity.matchConfidence || 0;
-      insertEmailEventRecord(db, {
+      const insertRes = insertEmailEventRecord(db, {
         id: eventId,
         userId,
         provider: 'gmail',
@@ -623,6 +653,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
         llmReasonCodes: llmReasonCodes.length ? JSON.stringify(llmReasonCodes) : null,
         llmRawJson: llmRaw
       });
+      await awaitMaybe(insertRes);
       storedEventsTotal += 1;
       if (classification.detectedType === 'confirmation') {
         storedEventsConfirmation += 1;
@@ -631,7 +662,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
         storedEventsRejection += 1;
       }
 
-      const matchResult = matchAndAssignEvent({
+      const matchResult = await awaitMaybe(matchAndAssignEvent({
         db,
         userId,
         event: {
@@ -652,7 +683,7 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
           created_at: createdAt
         },
         identity: effectiveIdentity
-      });
+      }));
       let rejectionApplied = false;
 
       logDebug('ingest.event_classified', {
@@ -673,11 +704,12 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
         if (classification.detectedType === 'rejection') {
           matchedEventsRejection += 1;
         }
-        db.prepare('UPDATE email_events SET ingest_decision = ? WHERE id = ?').run(
-          'matched',
-          eventId
+        await awaitMaybe(
+          db.prepare('UPDATE email_events SET ingest_decision = ? WHERE id = ?').run('matched', eventId)
         );
-        const inference = runStatusInferenceForApplication(db, userId, matchResult.applicationId);
+        const inference = await awaitMaybe(
+          runStatusInferenceForApplication(db, userId, matchResult.applicationId)
+        );
         if (inference?.applied && inference?.inferred_status === 'REJECTED') {
           updatedRejectedTotal += 1;
           rejectionApplied = true;
@@ -695,11 +727,12 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
         if (classification.detectedType === 'rejection') {
           createdAppsRejectionOnly += 1;
         }
-        db.prepare('UPDATE email_events SET ingest_decision = ? WHERE id = ?').run(
-          'auto_created',
-          eventId
+        await awaitMaybe(
+          db.prepare('UPDATE email_events SET ingest_decision = ? WHERE id = ?').run('auto_created', eventId)
         );
-        const inference = runStatusInferenceForApplication(db, userId, matchResult.applicationId);
+        const inference = await awaitMaybe(
+          runStatusInferenceForApplication(db, userId, matchResult.applicationId)
+        );
         if (inference?.applied && inference?.inferred_status === 'REJECTED') {
           updatedRejectedTotal += 1;
           rejectionApplied = true;
@@ -717,15 +750,14 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
         if (classification.detectedType === 'rejection') {
           unsortedRejectionTotal += 1;
         }
-        db.prepare('UPDATE email_events SET ingest_decision = ? WHERE id = ?').run(
-          'unsorted',
-          eventId
+        await awaitMaybe(
+          db.prepare('UPDATE email_events SET ingest_decision = ? WHERE id = ?').run('unsorted', eventId)
         );
         if (matchResult.reason || matchResult.reasonDetail) {
-          db.prepare('UPDATE email_events SET reason_code = ?, reason_detail = ? WHERE id = ?').run(
-            matchResult.reason || null,
-            matchResult.reasonDetail || null,
-            eventId
+          await awaitMaybe(
+            db
+              .prepare('UPDATE email_events SET reason_code = ?, reason_detail = ? WHERE id = ?')
+              .run(matchResult.reason || null, matchResult.reasonDetail || null, eventId)
           );
         }
         if (matchResult.reason === 'missing_identity') {
