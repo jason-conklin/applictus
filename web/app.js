@@ -14,6 +14,7 @@ const STATUS_DEBUG_ENABLED = typeof location !== 'undefined' && location.hostnam
 let statusDebugLogged = false;
 const DEBUG_AUTH = typeof window !== 'undefined' && window.DEBUG_AUTH;
 let authMode = 'signin';
+const DEBUG_APP = typeof window !== 'undefined' && window.DEBUG_APP;
 
 function normalizeStatusValue(status) {
   if (!status) return 'UNKNOWN';
@@ -981,6 +982,14 @@ function compareByKey(a, b, key) {
   const av = (a || '').toString().toLowerCase();
   const bv = (b || '').toString().toLowerCase();
   return av.localeCompare(bv, undefined, { sensitivity: 'base' });
+}
+
+function normalizeApplicationsList(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && Array.isArray(payload.applications)) return payload.applications;
+  if (payload && Array.isArray(payload.items)) return payload.items;
+  if (payload && Array.isArray(payload.data)) return payload.data;
+  return [];
 }
 
 function sortApplications(list) {
@@ -3057,6 +3066,10 @@ authSwitch?.addEventListener('click', (event) => {
   if (!button) {
     return;
   }
+  if (DEBUG_AUTH) {
+    // eslint-disable-next-line no-console
+    console.debug('[auth] switch', button.dataset.auth);
+  }
   setAuthPanel(button.dataset.auth);
 });
 
@@ -3080,9 +3093,15 @@ googleAuth?.addEventListener('click', () => {
 loginForm?.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (authMode !== 'signin') return;
+  if (loginForm.__submitting) return;
+  loginForm.__submitting = true;
   const formData = new FormData(loginForm);
   const payload = Object.fromEntries(formData.entries());
   try {
+    if (DEBUG_AUTH) {
+      // eslint-disable-next-line no-console
+      console.debug('[auth] login submit -> /api/auth/login', payload.email);
+    }
     await api('/api/auth/login', { method: 'POST', body: JSON.stringify(payload) });
     await loadCsrfToken();
     sessionUser = { email: payload.email };
@@ -3100,6 +3119,13 @@ loginForm?.addEventListener('submit', async (event) => {
     }
   } catch (err) {
     showNotice(authErrorMessage(err.message), 'Sign in failed');
+    if (DEBUG_AUTH) {
+      // eslint-disable-next-line no-console
+      console.debug('[auth] login error', err);
+    }
+  }
+  finally {
+    loginForm.__submitting = false;
   }
 });
 
@@ -3113,6 +3139,10 @@ signupForm?.addEventListener('submit', async (event) => {
   const formData = new FormData(signupForm);
   const payload = Object.fromEntries(formData.entries());
   try {
+    if (DEBUG_AUTH) {
+      // eslint-disable-next-line no-console
+      console.debug('[auth] signup submit -> /api/auth/signup', payload.email);
+    }
     await api('/api/auth/signup', { method: 'POST', body: JSON.stringify(payload) });
     await loadCsrfToken();
     sessionUser = { email: payload.email };
