@@ -401,7 +401,7 @@ async function api(path, options = {}) {
   }
   const response = await fetch(path, {
     headers,
-    credentials: 'same-origin',
+    credentials: 'include',
     ...options
   });
   if (!response.ok) {
@@ -430,7 +430,7 @@ async function api(path, options = {}) {
 
 async function loadCsrfToken() {
   try {
-    const response = await fetch('/api/auth/csrf', { credentials: 'same-origin' });
+    const response = await fetch('/api/auth/csrf', { credentials: 'include' });
     const body = await response.json().catch(() => ({}));
     csrfToken = body.csrfToken || null;
   } catch (err) {
