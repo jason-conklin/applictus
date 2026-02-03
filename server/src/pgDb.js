@@ -101,22 +101,22 @@ function createDb(databaseUrl, poolOverride = null) {
   const pool = poolOverride || createPool(databaseUrl);
   const db = {};
   db.prepare = prepareFactory(pool, null);
-  db.transaction = (fn) =>
-    (async () => {
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
-        const txDb = { prepare: prepareFactory(pool, client) };
-        const result = await fn(txDb);
-        await client.query('COMMIT');
-        return result;
-      } catch (err) {
-        await client.query('ROLLBACK');
-        throw err;
-      } finally {
-        client.release();
-      }
-    })();
+  db.transaction = async (fn) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const txDb = { prepare: prepareFactory(pool, client) };
+      const result = await fn(txDb);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  };
+  db.close = async () => pool.end();
   return db;
 }
 

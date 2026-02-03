@@ -145,6 +145,11 @@ function isPasswordValid(password) {
 }
 
 function createSession(userId) {
+  if (!userId) {
+    const err = new Error('Missing user_id for session creation');
+    err.code = 'AUTH_USER_ID_MISSING';
+    throw err;
+  }
   cleanupExpiredSessions();
   const token = crypto.randomUUID();
   const createdAt = nowIso();

@@ -40,12 +40,20 @@ const proc = spawn(
     env: {
       ...process.env,
       NODE_ENV: 'test',
-       JOBTRACK_DB_PATH: ':memory:',
+      DATABASE_URL: process.env.FORCE_POSTGRES === '1' ? process.env.DATABASE_URL : '',
+      FORCE_POSTGRES: process.env.FORCE_POSTGRES === '1' ? '1' : '',
+      JOBTRACK_DB_PATH: ':memory:',
       JOBTRACK_LOG_LEVEL: process.env.JOBTRACK_LOG_LEVEL || 'error'
     }
   }
 );
 
 proc.on('exit', (code) => {
+  if (process.env.DEBUG_HANDLES === '1') {
+    // eslint-disable-next-line no-console
+    console.log('Active handles:', process._getActiveHandles().length);
+    // eslint-disable-next-line no-console
+    console.log('Active requests:', process._getActiveRequests().length);
+  }
   process.exit(code ?? 1);
 });

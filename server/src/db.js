@@ -30,11 +30,7 @@ function openDb() {
     process.env.RUNNING_TESTS === '1';
   const forcePg = process.env.FORCE_POSTGRES === '1';
 
-  if (process.env.DATABASE_URL && !isTestEnv && forcePg) {
-    return createPgDb(process.env.DATABASE_URL);
-  }
-  if (process.env.DATABASE_URL && !isTestEnv && !forcePg) {
-    // Production / non-test path uses Postgres
+  if (process.env.DATABASE_URL && !isTestEnv && (forcePg || process.env.NODE_ENV === 'production')) {
     return createPgDb(process.env.DATABASE_URL);
   }
   const dbPath = process.env.JOBTRACK_DB_PATH || DEFAULT_DB_PATH;
