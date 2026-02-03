@@ -984,6 +984,9 @@ function compareByKey(a, b, key) {
 }
 
 function sortApplications(list) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
   const key = state.sort.key;
   const dir = state.sort.dir === 'asc' ? 1 : -1;
   const sorted = [...list].sort((a, b) => {
@@ -1262,6 +1265,10 @@ async function loadSession() {
     await loadActiveApplications();
     await refreshEmailStatus();
   } catch (err) {
+    if (DEBUG_AUTH) {
+      // eslint-disable-next-line no-console
+      console.debug('[auth] loadSession failed', err);
+    }
     sessionUser = null;
     setView('auth');
   }
@@ -1290,6 +1297,14 @@ async function refreshPipeline() {
   const params = buildListParams();
   params.set('per_status_limit', String(PIPELINE_LIMIT));
   const data = await api(`/api/applications/pipeline?${params.toString()}`);
+  if (DEBUG_AUTH) {
+    // eslint-disable-next-line no-console
+    console.debug('[apps] pipeline response', {
+      status: data?.status,
+      type: typeof data,
+      isArray: Array.isArray(data)
+    });
+  }
   const columns = data.columns || [];
   const total = columns.reduce((sum, col) => sum + (col.count || 0), 0);
   updateDashboardMeta(total);
@@ -1314,8 +1329,17 @@ async function refreshTable() {
   params.set('limit', String(PAGE_SIZE));
   params.set('offset', String(state.table.offset));
   const data = await api(`/api/applications?${params.toString()}`);
-  state.table.total = data.total || 0;
-  state.table.data = data.applications || [];
+  if (DEBUG_AUTH) {
+    // eslint-disable-next-line no-console
+    console.debug('[apps] table response', {
+      status: data?.status,
+      type: typeof data,
+      isArray: Array.isArray(data)
+    });
+  }
+  const apps = normalizeApplicationsList(data);
+  state.table.total = data.total || apps.length || 0;
+  state.table.data = apps;
   updateDashboardMeta(state.table.total);
   state.lastTotal = state.table.total;
   renderApplicationsTable(sortApplications(state.table.data));
@@ -1332,11 +1356,20 @@ async function refreshArchivedApplications() {
   params.set('limit', String(PAGE_SIZE));
   params.set('offset', String(state.archived.offset));
   const data = await api(`/api/applications?${params.toString()}`);
-  state.archived.total = data.total || 0;
+  if (DEBUG_AUTH) {
+    // eslint-disable-next-line no-console
+    console.debug('[apps] archived response', {
+      status: data?.status,
+      type: typeof data,
+      isArray: Array.isArray(data)
+    });
+  }
+  const apps = normalizeApplicationsList(data);
+  state.archived.total = data.total || apps.length || 0;
   if (archivedCount) {
     archivedCount.textContent = `${state.archived.total} archived`;
   }
-  renderArchivedApplications(data.applications || []);
+  renderArchivedApplications(sortApplications(apps));
   updateArchivedPagination();
 }
 
