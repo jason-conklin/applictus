@@ -40,6 +40,7 @@ const proc = spawn(
     env: {
       ...process.env,
       NODE_ENV: 'test',
+       JOBTRACK_DB_PATH: ':memory:',
       JOBTRACK_LOG_LEVEL: process.env.JOBTRACK_LOG_LEVEL || 'error'
     }
   }

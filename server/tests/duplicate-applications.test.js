@@ -18,11 +18,16 @@ function runMigrations(db) {
   const migrationsDir = path.join(__dirname, '..', 'migrations');
   const files = fs
     .readdirSync(migrationsDir)
-    .filter((file) => file.endsWith('.sql'))
+    .filter((file) => file.endsWith('.sql') && !file.endsWith('_postgres.sql'))
     .sort();
   for (const file of files) {
     const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-    db.exec(sql);
+    try {
+      db.exec(sql);
+    } catch (err) {
+      err.message = `${file}: ${err.message}`;
+      throw err;
+    }
   }
 }
 

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { createDb: createPgDb } = require('./pgDb');
 
 let Database;
 try {
@@ -23,6 +24,19 @@ try {
 const DEFAULT_DB_PATH = path.join(__dirname, '..', 'data', 'jobtrack.db');
 
 function openDb() {
+  const isTestEnv =
+    process.env.NODE_ENV === 'test' ||
+    process.env.npm_lifecycle_event === 'test' ||
+    process.env.RUNNING_TESTS === '1';
+  const forcePg = process.env.FORCE_POSTGRES === '1';
+
+  if (process.env.DATABASE_URL && !isTestEnv && forcePg) {
+    return createPgDb(process.env.DATABASE_URL);
+  }
+  if (process.env.DATABASE_URL && !isTestEnv && !forcePg) {
+    // Production / non-test path uses Postgres
+    return createPgDb(process.env.DATABASE_URL);
+  }
   const dbPath = process.env.JOBTRACK_DB_PATH || DEFAULT_DB_PATH;
   const dir = path.dirname(dbPath);
   if (!fs.existsSync(dir)) {
@@ -47,8 +61,28 @@ function openDb() {
   return db;
 }
 
-function migrate(db) {
+function listMigrationFiles(adapter) {
   const migrationsDir = path.join(__dirname, '..', 'migrations');
+  return fs
+    .readdirSync(migrationsDir)
+    .filter((file) => file.endsWith('.sql'))
+    .filter((file) => {
+      const isPg = /_postgres\.sql$/i.test(file);
+      return adapter === 'postgres' ? isPg : !isPg;
+    })
+    .sort();
+}
+
+function migrate(db) {
+  const adapter = typeof db.exec === 'function' ? 'sqlite' : 'postgres';
+
+  if (adapter === 'postgres') {
+    // Postgres migrations are applied manually; skip auto-run to avoid async refactor.
+    return;
+  }
+
+  const migrationFiles = listMigrationFiles(adapter);
+
   db.exec(
     'CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)'
   );
@@ -59,16 +93,11 @@ function migrate(db) {
       .map((row) => row.name)
   );
 
-  const migrationFiles = fs
-    .readdirSync(migrationsDir)
-    .filter((file) => file.endsWith('.sql'))
-    .sort();
-
   for (const file of migrationFiles) {
     if (applied.has(file)) {
       continue;
     }
-    const fullPath = path.join(migrationsDir, file);
+    const fullPath = path.join(__dirname, '..', 'migrations', file);
     const sql = fs.readFileSync(fullPath, 'utf8');
     db.exec(sql);
     db.prepare('INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)').run(
@@ -514,6 +543,7 @@ function listCuratorVersions(db, runId) {
 module.exports = {
   openDb,
   migrate,
+  listMigrationFiles,
   getEmailEventColumns,
   createResume,
   setDefaultResume,
