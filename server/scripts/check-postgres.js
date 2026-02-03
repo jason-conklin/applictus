@@ -34,6 +34,28 @@ async function main() {
       process.exit(1);
     }
 
+    const emailEventsCol = await db
+      .prepare(
+        "select 1 as ok from information_schema.columns where table_schema='public' and table_name='email_events' and column_name='provider_message_id'"
+      )
+      .get();
+
+    if (!emailEventsCol) {
+      console.error(
+        [
+          'email_events.provider_message_id is missing.',
+          'This will crash Gmail sync/dedupe on Postgres.',
+          '',
+          'Run migrations:',
+          '  node server/scripts/migrate-postgres.js',
+          '',
+          'Expected migration:',
+          '  server/migrations/018_email_events_provider_message_id_postgres.sql'
+        ].join('\n')
+      );
+      process.exit(1);
+    }
+
     console.log('Postgres connection and schema look OK.');
     process.exit(0);
   } catch (err) {

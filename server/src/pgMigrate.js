@@ -97,6 +97,35 @@ async function assertPgSchema(db) {
       throw err;
     }
   }
+
+  const emailEventsProviderId = await db
+    .prepare(
+      `SELECT 1 as ok
+       FROM information_schema.columns
+       WHERE table_schema='public'
+         AND table_name='email_events'
+         AND column_name='provider_message_id'`
+    )
+    .get();
+
+  if (!emailEventsProviderId) {
+    const message = [
+      'Postgres schema is missing required email_events columns for sync/dedupe:',
+      '  email_events.provider_message_id',
+      'Run migrations (or ensure startup migrations run). The migration that adds this is:',
+      '  server/migrations/018_email_events_provider_message_id_postgres.sql',
+      'Set SKIP_SCHEMA_CHECK=1 to bypass this check (not recommended).'
+    ].join('\n');
+
+    // eslint-disable-next-line no-console
+    console.error(message);
+
+    if (process.env.NODE_ENV === 'production') {
+      const err = new Error(message);
+      err.code = 'PG_SCHEMA_INVALID';
+      throw err;
+    }
+  }
 }
 
 module.exports = {
@@ -104,4 +133,3 @@ module.exports = {
   assertPgSchema,
   listPostgresMigrationFiles
 };
-
