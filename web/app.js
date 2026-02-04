@@ -1258,6 +1258,7 @@ function removeAuthAnimatedBg() {
     existing.remove();
   }
   document.body?.classList.remove('auth-bg-debug-flash');
+  document.body?.classList.remove('auth-bg-debug');
   if (authBgFlashTimer) {
     clearTimeout(authBgFlashTimer);
     authBgFlashTimer = null;
@@ -1270,22 +1271,22 @@ function populateAuthParticles(layer, { count, debug }) {
   }
   layer.innerHTML = '';
 
-  const minOpacity = debug ? 0.22 : 0.12;
-  const maxOpacity = debug ? 0.5 : 0.35;
+  const minOpacity = debug ? 0.3 : 0.2;
+  const maxOpacity = debug ? 0.78 : 0.55;
 
   for (let index = 0; index < count; index += 1) {
     const particle = document.createElement('span');
     particle.className = 'particle';
 
     const left = Math.random() * 100;
-    const size = 2 + Math.random() * 4;
+    const size = 2 + Math.random() * 5;
     const opacity = minOpacity + Math.random() * (maxOpacity - minOpacity);
-    const blur = Math.random() * 2;
-    const driftX = (Math.random() * 40 - 20).toFixed(1);
-    const duration = 6 + Math.random() * 8;
+    const blur = Math.random() * 1.4;
+    const driftX = (Math.random() * 60 - 30).toFixed(1);
+    const duration = (debug ? 4.5 : 5) + Math.random() * (debug ? 4 : 5);
     const delay = -Math.random() * duration;
-    const startY = 45 + Math.random() * 25;
-    const endY = Math.random() * 20;
+    const startY = 42 + Math.random() * 30;
+    const endY = 10 + Math.random() * 22;
 
     particle.style.setProperty('--x', `${left.toFixed(2)}vw`);
     particle.style.setProperty('--size', `${size.toFixed(2)}px`);
@@ -1315,10 +1316,11 @@ function ensureAuthAnimatedBg() {
       existing.dataset.debug = '1';
       const particlesLayer = existing.querySelector('.auth-particles-layer');
       if (!reducedMotion && particlesLayer) {
-        populateAuthParticles(particlesLayer, { count: 70, debug: true });
+        populateAuthParticles(particlesLayer, { count: 140, debug: true });
       }
       // eslint-disable-next-line no-console
       console.debug('[auth-bg] debug enabled');
+      document.body?.classList.add('auth-bg-debug');
       document.body.classList.add('auth-bg-debug-flash');
       if (authBgFlashTimer) {
         clearTimeout(authBgFlashTimer);
@@ -1348,12 +1350,13 @@ function ensureAuthAnimatedBg() {
 
   const particleCount = reducedMotion
     ? 0
-    : populateAuthParticles(particlesLayer, { count: debug ? 70 : 56, debug });
+    : populateAuthParticles(particlesLayer, { count: debug ? 140 : 110, debug });
   container.dataset.debug = debug ? '1' : '0';
 
   if (debug) {
     // eslint-disable-next-line no-console
     console.debug('[auth-bg] mounted', { particles: particleCount, reducedMotion });
+    document.body?.classList.add('auth-bg-debug');
     document.body.classList.add('auth-bg-debug-flash');
     if (authBgFlashTimer) {
       clearTimeout(authBgFlashTimer);
