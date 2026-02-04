@@ -61,6 +61,40 @@ async function main() {
       process.exit(1);
     }
 
+    const jobAppsBoolCols = await db
+      .prepare(
+        "select column_name, data_type, is_nullable from information_schema.columns where table_schema='public' and table_name='job_applications' and column_name in ('archived','user_override')"
+      )
+      .all();
+    const boolMeta = new Map((jobAppsBoolCols || []).map((row) => [row.column_name, row]));
+    const boolMissing = ['archived', 'user_override'].filter((name) => !boolMeta.has(name));
+    const boolWrongType = ['archived', 'user_override'].filter((name) => {
+      const row = boolMeta.get(name);
+      return row && row.data_type !== 'boolean';
+    });
+    const boolNullable = ['archived', 'user_override'].filter((name) => {
+      const row = boolMeta.get(name);
+      return row && row.is_nullable === 'YES';
+    });
+
+    if (boolMissing.length || boolWrongType.length || boolNullable.length) {
+      console.error(
+        [
+          'job_applications boolean columns are not in the expected state.',
+          ...(boolMissing.length ? [`Missing: job_applications.${boolMissing.join(', job_applications.')}`] : []),
+          ...(boolWrongType.length ? [`Wrong type: job_applications.${boolWrongType.join(', job_applications.')}`] : []),
+          ...(boolNullable.length ? [`Nullable: job_applications.${boolNullable.join(', job_applications.')}`] : []),
+          '',
+          'Run migrations:',
+          '  node server/scripts/migrate-postgres.js',
+          '',
+          'Expected migration:',
+          '  server/migrations/022_job_applications_boolean_columns_postgres.sql'
+        ].join('\n')
+      );
+      process.exit(1);
+    }
+
     const emailEventsCol = await db
       .prepare(
         "select 1 as ok from information_schema.columns where table_schema='public' and table_name='email_events' and column_name='provider_message_id'"

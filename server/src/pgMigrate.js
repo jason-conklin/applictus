@@ -198,6 +198,48 @@ async function assertPgSchema(db) {
       throw err;
     }
   }
+
+  const jobAppsBoolCols = await db
+    .prepare(
+      `SELECT column_name, data_type, is_nullable
+       FROM information_schema.columns
+       WHERE table_schema='public'
+         AND table_name='job_applications'
+         AND column_name IN ('archived', 'user_override')`
+    )
+    .all();
+  const boolMeta = new Map((jobAppsBoolCols || []).map((row) => [row.column_name, row]));
+  const boolMissing = ['archived', 'user_override'].filter((name) => !boolMeta.has(name));
+  const boolWrongType = ['archived', 'user_override'].filter((name) => {
+    const row = boolMeta.get(name);
+    return row && row.data_type !== 'boolean';
+  });
+  const boolNullable = ['archived', 'user_override'].filter((name) => {
+    const row = boolMeta.get(name);
+    return row && row.is_nullable === 'YES';
+  });
+
+  if (boolMissing.length || boolWrongType.length || boolNullable.length) {
+    const lines = [
+      'Postgres schema is missing required job_applications boolean columns or types:',
+      ...(boolMissing.length ? [`  Missing: job_applications.${boolMissing.join(', job_applications.')}`] : []),
+      ...(boolWrongType.length ? [`  Wrong type: job_applications.${boolWrongType.join(', job_applications.')}`] : []),
+      ...(boolNullable.length ? [`  Nullable: job_applications.${boolNullable.join(', job_applications.')}`] : []),
+      'Run migrations (or ensure startup migrations run). The migration that fixes these is:',
+      '  server/migrations/022_job_applications_boolean_columns_postgres.sql',
+      'Set SKIP_SCHEMA_CHECK=1 to bypass this check (not recommended).'
+    ];
+    const message = lines.join('\n');
+
+    // eslint-disable-next-line no-console
+    console.error(message);
+
+    if (process.env.NODE_ENV === 'production') {
+      const err = new Error(message);
+      err.code = 'PG_SCHEMA_INVALID';
+      throw err;
+    }
+  }
 }
 
 module.exports = {

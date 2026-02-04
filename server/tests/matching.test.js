@@ -526,3 +526,63 @@ test('matchAndAssignEvent tolerates postgres-like .all() return shape (Promise/{
   assert.equal(result.action, 'created_application');
   assert.ok(result.applicationId);
 });
+
+test('matchAndAssignEvent binds archived/user_override as booleans in postgres mode', async () => {
+  let insertedArgs = null;
+  const db = {
+    isAsync: true,
+    lastId: null,
+    prepare(sql) {
+      return {
+        all() {
+          return [];
+        },
+        get(id) {
+          if (String(sql).startsWith('SELECT * FROM job_applications WHERE id')) {
+            return id === db.lastId ? { id } : null;
+          }
+          return null;
+        },
+        run(...args) {
+          if (String(sql).startsWith('INSERT INTO job_applications')) {
+            insertedArgs = args;
+            db.lastId = args[0];
+          }
+          return null;
+        }
+      };
+    }
+  };
+
+  const identity = {
+    companyName: 'Acme',
+    companyConfidence: 0.95,
+    matchConfidence: 0.95,
+    domainConfidence: 0.95,
+    isAtsDomain: true,
+    senderDomain: 'acme.com'
+  };
+
+  const event = {
+    id: 'evt-1',
+    sender: 'Acme <no-reply@acme.com>',
+    subject: 'Thanks for applying',
+    snippet: 'We received your application.',
+    detected_type: 'confirmation',
+    classification_confidence: 0.92,
+    created_at: new Date().toISOString(),
+    role_title: 'Engineer',
+    role_confidence: 0.95,
+    role_source: 'body',
+    role_explanation: 'test'
+  };
+
+  const result = await matchAndAssignEvent({ db, userId: 'user-1', event, identity });
+  assert.equal(result.action, 'created_application');
+  assert.ok(insertedArgs);
+  // archived + user_override are the 24th and 25th positional params in the INSERT.
+  assert.equal(typeof insertedArgs[23], 'boolean');
+  assert.equal(typeof insertedArgs[24], 'boolean');
+  assert.equal(insertedArgs[23], false);
+  assert.equal(insertedArgs[24], false);
+});

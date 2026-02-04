@@ -50,6 +50,39 @@ function convertPlaceholders(sql = '') {
   return out;
 }
 
+function redactDebugValue(value) {
+  if (value === null || value === undefined) return value;
+  if (Buffer.isBuffer(value)) return `<Buffer len=${value.length}>`;
+  if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') return value;
+  if (typeof value !== 'string') return `<${typeof value}>`;
+
+  const text = value;
+  const lower = text.toLowerCase();
+  const looksLikeJwt = /^eyJ[a-zA-Z0-9_-]+\\.[a-zA-Z0-9_-]+\\./.test(text);
+  const looksLikeGoogleToken = text.startsWith('ya29.') || text.startsWith('1//');
+  const looksSensitive =
+    looksLikeJwt ||
+    looksLikeGoogleToken ||
+    lower.includes('bearer ') ||
+    lower.includes('refresh_token') ||
+    lower.includes('access_token');
+
+  if (looksSensitive) {
+    return `<redacted len=${text.length}>`;
+  }
+  if (text.length > 120) {
+    return `${text.slice(0, 60)}…<len=${text.length}>`;
+  }
+  return text;
+}
+
+function debugParamSummary(params) {
+  return (params || []).map((p) => ({
+    type: p === null ? 'null' : typeof p,
+    value: redactDebugValue(p)
+  }));
+}
+
 function createPool(databaseUrl) {
   const ssl =
     databaseUrl && databaseUrl.includes('sslmode=require')
@@ -67,12 +100,23 @@ function prepareFactory(pool, clientOverride) {
     const runQuery = async (params = []) => {
       const client = clientOverride || (await pool.connect());
       try {
-        if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
-          // eslint-disable-next-line no-console
-          console.debug('[pgDb] query', text, params);
+        try {
+          const result = await client.query(text, params);
+          return result;
+        } catch (err) {
+          if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+            // eslint-disable-next-line no-console
+            console.error('[pgDb] query failed', {
+              code: err.code || null,
+              message: err.message || String(err)
+            });
+            // eslint-disable-next-line no-console
+            console.error('[pgDb] failed sql', text);
+            // eslint-disable-next-line no-console
+            console.error('[pgDb] failed params', debugParamSummary(params));
+          }
+          throw err;
         }
-        const result = await client.query(text, params);
-        return result;
       } finally {
         if (!clientOverride) client.release();
       }
