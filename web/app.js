@@ -1253,7 +1253,7 @@ function prefersReducedMotion() {
 }
 
 function removeAuthAnimatedBg() {
-  const existing = document.querySelector('.auth-animated-bg');
+  const existing = document.querySelector('.auth-bg');
   if (existing) {
     existing.remove();
   }
@@ -1271,22 +1271,25 @@ function populateAuthParticles(layer, { count, debug }) {
   }
   layer.innerHTML = '';
 
-  const minOpacity = debug ? 0.3 : 0.2;
-  const maxOpacity = debug ? 0.78 : 0.55;
+  const minOpacity = debug ? 0.45 : 0.35;
+  const maxOpacity = debug ? 0.95 : 0.85;
 
   for (let index = 0; index < count; index += 1) {
     const particle = document.createElement('span');
-    particle.className = 'particle';
+    particle.className = 'auth-particle';
 
     const left = Math.random() * 100;
-    const size = 2 + Math.random() * 5;
+    const hero = Math.random() < (debug ? 0.1 : 0.06);
+    const size = hero ? 10 + Math.random() * 4 : 2 + Math.random() * 6;
     const opacity = minOpacity + Math.random() * (maxOpacity - minOpacity);
-    const blur = Math.random() * 1.4;
-    const driftX = (Math.random() * 60 - 30).toFixed(1);
-    const duration = (debug ? 4.5 : 5) + Math.random() * (debug ? 4 : 5);
+    const blur = hero ? Math.random() * 0.9 : Math.random() * 1.2;
+    const driftX = (Math.random() * 80 - 40).toFixed(1);
+    const duration = (debug ? 5 : 5.5) + Math.random() * (debug ? 7 : 6.5);
     const delay = -Math.random() * duration;
-    const startY = 42 + Math.random() * 30;
-    const endY = 10 + Math.random() * 22;
+    const startY = 45 + Math.random() * 15;
+    const endY = -30 + Math.random() * 20;
+    const twinkleDur = 2 + Math.random() * 2;
+    const twinkleDelay = -Math.random() * twinkleDur;
 
     particle.style.setProperty('--x', `${left.toFixed(2)}vw`);
     particle.style.setProperty('--size', `${size.toFixed(2)}px`);
@@ -1297,6 +1300,11 @@ function populateAuthParticles(layer, { count, debug }) {
     particle.style.setProperty('--delay', `${delay.toFixed(2)}s`);
     particle.style.setProperty('--startY', `${startY.toFixed(2)}vh`);
     particle.style.setProperty('--endY', `${endY.toFixed(2)}vh`);
+    particle.style.setProperty('--twinkleDur', `${twinkleDur.toFixed(2)}s`);
+    particle.style.setProperty('--twinkleDelay', `${twinkleDelay.toFixed(2)}s`);
+    if (hero) {
+      particle.dataset.hero = '1';
+    }
 
     layer.appendChild(particle);
   }
@@ -1308,15 +1316,15 @@ function ensureAuthAnimatedBg() {
   if (!document?.body) {
     return;
   }
-  const existing = document.querySelector('.auth-animated-bg');
+  const existing = document.querySelector('.auth-bg');
   const debug = Boolean(window?.DEBUG_AUTH_BG);
   const reducedMotion = prefersReducedMotion();
   if (existing) {
     if (debug && existing.dataset.debug !== '1') {
       existing.dataset.debug = '1';
-      const particlesLayer = existing.querySelector('.auth-particles-layer');
+      const particlesLayer = existing.querySelector('.auth-bg-particles');
       if (!reducedMotion && particlesLayer) {
-        populateAuthParticles(particlesLayer, { count: 140, debug: true });
+        populateAuthParticles(particlesLayer, { count: 240, debug: true });
       }
       // eslint-disable-next-line no-console
       console.debug('[auth-bg] debug enabled');
@@ -1334,23 +1342,39 @@ function ensureAuthAnimatedBg() {
   }
 
   const container = document.createElement('div');
-  container.className = 'auth-animated-bg';
+  container.className = 'auth-bg';
   container.setAttribute('aria-hidden', 'true');
 
   const gradientLayer = document.createElement('div');
-  gradientLayer.className = 'auth-gradient-layer';
+  gradientLayer.className = 'auth-bg-gradient';
+
+  const scanlineLayer = document.createElement('div');
+  scanlineLayer.className = 'auth-bg-scanlines';
 
   const particlesLayer = document.createElement('div');
-  particlesLayer.className = 'auth-particles-layer';
+  particlesLayer.className = 'auth-bg-particles';
+  particlesLayer.id = 'auth-bg-particles';
 
   container.appendChild(gradientLayer);
+  container.appendChild(scanlineLayer);
   container.appendChild(particlesLayer);
 
   document.body.insertBefore(container, document.body.firstChild);
 
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth || 1024 : 1024;
+  let desiredCount = 220;
+  if (viewportWidth < 520) {
+    desiredCount = 140;
+  } else if (viewportWidth < 900) {
+    desiredCount = 190;
+  }
+  if (debug) {
+    desiredCount = Math.max(desiredCount, 240);
+  }
+
   const particleCount = reducedMotion
     ? 0
-    : populateAuthParticles(particlesLayer, { count: debug ? 140 : 110, debug });
+    : populateAuthParticles(particlesLayer, { count: desiredCount, debug });
   container.dataset.debug = debug ? '1' : '0';
 
   if (debug) {
