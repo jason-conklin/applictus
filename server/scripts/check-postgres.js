@@ -34,6 +34,28 @@ async function main() {
       process.exit(1);
     }
 
+    const userActionsTable = await db
+      .prepare(
+        "select table_name from information_schema.tables where table_schema='public' and table_name='user_actions'"
+      )
+      .get();
+
+    if (!userActionsTable) {
+      console.error(
+        [
+          'user_actions table is missing.',
+          'This will cause status inference and application actions to fail on Postgres.',
+          '',
+          'Run migrations:',
+          '  node server/scripts/migrate-postgres.js',
+          '',
+          'Expected migration:',
+          '  server/migrations/023_user_actions_postgres.sql'
+        ].join('\n')
+      );
+      process.exit(1);
+    }
+
     const jobAppsCompanyCols = await db
       .prepare(
         "select column_name from information_schema.columns where table_schema='public' and table_name='job_applications' and column_name in ('company_source','company_confidence','company_explanation')"

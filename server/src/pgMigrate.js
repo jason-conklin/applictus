@@ -240,6 +240,35 @@ async function assertPgSchema(db) {
       throw err;
     }
   }
+
+  const userActionsTable = await db
+    .prepare(
+      `SELECT 1 as ok
+       FROM information_schema.tables
+       WHERE table_schema='public'
+         AND table_name='user_actions'`
+    )
+    .get();
+
+  if (!userActionsTable) {
+    const message = [
+      'Postgres schema is missing required table user_actions.',
+      'This will cause status inference and application actions to fail on Postgres.',
+      '',
+      'Run migrations (or ensure startup migrations run). The migration that adds this is:',
+      '  server/migrations/023_user_actions_postgres.sql',
+      'Set SKIP_SCHEMA_CHECK=1 to bypass this check (not recommended).'
+    ].join('\n');
+
+    // eslint-disable-next-line no-console
+    console.error(message);
+
+    if (process.env.NODE_ENV === 'production') {
+      const err = new Error(message);
+      err.code = 'PG_SCHEMA_INVALID';
+      throw err;
+    }
+  }
 }
 
 module.exports = {

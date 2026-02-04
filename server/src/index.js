@@ -421,7 +421,8 @@ function buildApplicationFilters({ userId, archived, status, company, role, rece
 
   if (typeof archived === 'boolean') {
     clauses.push('archived = ?');
-    params.push(archived ? 1 : 0);
+    // SQLite stores archived as INTEGER(0/1); Postgres stores it as boolean.
+    params.push(db && db.isAsync ? archived : archived ? 1 : 0);
   }
   if (status) {
     clauses.push('current_status = ?');
@@ -996,94 +997,13 @@ app.post('/api/email/events/:id/create-application', requireAuth, (req, res) => 
   return res.json({ application });
 });
 
-app.get('/api/applications', requireAuth, (req, res) => {
-  const listQuery = parseListQuery(req.query);
-  const { whereClause, params } = buildApplicationFilters({
-    userId: req.user.id,
-    archived: typeof listQuery.archived === 'boolean' ? listQuery.archived : false,
-    status: listQuery.status,
-    company: listQuery.company,
-    role: listQuery.role,
-    recencyDays: listQuery.recencyDays,
-    minConfidence: listQuery.minConfidence,
-    suggestionsOnly: listQuery.suggestionsOnly
-  });
-
-  const total = db
-    .prepare(`SELECT COUNT(*) as count FROM job_applications WHERE ${whereClause}`)
-    .get(...params).count;
-
-  const applications = db
-    .prepare(
-      `SELECT id, company_name, job_title, job_location, source, applied_at,
-              current_status, status_confidence, status_explanation, status_source,
-              suggested_status, suggested_confidence, suggested_explanation,
-              last_activity_at, archived, user_override,
-              created_at, updated_at
-       FROM job_applications
-       WHERE ${whereClause}
-       ORDER BY ${listQuery.sortBy} ${listQuery.sortDir}
-       LIMIT ? OFFSET ?`
-    )
-    .all(...params, listQuery.limit, listQuery.offset);
-
-  return res.json({
-    applications,
-    total,
-    limit: listQuery.limit,
-    offset: listQuery.offset
-  });
-});
-
-app.get('/api/applications/archived', requireAuth, (req, res) => {
-  const listQuery = parseListQuery({ ...req.query, archived: '1' });
-  const { whereClause, params } = buildApplicationFilters({
-    userId: req.user.id,
-    archived: true,
-    status: listQuery.status,
-    company: listQuery.company,
-    role: listQuery.role,
-    recencyDays: listQuery.recencyDays,
-    minConfidence: listQuery.minConfidence,
-    suggestionsOnly: listQuery.suggestionsOnly
-  });
-
-  const total = db
-    .prepare(`SELECT COUNT(*) as count FROM job_applications WHERE ${whereClause}`)
-    .get(...params).count;
-
-  const applications = db
-    .prepare(
-      `SELECT id, company_name, job_title, job_location, source, applied_at,
-              current_status, status_confidence, status_explanation, status_source,
-              suggested_status, suggested_confidence, suggested_explanation,
-              last_activity_at, archived, user_override,
-              created_at, updated_at
-       FROM job_applications
-       WHERE ${whereClause}
-       ORDER BY ${listQuery.sortBy} ${listQuery.sortDir}
-       LIMIT ? OFFSET ?`
-    )
-    .all(...params, listQuery.limit, listQuery.offset);
-
-  return res.json({
-    applications,
-    total,
-    limit: listQuery.limit,
-    offset: listQuery.offset
-  });
-});
-
-app.get('/api/applications/pipeline', requireAuth, (req, res) => {
-  const listQuery = parseListQuery(req.query);
-  const perStatusLimit = clampNumber(Number(req.query.per_status_limit) || 20, 1, 50);
-  const statuses = listQuery.status ? [listQuery.status] : Object.values(ApplicationStatus);
-
-  const columns = statuses.map((status) => {
+app.get('/api/applications', requireAuth, async (req, res) => {
+  try {
+    const listQuery = parseListQuery(req.query);
     const { whereClause, params } = buildApplicationFilters({
       userId: req.user.id,
       archived: typeof listQuery.archived === 'boolean' ? listQuery.archived : false,
-      status,
+      status: listQuery.status,
       company: listQuery.company,
       role: listQuery.role,
       recencyDays: listQuery.recencyDays,
@@ -1091,11 +1011,12 @@ app.get('/api/applications/pipeline', requireAuth, (req, res) => {
       suggestionsOnly: listQuery.suggestionsOnly
     });
 
-    const count = db
+    const totalRow = await db
       .prepare(`SELECT COUNT(*) as count FROM job_applications WHERE ${whereClause}`)
-      .get(...params).count;
+      .get(...params);
+    const total = totalRow && totalRow.count !== undefined ? Number(totalRow.count) : 0;
 
-    const applications = db
+    const rawApplications = await db
       .prepare(
         `SELECT id, company_name, job_title, job_location, source, applied_at,
                 current_status, status_confidence, status_explanation, status_source,
@@ -1104,41 +1025,188 @@ app.get('/api/applications/pipeline', requireAuth, (req, res) => {
                 created_at, updated_at
          FROM job_applications
          WHERE ${whereClause}
-         ORDER BY ${coalesceTimestamps(['last_activity_at', 'updated_at'])} DESC
-         LIMIT ?`
+         ORDER BY ${listQuery.sortBy} ${listQuery.sortDir}
+         LIMIT ? OFFSET ?`
       )
-      .all(...params, perStatusLimit);
+      .all(...params, listQuery.limit, listQuery.offset);
 
-    return {
-      status,
-      count,
-      applications
-    };
-  });
+    const applications = Array.isArray(rawApplications)
+      ? rawApplications
+      : rawApplications && Array.isArray(rawApplications.rows)
+        ? rawApplications.rows
+        : [];
 
-  return res.json({ columns });
+    return res.json({
+      applications,
+      total,
+      limit: listQuery.limit,
+      offset: listQuery.offset
+    });
+  } catch (err) {
+    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+      // eslint-disable-next-line no-console
+      console.error('[api] /api/applications failed', {
+        code: err && err.code ? String(err.code) : null,
+        message: err && err.message ? String(err.message) : String(err)
+      });
+    }
+    return res.status(500).json({ error: 'LIST_APPLICATIONS_FAILED' });
+  }
 });
 
-app.get('/api/applications/:id', requireAuth, (req, res) => {
-  const application = db
-    .prepare('SELECT * FROM job_applications WHERE id = ? AND user_id = ?')
-    .get(req.params.id, req.user.id);
-  if (!application) {
-    return res.status(404).json({ error: 'NOT_FOUND' });
-  }
-  const limit = clampNumber(Number(req.query.limit) || 50, 1, 200);
-  const events = db
-    .prepare(
-      `SELECT id, sender, subject, internal_date, snippet,
-              detected_type, confidence_score, classification_confidence, ingest_decision, explanation, created_at
-       FROM email_events
-       WHERE application_id = ?
-       ORDER BY internal_date DESC
-       LIMIT ?`
-    )
-    .all(application.id, limit);
+app.get('/api/applications/archived', requireAuth, async (req, res) => {
+  try {
+    const listQuery = parseListQuery({ ...req.query, archived: '1' });
+    const { whereClause, params } = buildApplicationFilters({
+      userId: req.user.id,
+      archived: true,
+      status: listQuery.status,
+      company: listQuery.company,
+      role: listQuery.role,
+      recencyDays: listQuery.recencyDays,
+      minConfidence: listQuery.minConfidence,
+      suggestionsOnly: listQuery.suggestionsOnly
+    });
 
-  return res.json({ application, events });
+    const totalRow = await db
+      .prepare(`SELECT COUNT(*) as count FROM job_applications WHERE ${whereClause}`)
+      .get(...params);
+    const total = totalRow && totalRow.count !== undefined ? Number(totalRow.count) : 0;
+
+    const rawApplications = await db
+      .prepare(
+        `SELECT id, company_name, job_title, job_location, source, applied_at,
+                current_status, status_confidence, status_explanation, status_source,
+                suggested_status, suggested_confidence, suggested_explanation,
+                last_activity_at, archived, user_override,
+                created_at, updated_at
+         FROM job_applications
+         WHERE ${whereClause}
+         ORDER BY ${listQuery.sortBy} ${listQuery.sortDir}
+         LIMIT ? OFFSET ?`
+      )
+      .all(...params, listQuery.limit, listQuery.offset);
+
+    const applications = Array.isArray(rawApplications)
+      ? rawApplications
+      : rawApplications && Array.isArray(rawApplications.rows)
+        ? rawApplications.rows
+        : [];
+
+    return res.json({
+      applications,
+      total,
+      limit: listQuery.limit,
+      offset: listQuery.offset
+    });
+  } catch (err) {
+    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+      // eslint-disable-next-line no-console
+      console.error('[api] /api/applications/archived failed', {
+        code: err && err.code ? String(err.code) : null,
+        message: err && err.message ? String(err.message) : String(err)
+      });
+    }
+    return res.status(500).json({ error: 'LIST_ARCHIVED_APPLICATIONS_FAILED' });
+  }
+});
+
+app.get('/api/applications/pipeline', requireAuth, async (req, res) => {
+  try {
+    const listQuery = parseListQuery(req.query);
+    const perStatusLimit = clampNumber(Number(req.query.per_status_limit) || 20, 1, 50);
+    const statuses = listQuery.status ? [listQuery.status] : Object.values(ApplicationStatus);
+
+    const columns = await Promise.all(
+      statuses.map(async (status) => {
+        const { whereClause, params } = buildApplicationFilters({
+          userId: req.user.id,
+          archived: typeof listQuery.archived === 'boolean' ? listQuery.archived : false,
+          status,
+          company: listQuery.company,
+          role: listQuery.role,
+          recencyDays: listQuery.recencyDays,
+          minConfidence: listQuery.minConfidence,
+          suggestionsOnly: listQuery.suggestionsOnly
+        });
+
+        const countRow = await db
+          .prepare(`SELECT COUNT(*) as count FROM job_applications WHERE ${whereClause}`)
+          .get(...params);
+        const count = countRow && countRow.count !== undefined ? Number(countRow.count) : 0;
+
+        const rawApplications = await db
+          .prepare(
+            `SELECT id, company_name, job_title, job_location, source, applied_at,
+                    current_status, status_confidence, status_explanation, status_source,
+                    suggested_status, suggested_confidence, suggested_explanation,
+                    last_activity_at, archived, user_override,
+                    created_at, updated_at
+             FROM job_applications
+             WHERE ${whereClause}
+             ORDER BY ${coalesceTimestamps(['last_activity_at', 'updated_at'])} DESC
+             LIMIT ?`
+          )
+          .all(...params, perStatusLimit);
+
+        const applications = Array.isArray(rawApplications)
+          ? rawApplications
+          : rawApplications && Array.isArray(rawApplications.rows)
+            ? rawApplications.rows
+            : [];
+
+        return {
+          status,
+          count,
+          applications
+        };
+      })
+    );
+
+    return res.json({ columns });
+  } catch (err) {
+    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+      // eslint-disable-next-line no-console
+      console.error('[api] /api/applications/pipeline failed', {
+        code: err && err.code ? String(err.code) : null,
+        message: err && err.message ? String(err.message) : String(err)
+      });
+    }
+    return res.status(500).json({ error: 'PIPELINE_FAILED' });
+  }
+});
+
+app.get('/api/applications/:id', requireAuth, async (req, res) => {
+  try {
+    const application = await db
+      .prepare('SELECT * FROM job_applications WHERE id = ? AND user_id = ?')
+      .get(req.params.id, req.user.id);
+    if (!application) {
+      return res.status(404).json({ error: 'NOT_FOUND' });
+    }
+    const limit = clampNumber(Number(req.query.limit) || 50, 1, 200);
+    const events = await db
+      .prepare(
+        `SELECT id, sender, subject, internal_date, snippet,
+                detected_type, confidence_score, classification_confidence, ingest_decision, explanation, created_at
+         FROM email_events
+         WHERE application_id = ?
+         ORDER BY internal_date DESC
+         LIMIT ?`
+      )
+      .all(application.id, limit);
+
+    return res.json({ application, events: Array.isArray(events) ? events : [] });
+  } catch (err) {
+    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+      // eslint-disable-next-line no-console
+      console.error('[api] /api/applications/:id failed', {
+        code: err && err.code ? String(err.code) : null,
+        message: err && err.message ? String(err.message) : String(err)
+      });
+    }
+    return res.status(500).json({ error: 'GET_APPLICATION_FAILED' });
+  }
 });
 
 app.post('/api/applications', requireAuth, (req, res) => {
