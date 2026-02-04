@@ -68,6 +68,60 @@ body.modal-open {
   overflow: hidden;
 }
 
+body.auth-mode {
+  /* Keep layering predictable for pseudo-elements. */
+  isolation: isolate;
+}
+
+body.auth-mode::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.9;
+  background-image:
+    radial-gradient(1200px 900px at 18% 18%, rgba(46, 90, 172, 0.16), transparent 62%),
+    radial-gradient(1000px 760px at 82% 26%, rgba(31, 58, 95, 0.12), transparent 64%),
+    radial-gradient(980px 820px at 42% 88%, rgba(100, 116, 139, 0.14), transparent 62%),
+    linear-gradient(180deg, #eef4ff 0%, #f8fafc 55%, #eef4ff 100%);
+  background-repeat: no-repeat;
+  background-size: 140% 140%, 140% 140%, 140% 140%, 100% 100%;
+  background-position: 18% 18%, 82% 26%, 42% 88%, 0% 0%;
+  animation: authMeshMove 34s ease-in-out infinite alternate;
+  will-change: background-position;
+}
+
+body.auth-mode .layout,
+body.auth-mode .topbar {
+  position: relative;
+  z-index: 1;
+}
+
+body.auth-mode .noise {
+  /* Keep texture subtle on auth screen. */
+  opacity: 0.28;
+  z-index: 1;
+}
+
+@keyframes authMeshMove {
+  0% {
+    background-position: 18% 18%, 82% 26%, 42% 88%, 0% 0%;
+  }
+  50% {
+    background-position: 22% 24%, 76% 18%, 54% 82%, 0% 0%;
+  }
+  100% {
+    background-position: 16% 28%, 84% 34%, 38% 90%, 0% 0%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.auth-mode::before {
+    animation: none;
+  }
+}
+
 .noise {
   position: fixed;
   inset: 0;

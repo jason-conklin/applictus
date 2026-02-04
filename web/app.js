@@ -1244,6 +1244,9 @@ function refreshDashboardEmptyStateIfNeeded() {
 }
 
 function setView(view) {
+  if (document?.body) {
+    document.body.classList.toggle('auth-mode', view === 'auth');
+  }
   toggleSection(authView, view === 'auth');
   toggleSection(dashboardView, view === 'dashboard');
   toggleSection(accountView, view === 'account');
