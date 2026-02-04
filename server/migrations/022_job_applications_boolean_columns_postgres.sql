@@ -5,6 +5,10 @@
 ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS archived boolean;
 ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS user_override boolean;
 
+-- If these columns existed as INTEGER with DEFAULT 0/1, Postgres can't auto-cast the default during TYPE change.
+ALTER TABLE job_applications ALTER COLUMN archived DROP DEFAULT;
+ALTER TABLE job_applications ALTER COLUMN user_override DROP DEFAULT;
+
 -- Backfill nulls in a type-tolerant way. ('0' casts to both integer and boolean false.)
 UPDATE job_applications SET archived = '0' WHERE archived IS NULL;
 UPDATE job_applications SET user_override = '0' WHERE user_override IS NULL;
@@ -21,4 +25,3 @@ ALTER TABLE job_applications ALTER COLUMN archived SET DEFAULT false;
 ALTER TABLE job_applications ALTER COLUMN archived SET NOT NULL;
 ALTER TABLE job_applications ALTER COLUMN user_override SET DEFAULT false;
 ALTER TABLE job_applications ALTER COLUMN user_override SET NOT NULL;
-
