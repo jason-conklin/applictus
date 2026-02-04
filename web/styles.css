@@ -73,15 +73,15 @@ body.auth-mode {
   isolation: isolate;
   --auth-bg-intensity: 1;
   --auth-particle-opacity-mult: 1;
-  --auth-scanline-opacity: 0.14;
+  --auth-scanline-opacity: 0.1;
   /* Fallback in case JS doesn't mount the animated auth background. */
-  background: linear-gradient(180deg, #ffffff 0%, #eef5ff 40%, #4d86ff 120%);
+  background: linear-gradient(180deg, #ffffff 0%, #f3f8ff 28%, #c7dcff 58%, #3a70ff 84%, #0b2cff 100%);
 }
 
 body.auth-mode.auth-bg-debug {
   --auth-bg-intensity: 1.25;
   --auth-particle-opacity-mult: 1.25;
-  --auth-scanline-opacity: 0.18;
+  --auth-scanline-opacity: 0.16;
 }
 
 body.auth-mode .layout,
@@ -113,69 +113,13 @@ body.auth-mode .auth-bg {
   position: absolute;
   inset: 0;
   z-index: 0;
-  /* Strong blue->white gradient with a narrow, bright horizon band. */
-  background-image: linear-gradient(
-    180deg,
-    #ffffff 0%,
-    #f7fbff 38%,
-    #e5f0ff 46%,
-    #ffffff 49.2%,
-    #b5d0ff 50%,
-    #ffffff 50.8%,
-    #7aa6ff 54%,
-    #2f63ff 72%,
-    #0b2cff 100%
-  );
+  /* Clean, continuous vertical gradient (no horizon band). */
+  background-image: linear-gradient(180deg, #ffffff 0%, #f3f8ff 26%, #c7dcff 56%, #3a70ff 84%, #0b2cff 100%);
   background-repeat: no-repeat;
   background-size: 260% 260%;
   background-position: 50% 0%;
-  animation: authBgShift 20s ease-in-out infinite alternate;
+  animation: authBgShift 12s ease-in-out infinite alternate;
   will-change: background-position, background-size;
-}
-
-.auth-bg-gradient::before {
-  content: '';
-  position: absolute;
-  inset: -18%;
-  pointer-events: none;
-  /* Horizon glow overlay (ellipse centered around the band). */
-  background-image:
-    radial-gradient(
-      140% 46% at 50% 52%,
-      rgba(255, 255, 255, 0.62) 0%,
-      rgba(120, 175, 255, 0.38) 22%,
-      rgba(20, 90, 255, 0.22) 36%,
-      rgba(20, 90, 255, 0) 68%
-    ),
-    radial-gradient(
-      90% 32% at 50% 52%,
-      rgba(255, 255, 255, 0.38) 0%,
-      rgba(255, 255, 255, 0) 70%
-    );
-  filter: blur(0.55px);
-  opacity: calc(0.9 * var(--auth-bg-intensity));
-  animation: authHorizonGlow 18s ease-in-out infinite alternate;
-  will-change: transform, opacity;
-}
-
-.auth-bg-gradient::after {
-  content: '';
-  position: absolute;
-  pointer-events: none;
-  inset: 0;
-  /* Crisp band highlight line to reinforce the horizon. */
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0) 47%,
-    rgba(255, 255, 255, 0.7) 49.8%,
-    rgba(90, 150, 255, 0.35) 50.2%,
-    rgba(255, 255, 255, 0.35) 50.6%,
-    rgba(255, 255, 255, 0) 53%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  opacity: calc(0.7 * var(--auth-bg-intensity));
-  filter: blur(0.25px);
 }
 
 .auth-bg-scanlines {
@@ -269,15 +213,6 @@ body.auth-mode .auth-bg {
   100% {
     background-position: 58% 22%;
     background-size: 290% 290%;
-  }
-}
-
-@keyframes authHorizonGlow {
-  0% {
-    transform: translate3d(-2%, 0, 0) scale(1);
-  }
-  100% {
-    transform: translate3d(2%, -1%, 0) scale(1.04);
   }
 }
 

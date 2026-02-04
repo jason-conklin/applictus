@@ -1286,7 +1286,7 @@ function populateAuthParticles(layer, { count, debug }) {
     const driftX = (Math.random() * 80 - 40).toFixed(1);
     const duration = (debug ? 8 : 9) + Math.random() * (debug ? 8 : 9);
     const delay = -Math.random() * duration;
-    const startY = 45 + Math.random() * 15;
+    const startY = 55 + Math.random() * 15;
     const endY = -30 + Math.random() * 20;
     const twinkleDur = 3 + Math.random() * 3;
     const twinkleDelay = -Math.random() * twinkleDur;
