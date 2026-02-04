@@ -8,6 +8,7 @@ test('sqlite migrations exclude postgres-only files', () => {
   assert.ok(!files.some((f) => /_postgres\.sql$/i.test(f)));
   assert.ok(!files.includes('018_email_events_provider_message_id_postgres.sql'));
   assert.ok(!files.includes('019_email_events_dedupe_scope_postgres.sql'));
+  assert.ok(!files.includes('021_job_applications_company_fields_postgres.sql'));
 });
 
 test('postgres migrations only include postgres files', () => {
@@ -15,4 +16,5 @@ test('postgres migrations only include postgres files', () => {
   assert.ok(files.every((f) => /_postgres\.sql$/i.test(f)));
   assert.ok(files.includes('018_email_events_provider_message_id_postgres.sql'));
   assert.ok(files.includes('019_email_events_dedupe_scope_postgres.sql'));
+  assert.ok(files.includes('021_job_applications_company_fields_postgres.sql'));
 });

@@ -165,6 +165,39 @@ async function assertPgSchema(db) {
       throw err;
     }
   }
+
+  const jobAppsCompanyCols = await db
+    .prepare(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema='public'
+         AND table_name='job_applications'
+         AND column_name IN ('company_source', 'company_confidence', 'company_explanation')`
+    )
+    .all();
+  const jobAppsPresent = new Set((jobAppsCompanyCols || []).map((row) => row.column_name));
+  const jobAppsMissing = ['company_source', 'company_confidence', 'company_explanation'].filter(
+    (name) => !jobAppsPresent.has(name)
+  );
+
+  if (jobAppsMissing.length) {
+    const message = [
+      'Postgres schema is missing required job_applications columns used by matching/ingest:',
+      `  job_applications.${jobAppsMissing.join(', job_applications.')}`,
+      'Run migrations (or ensure startup migrations run). The migration that adds these is:',
+      '  server/migrations/021_job_applications_company_fields_postgres.sql',
+      'Set SKIP_SCHEMA_CHECK=1 to bypass this check (not recommended).'
+    ].join('\n');
+
+    // eslint-disable-next-line no-console
+    console.error(message);
+
+    if (process.env.NODE_ENV === 'production') {
+      const err = new Error(message);
+      err.code = 'PG_SCHEMA_INVALID';
+      throw err;
+    }
+  }
 }
 
 module.exports = {

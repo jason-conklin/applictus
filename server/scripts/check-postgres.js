@@ -34,6 +34,33 @@ async function main() {
       process.exit(1);
     }
 
+    const jobAppsCompanyCols = await db
+      .prepare(
+        "select column_name from information_schema.columns where table_schema='public' and table_name='job_applications' and column_name in ('company_source','company_confidence','company_explanation')"
+      )
+      .all();
+    const jobAppsPresent = new Set((jobAppsCompanyCols || []).map((row) => row.column_name));
+    const jobAppsMissing = ['company_source', 'company_confidence', 'company_explanation'].filter(
+      (name) => !jobAppsPresent.has(name)
+    );
+
+    if (jobAppsMissing.length) {
+      console.error(
+        [
+          'job_applications is missing required company metadata columns:',
+          `  job_applications.${jobAppsMissing.join(', job_applications.')}`,
+          'This will crash matching/ingest on Postgres.',
+          '',
+          'Run migrations:',
+          '  node server/scripts/migrate-postgres.js',
+          '',
+          'Expected migration:',
+          '  server/migrations/021_job_applications_company_fields_postgres.sql'
+        ].join('\n')
+      );
+      process.exit(1);
+    }
+
     const emailEventsCol = await db
       .prepare(
         "select 1 as ok from information_schema.columns where table_schema='public' and table_name='email_events' and column_name='provider_message_id'"
