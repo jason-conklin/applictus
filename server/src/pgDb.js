@@ -105,7 +105,7 @@ function createDb(databaseUrl, poolOverride = null) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const txDb = { prepare: prepareFactory(pool, client) };
+      const txDb = { prepare: prepareFactory(pool, client), isAsync: true };
       const result = await fn(txDb);
       await client.query('COMMIT');
       return result;

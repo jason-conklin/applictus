@@ -34,6 +34,59 @@ const MIN_ROLE_CONFIDENCE = 0.8;
 const DEDUPE_RECENCY_DAYS = 7;
 const FUZZY_CONFIRMATION_WINDOW_HOURS = 6;
 
+async function awaitMaybe(value) {
+  return value && typeof value.then === 'function' ? await value : value;
+}
+
+function dbDialect(db) {
+  return db && db.isAsync ? 'postgres' : 'sqlite';
+}
+
+function normalizeBindValue(value, dialect) {
+  if (value === undefined) return null;
+  if (value === null) return null;
+
+  if (typeof value === 'boolean') {
+    return dialect === 'sqlite' ? (value ? 1 : 0) : value;
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (Buffer.isBuffer(value)) {
+    return value;
+  }
+
+  if (typeof value === 'bigint' || typeof value === 'number' || typeof value === 'string') {
+    return value;
+  }
+
+  // better-sqlite3 cannot bind objects/arrays; pg will otherwise stringify them poorly.
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value);
+    } catch (err) {
+      return String(value);
+    }
+  }
+
+  return value;
+}
+
+function normalizeBindParams(params, dialect) {
+  return (params || []).map((value) => normalizeBindValue(value, dialect));
+}
+
+function normalizeRowList(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (value && Array.isArray(value.rows)) return value.rows;
+  // Sometimes a caller accidentally uses .get() instead of .all(); tolerate single-row objects.
+  if (value && typeof value === 'object' && (value.id || value.job_title || value.role)) return [value];
+  return [];
+}
+
 function extractSenderDomain(sender) {
   if (!sender) return null;
   const match = String(sender).match(/@([^> ]+)/);
@@ -252,16 +305,16 @@ function buildConfirmationDedupeKey(identity, externalReqId, roleTitle = null) {
   return { companySlug, roleSlug, domainSlug, reqSlug };
 }
 
-function findDedupeApplication(db, userId, dedupeKey, eventTimestamp) {
+async function findDedupeApplication(db, userId, dedupeKey, eventTimestamp) {
   if (!dedupeKey) return null;
   const since = new Date(eventTimestamp || Date.now());
   since.setDate(since.getDate() - DEDUPE_RECENCY_DAYS);
   const query = `SELECT * FROM job_applications
        WHERE user_id = ?
          AND company_name IS NOT NULL
-         AND archived = 0
+         AND archived = false
          AND last_activity_at >= ?`;
-  const rows = db.prepare(query).all(userId, since.toISOString());
+  const rows = normalizeRowList(await awaitMaybe(db.prepare(query).all(userId, since.toISOString())));
 
   const checkMatch = (app) => {
     const appCompany = normalizeSlug(app.company_name);
@@ -296,14 +349,18 @@ function findDedupeApplication(db, userId, dedupeKey, eventTimestamp) {
 
   // As a relaxed fallback (in case last_activity_at filtering or missing timestamps),
   // scan all non-archived applications for a matching company/role/req.
-  const allRows = db
-    .prepare(
-      `SELECT * FROM job_applications
-         WHERE user_id = ?
-           AND company_name IS NOT NULL
-           AND archived = 0`
+  const allRows = normalizeRowList(
+    await awaitMaybe(
+      db
+        .prepare(
+          `SELECT * FROM job_applications
+             WHERE user_id = ?
+               AND company_name IS NOT NULL
+               AND archived = false`
+        )
+        .all(userId)
     )
-    .all(userId);
+  );
   for (const app of allRows) {
     if (checkMatch(app)) return app;
   }
@@ -441,18 +498,25 @@ function applyCompanyCandidate(db, application, candidate) {
   if (!shouldUpdateCompany(application, candidate)) {
     return false;
   }
-  db.prepare(
+  const stmt = db.prepare(
     `UPDATE job_applications
      SET company_name = ?, company = ?, company_confidence = ?, company_source = ?, company_explanation = ?, updated_at = ?
      WHERE id = ?`
-  ).run(
-    candidate.name,
-    candidate.name,
-    Number.isFinite(candidate.confidence) ? candidate.confidence : null,
-    candidate.source || null,
-    candidate.explanation || null,
-    new Date().toISOString(),
-    application.id
+  );
+  const dialect = dbDialect(db);
+  stmt.run(
+    ...normalizeBindParams(
+      [
+        candidate.name,
+        candidate.name,
+        Number.isFinite(candidate.confidence) ? candidate.confidence : null,
+        candidate.source || null,
+        candidate.explanation || null,
+        new Date().toISOString(),
+        application.id
+      ],
+      dialect
+    )
   );
   return true;
 }
@@ -489,18 +553,25 @@ function applyRoleCandidate(db, application, candidate) {
     return false;
   }
   const displayTitle = normalizeDisplayTitle(candidate.title);
-  db.prepare(
+  const stmt = db.prepare(
     `UPDATE job_applications
      SET job_title = ?, role = ?, role_confidence = ?, role_source = ?, role_explanation = ?, updated_at = ?
      WHERE id = ?`
-  ).run(
-    displayTitle,
-    displayTitle,
-    Number.isFinite(candidate.confidence) ? candidate.confidence : null,
-    candidate.source || null,
-    candidate.explanation || null,
-    new Date().toISOString(),
-    application.id
+  );
+  const dialect = dbDialect(db);
+  stmt.run(
+    ...normalizeBindParams(
+      [
+        displayTitle,
+        displayTitle,
+        Number.isFinite(candidate.confidence) ? candidate.confidence : null,
+        candidate.source || null,
+        candidate.explanation || null,
+        new Date().toISOString(),
+        application.id
+      ],
+      dialect
+    )
   );
   return true;
 }
@@ -513,11 +584,15 @@ function applyExternalReqId(db, application, externalReqId) {
   if (application.external_req_id) {
     return false;
   }
-  db.prepare(
+  const stmt = db.prepare(
     `UPDATE job_applications
      SET external_req_id = ?, updated_at = ?
      WHERE id = ?`
-  ).run(normalized, new Date().toISOString(), application.id);
+  );
+  const dialect = dbDialect(db);
+  stmt.run(
+    ...normalizeBindParams([normalized, new Date().toISOString(), application.id], dialect)
+  );
   return true;
 }
 
@@ -602,93 +677,111 @@ function shouldAutoCreate(event, identity) {
   return true;
 }
 
-function findMatchingApplication(db, userId, identity, externalReqId) {
+async function findMatchingApplication(db, userId, identity, externalReqId) {
   if (!identity.companyName) {
     return null;
   }
   if (externalReqId) {
-    return db
-      .prepare(
-        `SELECT * FROM job_applications
-         WHERE user_id = ?
-           AND (LOWER(company_name) = LOWER(?) OR LOWER(company) = LOWER(?))
-           AND external_req_id = ?
-           AND archived = 0
-         LIMIT 1`
-      )
-      .get(userId, identity.companyName, identity.companyName, externalReqId);
+    const row = await awaitMaybe(
+      db
+        .prepare(
+          `SELECT * FROM job_applications
+           WHERE user_id = ?
+             AND (LOWER(company_name) = LOWER(?) OR LOWER(company) = LOWER(?))
+             AND external_req_id = ?
+             AND archived = false
+           LIMIT 1`
+        )
+        .get(userId, identity.companyName, identity.companyName, externalReqId)
+    );
+    return row || null;
   }
   if (identity.senderDomain && identity.jobTitle) {
-    return db
-      .prepare(
-        `SELECT * FROM job_applications
-         WHERE user_id = ?
-           AND (company_name = ? OR company = ?)
-           AND (job_title = ? OR role = ?)
-           AND source = ?
-           AND archived = 0
-         LIMIT 1`
-      )
-      .get(
-        userId,
-        identity.companyName,
-        identity.companyName,
-        identity.jobTitle,
-        identity.jobTitle,
-        identity.senderDomain
-      );
+    const row = await awaitMaybe(
+      db
+        .prepare(
+          `SELECT * FROM job_applications
+           WHERE user_id = ?
+             AND (company_name = ? OR company = ?)
+             AND (job_title = ? OR role = ?)
+             AND source = ?
+             AND archived = false
+           LIMIT 1`
+        )
+        .get(
+          userId,
+          identity.companyName,
+          identity.companyName,
+          identity.jobTitle,
+          identity.jobTitle,
+          identity.senderDomain
+        )
+    );
+    return row || null;
   }
   if (identity.senderDomain) {
-    const matches = db
-      .prepare(
-        `SELECT * FROM job_applications
-         WHERE user_id = ?
-           AND (company_name = ? OR company = ?)
-           AND source = ?
-           AND archived = 0`
+    const matches = normalizeRowList(
+      await awaitMaybe(
+        db
+          .prepare(
+            `SELECT * FROM job_applications
+             WHERE user_id = ?
+               AND (company_name = ? OR company = ?)
+               AND source = ?
+               AND archived = false`
+          )
+          .all(userId, identity.companyName, identity.companyName, identity.senderDomain)
       )
-      .all(userId, identity.companyName, identity.companyName, identity.senderDomain);
+    );
     if (matches.length === 1) {
       return matches[0];
     }
     return null;
   }
   if (identity.jobTitle) {
-    const matches = db
-      .prepare(
-        `SELECT * FROM job_applications
-         WHERE user_id = ?
-           AND (company_name = ? OR company = ?)
-           AND (job_title = ? OR role = ?)
-           AND archived = 0`
+    const matches = normalizeRowList(
+      await awaitMaybe(
+        db
+          .prepare(
+            `SELECT * FROM job_applications
+             WHERE user_id = ?
+               AND (company_name = ? OR company = ?)
+               AND (job_title = ? OR role = ?)
+               AND archived = false`
+          )
+          .all(
+            userId,
+            identity.companyName,
+            identity.companyName,
+            identity.jobTitle,
+            identity.jobTitle
+          )
       )
-      .all(
-        userId,
-        identity.companyName,
-        identity.companyName,
-        identity.jobTitle,
-        identity.jobTitle
-      );
+    );
     if (matches.length === 1) {
       return matches[0];
     }
     return null;
   }
-  const matches = db
-    .prepare(
-      `SELECT * FROM job_applications
-       WHERE user_id = ?
-         AND (company_name = ? OR company = ?)
-         AND archived = 0`
+  const matches = normalizeRowList(
+    await awaitMaybe(
+      db
+        .prepare(
+          `SELECT * FROM job_applications
+           WHERE user_id = ?
+             AND (company_name = ? OR company = ?)
+             AND archived = false`
+        )
+        .all(userId, identity.companyName, identity.companyName)
     )
-    .all(userId, identity.companyName, identity.companyName);
+  );
   if (matches.length === 1) {
     return matches[0];
   }
   return null;
 }
 
-function findLooseMatchingApplication(db, userId, identity, externalReqId) {
+async function findLooseMatchingApplication(db, userId, identity, externalReqId) {
   if (!identity.companyName) {
     return null;
   }
@@ -696,39 +789,43 @@ function findLooseMatchingApplication(db, userId, identity, externalReqId) {
     return null;
   }
   if (identity.jobTitle) {
-    const match = db
+    const match = await awaitMaybe(
+      db
+        .prepare(
+          `SELECT * FROM job_applications
+           WHERE user_id = ?
+             AND (company_name = ? OR company = ?)
+             AND (job_title = ? OR role = ?)
+             AND archived = false
+           ORDER BY ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} DESC
+           LIMIT 1`
+        )
+        .get(
+          userId,
+          identity.companyName,
+          identity.companyName,
+          identity.jobTitle,
+          identity.jobTitle
+        )
+    );
+    return match || null;
+  }
+  const match = await awaitMaybe(
+    db
       .prepare(
         `SELECT * FROM job_applications
          WHERE user_id = ?
            AND (company_name = ? OR company = ?)
-           AND (job_title = ? OR role = ?)
-           AND archived = 0
+           AND archived = false
          ORDER BY ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} DESC
          LIMIT 1`
       )
-      .get(
-        userId,
-        identity.companyName,
-        identity.companyName,
-        identity.jobTitle,
-        identity.jobTitle
-      );
-    return match || null;
-  }
-  const match = db
-    .prepare(
-      `SELECT * FROM job_applications
-       WHERE user_id = ?
-         AND (company_name = ? OR company = ?)
-         AND archived = 0
-       ORDER BY ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} DESC
-       LIMIT 1`
-    )
-    .get(userId, identity.companyName, identity.companyName);
+      .get(userId, identity.companyName, identity.companyName)
+  );
   return match || null;
 }
 
-function findCompanyMatches(db, userId, identity, senderDomain, recencyDays = null) {
+async function findCompanyMatches(db, userId, identity, senderDomain, recencyDays = null) {
   if (!identity.companyName) {
     return [];
   }
@@ -737,9 +834,9 @@ function findCompanyMatches(db, userId, identity, senderDomain, recencyDays = nu
     `WHERE user_id = ?`,
     `AND (company_name = ? OR company = ?)`,
     senderDomain ? `AND source = ?` : null,
-    `AND archived = 0`,
+    `AND archived = false`,
     recencyDays
-      ? `AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= date('now', ?)`
+      ? `AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= ?`
       : null
   ]
     .filter(Boolean)
@@ -749,12 +846,14 @@ function findCompanyMatches(db, userId, identity, senderDomain, recencyDays = nu
     params.push(senderDomain);
   }
   if (recencyDays) {
-    params.push(`-${recencyDays} days`);
+    const windowStart = new Date(Date.now() - recencyDays * 24 * 60 * 60 * 1000).toISOString();
+    params.push(windowStart);
   }
-  return db.prepare(baseQuery).all(...params);
+  const rows = await awaitMaybe(db.prepare(baseQuery).all(...params));
+  return normalizeRowList(rows);
 }
 
-function updateApplicationActivity(db, application, event) {
+async function updateApplicationActivity(db, application, event) {
   const updates = {};
   const eventTimestamp = toIsoFromInternalDate(event.internal_date, new Date(event.created_at));
   const classificationConfidence = getClassificationConfidence(event);
@@ -777,11 +876,15 @@ function updateApplicationActivity(db, application, event) {
     const setClause = keys.map((key) => `${key} = ?`).join(', ');
     const values = keys.map((key) => updates[key]);
     values.push(application.id);
-    db.prepare(`UPDATE job_applications SET ${setClause} WHERE id = ?`).run(...values);
+    await awaitMaybe(
+      db
+        .prepare(`UPDATE job_applications SET ${setClause} WHERE id = ?`)
+        .run(...normalizeBindParams(values, dbDialect(db)))
+    );
   }
 }
 
-function createApplicationFromEvent(db, userId, identity, event) {
+async function createApplicationFromEvent(db, userId, identity, event) {
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   const eventTimestamp = toIsoFromInternalDate(event.internal_date, new Date(event.created_at));
@@ -800,14 +903,8 @@ function createApplicationFromEvent(db, userId, identity, event) {
       ? `Auto-applied from confirmation event ${event.id}.`
       : 'Auto-created with unknown status.';
 
-  db.prepare(
-    `INSERT INTO job_applications
-      (id, user_id, company, role, status, status_source, company_name, company_confidence,
-       company_source, company_explanation, job_title, job_location, source, external_req_id, applied_at,
-       current_status, status_confidence, status_explanation, status_updated_at, role_confidence,
-       role_source, role_explanation, last_activity_at, archived, user_override, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(
+  const dialect = dbDialect(db);
+  const insertParams = [
     id,
     userId,
     identity.companyName,
@@ -831,17 +928,42 @@ function createApplicationFromEvent(db, userId, identity, event) {
     roleCandidate?.source || null,
     roleCandidate?.explanation || null,
     eventTimestamp,
-    0,
-    0,
+    false,
+    false,
     createdAt,
     createdAt
+  ];
+
+  if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+    // eslint-disable-next-line no-console
+    console.debug('[matching] createApplicationFromEvent bind params', {
+      dialect,
+      types: insertParams.map((value) => (value === null ? 'null' : typeof value))
+    });
+  }
+
+  await awaitMaybe(
+    db
+      .prepare(
+    `INSERT INTO job_applications
+      (id, user_id, company, role, status, status_source, company_name, company_confidence,
+       company_source, company_explanation, job_title, job_location, source, external_req_id, applied_at,
+       current_status, status_confidence, status_explanation, status_updated_at, role_confidence,
+       role_source, role_explanation, last_activity_at, archived, user_override, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(...normalizeBindParams(insertParams, dialect))
   );
 
-  return db.prepare('SELECT * FROM job_applications WHERE id = ?').get(id);
+  return await awaitMaybe(db.prepare('SELECT * FROM job_applications WHERE id = ?').get(id));
 }
 
-function attachEventToApplication(db, eventId, applicationId) {
-  db.prepare('UPDATE email_events SET application_id = ? WHERE id = ?').run(applicationId, eventId);
+async function attachEventToApplication(db, eventId, applicationId) {
+  await awaitMaybe(
+    db
+      .prepare('UPDATE email_events SET application_id = ? WHERE id = ?')
+      .run(...normalizeBindParams([applicationId, eventId], dbDialect(db)))
+  );
 }
 
 function buildUnassignedReason(event, identity) {
@@ -918,7 +1040,7 @@ function buildUnassignedReason(event, identity) {
   return { reason: 'not_confident_for_create', detail: 'Not confident enough to auto-create.' };
 }
 
-function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) {
+async function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) {
   const identity =
     providedIdentity ||
     extractThreadIdentity({ subject: event.subject, sender: event.sender, snippet: event.snippet });
@@ -982,20 +1104,23 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
   });
   if (!identity.companyName) {
     if (isConfirmation && roleForMatch) {
-      const recentRoleMatch = db
+      const recentWindowStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const recentRoleMatch = await awaitMaybe(
+        db
         .prepare(
           `SELECT * FROM job_applications
            WHERE user_id = ?
-             AND archived = 0
+             AND archived = false
              AND (job_title = ? OR role = ?)
-          AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= date('now', '-7 days')
+          AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= ?
           ORDER BY ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} DESC
            LIMIT 1`
         )
-        .get(userId, roleForMatch, roleForMatch);
+        .get(userId, roleForMatch, roleForMatch, recentWindowStart)
+      );
       if (recentRoleMatch) {
-        attachEventToApplication(db, event.id, recentRoleMatch.id);
-        updateApplicationActivity(db, recentRoleMatch, event);
+        await attachEventToApplication(db, event.id, recentRoleMatch.id);
+        await updateApplicationActivity(db, recentRoleMatch, event);
         applyRoleCandidate(db, recentRoleMatch, selectRoleCandidate(identity, event));
         applyExternalReqId(db, recentRoleMatch, externalReqId);
         logDebug('matching.dedupe_matched_recent_confirmation', {
@@ -1017,14 +1142,25 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
   if (isConfirmation && !isRejectionEvent && roleForMatch) {
     const incomingWeak = isWeakRoleText(roleForMatch) || normalizeDisplayTitle(roleForMatch) === UNKNOWN_ROLE;
     if (!incomingWeak) {
-      const existingApps = db
-        .prepare(
-          `SELECT id, job_title, role FROM job_applications
-           WHERE user_id = ?
-             AND archived = 0
-             AND (company_name = ? OR company = ?)`
-        )
-        .all(userId, identity.companyName, identity.companyName);
+      const existingAppsRaw = await awaitMaybe(
+        db
+          .prepare(
+            `SELECT id, job_title, role FROM job_applications
+             WHERE user_id = ?
+               AND archived = false
+               AND (company_name = ? OR company = ?)`
+          )
+          .all(userId, identity.companyName, identity.companyName)
+      );
+      const existingApps = normalizeRowList(existingAppsRaw);
+      if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+        logDebug('matching.existing_apps_loaded', {
+          rawType: typeof existingAppsRaw,
+          isArray: Array.isArray(existingAppsRaw),
+          hasRows: Boolean(existingAppsRaw && existingAppsRaw.rows),
+          normalizedLength: existingApps.length
+        });
+      }
       const conflict = existingApps.some((app) => {
         const appRole = app.job_title || app.role;
         if (isWeakRoleText(appRole) || normalizeDisplayTitle(appRole) === UNKNOWN_ROLE) {
@@ -1033,8 +1169,8 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
         return isDivergentStrongRoles(roleForMatch, appRole);
       });
       if (conflict) {
-        const application = createApplicationFromEvent(db, userId, identity, event);
-        attachEventToApplication(db, event.id, application.id);
+        const application = await createApplicationFromEvent(db, userId, identity, event);
+        await attachEventToApplication(db, event.id, application.id);
         logDebug('matching.confirmation_role_boundary', {
           eventId: event.id,
           applicationId: application.id,
@@ -1051,10 +1187,10 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
   const isRejection = event.detected_type === 'rejection';
   // For confirmations, handle req-id match early and skip generic matching paths
   if (isConfirmation && !isRejectionEvent && externalReqId) {
-    const reqMatch = findMatchingApplication(db, userId, identity, externalReqId);
+    const reqMatch = await findMatchingApplication(db, userId, identity, externalReqId);
     if (reqMatch) {
-      attachEventToApplication(db, event.id, reqMatch.id);
-      updateApplicationActivity(db, reqMatch, event);
+      await attachEventToApplication(db, event.id, reqMatch.id);
+      await updateApplicationActivity(db, reqMatch, event);
       applyCompanyCandidate(db, reqMatch, selectCompanyCandidate(identity));
       applyRoleCandidate(db, reqMatch, selectRoleCandidate(identity, event));
       applyExternalReqId(db, reqMatch, externalReqId);
@@ -1068,33 +1204,37 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
 
   if (isRejection) {
     if (externalReqId) {
-      existing = findMatchingApplication(db, userId, identity, externalReqId);
+      existing = await findMatchingApplication(db, userId, identity, externalReqId);
     }
     if (!existing && roleForMatch) {
       const companySlug = normalizeSlug(identity.companyName);
       const roleSlug = normalizeSlug(roleForMatch);
-      const matches = db
-        .prepare(
-          `SELECT * FROM job_applications
-           WHERE user_id = ?
-             AND archived = 0
-             AND (
-               (company_name = ? OR company = ?) AND (job_title = ? OR role = ?)
-               OR (lower(replace(company_name, ' ', '')) = ? AND lower(replace(job_title, ' ', '')) = ?)
-               OR (lower(replace(company, ' ', '')) = ? AND lower(replace(role, ' ', '')) = ?)
-             )`
+      const matches = normalizeRowList(
+        await awaitMaybe(
+          db
+            .prepare(
+              `SELECT * FROM job_applications
+               WHERE user_id = ?
+                 AND archived = false
+                 AND (
+                   (company_name = ? OR company = ?) AND (job_title = ? OR role = ?)
+                   OR (lower(replace(company_name, ' ', '')) = ? AND lower(replace(job_title, ' ', '')) = ?)
+                   OR (lower(replace(company, ' ', '')) = ? AND lower(replace(role, ' ', '')) = ?)
+                 )`
+            )
+            .all(
+              userId,
+              identity.companyName,
+              identity.companyName,
+              roleForMatch,
+              roleForMatch,
+              companySlug,
+              roleSlug,
+              companySlug,
+              roleSlug
+            )
         )
-        .all(
-          userId,
-          identity.companyName,
-          identity.companyName,
-          roleForMatch,
-          roleForMatch,
-          companySlug,
-          roleSlug,
-          companySlug,
-          roleSlug
-        );
+      );
       if (matches.length === 1) {
         existing = matches[0];
       } else if (matches.length > 1) {
@@ -1103,7 +1243,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
     }
     if (!existing && !ambiguous) {
       const domainMatches = identity.senderDomain
-        ? findCompanyMatches(db, userId, identity, identity.senderDomain, 60)
+        ? await findCompanyMatches(db, userId, identity, identity.senderDomain, 60)
         : [];
       if (domainMatches.length === 1) {
         existing = domainMatches[0];
@@ -1112,7 +1252,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
       }
     }
     if (!existing && !ambiguous) {
-      const companyMatches = findCompanyMatches(db, userId, identity, null, 60);
+      const companyMatches = await findCompanyMatches(db, userId, identity, null, 60);
       if (companyMatches.length === 1) {
         existing = companyMatches[0];
       } else if (companyMatches.length > 1) {
@@ -1131,7 +1271,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
 
   if (!isConfirmation) {
     if (!existing && matchConfidence >= MIN_MATCH_CONFIDENCE) {
-      existing = findMatchingApplication(db, userId, identity, externalReqId);
+      existing = await findMatchingApplication(db, userId, identity, externalReqId);
       if (
         !existing &&
         !externalReqId &&
@@ -1140,7 +1280,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
         (identity.companyConfidence || 0) >= MIN_COMPANY_CONFIDENCE &&
         getClassificationConfidence(event) >= MIN_CLASSIFICATION_CONFIDENCE
       ) {
-        existing = findLooseMatchingApplication(db, userId, identity, externalReqId);
+        existing = await findLooseMatchingApplication(db, userId, identity, externalReqId);
       }
     } else if (
       !existing &&
@@ -1150,7 +1290,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
       (identity.companyConfidence || 0) >= MIN_COMPANY_CONFIDENCE &&
       getClassificationConfidence(event) >= MIN_CLASSIFICATION_CONFIDENCE
     ) {
-      existing = findLooseMatchingApplication(db, userId, identity, externalReqId);
+      existing = await findLooseMatchingApplication(db, userId, identity, externalReqId);
     }
   }
 
@@ -1204,8 +1344,8 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
   }
 
   if (existing) {
-    attachEventToApplication(db, event.id, existing.id);
-    updateApplicationActivity(db, existing, event);
+    await attachEventToApplication(db, event.id, existing.id);
+    await updateApplicationActivity(db, existing, event);
     applyCompanyCandidate(db, existing, selectCompanyCandidate(identity));
     applyRoleCandidate(db, existing, selectRoleCandidate(identity, event));
     applyExternalReqId(db, existing, externalReqId);
@@ -1216,11 +1356,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
         getClassificationConfidence(event)
       );
       if (!blocked) {
-        db.prepare(
-          `UPDATE job_applications
-             SET current_status = ?, status = ?, status_source = ?, status_confidence = ?, status_explanation = ?, status_updated_at = ?, last_activity_at = ?
-           WHERE id = ?`
-        ).run(
+        const statusUpdateParams = [
           ApplicationStatus.REJECTED,
           ApplicationStatus.REJECTED,
           'inferred',
@@ -1229,6 +1365,15 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
           new Date().toISOString(),
           toIsoFromInternalDate(event.internal_date, new Date(event.created_at)),
           existing.id
+        ];
+        await awaitMaybe(
+          db
+            .prepare(
+              `UPDATE job_applications
+                 SET current_status = ?, status = ?, status_source = ?, status_confidence = ?, status_explanation = ?, status_updated_at = ?, last_activity_at = ?
+               WHERE id = ?`
+            )
+            .run(...normalizeBindParams(statusUpdateParams, dbDialect(db)))
         );
       }
     }
@@ -1256,7 +1401,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
       canonicalCompany,
       dedupeRole
     });
-    let candidate = findDedupeApplication(
+    let candidate = await findDedupeApplication(
       db,
       userId,
       dedupeKey,
@@ -1264,7 +1409,7 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
     );
     if (!candidate && dedupeKey) {
       // Relax domain requirement to catch ATS/corporate double confirmations
-      candidate = findDedupeApplication(
+      candidate = await findDedupeApplication(
         db,
         userId,
         { ...dedupeKey, domainSlug: null },
@@ -1272,35 +1417,41 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
       );
     }
     if (!candidate && dedupeKey && dedupeKey.companySlug && dedupeKey.roleSlug) {
-      const rows = db
-        .prepare(
-          `SELECT * FROM job_applications
-           WHERE user_id = ?
-             AND archived = 0`
-      )
-      .all(userId);
-    for (const app of rows) {
-      const appCompany = normalizeSlug(app.company_name || app.company || '');
-      const appRole = normalizeSlug(app.job_title || app.role || '');
-      if (appCompany === dedupeKey.companySlug && appRole === dedupeKey.roleSlug) {
-        if (isDivergentStrongRoles(dedupeRole || roleForMatch, app.job_title || app.role)) {
-          continue;
+      const rows = normalizeRowList(
+        await awaitMaybe(
+          db
+            .prepare(
+              `SELECT * FROM job_applications
+               WHERE user_id = ?
+                 AND archived = false`
+            )
+            .all(userId)
+        )
+      );
+      for (const app of rows) {
+        const appCompany = normalizeSlug(app.company_name || app.company || '');
+        const appRole = normalizeSlug(app.job_title || app.role || '');
+        if (appCompany === dedupeKey.companySlug && appRole === dedupeKey.roleSlug) {
+          if (isDivergentStrongRoles(dedupeRole || roleForMatch, app.job_title || app.role)) {
+            continue;
+          }
+          candidate = app;
+          break;
         }
-        candidate = app;
-        break;
       }
     }
-  }
     if (!candidate && dedupeKey && dedupeKey.companySlug && dedupeKey.roleSlug) {
-      const direct = db
-        .prepare(
-          `SELECT * FROM job_applications
-           WHERE user_id = ?
-             AND archived = 0
-             AND lower(replace(company_name, ' ', '')) = ?
-             AND lower(replace(job_title, ' ', '')) = ?`
-        )
-        .get(userId, dedupeKey.companySlug, dedupeKey.roleSlug);
+      const direct = await awaitMaybe(
+        db
+          .prepare(
+            `SELECT * FROM job_applications
+             WHERE user_id = ?
+               AND archived = false
+               AND lower(replace(company_name, ' ', '')) = ?
+               AND lower(replace(job_title, ' ', '')) = ?`
+          )
+          .get(userId, dedupeKey.companySlug, dedupeKey.roleSlug)
+      );
       if (direct) {
         candidate = direct;
       }
@@ -1336,8 +1487,8 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
       }
     }
       if (candidate) {
-        attachEventToApplication(db, event.id, candidate.id);
-        updateApplicationActivity(db, candidate, event);
+        await attachEventToApplication(db, event.id, candidate.id);
+        await updateApplicationActivity(db, candidate, event);
         applyCompanyCandidate(db, candidate, selectCompanyCandidate(identity));
         applyRoleCandidate(db, candidate, selectRoleCandidate(identity, event));
         applyExternalReqId(db, candidate, externalReqId);
@@ -1355,16 +1506,20 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
       const companySlug = normalizeSlug(canonicalCompany);
       const roleSlug = normalizeSlug(dedupeRole);
       const windowStart = new Date(eventTimeMs - FUZZY_CONFIRMATION_WINDOW_HOURS * 3600000).toISOString();
-      const recent = db
-        .prepare(
-          `SELECT * FROM job_applications
-           WHERE user_id = ?
-             AND archived = 0
-             AND lower(replace(company_name, ' ', '')) = ?
-             AND lower(replace(job_title, ' ', '')) = ?
-            AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= ?`
+      const recent = normalizeRowList(
+        await awaitMaybe(
+          db
+            .prepare(
+              `SELECT * FROM job_applications
+               WHERE user_id = ?
+                 AND archived = false
+                 AND lower(replace(company_name, ' ', '')) = ?
+                 AND lower(replace(job_title, ' ', '')) = ?
+                AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= ?`
+            )
+            .all(userId, companySlug, roleSlug, windowStart)
         )
-        .all(userId, companySlug, roleSlug, windowStart);
+      );
       logDedupe('matching.final_confirmation_dedupe', {
         eventId: event.id,
         canonicalCompany,
@@ -1374,27 +1529,33 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
       if (recent.length === 1) {
         const candidate = recent[0];
         if (isDivergentStrongRoles(dedupeRole || roleForMatch, candidate.job_title || candidate.role)) {
-          return { action: 'created_application', applicationId: null, identity };
+          // Roles diverge; do not dedupe/attach.
+        } else {
+          await attachEventToApplication(db, event.id, candidate.id);
+          await updateApplicationActivity(db, candidate, event);
+          applyCompanyCandidate(db, candidate, selectCompanyCandidate(identity));
+          applyRoleCandidate(db, candidate, selectRoleCandidate(identity, event));
+          applyExternalReqId(db, candidate, externalReqId);
+          return { action: 'matched_existing', applicationId: candidate.id, identity };
         }
-        attachEventToApplication(db, event.id, candidate.id);
-        updateApplicationActivity(db, candidate, event);
-        applyCompanyCandidate(db, candidate, selectCompanyCandidate(identity));
-        applyRoleCandidate(db, candidate, selectRoleCandidate(identity, event));
-        applyExternalReqId(db, candidate, externalReqId);
-        return { action: 'matched_existing', applicationId: candidate.id, identity };
       }
     }
     if ((!identity.companyName || isInvalidCompanyCandidate(identity.companyName)) && dedupeRole && (identity.isAtsDomain || identity.isPlatformEmail)) {
       const roleSlug = normalizeSlug(dedupeRole);
-      const recentRole = db
-        .prepare(
-          `SELECT * FROM job_applications
-           WHERE user_id = ?
-             AND archived = 0
-             AND lower(replace(job_title, ' ', '')) = ?
-            AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= date('now', '-1 days')`
+      const roleWindowStart = new Date(eventTimeMs - 24 * 3600000).toISOString();
+      const recentRole = normalizeRowList(
+        await awaitMaybe(
+          db
+            .prepare(
+              `SELECT * FROM job_applications
+               WHERE user_id = ?
+                 AND archived = false
+                 AND lower(replace(job_title, ' ', '')) = ?
+                AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= ?`
+            )
+            .all(userId, roleSlug, roleWindowStart)
         )
-        .all(userId, roleSlug);
+      );
       logDedupe('matching.role_only_confirmation_dedupe', {
         eventId: event.id,
         canonicalRole: dedupeRole,
@@ -1413,18 +1574,18 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
             candidateId: candidate.id,
             reason: guard.reason
           });
-          return { action: 'created_application', applicationId: null, identity };
+        } else {
+          await attachEventToApplication(db, event.id, candidate.id);
+          await updateApplicationActivity(db, candidate, event);
+          applyCompanyCandidate(db, candidate, selectCompanyCandidate(identity));
+          const roleCandidate = selectRoleCandidate(identity, event);
+          const currentTitle = candidate.job_title || candidate.role || '';
+          if (roleCandidate?.title && roleCandidate.title.length >= currentTitle.length) {
+            applyRoleCandidate(db, candidate, roleCandidate);
+          }
+          applyExternalReqId(db, candidate, externalReqId);
+          return { action: 'matched_existing', applicationId: candidate.id, identity };
         }
-        attachEventToApplication(db, event.id, candidate.id);
-        updateApplicationActivity(db, candidate, event);
-        applyCompanyCandidate(db, candidate, selectCompanyCandidate(identity));
-        const roleCandidate = selectRoleCandidate(identity, event);
-        const currentTitle = candidate.job_title || candidate.role || '';
-        if (roleCandidate?.title && roleCandidate.title.length >= currentTitle.length) {
-          applyRoleCandidate(db, candidate, roleCandidate);
-        }
-        applyExternalReqId(db, candidate, externalReqId);
-        return { action: 'matched_existing', applicationId: candidate.id, identity };
       }
     }
 
@@ -1450,16 +1611,20 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
           ? Math.max(FUZZY_CONFIRMATION_WINDOW_HOURS, 24)
           : FUZZY_CONFIRMATION_WINDOW_HOURS;
       const windowStart = new Date(eventTime.getTime() - windowHours * 3600000).toISOString();
-      const candidates = db
-        .prepare(
-          `SELECT * FROM job_applications
-           WHERE user_id = ?
-             AND archived = 0
-             AND company_name IS NOT NULL
-             AND lower(replace(company_name, ' ', '')) = ?
-            AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= ?`
+      const candidates = normalizeRowList(
+        await awaitMaybe(
+          db
+            .prepare(
+              `SELECT * FROM job_applications
+               WHERE user_id = ?
+                 AND archived = false
+                 AND company_name IS NOT NULL
+                 AND lower(replace(company_name, ' ', '')) = ?
+                AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= ?`
+            )
+            .all(userId, companySlug, windowStart)
         )
-        .all(userId, companySlug, windowStart);
+      );
 
         const locationsCompatible = (incoming, candidateLoc) => {
           if (!incoming || !candidateLoc) return true;
@@ -1655,8 +1820,8 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
               });
               continue;
             }
-            attachEventToApplication(db, event.id, app.id);
-            updateApplicationActivity(db, app, event);
+            await attachEventToApplication(db, event.id, app.id);
+            await updateApplicationActivity(db, app, event);
             applyCompanyCandidate(db, app, selectCompanyCandidate(identity));
             const roleCandidate = selectRoleCandidate(identity, event);
             const currentTitle = app.job_title || app.role || '';
@@ -1686,15 +1851,19 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
       const weakIncoming =
         isWeakRoleText(roleForMatch || identity.jobTitle || event.role_title) ||
         normalizeDisplayTitle(roleForMatch || identity.jobTitle || event.role_title) === UNKNOWN_ROLE;
-      const candidates = db
-        .prepare(
-          `SELECT * FROM job_applications
-           WHERE user_id = ?
-             AND archived = 0
-             AND lower(replace(company_name, ' ', '')) = ?
-            AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= ?`
+      const candidates = normalizeRowList(
+        await awaitMaybe(
+          db
+            .prepare(
+              `SELECT * FROM job_applications
+               WHERE user_id = ?
+                 AND archived = false
+                 AND lower(replace(company_name, ' ', '')) = ?
+                AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= ?`
+            )
+            .all(userId, companySlug, windowStart)
         )
-        .all(userId, companySlug, windowStart);
+      );
       for (const app of candidates) {
         const candReq = app.external_req_id ? normalizeExternalReqId(app.external_req_id) : null;
         if (externalReqId && candReq && externalReqId !== candReq) {
@@ -1731,8 +1900,8 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
           });
           continue;
         }
-        attachEventToApplication(db, event.id, app.id);
-        updateApplicationActivity(db, app, event);
+        await attachEventToApplication(db, event.id, app.id);
+        await updateApplicationActivity(db, app, event);
         applyCompanyCandidate(db, app, selectCompanyCandidate(identity));
         const roleCandidate = selectRoleCandidate(identity, event);
         const currentTitle = app.job_title || app.role || '';
@@ -1753,8 +1922,8 @@ function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) 
     }
   }
 
-  const application = createApplicationFromEvent(db, userId, identity, event);
-  attachEventToApplication(db, event.id, application.id);
+  const application = await createApplicationFromEvent(db, userId, identity, event);
+  await attachEventToApplication(db, event.id, application.id);
   return { action: 'created_application', applicationId: application.id, identity };
 }
 

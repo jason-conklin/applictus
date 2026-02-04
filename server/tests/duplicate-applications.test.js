@@ -79,7 +79,7 @@ function insertEmailEvent(db, {
   return id;
 }
 
-test('Workday confirmations with different requisitions create separate applications', () => {
+test('Workday confirmations with different requisitions create separate applications', async () => {
   const db = new Database(':memory:');
   runMigrations(db);
   const userId = insertUser(db);
@@ -119,7 +119,7 @@ test('Workday confirmations with different requisitions create separate applicat
     externalReqId: reqA.externalReqId
   });
 
-  const matchA = matchAndAssignEvent({
+  const matchA = await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -153,7 +153,7 @@ test('Workday confirmations with different requisitions create separate applicat
     externalReqId: reqB.externalReqId
   });
 
-  const matchB = matchAndAssignEvent({
+  const matchB = await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -187,7 +187,7 @@ test('Workday confirmations with different requisitions create separate applicat
   assert.notEqual(eventRows[0].application_id, eventRows[1].application_id);
 });
 
-test('Workday + corporate confirmations dedupe to one application and ignore greeting company', () => {
+test('Workday + corporate confirmations dedupe to one application and ignore greeting company', async () => {
   const db = new Database(':memory:');
   runMigrations(db);
   const userId = insertUser(db);
@@ -218,7 +218,7 @@ test('Workday + corporate confirmations dedupe to one application and ignore gre
     externalReqId: reqA.externalReqId
   });
 
-  const matchA = matchAndAssignEvent({
+  const matchA = await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -273,7 +273,7 @@ Trimble Talent Acquisition
     externalReqId: reqB.externalReqId
   });
 
-  const matchB = matchAndAssignEvent({
+  const matchB = await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -306,7 +306,7 @@ Trimble Talent Acquisition
   assert.ok(events[0].application_id === events[1].application_id);
 });
 
-test('LinkedIn + ATS confirmations for same role dedupe via fuzzy match', () => {
+test('LinkedIn + ATS confirmations for same role dedupe via fuzzy match', async () => {
   const db = new Database(':memory:');
   runMigrations(db);
   const userId = insertUser(db);
@@ -335,7 +335,7 @@ test('LinkedIn + ATS confirmations for same role dedupe via fuzzy match', () => 
     externalReqId: null
   });
 
-  const matchA = matchAndAssignEvent({
+  const matchA = await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -377,7 +377,7 @@ test('LinkedIn + ATS confirmations for same role dedupe via fuzzy match', () => 
     externalReqId: null
   });
 
-  const matchB = matchAndAssignEvent({
+  const matchB = await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -403,7 +403,7 @@ test('LinkedIn + ATS confirmations for same role dedupe via fuzzy match', () => 
   assert.equal(apps[0].job_title, 'Jr. Python Developer');
 });
 
-test('Distinct program role tails at same company do not dedupe', () => {
+test('Distinct program role tails at same company do not dedupe', async () => {
   const db = new Database(':memory:');
   runMigrations(db);
   const userId = insertUser(db);
@@ -428,7 +428,7 @@ test('Distinct program role tails at same company do not dedupe', () => {
     classificationConfidence: 0.92,
     snippet: bodyA
   });
-  const matchA = matchAndAssignEvent({
+  const matchA = await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -459,7 +459,7 @@ test('Distinct program role tails at same company do not dedupe', () => {
     snippet: bodyB
   });
   const sevenDaysLater = new Date(Date.now() + 7 * 24 * 3600000).toISOString();
-  const matchB = matchAndAssignEvent({
+  const matchB = await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -487,7 +487,7 @@ test('Distinct program role tails at same company do not dedupe', () => {
   assert.ok(titles.includes('2026 Technology Early Career Development Program - Full Stack Development'));
 });
 
-test('Healthfirst rejection overrides confirmation cues and attaches to existing application', () => {
+test('Healthfirst rejection overrides confirmation cues and attaches to existing application', async () => {
   const db = new Database(':memory:');
   runMigrations(db);
   const userId = insertUser(db);
@@ -542,7 +542,7 @@ test('Healthfirst rejection overrides confirmation cues and attaches to existing
     snippet
   });
 
-  const match = matchAndAssignEvent({
+  const match = await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -570,7 +570,7 @@ test('Healthfirst rejection overrides confirmation cues and attaches to existing
   assert.equal(eventRow.application_id, appId);
 });
 
-test('Profile submitted confirmation creates application with role/title', () => {
+test('Profile submitted confirmation creates application with role/title', async () => {
   const db = new Database(':memory:');
   runMigrations(db);
   const userId = insertUser(db);
@@ -598,7 +598,7 @@ test('Profile submitted confirmation creates application with role/title', () =>
     snippet: body
   });
 
-  const match = matchAndAssignEvent({
+  const match = await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -624,7 +624,7 @@ test('Profile submitted confirmation creates application with role/title', () =>
   assert.equal(app.current_status, ApplicationStatus.APPLIED);
 });
 
-test('Prudential Workday rejection attaches and extracts role from subject', () => {
+test('Prudential Workday rejection attaches and extracts role from subject', async () => {
   const db = new Database(':memory:');
   runMigrations(db);
   const userId = insertUser(db);
@@ -674,7 +674,7 @@ test('Prudential Workday rejection attaches and extracts role from subject', () 
     snippet: body
   });
 
-  const match = matchAndAssignEvent({
+  const match = await matchAndAssignEvent({
     db,
     userId,
     event: {

@@ -13,7 +13,7 @@ function applyStatusOverride(db, { userId, application, nextStatus, explanation 
     `UPDATE job_applications
      SET current_status = ?, status = ?, status_confidence = ?, status_explanation = ?,
          status_updated_at = ?, status_source = 'user', suggested_status = NULL,
-         suggested_confidence = NULL, suggested_explanation = NULL, user_override = 1,
+         suggested_confidence = NULL, suggested_explanation = NULL, user_override = true,
          updated_at = ?
      WHERE id = ?`
   ).run(nextStatus, nextStatus, 1.0, statusExplanation, nowIso(), nowIso(), application.id);

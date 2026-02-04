@@ -1280,16 +1280,16 @@ app.patch('/api/applications/:id', requireAuth, (req, res) => {
     payload.current_status = nextStatus;
   }
   if (typeof req.body.archived === 'boolean') {
-    updates.archived = req.body.archived ? 1 : 0;
-    payload.archived = updates.archived === 1;
+    updates.archived = Boolean(req.body.archived);
+    payload.archived = updates.archived;
     archiveChange = {
-      previous_value: application.archived === 1,
-      new_value: updates.archived === 1
+      previous_value: Boolean(application.archived),
+      new_value: updates.archived
     };
   }
 
   if (Object.keys(metadataChanges).length) {
-    updates.user_override = 1;
+    updates.user_override = true;
   }
 
   const keys = Object.keys(updates);
@@ -1324,7 +1324,7 @@ app.patch('/api/applications/:id', requireAuth, (req, res) => {
     createUserAction(db, {
       userId: req.user.id,
       applicationId: application.id,
-      actionType: updates.archived === 1 ? 'ARCHIVE' : 'UNARCHIVE',
+      actionType: updates.archived ? 'ARCHIVE' : 'UNARCHIVE',
       payload: archiveChange
     });
   }

@@ -74,7 +74,7 @@ function mergeApplications(db, { userId, sourceId, targetId }) {
     ).run(nextLast, nextApplied, nowIso(), target.id);
 
     db.prepare(
-      'UPDATE job_applications SET archived = 1, user_override = 1, updated_at = ? WHERE id = ?'
+      'UPDATE job_applications SET archived = true, user_override = true, updated_at = ? WHERE id = ?'
     ).run(nowIso(), source.id);
 
     createUserAction(db, {

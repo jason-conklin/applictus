@@ -72,7 +72,7 @@ function insertEmailEvent(db, {
   return id;
 }
 
-test('matched rejection updates application status', () => {
+test('matched rejection updates application status', async () => {
   const db = new Database(':memory:');
   runMigrations(db);
   const userId = insertUser(db);
@@ -90,7 +90,7 @@ test('matched rejection updates application status', () => {
     snippet: 'Thank you for applying to OrangeTwist.'
   });
 
-  const confirmationMatch = matchAndAssignEvent({
+  const confirmationMatch = await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -119,7 +119,7 @@ test('matched rejection updates application status', () => {
     snippet: 'We will not be moving forward with your application.'
   });
 
-  const rejectionMatch = matchAndAssignEvent({
+  const rejectionMatch = await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -141,7 +141,7 @@ test('matched rejection updates application status', () => {
   db.close();
 });
 
-test('user override prevents auto-rejection', () => {
+test('user override prevents auto-rejection', async () => {
   const db = new Database(':memory:');
   runMigrations(db);
   const userId = insertUser(db);
@@ -159,7 +159,7 @@ test('user override prevents auto-rejection', () => {
     snippet: 'Thank you for applying to OrangeTwist.'
   });
 
-  const confirmationMatch = matchAndAssignEvent({
+  const confirmationMatch = await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -192,7 +192,7 @@ test('user override prevents auto-rejection', () => {
     snippet: 'We will not be moving forward with your application.'
   });
 
-  matchAndAssignEvent({
+  await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -217,7 +217,7 @@ test('user override prevents auto-rejection', () => {
   db.close();
 });
 
-test('rejection with role matches correct application and applies status', () => {
+test('rejection with role matches correct application and applies status', async () => {
   const db = new Database(':memory:');
   runMigrations(db);
   const userId = insertUser(db);
@@ -237,7 +237,7 @@ test('rejection with role matches correct application and applies status', () =>
     snippet: confirmationSnippet
   });
 
-  const confirmationMatch = matchAndAssignEvent({
+  const confirmationMatch = await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -267,7 +267,7 @@ test('rejection with role matches correct application and applies status', () =>
     snippet: rejectionSnippet
   });
 
-  const rejectionMatch = matchAndAssignEvent({
+  const rejectionMatch = await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -291,7 +291,7 @@ test('rejection with role matches correct application and applies status', () =>
   db.close();
 });
 
-test('rejection without role is ambiguous when multiple apps exist', () => {
+test('rejection without role is ambiguous when multiple apps exist', async () => {
   const db = new Database(':memory:');
   runMigrations(db);
   const userId = insertUser(db);
@@ -324,7 +324,7 @@ test('rejection without role is ambiguous when multiple apps exist', () => {
     snippet: confirmSnippetB
   });
 
-  matchAndAssignEvent({
+  await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -338,7 +338,7 @@ test('rejection without role is ambiguous when multiple apps exist', () => {
       created_at: new Date().toISOString()
     }
   });
-  matchAndAssignEvent({
+  await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -367,7 +367,7 @@ test('rejection without role is ambiguous when multiple apps exist', () => {
     snippet: rejectionSnippet
   });
 
-  const rejectionMatch = matchAndAssignEvent({
+  const rejectionMatch = await matchAndAssignEvent({
     db,
     userId,
     event: {
@@ -391,7 +391,7 @@ test('rejection without role is ambiguous when multiple apps exist', () => {
   db.close();
 });
 
-test('rejection-only email creates application as REJECTED', () => {
+test('rejection-only email creates application as REJECTED', async () => {
   const db = new Database(':memory:');
   runMigrations(db);
   const userId = insertUser(db);
@@ -411,7 +411,7 @@ test('rejection-only email creates application as REJECTED', () => {
     snippet: rejectionSnippet
   });
 
-  const rejectionMatch = matchAndAssignEvent({
+  const rejectionMatch = await matchAndAssignEvent({
     db,
     userId,
     event: {

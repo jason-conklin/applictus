@@ -250,7 +250,7 @@ test('shouldAutoCreate blocks ambiguous sender domain', () => {
   assert.equal(shouldAutoCreate(event, identity), false);
 });
 
-test('matchAndAssignEvent returns reason detail for ambiguous sender', () => {
+test('matchAndAssignEvent returns reason detail for ambiguous sender', async () => {
   const identity = {
     companyName: 'Acme',
     jobTitle: null,
@@ -279,13 +279,13 @@ test('matchAndAssignEvent returns reason detail for ambiguous sender', () => {
       };
     }
   };
-  const result = matchAndAssignEvent({ db, userId: 'user-1', event, identity });
+  const result = await matchAndAssignEvent({ db, userId: 'user-1', event, identity });
   assert.equal(result.action, 'unassigned');
   assert.equal(result.reason, 'ambiguous_sender');
   assert.ok(result.reasonDetail);
 });
 
-test('matchAndAssignEvent auto-creates for Workday confirmation with body company', () => {
+test('matchAndAssignEvent auto-creates for Workday confirmation with body company', async () => {
   const subject = 'Thank you for applying!';
   const sender = 'Workday <pru@myworkday.com>';
   const bodyText =
@@ -335,7 +335,7 @@ test('matchAndAssignEvent auto-creates for Workday confirmation with body compan
     role_source: roleResult.source,
     role_explanation: roleResult.explanation
   };
-  const result = matchAndAssignEvent({ db, userId: 'user-1', event, identity });
+  const result = await matchAndAssignEvent({ db, userId: 'user-1', event, identity });
   assert.equal(result.action, 'created_application');
 });
 
@@ -352,7 +352,7 @@ Applied on January 23, 2026`;
   assert.ok(identity.companyConfidence >= 0.85);
 });
 
-test('matchAndAssignEvent auto-creates for LinkedIn Easy Apply confirmation', () => {
+test('matchAndAssignEvent auto-creates for LinkedIn Easy Apply confirmation', async () => {
   const subject = 'Jason, your application was sent to BeaconFire Inc.';
   const sender = 'jobs-noreply@linkedin.com';
   const bodyText = `Jason, your application was sent to BeaconFire Inc.
@@ -395,11 +395,11 @@ Applied on January 23, 2026`;
     role_explanation: identity.explanation
   };
 
-  const result = matchAndAssignEvent({ db, userId: 'user-1', event, identity });
+  const result = await matchAndAssignEvent({ db, userId: 'user-1', event, identity });
   assert.equal(result.action, 'created_application');
 });
 
-test('buildUnassignedReason handles missing domain safely', () => {
+test('buildUnassignedReason handles missing domain safely', async () => {
   const event = { detected_type: 'confirmation', subject: 'Test', sender: null, classification_confidence: 0.9 };
   const identity = { companyName: 'Acme', companyConfidence: 0.9, matchConfidence: 0.9, domainConfidence: 0 };
   const db = {
@@ -417,11 +417,11 @@ test('buildUnassignedReason handles missing domain safely', () => {
       };
     }
   };
-  const result = matchAndAssignEvent({ db, userId: 'user-1', event, identity });
+  const result = await matchAndAssignEvent({ db, userId: 'user-1', event, identity });
   assert.ok(result.action === 'unassigned' || result.action === 'created_application');
 });
 
-test('Workday confirmation does not fall into ambiguous sender and auto-creates', () => {
+test('Workday confirmation does not fall into ambiguous sender and auto-creates', async () => {
   const subject = 'Thank You For Your Application!';
   const sender = 'pureinsurance@myworkday.com';
   const bodyText =
@@ -466,6 +466,63 @@ test('Workday confirmation does not fall into ambiguous sender and auto-creates'
     role_explanation: 'Workday confirmation body'
   };
 
-  const result = matchAndAssignEvent({ db, userId: 'user-1', event, identity });
+  const result = await matchAndAssignEvent({ db, userId: 'user-1', event, identity });
   assert.equal(result.action, 'created_application');
+});
+
+test('matchAndAssignEvent tolerates postgres-like .all() return shape (Promise/{rows})', async () => {
+  const db = {
+    isAsync: true,
+    prepare(sql) {
+      return {
+        all() {
+          if (sql.includes('SELECT id, job_title, role FROM job_applications')) {
+            return Promise.resolve({
+              rows: [{ id: 'existing-app-1', job_title: 'Full Stack Developer', role: null }]
+            });
+          }
+          return Promise.resolve({ rows: [] });
+        },
+        get(id) {
+          if (String(sql).startsWith('SELECT * FROM job_applications WHERE id')) {
+            return Promise.resolve({ id, job_title: 'Data Engineer', role: 'Data Engineer' });
+          }
+          return Promise.resolve(null);
+        },
+        run() {
+          return Promise.resolve({ changes: 1 });
+        }
+      };
+    }
+  };
+
+  const identity = {
+    companyName: 'Acme',
+    companyConfidence: 0.95,
+    jobTitle: 'Data Engineer',
+    roleConfidence: 0.9,
+    matchConfidence: 0.9,
+    domainConfidence: 0.6,
+    senderDomain: 'acme.com',
+    isAtsDomain: false,
+    isPlatformEmail: false
+  };
+
+  const event = {
+    id: 'evt-1',
+    sender: 'no-reply@acme.com',
+    subject: 'Thanks for applying',
+    snippet: '',
+    detected_type: 'confirmation',
+    confidence_score: 0.92,
+    classification_confidence: 0.92,
+    role_title: 'Data Engineer',
+    role_confidence: 0.9,
+    role_source: 'subject',
+    created_at: new Date().toISOString()
+  };
+
+  const result = await matchAndAssignEvent({ db, userId: 'user-1', event, identity });
+  assert.equal(result.action, 'created_application');
+  assert.ok(result.applicationId);
 });
