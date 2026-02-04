@@ -15,6 +15,7 @@ let statusDebugLogged = false;
 const DEBUG_AUTH = typeof window !== 'undefined' && window.DEBUG_AUTH;
 let authMode = 'signin';
 const DEBUG_APP = typeof window !== 'undefined' && window.DEBUG_APP;
+const APP_TITLE = 'Applictus';
 
 function normalizeStatusValue(status) {
   if (!status) return 'UNKNOWN';
@@ -49,6 +50,9 @@ const accountView = document.getElementById('account-view');
 const archiveView = document.getElementById('archive-view');
 const unsortedView = document.getElementById('unsorted-view');
 const resumeCuratorView = document.getElementById('resume-curator-view');
+const privacyView = document.getElementById('privacy-view');
+const termsView = document.getElementById('terms-view');
+const contactView = document.getElementById('contact-view');
 const nav = document.getElementById('nav');
 const topbar = document.getElementById('topbar');
 const accountAvatar = document.getElementById('account-avatar');
@@ -64,6 +68,9 @@ const accountEmail = document.getElementById('account-email');
 const accountAuth = document.getElementById('account-auth');
 const accountGmailStatus = document.getElementById('account-gmail-status');
 const accountGmailEmail = document.getElementById('account-gmail-email');
+const contactForm = document.getElementById('contact-form');
+const contactError = document.getElementById('contact-error');
+const contactSuccess = document.getElementById('contact-success');
 
 const quickAdd = null;
 const addToggle = document.getElementById('add-toggle');
@@ -1096,6 +1103,85 @@ function authErrorMessage(code) {
   return messages[code] || 'Unable to sign in. Please try again.';
 }
 
+function contactErrorMessage(code) {
+  const messages = {
+    NAME_REQUIRED: 'Enter your name.',
+    NAME_TOO_LONG: 'Name is too long.',
+    EMAIL_REQUIRED: 'Enter an email address.',
+    EMAIL_TOO_LONG: 'Email is too long.',
+    INVALID_EMAIL: 'Enter a valid email address.',
+    MESSAGE_REQUIRED: 'Enter a message.',
+    MESSAGE_TOO_LONG: 'Message is too long.',
+    RATE_LIMITED: 'Too many messages. Please try again in a bit.',
+    CSRF_REQUIRED: 'Please refresh and try again.',
+    CSRF_INVALID: 'Please refresh and try again.',
+    CONTACT_SUBMIT_FAILED: 'Unable to send your message right now.'
+  };
+  return messages[code] || 'Unable to send your message. Please try again.';
+}
+
+function setMetaDescription(content) {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  const tag = document.querySelector('meta[name="description"]');
+  if (!tag) {
+    return;
+  }
+  tag.setAttribute('content', content);
+}
+
+function setPageMeta(view) {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  const titles = {
+    auth: `${APP_TITLE} – Sign in`,
+    dashboard: `${APP_TITLE} – Dashboard`,
+    account: `${APP_TITLE} – Account`,
+    archive: `${APP_TITLE} – Archive`,
+    unsorted: `${APP_TITLE} – Unsorted Events`,
+    'resume-curator': `${APP_TITLE} – Resume Curator`,
+    privacy: `${APP_TITLE} – Privacy Policy`,
+    terms: `${APP_TITLE} – Terms of Service`,
+    contact: `${APP_TITLE} – Contact`
+  };
+
+  const descriptions = {
+    auth: 'Sign in to Applictus to track job applications and sync Gmail updates.',
+    dashboard:
+      'Applictus helps you track job applications and sync Gmail updates so you always know your application status.',
+    account: 'Manage your Applictus account and Gmail connection.',
+    archive: 'Browse archived job applications in Applictus.',
+    unsorted: 'Review unsorted email events and signals.',
+    privacy: 'Read the Applictus Privacy Policy.',
+    terms: 'Read the Applictus Terms of Service.',
+    contact: 'Contact the Applictus team.'
+  };
+
+  document.title = titles[view] || APP_TITLE;
+  setMetaDescription(descriptions[view] || descriptions.dashboard);
+}
+
+function normalizeRoutePath(pathname = '') {
+  const trimmed = String(pathname || '').replace(/\/+$/, '');
+  return trimmed || '/';
+}
+
+function routeFromPathname(pathname = '') {
+  const path = normalizeRoutePath(pathname);
+  if (path === '/privacy') return 'privacy';
+  if (path === '/terms') return 'terms';
+  if (path === '/contact') return 'contact';
+  return '';
+}
+
+function getCurrentRouteKey() {
+  const hash = window.location.hash.replace('#', '');
+  if (hash) return hash;
+  return routeFromPathname(window.location.pathname);
+}
+
 function buildListParams(overrides = {}) {
   const params = new URLSearchParams();
   const filters = state.filters;
@@ -1401,12 +1487,16 @@ function setView(view) {
       removeAuthAnimatedBg();
     }
   }
+  setPageMeta(view);
   toggleSection(authView, view === 'auth');
   toggleSection(dashboardView, view === 'dashboard');
   toggleSection(accountView, view === 'account');
   toggleSection(archiveView, view === 'archive');
   toggleSection(unsortedView, view === 'unsorted');
   toggleSection(resumeCuratorView, view === 'resume-curator');
+  toggleSection(privacyView, view === 'privacy');
+  toggleSection(termsView, view === 'terms');
+  toggleSection(contactView, view === 'contact');
   const isAuthed = Boolean(sessionUser);
   if (topbar) {
     topbar.classList.toggle('hidden', !isAuthed);
@@ -3243,7 +3333,16 @@ function initResumeCurator() {
 }
 
 function route() {
+  const routeKey = getCurrentRouteKey();
+  const isPublicRoute = routeKey === 'privacy' || routeKey === 'terms' || routeKey === 'contact';
+
   if (!sessionUser) {
+    setDrawerOpen(false);
+    addToggle?.setAttribute('aria-expanded', 'false');
+    if (isPublicRoute) {
+      setView(routeKey);
+      return;
+    }
     // Always default to Sign in when unauthenticated (prevents accidental signup submissions after redirects).
     setAuthPanel('signin');
     setView('auth');
@@ -3252,11 +3351,16 @@ function route() {
   setDrawerOpen(false);
   addToggle?.setAttribute('aria-expanded', 'false');
   updateFilterSummary();
-  const hash = window.location.hash.replace('#', '');
-  if (hash === 'gmail') {
+  if (routeKey === 'gmail') {
     setView('account');
     void refreshEmailStatus();
-  } else if (hash === 'archive') {
+  } else if (routeKey === 'privacy') {
+    setView('privacy');
+  } else if (routeKey === 'terms') {
+    setView('terms');
+  } else if (routeKey === 'contact') {
+    setView('contact');
+  } else if (routeKey === 'archive') {
     setView('archive');
     state.archived.offset = 0;
     void refreshArchivedApplications().catch((err) => {
@@ -3266,13 +3370,13 @@ function route() {
       }
       showNotice('Unable to load archived applications.', 'Archive');
     });
-  } else if (hash === 'unsorted') {
+  } else if (routeKey === 'unsorted') {
     setView('unsorted');
     void refreshUnsortedEvents();
-  } else if (hash === 'account') {
+  } else if (routeKey === 'account') {
     setView('account');
     void refreshEmailStatus();
-  } else if (hash === 'resume-curator') {
+  } else if (routeKey === 'resume-curator') {
     setView('resume-curator');
     initResumeCurator();
   } else {
@@ -3469,6 +3573,103 @@ if (signupForm && !signupForm.dataset.bound) {
   });
 }
 
+if (contactForm && !contactForm.dataset.bound) {
+  contactForm.dataset.bound = '1';
+  contactForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (contactForm.__submitting) return;
+    contactForm.__submitting = true;
+    const submitBtn = contactForm.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
+    if (contactSuccess) {
+      contactSuccess.textContent = '';
+      contactSuccess.classList.add('hidden');
+    }
+    setFormError(contactError, '');
+
+    const formData = new FormData(contactForm);
+    const payload = Object.fromEntries(formData.entries());
+    const name = String(payload.name || '').trim();
+    const email = String(payload.email || '').trim();
+    const message = String(payload.message || '').trim();
+
+    const nameInput = contactForm.querySelector('input[name="name"]');
+    const emailInput = contactForm.querySelector('input[name="email"]');
+    const messageInput = contactForm.querySelector('textarea[name="message"]');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!name) {
+      setFormError(contactError, contactErrorMessage('NAME_REQUIRED'));
+      nameInput?.focus();
+      contactForm.__submitting = false;
+      if (submitBtn) submitBtn.disabled = false;
+      return;
+    }
+    if (name.length > 120) {
+      setFormError(contactError, contactErrorMessage('NAME_TOO_LONG'));
+      nameInput?.focus();
+      contactForm.__submitting = false;
+      if (submitBtn) submitBtn.disabled = false;
+      return;
+    }
+    if (!email) {
+      setFormError(contactError, contactErrorMessage('EMAIL_REQUIRED'));
+      emailInput?.focus();
+      contactForm.__submitting = false;
+      if (submitBtn) submitBtn.disabled = false;
+      return;
+    }
+    if (email.length > 254) {
+      setFormError(contactError, contactErrorMessage('EMAIL_TOO_LONG'));
+      emailInput?.focus();
+      contactForm.__submitting = false;
+      if (submitBtn) submitBtn.disabled = false;
+      return;
+    }
+    if (!emailRegex.test(email)) {
+      setFormError(contactError, contactErrorMessage('INVALID_EMAIL'));
+      emailInput?.focus();
+      contactForm.__submitting = false;
+      if (submitBtn) submitBtn.disabled = false;
+      return;
+    }
+    if (!message) {
+      setFormError(contactError, contactErrorMessage('MESSAGE_REQUIRED'));
+      messageInput?.focus();
+      contactForm.__submitting = false;
+      if (submitBtn) submitBtn.disabled = false;
+      return;
+    }
+    if (message.length > 4000) {
+      setFormError(contactError, contactErrorMessage('MESSAGE_TOO_LONG'));
+      messageInput?.focus();
+      contactForm.__submitting = false;
+      if (submitBtn) submitBtn.disabled = false;
+      return;
+    }
+
+    try {
+      await api('/api/contact', {
+        method: 'POST',
+        body: JSON.stringify({ name, email, message })
+      });
+      if (contactSuccess) {
+        contactSuccess.textContent = 'Thanks — your message was sent.';
+        contactSuccess.classList.remove('hidden');
+      } else {
+        showNotice('Thanks — your message was sent.', 'Contact');
+      }
+      contactForm.reset();
+      nameInput?.focus();
+    } catch (err) {
+      setFormError(contactError, contactErrorMessage(err.message || err.code));
+    } finally {
+      contactForm.__submitting = false;
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  });
+}
+
 logoutBtn?.addEventListener('click', async () => {
   await api('/api/auth/logout', { method: 'POST' });
   sessionUser = null;
@@ -3485,6 +3686,21 @@ accountLogout?.addEventListener('click', async () => {
   setAuthPanel('signin');
   setView('auth');
   await loadCsrfToken();
+});
+
+document.addEventListener('click', (event) => {
+  const backButton = event.target.closest('[data-action="legal-back"]');
+  if (!backButton) {
+    return;
+  }
+  event.preventDefault();
+  if (sessionUser) {
+    window.location.hash = '#dashboard';
+    return;
+  }
+  setAuthPanel('signin');
+  window.location.hash = '#account';
+  setView('auth');
 });
 
 addToggle?.addEventListener('click', () => {

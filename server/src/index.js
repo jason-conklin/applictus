@@ -69,6 +69,9 @@ const CSRF_COOKIE = 'jt_csrf';
 const SESSION_TTL_DAYS = 30;
 const SESSION_TTL_MS = SESSION_TTL_DAYS * 24 * 60 * 60 * 1000;
 const PASSWORD_MIN_LENGTH = 12;
+const CONTACT_NAME_MAX = 120;
+const CONTACT_EMAIL_MAX = 254;
+const CONTACT_MESSAGE_MAX = 4000;
 const GOOGLE_STATE_COOKIE = 'jt_google_state';
 const GOOGLE_STATE_TTL_MS = 10 * 60 * 1000;
 const VALID_STATUSES = new Set(Object.values(ApplicationStatus));
@@ -86,6 +89,22 @@ function isProd() {
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
+}
+
+function stripHtml(text) {
+  return String(text || '').replace(/<[^>]*>/g, '');
+}
+
+function normalizeContactField(text) {
+  return stripHtml(text).replace(/\s+/g, ' ').trim();
+}
+
+function normalizeContactMessage(text) {
+  return stripHtml(text).replace(/\r\n/g, '\n').trim();
+}
+
+function isLikelyEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
 }
 
 async function getUserByEmail(email) {
@@ -464,6 +483,9 @@ const authEmailLimiter = createRateLimiter({
     return email && req.ip ? `ip:${req.ip}|email:${email}` : null;
   }
 });
+const contactIpLimiter = createRateLimiter({
+  keyGenerator: (req) => (req.ip ? `ip:${req.ip}` : null)
+});
 
 app.use(async (req, res, next) => {
   const token = req.cookies[SESSION_COOKIE];
@@ -739,6 +761,59 @@ app.post('/api/auth/logout', requireAuth, async (req, res) => {
     clearSessionCookie(res);
   }
   return res.json({ ok: true });
+});
+
+app.post('/api/contact', contactIpLimiter, async (req, res) => {
+  try {
+    const name = normalizeContactField(req.body?.name);
+    const email = normalizeContactField(req.body?.email);
+    const message = normalizeContactMessage(req.body?.message);
+
+    if (!name) {
+      return res.status(400).json({ error: 'NAME_REQUIRED' });
+    }
+    if (name.length > CONTACT_NAME_MAX) {
+      return res.status(400).json({ error: 'NAME_TOO_LONG' });
+    }
+    if (!email) {
+      return res.status(400).json({ error: 'EMAIL_REQUIRED' });
+    }
+    if (email.length > CONTACT_EMAIL_MAX) {
+      return res.status(400).json({ error: 'EMAIL_TOO_LONG' });
+    }
+    if (!isLikelyEmail(email)) {
+      return res.status(400).json({ error: 'INVALID_EMAIL' });
+    }
+    if (!message) {
+      return res.status(400).json({ error: 'MESSAGE_REQUIRED' });
+    }
+    if (message.length > CONTACT_MESSAGE_MAX) {
+      return res.status(400).json({ error: 'MESSAGE_TOO_LONG' });
+    }
+
+    const id = crypto.randomUUID();
+    const createdAt = nowIso();
+    const userId = req.user?.id || null;
+
+    const runRes = db
+      .prepare(
+        `INSERT INTO contact_messages (id, created_at, user_id, name, email, message)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(id, createdAt, userId, name, email, message);
+    if (runRes && typeof runRes.then === 'function') {
+      await runRes;
+    }
+
+    return res.json({ ok: true });
+  } catch (err) {
+    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+      logError('contact submit failed', {
+        error: err && err.message ? err.message : String(err)
+      });
+    }
+    return res.status(500).json({ error: 'CONTACT_SUBMIT_FAILED' });
+  }
 });
 
 app.get('/api/email/status', requireAuth, async (req, res) => {

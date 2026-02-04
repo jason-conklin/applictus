@@ -3,9 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Applictus helps you track job applications and sync Gmail updates so you always know your application status."
+    />
     <title>Applictus</title>
     <link rel="icon" href="/public/Applictus_logo.png" type="image/png" />
-    <link rel="stylesheet" href="/styles.css?v=13" />
+    <link rel="stylesheet" href="/styles.css?v=16" />
   </head>
   <body>
     <div class="noise"></div>
@@ -643,10 +647,242 @@
               <h4>Versions</h4>
               <div id="rc-versions" class="list"></div>
             </div>
-          </div>
-        </section>
-      </section>
-    </main>
+	          </div>
+	        </section>
+	      </section>
+
+	      <section class="view" id="privacy-view" hidden>
+	        <div class="page-header">
+	          <button class="ghost" type="button" data-action="legal-back">Back</button>
+	          <h2>Privacy Policy</h2>
+	          <div class="muted small">Last updated: Feb 2026</div>
+	        </div>
+	        <div class="card legal">
+	          <p class="muted small">
+	            This is starter copy for an early-stage product and may change as Applictus evolves. It is not legal
+	            advice.
+	          </p>
+
+	          <h3>Summary</h3>
+	          <p>
+	            Applictus helps you track job applications. If you connect Gmail, Applictus reads message information to
+	            identify job-related events and build your dashboard. We try to store only what we need to provide the
+	            service.
+	          </p>
+
+	          <h3>What We Collect</h3>
+	          <ul>
+	            <li><strong>Account information:</strong> email address, name (optional), and authentication method.</li>
+	            <li>
+	              <strong>Gmail connection data:</strong> OAuth tokens used to access your mailbox (stored encrypted, if
+	              encryption is enabled) and the connected email address.
+	            </li>
+	            <li>
+	              <strong>Email information used for tracking:</strong> fields like sender, subject, snippet, timestamps,
+	              and message identifiers needed for deduping and status inference.
+	            </li>
+	            <li>
+	              <strong>Extracted application data:</strong> company, role/title, and status signals inferred from your
+	              messages and related explanations.
+	            </li>
+	          </ul>
+
+	          <h3>What Gmail Access Looks Like</h3>
+	          <p>
+	            When you connect Gmail, Applictus may access message content needed to detect job-related signals (for
+	            example: sender, subject, snippet, and—when necessary—message body text). We use this to:
+	          </p>
+	          <ul>
+	            <li>Create application records and update statuses (e.g., “Applied”, “Interview requested”, “Rejected”).</li>
+	            <li>Prevent duplicates by tracking message identifiers.</li>
+	            <li>Show you why an update was inferred (where supported).</li>
+	          </ul>
+	          <p class="muted small">
+	            Note: Applictus is designed to process messages automatically. We do not sell your email data. If we ever
+	            need to inspect data to help you troubleshoot an issue, we’ll ask for your permission first.
+	          </p>
+
+	          <h3>How We Use Your Data</h3>
+	          <ul>
+	            <li>Provide the dashboard and application tracking features.</li>
+	            <li>Sync your mailbox (when connected) to detect and classify job-related messages.</li>
+	            <li>Maintain reliability and security (dedupe, fraud/abuse prevention, and debugging).</li>
+	          </ul>
+
+	          <h3>Retention</h3>
+	          <p>
+	            We retain tracking data while your account is active. If you disconnect Gmail, Applictus will stop reading
+	            your mailbox. Some previously extracted tracking data may remain in your account unless you request
+	            deletion.
+	          </p>
+
+	          <h3>Security</h3>
+	          <ul>
+	            <li>We use secure transport (HTTPS) in production.</li>
+	            <li>OAuth tokens are stored encrypted when encryption is enabled.</li>
+	            <li>Access to your data is tied to your authenticated session.</li>
+	          </ul>
+
+	          <h3>Third-Party Services</h3>
+	          <ul>
+	            <li><strong>Google OAuth / Gmail:</strong> used to authenticate and read permitted mailbox data.</li>
+	            <li><strong>Hosting provider:</strong> runs the Applictus service.</li>
+	            <li><strong>Database provider:</strong> stores your account and application tracking data.</li>
+	          </ul>
+
+	          <h3>Your Controls</h3>
+	          <ul>
+	            <li>Disconnect Gmail from the Account page at any time.</li>
+	            <li>Log out to clear your session on this device.</li>
+	            <li>If account/data deletion is not available in-app yet, contact us and we’ll help.</li>
+	          </ul>
+
+	          <h3>Contact</h3>
+	          <p>
+	            Questions? Email <a class="app-footer-link" href="mailto:support@applictus.com">support@applictus.com</a>.
+	          </p>
+	        </div>
+	      </section>
+
+	      <section class="view" id="terms-view" hidden>
+	        <div class="page-header">
+	          <button class="ghost" type="button" data-action="legal-back">Back</button>
+	          <h2>Terms of Service</h2>
+	          <div class="muted small">Last updated: Feb 2026</div>
+	        </div>
+	        <div class="card legal">
+	          <p class="muted small">
+	            Starter terms for an early-stage product. This is not legal advice and may be updated as Applictus
+	            evolves.
+	          </p>
+
+	          <h3>Using Applictus</h3>
+	          <ul>
+	            <li>You are responsible for your account and for any actions taken using it.</li>
+	            <li>You are responsible for the accuracy of information you enter or confirm.</li>
+	            <li>Do not use the service for unlawful activity or to access data you do not own/control.</li>
+	          </ul>
+
+	          <h3>Gmail Connection</h3>
+	          <ul>
+	            <li>
+	              When you connect Gmail, Applictus accesses permitted mailbox data to detect job-related signals and build
+	              your dashboard.
+	            </li>
+	            <li>You can disconnect at any time from the Account page.</li>
+	          </ul>
+
+	          <h3>Disclaimers</h3>
+	          <ul>
+	            <li>The service is provided “as is” without warranties of any kind.</li>
+	            <li>Inferences may be incorrect; always verify important details yourself.</li>
+	          </ul>
+
+	          <h3>Limitation of Liability</h3>
+	          <p class="muted">
+	            To the maximum extent permitted by law, Applictus will not be liable for indirect, incidental, special,
+	            consequential, or punitive damages, or any loss of data, profits, or revenues.
+	          </p>
+
+	          <h3>Acceptable Use</h3>
+	          <ul>
+	            <li>No abuse, reverse engineering, automated scraping, or attempts to bypass security controls.</li>
+	            <li>No interference with the service (spam, denial-of-service, or excessive load).</li>
+	          </ul>
+
+	          <h3>Termination</h3>
+	          <p class="muted">
+	            We may suspend or terminate access if we believe your use violates these terms or harms the service. You
+	            can stop using Applictus at any time.
+	          </p>
+
+	          <h3>Changes</h3>
+	          <p>
+	            We may update these terms from time to time. If changes are material, we’ll make a reasonable effort to
+	            notify you. The “Last updated” date will reflect the latest version.
+	          </p>
+
+	          <h3>Contact</h3>
+	          <p>
+	            Questions? Email <a class="app-footer-link" href="mailto:support@applictus.com">support@applictus.com</a>.
+	          </p>
+	        </div>
+	      </section>
+
+		      <section class="view" id="contact-view" hidden>
+		        <div class="page-header">
+		          <button class="ghost" type="button" data-action="legal-back">Back</button>
+		          <h2>Contact</h2>
+		          <div class="muted small">Last updated: Feb 2026</div>
+		        </div>
+		        <div class="card legal">
+		          <h3>Send us a message</h3>
+		          <p class="muted">
+		            Need help, have feedback, or want to report a bug? Send a note below and we’ll get back to you.
+		          </p>
+
+		          <form id="contact-form" class="form-grid" novalidate>
+		            <div class="form-success hidden" id="contact-success" role="status" aria-live="polite"></div>
+		            <div class="form-error hidden" id="contact-error" role="alert"></div>
+
+		            <label>
+		              Name
+		              <input
+		                type="text"
+		                name="name"
+		                autocomplete="name"
+		                required
+		                maxlength="120"
+		                placeholder="Your name"
+		              />
+		            </label>
+		            <label>
+		              Email
+		              <input
+		                type="email"
+		                name="email"
+		                autocomplete="email"
+		                required
+		                maxlength="254"
+		                placeholder="you@domain.com"
+		              />
+		            </label>
+		            <label>
+		              Message
+		              <textarea
+		                name="message"
+		                rows="6"
+		                required
+		                maxlength="4000"
+		                placeholder="How can we help?"
+		              ></textarea>
+		            </label>
+
+		            <button type="submit">Send message</button>
+
+		            <div class="muted small">
+		              Prefer email? You can write to
+		              <a class="app-footer-link" href="mailto:support@applictus.com?subject=Applictus%20Support">
+		                support@applictus.com
+		              </a>.
+		            </div>
+		          </form>
+		        </div>
+		      </section>
+		    </main>
+
+	    <footer class="app-footer" role="contentinfo">
+	      <div class="app-footer-inner">
+	        <div class="app-footer-copy">© 2026 Applictus. Built by Jason Conklin.</div>
+	        <nav class="app-footer-links" aria-label="Legal and contact links">
+	          <a class="app-footer-link" href="/privacy">PRIVACY</a>
+	          <span class="app-footer-sep" aria-hidden="true">·</span>
+	          <a class="app-footer-link" href="/terms">TERMS</a>
+	          <span class="app-footer-sep" aria-hidden="true">·</span>
+	          <a class="app-footer-link" href="/contact">CONTACT</a>
+	        </nav>
+	      </div>
+	    </footer>
 
     <div class="drawer hidden" id="detail-drawer">
       <div class="drawer-backdrop" data-action="close"></div>
@@ -719,6 +955,6 @@
       </div>
     </div>
 
-    <script type="module" src="/app.js?v=11"></script>
+    <script type="module" src="/app.js?v=15"></script>
   </body>
 </html>
