@@ -1284,11 +1284,11 @@ function populateAuthParticles(layer, { count, debug }) {
     const opacity = minOpacity + Math.random() * (maxOpacity - minOpacity);
     const blur = hero ? Math.random() * 0.9 : Math.random() * 1.2;
     const driftX = (Math.random() * 80 - 40).toFixed(1);
-    const duration = (debug ? 5 : 5.5) + Math.random() * (debug ? 7 : 6.5);
+    const duration = (debug ? 8 : 9) + Math.random() * (debug ? 8 : 9);
     const delay = -Math.random() * duration;
     const startY = 45 + Math.random() * 15;
     const endY = -30 + Math.random() * 20;
-    const twinkleDur = 2 + Math.random() * 2;
+    const twinkleDur = 3 + Math.random() * 3;
     const twinkleDelay = -Math.random() * twinkleDur;
 
     particle.style.setProperty('--x', `${left.toFixed(2)}vw`);
