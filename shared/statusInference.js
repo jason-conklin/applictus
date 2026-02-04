@@ -175,7 +175,15 @@ function ghostedSuggestion(application) {
 }
 
 function inferStatus(application, events) {
-  const candidates = (events || [])
+  const list = Array.isArray(events)
+    ? events
+    : events && Array.isArray(events.rows)
+      ? events.rows
+      : events && typeof events === 'object' && events.id && events.detected_type
+        ? [events]
+        : [];
+
+  const candidates = (list || [])
     .map(buildCandidateFromEvent)
     .filter(Boolean);
 

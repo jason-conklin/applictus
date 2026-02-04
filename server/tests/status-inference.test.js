@@ -145,3 +145,19 @@ test('inferStatus ignores interview completed when confidence too low', () => {
   ]);
   assert.equal(result.inferred_status, ApplicationStatus.UNKNOWN);
 });
+
+test('inferStatus tolerates non-array events inputs', () => {
+  assert.doesNotThrow(() => inferStatus(baseApplication(), null));
+  assert.doesNotThrow(() => inferStatus(baseApplication(), {}));
+  assert.doesNotThrow(() => inferStatus(baseApplication(), { rows: [event()] }));
+  assert.doesNotThrow(() => inferStatus(baseApplication(), event()));
+
+  const fromRows = inferStatus(baseApplication(), { rows: [event()] });
+  assert.equal(fromRows.inferred_status, ApplicationStatus.APPLIED);
+
+  const fromSingle = inferStatus(baseApplication(), event());
+  assert.equal(fromSingle.inferred_status, ApplicationStatus.APPLIED);
+
+  const fromGarbage = inferStatus(baseApplication(), { foo: 'bar' });
+  assert.equal(fromGarbage.inferred_status, ApplicationStatus.UNKNOWN);
+});
