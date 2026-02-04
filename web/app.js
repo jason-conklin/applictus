@@ -3135,6 +3135,49 @@ function route() {
   }
 }
 
+function bindPasswordVisibilityToggles(root = document) {
+  root.querySelectorAll('button[data-password-toggle]').forEach((button) => {
+    if (button.dataset.bound) {
+      return;
+    }
+    const targetId = button.dataset.passwordToggle;
+    const input =
+      (targetId && document.getElementById(targetId)) ||
+      button.closest('.input-with-toggle')?.querySelector('input');
+    if (!input) {
+      return;
+    }
+    button.dataset.bound = '1';
+
+    const syncState = () => {
+      const visible = input.type === 'text';
+      button.dataset.passwordVisible = visible ? '1' : '0';
+      button.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+      button.setAttribute('aria-pressed', visible ? 'true' : 'false');
+      button.disabled = Boolean(input.disabled);
+    };
+
+    // Prevent mouse click from stealing focus from the input.
+    button.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+    });
+
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      if (input.disabled) {
+        return;
+      }
+      input.type = input.type === 'password' ? 'text' : 'password';
+      syncState();
+      input.focus({ preventScroll: true });
+    });
+
+    syncState();
+  });
+}
+
+bindPasswordVisibilityToggles();
+
 if (authSwitch && !authSwitch.dataset.bound) {
   authSwitch.dataset.bound = '1';
   authSwitch.addEventListener('click', (event) => {
