@@ -71,168 +71,137 @@ body.modal-open {
 body.auth-mode {
   /* Keep layering predictable for pseudo-elements. */
   isolation: isolate;
-  /* Strong base gradient for auth screen only: white (top) -> blue (bottom). */
-  background-color: #eef5ff;
-  background-image:
-    linear-gradient(180deg, #ffffff 0%, #eef5ff 40%, #4d86ff 120%),
-    /* Animated highlight band to make the vertical gradient feel alive. */
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0) 0%,
-      rgba(255, 255, 255, 0.2) 40%,
-      rgba(210, 230, 255, 0.18) 52%,
-      rgba(255, 255, 255, 0.1) 62%,
-      rgba(255, 255, 255, 0) 100%
-    );
-  background-repeat: no-repeat;
-  background-size: 100% 100%, 100% 180%;
-  background-position: 50% 0%, 50% 0%;
-  animation: authGradientShift 18s ease-in-out infinite alternate;
-}
-
-body.auth-mode::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 1;
-  background-image:
-    radial-gradient(1200px 900px at 14% 18%, rgba(77, 134, 255, 0.34), transparent 62%),
-    radial-gradient(1100px 840px at 86% 22%, rgba(46, 90, 172, 0.32), transparent 62%),
-    radial-gradient(1100px 980px at 46% 88%, rgba(180, 205, 255, 0.28), transparent 60%),
-    radial-gradient(1400px 1100px at 70% 62%, rgba(100, 116, 139, 0.22), transparent 68%);
-  background-repeat: no-repeat;
-  background-size: 150% 150%, 150% 150%, 150% 150%, 150% 150%;
-  background-position: 14% 18%, 86% 22%, 46% 88%, 70% 62%;
-  animation: authMeshMove 18s ease-in-out infinite alternate;
-  will-change: background-position, background-size;
-}
-
-body.auth-mode::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.85;
-  background-repeat: no-repeat;
-  background-size: 100% 100%;
-  background-position: 0% 10%;
-  filter: blur(0.35px);
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    transparent 40%,
-    rgba(0, 0, 0, 1) 46%,
-    rgba(0, 0, 0, 1) 68%,
-    transparent 74%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    transparent 40%,
-    rgba(0, 0, 0, 1) 46%,
-    rgba(0, 0, 0, 1) 68%,
-    transparent 74%,
-    transparent 100%
-  );
-  background-image:
-    radial-gradient(6px 6px at 14% 54%, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 70%),
-    radial-gradient(5px 5px at 22% 62%, rgba(210, 230, 255, 0.14), rgba(210, 230, 255, 0) 72%),
-    radial-gradient(7px 7px at 30% 49%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 70%),
-    radial-gradient(4px 4px at 36% 57%, rgba(210, 230, 255, 0.12), rgba(210, 230, 255, 0) 72%),
-    radial-gradient(6px 6px at 42% 64%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 70%),
-    radial-gradient(5px 5px at 48% 52%, rgba(190, 215, 255, 0.12), rgba(190, 215, 255, 0) 72%),
-    radial-gradient(8px 8px at 54% 60%, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0) 70%),
-    radial-gradient(4px 4px at 60% 48%, rgba(210, 230, 255, 0.12), rgba(210, 230, 255, 0) 72%),
-    radial-gradient(6px 6px at 66% 56%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 70%),
-    radial-gradient(5px 5px at 72% 63%, rgba(210, 230, 255, 0.13), rgba(210, 230, 255, 0) 72%),
-    radial-gradient(7px 7px at 78% 50%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 70%),
-    radial-gradient(4px 4px at 84% 58%, rgba(190, 215, 255, 0.12), rgba(190, 215, 255, 0) 72%),
-    radial-gradient(6px 6px at 90% 64%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 70%),
-    radial-gradient(5px 5px at 18% 48%, rgba(190, 215, 255, 0.12), rgba(190, 215, 255, 0) 72%),
-    radial-gradient(7px 7px at 26% 56%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 70%),
-    radial-gradient(4px 4px at 34% 62%, rgba(210, 230, 255, 0.12), rgba(210, 230, 255, 0) 72%),
-    radial-gradient(6px 6px at 40% 50%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 70%),
-    radial-gradient(5px 5px at 46% 58%, rgba(210, 230, 255, 0.12), rgba(210, 230, 255, 0) 72%),
-    radial-gradient(8px 8px at 52% 66%, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0) 70%),
-    radial-gradient(4px 4px at 58% 54%, rgba(190, 215, 255, 0.12), rgba(190, 215, 255, 0) 72%),
-    radial-gradient(6px 6px at 64% 62%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 70%),
-    radial-gradient(5px 5px at 70% 48%, rgba(210, 230, 255, 0.12), rgba(210, 230, 255, 0) 72%),
-    radial-gradient(7px 7px at 76% 56%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 70%),
-    radial-gradient(4px 4px at 82% 66%, rgba(190, 215, 255, 0.12), rgba(190, 215, 255, 0) 72%),
-    radial-gradient(6px 6px at 88% 52%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 70%);
-  animation: authParticleDrift 20s ease-in-out infinite;
-  will-change: background-position, opacity;
+  /* Fallback in case JS doesn't mount the animated auth background. */
+  background: linear-gradient(180deg, #ffffff 0%, #eef5ff 40%, #4d86ff 120%);
 }
 
 body.auth-mode .layout,
 body.auth-mode .topbar {
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 
 body.auth-mode .noise {
   /* Keep texture subtle on auth screen. */
-  opacity: 0.1;
+  opacity: 0.06;
+}
+
+/* Dedicated auth background container (JS mounts/unmounts this). */
+.auth-animated-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+  display: none;
+}
+
+body.auth-mode .auth-animated-bg {
+  display: block;
+}
+
+.auth-gradient-layer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, #4a78ff 0%, #7aa6ff 35%, #dce9ff 65%, #ffffff 100%);
+  background-size: 200% 200%;
+  background-position: 50% 0%;
+  animation: authGradientShift 10s ease-in-out infinite alternate;
+  will-change: background-position;
+}
+
+.auth-gradient-layer::before {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  opacity: 0.9;
+  background-image:
+    radial-gradient(900px 700px at 25% 65%, rgba(255, 255, 255, 0.22), transparent 62%),
+    radial-gradient(1000px 760px at 75% 40%, rgba(80, 120, 255, 0.26), transparent 64%),
+    radial-gradient(1200px 960px at 55% 80%, rgba(160, 180, 255, 0.22), transparent 66%);
+  background-repeat: no-repeat;
+  background-size: 65% 65%, 72% 72%, 78% 78%;
+  background-position: 18% 72%, 82% 42%, 54% 84%;
+  filter: blur(0.6px);
+  animation: authBlobMove 12s ease-in-out infinite alternate;
+  will-change: background-position, transform;
+}
+
+.auth-particles-layer {
+  position: absolute;
+  inset: 0;
   z-index: 1;
+  pointer-events: none;
+}
+
+.particle {
+  position: absolute;
+  left: var(--x);
+  top: 0;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 1);
+  opacity: 0;
+  filter: blur(var(--blur));
+  transform: translate3d(0, var(--startY), 0);
+  animation: authParticleRise var(--dur) linear infinite;
+  animation-delay: var(--delay);
+  box-shadow: 0 0 18px rgba(210, 230, 255, 0.55);
+  will-change: transform, opacity;
 }
 
 @keyframes authGradientShift {
   0% {
-    background-position: 50% 0%, 50% 0%;
-  }
-  50% {
-    background-position: 50% 0%, 50% 18%;
+    background-position: 50% 0%;
   }
   100% {
-    background-position: 50% 0%, 50% 32%;
+    background-position: 52% 24%;
   }
 }
 
-@keyframes authMeshMove {
+@keyframes authBlobMove {
   0% {
-    background-position: 14% 18%, 86% 22%, 46% 88%, 70% 62%;
-    background-size: 150% 150%, 150% 150%, 150% 150%, 150% 150%;
-  }
-  50% {
-    background-position: 22% 28%, 78% 14%, 56% 78%, 64% 70%;
-    background-size: 160% 160%, 145% 145%, 165% 165%, 150% 150%;
+    transform: translate3d(0, 0, 0);
+    background-position: 18% 72%, 82% 42%, 54% 84%;
   }
   100% {
-    background-position: 12% 32%, 90% 34%, 40% 92%, 78% 56%;
-    background-size: 152% 152%, 162% 162%, 150% 150%, 160% 160%;
+    transform: translate3d(0, -4%, 0);
+    background-position: 24% 64%, 76% 48%, 60% 78%;
   }
 }
 
-@keyframes authParticleDrift {
+@keyframes authParticleRise {
   0% {
-    background-position: 0% 12%;
-    opacity: 0.22;
+    transform: translate3d(0, var(--startY), 0) scale(0.95);
+    opacity: 0;
   }
-  20% {
-    opacity: 0.85;
+  12% {
+    opacity: var(--opacity);
   }
   70% {
-    opacity: 0.55;
+    opacity: var(--opacity);
   }
   100% {
-    background-position: 0% -14%;
-    opacity: 0.22;
+    transform: translate3d(var(--driftX), var(--endY), 0) scale(1.06);
+    opacity: 0;
   }
+}
+
+body.auth-bg-debug-flash .particle {
+  outline: 1px solid rgba(0, 0, 0, 0.16);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body.auth-mode {
-    animation: none;
+  .auth-gradient-layer,
+  .auth-gradient-layer::before {
+    animation: none !important;
   }
-  body.auth-mode::before {
-    animation: none;
+  .auth-particles-layer {
+    display: none;
   }
-  body.auth-mode::after {
-    animation: none;
+  .particle {
+    animation: none !important;
   }
 }
 

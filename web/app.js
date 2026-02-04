@@ -1243,9 +1243,136 @@ function refreshDashboardEmptyStateIfNeeded() {
   }
 }
 
+let authBgFlashTimer = null;
+
+function prefersReducedMotion() {
+  if (typeof window === 'undefined' || !window.matchMedia) {
+    return false;
+  }
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function removeAuthAnimatedBg() {
+  const existing = document.querySelector('.auth-animated-bg');
+  if (existing) {
+    existing.remove();
+  }
+  document.body?.classList.remove('auth-bg-debug-flash');
+  if (authBgFlashTimer) {
+    clearTimeout(authBgFlashTimer);
+    authBgFlashTimer = null;
+  }
+}
+
+function populateAuthParticles(layer, { count, debug }) {
+  if (!layer) {
+    return 0;
+  }
+  layer.innerHTML = '';
+
+  const minOpacity = debug ? 0.22 : 0.12;
+  const maxOpacity = debug ? 0.5 : 0.35;
+
+  for (let index = 0; index < count; index += 1) {
+    const particle = document.createElement('span');
+    particle.className = 'particle';
+
+    const left = Math.random() * 100;
+    const size = 2 + Math.random() * 4;
+    const opacity = minOpacity + Math.random() * (maxOpacity - minOpacity);
+    const blur = Math.random() * 2;
+    const driftX = (Math.random() * 40 - 20).toFixed(1);
+    const duration = 6 + Math.random() * 8;
+    const delay = -Math.random() * duration;
+    const startY = 45 + Math.random() * 25;
+    const endY = Math.random() * 20;
+
+    particle.style.setProperty('--x', `${left.toFixed(2)}vw`);
+    particle.style.setProperty('--size', `${size.toFixed(2)}px`);
+    particle.style.setProperty('--opacity', opacity.toFixed(3));
+    particle.style.setProperty('--blur', `${blur.toFixed(2)}px`);
+    particle.style.setProperty('--driftX', `${driftX}px`);
+    particle.style.setProperty('--dur', `${duration.toFixed(2)}s`);
+    particle.style.setProperty('--delay', `${delay.toFixed(2)}s`);
+    particle.style.setProperty('--startY', `${startY.toFixed(2)}vh`);
+    particle.style.setProperty('--endY', `${endY.toFixed(2)}vh`);
+
+    layer.appendChild(particle);
+  }
+
+  return count;
+}
+
+function ensureAuthAnimatedBg() {
+  if (!document?.body) {
+    return;
+  }
+  const existing = document.querySelector('.auth-animated-bg');
+  const debug = Boolean(window?.DEBUG_AUTH_BG);
+  const reducedMotion = prefersReducedMotion();
+  if (existing) {
+    if (debug && existing.dataset.debug !== '1') {
+      existing.dataset.debug = '1';
+      const particlesLayer = existing.querySelector('.auth-particles-layer');
+      if (!reducedMotion && particlesLayer) {
+        populateAuthParticles(particlesLayer, { count: 70, debug: true });
+      }
+      // eslint-disable-next-line no-console
+      console.debug('[auth-bg] debug enabled');
+      document.body.classList.add('auth-bg-debug-flash');
+      if (authBgFlashTimer) {
+        clearTimeout(authBgFlashTimer);
+      }
+      authBgFlashTimer = setTimeout(() => {
+        document.body?.classList.remove('auth-bg-debug-flash');
+        authBgFlashTimer = null;
+      }, 5000);
+    }
+    return;
+  }
+
+  const container = document.createElement('div');
+  container.className = 'auth-animated-bg';
+  container.setAttribute('aria-hidden', 'true');
+
+  const gradientLayer = document.createElement('div');
+  gradientLayer.className = 'auth-gradient-layer';
+
+  const particlesLayer = document.createElement('div');
+  particlesLayer.className = 'auth-particles-layer';
+
+  container.appendChild(gradientLayer);
+  container.appendChild(particlesLayer);
+
+  document.body.insertBefore(container, document.body.firstChild);
+
+  const particleCount = reducedMotion
+    ? 0
+    : populateAuthParticles(particlesLayer, { count: debug ? 70 : 56, debug });
+  container.dataset.debug = debug ? '1' : '0';
+
+  if (debug) {
+    // eslint-disable-next-line no-console
+    console.debug('[auth-bg] mounted', { particles: particleCount, reducedMotion });
+    document.body.classList.add('auth-bg-debug-flash');
+    if (authBgFlashTimer) {
+      clearTimeout(authBgFlashTimer);
+    }
+    authBgFlashTimer = setTimeout(() => {
+      document.body?.classList.remove('auth-bg-debug-flash');
+      authBgFlashTimer = null;
+    }, 5000);
+  }
+}
+
 function setView(view) {
   if (document?.body) {
     document.body.classList.toggle('auth-mode', view === 'auth');
+    if (view === 'auth') {
+      ensureAuthAnimatedBg();
+    } else {
+      removeAuthAnimatedBg();
+    }
   }
   toggleSection(authView, view === 'auth');
   toggleSection(dashboardView, view === 'dashboard');
@@ -1283,6 +1410,9 @@ function setAuthPanel(panel) {
   });
   if (panel === 'signup' || panel === 'signin') {
     authMode = panel;
+  }
+  if (document?.body?.classList.contains('auth-mode')) {
+    ensureAuthAnimatedBg();
   }
 }
 
