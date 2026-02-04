@@ -71,6 +71,8 @@ body.modal-open {
 body.auth-mode {
   /* Keep layering predictable for pseudo-elements. */
   isolation: isolate;
+  /* Strong base gradient for auth screen only: white (top) -> blue (bottom). */
+  background: linear-gradient(180deg, #ffffff 0%, #eef5ff 40%, #4d86ff 120%);
 }
 
 body.auth-mode::before {
@@ -79,17 +81,17 @@ body.auth-mode::before {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.9;
+  opacity: 1;
   background-image:
-    radial-gradient(1200px 900px at 18% 18%, rgba(46, 90, 172, 0.16), transparent 62%),
-    radial-gradient(1000px 760px at 82% 26%, rgba(31, 58, 95, 0.12), transparent 64%),
-    radial-gradient(980px 820px at 42% 88%, rgba(100, 116, 139, 0.14), transparent 62%),
-    linear-gradient(180deg, #eef4ff 0%, #f8fafc 55%, #eef4ff 100%);
+    radial-gradient(1200px 900px at 14% 18%, rgba(77, 134, 255, 0.34), transparent 62%),
+    radial-gradient(1100px 840px at 86% 22%, rgba(46, 90, 172, 0.32), transparent 62%),
+    radial-gradient(1100px 980px at 46% 88%, rgba(180, 205, 255, 0.28), transparent 60%),
+    radial-gradient(1400px 1100px at 70% 62%, rgba(100, 116, 139, 0.22), transparent 68%);
   background-repeat: no-repeat;
-  background-size: 140% 140%, 140% 140%, 140% 140%, 100% 100%;
-  background-position: 18% 18%, 82% 26%, 42% 88%, 0% 0%;
-  animation: authMeshMove 34s ease-in-out infinite alternate;
-  will-change: background-position;
+  background-size: 150% 150%, 150% 150%, 150% 150%, 150% 150%;
+  background-position: 14% 18%, 86% 22%, 46% 88%, 70% 62%;
+  animation: authMeshMove 18s ease-in-out infinite alternate;
+  will-change: background-position, background-size;
 }
 
 body.auth-mode .layout,
@@ -100,19 +102,22 @@ body.auth-mode .topbar {
 
 body.auth-mode .noise {
   /* Keep texture subtle on auth screen. */
-  opacity: 0.28;
+  opacity: 0.16;
   z-index: 1;
 }
 
 @keyframes authMeshMove {
   0% {
-    background-position: 18% 18%, 82% 26%, 42% 88%, 0% 0%;
+    background-position: 14% 18%, 86% 22%, 46% 88%, 70% 62%;
+    background-size: 150% 150%, 150% 150%, 150% 150%, 150% 150%;
   }
   50% {
-    background-position: 22% 24%, 76% 18%, 54% 82%, 0% 0%;
+    background-position: 22% 28%, 78% 14%, 56% 78%, 64% 70%;
+    background-size: 160% 160%, 145% 145%, 165% 165%, 150% 150%;
   }
   100% {
-    background-position: 16% 28%, 84% 34%, 38% 90%, 0% 0%;
+    background-position: 12% 32%, 90% 34%, 40% 92%, 78% 56%;
+    background-size: 152% 152%, 162% 162%, 150% 150%, 160% 160%;
   }
 }
 
