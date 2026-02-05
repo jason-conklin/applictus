@@ -893,56 +893,85 @@
 		      </section>
 
 		      <section class="view" id="about-view" hidden>
-		        <div class="page-header">
-		          <button class="ghost" type="button" data-action="legal-back">Back</button>
-		          <h2>About Applictus</h2>
-		          <div class="muted small">Last updated: Feb 2026</div>
-		        </div>
-		        <div class="card about">
-		          <div class="about-hero">
-		            <h3>About Applictus</h3>
-		            <p class="muted">
-		              Applictus helps you track job applications by connecting your Gmail and automatically organizing key
-		              updates into a clean dashboard.
+		        <div class="page-header about-header">
+		          <button class="ghost btn-compact" type="button" data-action="legal-back">Back</button>
+		          <div>
+		            <h2>About Applictus</h2>
+		            <div class="muted small">Last updated: Feb 2026</div>
+		            <p class="about-subtitle">
+		              Applictus helps you stay on top of job applications by connecting Gmail and organizing key updates
+		              into a clean dashboard.
 		            </p>
 		          </div>
+		        </div>
+		        <div class="card about">
+		          <section class="about-section">
+		            <h3>What Applictus does</h3>
+		            <ul class="about-list">
+		              <li>Detects job-related emails and groups updates by company + role.</li>
+		              <li>Tracks application statuses and surfaces changes with confidence.</li>
+		              <li>Gives you a single, searchable dashboard for your entire pipeline.</li>
+		            </ul>
+		          </section>
 
-		          <h3>Why we built it</h3>
-		          <p>
-		            Job searches are scattered across inboxes, spreadsheets, and notes. We wanted a single place that keeps
-		            statuses current, searchable, and easy to act on without manually updating every thread.
-		          </p>
+		          <section class="about-section">
+		            <h3>Why we built it</h3>
+		            <p>
+		              Job searches are fragmented across inboxes, spreadsheets, and notes. We wanted a focused tool that
+		              keeps statuses current, searchable, and easy to act on without manually managing every thread.
+		            </p>
+		          </section>
 
-		          <h3>Who we are</h3>
-		          <div class="about-team">
-		            <div class="about-profile">
-		              <div class="about-photo">
-		                <img class="about-headshot" src="/public/jason.png" alt="Jason Conklin" loading="lazy" />
+		          <section class="about-section">
+		            <h3>Who we are</h3>
+		            <div class="about-team">
+		              <div class="profile-card">
+		                <div class="profile-avatar">
+		                  <img
+		                    class="profile-headshot"
+		                    src="/public/jason.png"
+		                    alt="Jason Conklin"
+		                    loading="lazy"
+		                    onload="this.parentElement.classList.add('has-image')"
+		                    onerror="this.parentElement.classList.add('missing-image')"
+		                  />
+		                  <div class="profile-avatar-fallback" aria-hidden="true">JC</div>
+		                </div>
+		                <div class="profile-meta">
+		                  <div class="profile-name">Jason Conklin</div>
+		                  <div class="muted small">B.S. Computer Science, NJIT</div>
+		                  <span class="profile-badge">Engineering + Product</span>
+		                </div>
 		              </div>
-		              <div>
-		                <div class="about-name">Jason Conklin</div>
-		                <div class="muted small">Bachelor of Science in Computer Science, NJIT</div>
-		                <div class="muted small">Engineering + product</div>
+		              <div class="profile-card">
+		                <div class="profile-avatar">
+		                  <img
+		                    class="profile-headshot"
+		                    src="/public/shane.png"
+		                    alt="Shane Conklin"
+		                    loading="lazy"
+		                    onload="this.parentElement.classList.add('has-image')"
+		                    onerror="this.parentElement.classList.add('missing-image')"
+		                  />
+		                  <div class="profile-avatar-fallback" aria-hidden="true">SC</div>
+		                </div>
+		                <div class="profile-meta">
+		                  <div class="profile-name">Shane Conklin</div>
+		                  <div class="muted small">Business, Kean University</div>
+		                  <span class="profile-badge">Product + Operations</span>
+		                </div>
 		              </div>
 		            </div>
-		            <div class="about-profile">
-		              <div class="about-photo">
-		                <img class="about-headshot" src="/public/shane.png" alt="Shane Conklin" loading="lazy" />
-		              </div>
-		              <div>
-		                <div class="about-name">Shane Conklin</div>
-		                <div class="muted small">Bachelor degree in Business, Kean University</div>
-		                <div class="muted small">Product + operations</div>
-		              </div>
-		            </div>
-		          </div>
+		          </section>
 
-		          <h3>Privacy-first by design</h3>
-		          <ul class="about-list">
-		            <li>We focus on email metadata needed for tracking job updates.</li>
-		            <li>You control Gmail sync windows and can disconnect anytime.</li>
-		            <li>Your account data stays tied to your authenticated session.</li>
-		          </ul>
+		          <section class="about-section">
+		            <h3>Privacy-first by design</h3>
+		            <ul class="about-list">
+		              <li>We focus on the email metadata needed to track job updates.</li>
+		              <li>You control Gmail sync windows and can disconnect anytime.</li>
+		              <li>Access stays tied to your authenticated session.</li>
+		            </ul>
+		          </section>
 		        </div>
 		      </section>
 		    </main>
