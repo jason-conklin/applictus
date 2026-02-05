@@ -74,6 +74,7 @@ const resumeCuratorView = document.getElementById('resume-curator-view');
 const privacyView = document.getElementById('privacy-view');
 const termsView = document.getElementById('terms-view');
 const contactView = document.getElementById('contact-view');
+const aboutView = document.getElementById('about-view');
 const nav = document.getElementById('nav');
 const topbar = document.getElementById('topbar');
 const accountAvatar = document.getElementById('account-avatar');
@@ -1261,7 +1262,8 @@ function setPageMeta(view) {
     'resume-curator': `${APP_TITLE} – Resume Curator`,
     privacy: `${APP_TITLE} – Privacy Policy`,
     terms: `${APP_TITLE} – Terms of Service`,
-    contact: `${APP_TITLE} – Contact`
+    contact: `${APP_TITLE} – Contact`,
+    about: `${APP_TITLE} – About Applictus`
   };
 
   const descriptions = {
@@ -1273,7 +1275,8 @@ function setPageMeta(view) {
     unsorted: 'Review unsorted email events and signals.',
     privacy: 'Read the Applictus Privacy Policy.',
     terms: 'Read the Applictus Terms of Service.',
-    contact: 'Contact the Applictus team.'
+    contact: 'Contact the Applictus team.',
+    about: 'Learn more about Applictus.'
   };
 
   document.title = titles[view] || APP_TITLE;
@@ -1290,6 +1293,7 @@ function routeFromPathname(pathname = '') {
   if (path === '/privacy') return 'privacy';
   if (path === '/terms') return 'terms';
   if (path === '/contact') return 'contact';
+  if (path === '/about') return 'about';
   return '';
 }
 
@@ -1719,6 +1723,7 @@ function setView(view) {
   toggleSection(privacyView, view === 'privacy');
   toggleSection(termsView, view === 'terms');
   toggleSection(contactView, view === 'contact');
+  toggleSection(aboutView, view === 'about');
   const isAuthed = Boolean(sessionUser);
   if (topbar) {
     topbar.classList.toggle('hidden', !isAuthed);
@@ -3751,7 +3756,8 @@ function initResumeCurator() {
 
 function route() {
   const routeKey = getCurrentRouteKey();
-  const isPublicRoute = routeKey === 'privacy' || routeKey === 'terms' || routeKey === 'contact';
+  const isPublicRoute =
+    routeKey === 'privacy' || routeKey === 'terms' || routeKey === 'contact' || routeKey === 'about';
 
   if (!sessionUser) {
     setDrawerOpen(false);
@@ -3778,6 +3784,8 @@ function route() {
     setView('terms');
   } else if (routeKey === 'contact') {
     setView('contact');
+  } else if (routeKey === 'about') {
+    setView('about');
   } else if (routeKey === 'archive') {
     setView('archive');
     state.archived.offset = 0;
