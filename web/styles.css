@@ -2527,6 +2527,28 @@ details summary {
   gap: 16px;
 }
 
+.account-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.account-panel-header h3 {
+  margin: 0;
+}
+
+.account-panel-body {
+  display: grid;
+  gap: 14px;
+}
+
+.account-section + .account-section {
+  border-top: 1px solid var(--color-border);
+  padding-top: 14px;
+}
+
 .account-row {
   display: flex;
   justify-content: space-between;
@@ -2534,14 +2556,65 @@ details summary {
   gap: 16px;
 }
 
+.account-email-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.account-copy {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
 .account-email {
   font-weight: 600;
   font-size: 16px;
 }
 
-.account-auth {
-  font-weight: 500;
-  margin-bottom: 4px;
+.account-methods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.method-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--color-panel-bg);
+  color: var(--color-muted);
+}
+
+.method-chip .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.6;
+}
+
+.method-chip[data-state='on'] {
+  background: var(--color-accent-tint);
+  border-color: rgba(46, 90, 172, 0.28);
+  color: var(--color-accent);
+}
+
+.method-chip[data-state='off'] {
+  background: rgba(100, 116, 139, 0.06);
+  border-color: rgba(100, 116, 139, 0.18);
+  color: var(--color-muted);
+}
+
+.account-password-success {
+  color: var(--color-success);
 }
 
 .form-grid.inline {

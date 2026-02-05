@@ -530,7 +530,8 @@ app.get('/api/auth/session', (req, res) => {
       id: req.user.id,
       email: req.user.email,
       name: req.user.name,
-      auth_provider: req.user.auth_provider || 'password'
+      auth_provider: req.user.auth_provider || 'password',
+      has_password: Boolean(req.user.password_hash)
     }
   });
 });
@@ -761,6 +762,55 @@ app.post('/api/auth/logout', requireAuth, async (req, res) => {
     clearSessionCookie(res);
   }
   return res.json({ ok: true });
+});
+
+app.post('/api/account/password', requireAuth, async (req, res) => {
+  try {
+    const currentPassword = req.body?.currentPassword ? String(req.body.currentPassword) : '';
+    const newPassword = req.body?.newPassword ? String(req.body.newPassword) : '';
+    const hasPassword = Boolean(req.user?.password_hash);
+
+    if (!newPassword || !isPasswordValid(newPassword)) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', minLength: PASSWORD_MIN_LENGTH });
+    }
+
+    if (hasPassword) {
+      if (!currentPassword) {
+        return res.status(400).json({ error: 'VALIDATION_ERROR' });
+      }
+      if (!verifyPassword(currentPassword, req.user.password_hash)) {
+        return res.status(401).json({ error: 'INVALID_CURRENT_PASSWORD' });
+      }
+    }
+
+    await updateUser(req.user.id, {
+      password_hash: hashPassword(newPassword),
+      auth_provider: mergeAuthProvider(req.user.auth_provider, 'password')
+    });
+
+    // Recommended: revoke other sessions for this user (keep current session token).
+    const keepToken = req.session?.id || null;
+    const revokeRes = keepToken
+      ? db.prepare('DELETE FROM sessions WHERE user_id = ? AND id <> ?').run(req.user.id, keepToken)
+      : db.prepare('DELETE FROM sessions WHERE user_id = ?').run(req.user.id);
+    if (revokeRes && typeof revokeRes.then === 'function') {
+      await revokeRes;
+    }
+
+    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+      // eslint-disable-next-line no-console
+      console.debug('[account] password updated', { userId: req.user.id, hadPassword: hasPassword });
+    }
+
+    return res.json({ ok: true });
+  } catch (err) {
+    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+      logError('password update failed', {
+        error: err && err.message ? err.message : String(err)
+      });
+    }
+    return res.status(500).json({ error: 'SERVER_ERROR' });
+  }
 });
 
 app.post('/api/contact', contactIpLimiter, async (req, res) => {

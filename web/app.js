@@ -64,7 +64,10 @@ const googleAuth = document.getElementById('google-auth');
 const logoutBtn = document.getElementById('logout-btn');
 const accountLogout = document.getElementById('account-logout');
 const accountEmail = document.getElementById('account-email');
-const accountAuth = document.getElementById('account-auth');
+const accountEmailCopy = document.getElementById('account-email-copy');
+const accountMethods = document.getElementById('account-methods');
+const accountPasswordButton = document.getElementById('account-password-button');
+const accountPasswordHint = document.getElementById('account-password-hint');
 const accountGmailStatus = document.getElementById('account-gmail-status');
 const accountGmailEmail = document.getElementById('account-gmail-email');
 const contactForm = document.getElementById('contact-form');
@@ -731,6 +734,86 @@ function createTextField({ label, name, value = '', placeholder = '', required =
     input.required = true;
   }
   wrapper.appendChild(input);
+  return { wrapper, input };
+}
+
+const PASSWORD_EYE_SVG = `
+  <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+    <path
+      d="M1.5 12s4-7.5 10.5-7.5S22.5 12 22.5 12s-4 7.5-10.5 7.5S1.5 12 1.5 12Z"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linejoin="round"
+    />
+    <circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+  </svg>
+`;
+
+const PASSWORD_EYE_OFF_SVG = `
+  <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+    <path
+      d="M2.5 12s3.8-7.5 9.5-7.5S21.5 12 21.5 12s-3.8 7.5-9.5 7.5S2.5 12 2.5 12Z"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M9.5 9.5A3.5 3.5 0 0 1 14.5 14.5"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+    />
+    <path
+      d="M4 4l16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+    />
+  </svg>
+`;
+
+function createPasswordField({
+  label,
+  id,
+  name,
+  placeholder = '',
+  required = true,
+  autocomplete = 'current-password'
+}) {
+  const wrapper = document.createElement('label');
+  wrapper.textContent = label;
+  const container = document.createElement('div');
+  container.className = 'input-with-toggle';
+  const input = document.createElement('input');
+  input.type = 'password';
+  input.id = id;
+  input.name = name;
+  input.placeholder = placeholder;
+  input.autocomplete = autocomplete;
+  if (required) {
+    input.required = true;
+  }
+  container.appendChild(input);
+
+  const toggle = document.createElement('button');
+  toggle.className = 'password-toggle';
+  toggle.type = 'button';
+  toggle.setAttribute('aria-label', 'Show password');
+  toggle.setAttribute('aria-pressed', 'false');
+  toggle.setAttribute('aria-controls', id);
+  toggle.dataset.passwordToggle = id;
+  toggle.dataset.passwordVisible = '0';
+  toggle.innerHTML = `
+    <span class="password-icon icon-eye" aria-hidden="true">${PASSWORD_EYE_SVG}</span>
+    <span class="password-icon icon-eye-off" aria-hidden="true">${PASSWORD_EYE_OFF_SVG}</span>
+  `;
+  container.appendChild(toggle);
+
+  wrapper.appendChild(container);
   return { wrapper, input };
 }
 
@@ -1609,6 +1692,192 @@ function setAuthPanel(panel) {
   }
 }
 
+function renderAccountPanel(user = sessionUser) {
+  if (!user) {
+    return;
+  }
+  if (accountEmail) {
+    accountEmail.textContent = user.email || '—';
+  }
+  if (accountEmailCopy) {
+    accountEmailCopy.disabled = !user.email;
+  }
+  if (accountMethods) {
+    const provider = user.auth_provider || 'password';
+    const hasGoogle = String(provider).includes('google');
+    const hasPassword = Boolean(user.has_password);
+    const chips = [
+      { label: 'Password', enabled: hasPassword },
+      { label: 'Google', enabled: hasGoogle }
+    ];
+    accountMethods.innerHTML = chips
+      .map(
+        (chip) =>
+          `<span class="method-chip" data-state="${chip.enabled ? 'on' : 'off'}"><span class="dot"></span>${
+            chip.label
+          }</span>`
+      )
+      .join('');
+  }
+  if (accountPasswordButton) {
+    accountPasswordButton.textContent = user.has_password ? 'Change password' : 'Set password';
+  }
+  if (accountPasswordHint) {
+    accountPasswordHint.classList.remove('account-password-success');
+    accountPasswordHint.textContent = user.has_password
+      ? 'Update your password to keep your account secure.'
+      : 'Set a password to sign in without Google.';
+  }
+}
+
+let accountPasswordHintTimer = null;
+function flashAccountPasswordHint(message, { success = false } = {}) {
+  if (!accountPasswordHint) {
+    return;
+  }
+  if (accountPasswordHintTimer) {
+    clearTimeout(accountPasswordHintTimer);
+    accountPasswordHintTimer = null;
+  }
+  accountPasswordHint.classList.toggle('account-password-success', !!success);
+  accountPasswordHint.textContent = message || '';
+  accountPasswordHintTimer = setTimeout(() => {
+    accountPasswordHint.classList.remove('account-password-success');
+    renderAccountPanel();
+    accountPasswordHintTimer = null;
+  }, 5000);
+}
+
+function accountPasswordErrorMessage(code) {
+  if (code === 'INVALID_CURRENT_PASSWORD') {
+    return 'Current password is incorrect.';
+  }
+  if (code === 'VALIDATION_ERROR') {
+    return 'Password must be at least 12 characters.';
+  }
+  return 'Unable to update password. Please try again.';
+}
+
+function openAccountPasswordModal() {
+  if (!sessionUser) {
+    return;
+  }
+  const hasPassword = Boolean(sessionUser.has_password);
+  const form = document.createElement('form');
+  form.className = 'modal-form form-grid';
+  form.id = 'account-password-form';
+
+  const fields = [];
+  let currentField = null;
+  if (hasPassword) {
+    currentField = createPasswordField({
+      label: 'Current password',
+      id: 'account-current-password',
+      name: 'currentPassword',
+      placeholder: 'Enter current password',
+      required: true,
+      autocomplete: 'current-password'
+    });
+    fields.push(currentField);
+  }
+  const newField = createPasswordField({
+    label: 'New password',
+    id: 'account-new-password',
+    name: 'newPassword',
+    placeholder: 'Minimum 12 characters',
+    required: true,
+    autocomplete: 'new-password'
+  });
+  const confirmField = createPasswordField({
+    label: 'Confirm new password',
+    id: 'account-confirm-password',
+    name: 'confirmPassword',
+    placeholder: 'Re-enter new password',
+    required: true,
+    autocomplete: 'new-password'
+  });
+  fields.push(newField, confirmField);
+
+  const errorEl = document.createElement('div');
+  errorEl.className = 'form-error hidden';
+  fields.forEach((field) => form.appendChild(field.wrapper));
+  form.appendChild(errorEl);
+
+  const footer = buildModalFooter({
+    confirmText: hasPassword ? 'Change password' : 'Set password',
+    cancelText: 'Cancel',
+    formId: form.id
+  });
+
+  openModal({
+    title: hasPassword ? 'Change password' : 'Set password',
+    description: hasPassword
+      ? 'Enter your current password and choose a new one.'
+      : 'Set a password so you can sign in with email and password.',
+    body: form,
+    footer,
+    allowBackdropClose: true,
+    initialFocus: hasPassword ? currentField.input : newField.input
+  });
+
+  bindPasswordVisibilityToggles(modalRoot || document);
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const currentPassword = currentField ? currentField.input.value : '';
+    const newPassword = newField.input.value;
+    const confirmPassword = confirmField.input.value;
+
+    if (hasPassword && !currentPassword) {
+      setFormError(errorEl, 'Enter your current password.');
+      return;
+    }
+    if (!newPassword || newPassword.length < 12) {
+      setFormError(errorEl, 'New password must be at least 12 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setFormError(errorEl, 'Passwords do not match.');
+      return;
+    }
+    setFormError(errorEl, '');
+
+    const inputs = fields.map((f) => f.input);
+    inputs.forEach((input) => {
+      input.disabled = true;
+    });
+    disableModalFooter(footer, true);
+
+    try {
+      const payload = hasPassword ? { currentPassword, newPassword } : { newPassword };
+      await api('/api/account/password', { method: 'POST', body: JSON.stringify(payload) });
+
+      const data = await api('/api/auth/session').catch(() => null);
+      if (data && data.user) {
+        sessionUser = data.user;
+        renderAccountPanel(sessionUser);
+        if (avatarInitials) {
+          avatarInitials.textContent = getAvatarInitials(sessionUser.email);
+        }
+      }
+      closeModal('success');
+      flashAccountPasswordHint('Password updated.', { success: true });
+    } catch (err) {
+      const code = err?.message || err?.code;
+      setFormError(errorEl, accountPasswordErrorMessage(code));
+      disableModalFooter(footer, false);
+      inputs.forEach((input) => {
+        input.disabled = false;
+      });
+      if (hasPassword) {
+        currentField?.input.focus();
+      } else {
+        newField.input.focus();
+      }
+    }
+  });
+}
+
 async function loadSession() {
   let data;
   try {
@@ -1624,12 +1893,7 @@ async function loadSession() {
   }
 
   sessionUser = data.user;
-  if (accountEmail) {
-    accountEmail.textContent = sessionUser.email || '—';
-  }
-  if (accountAuth) {
-    accountAuth.textContent = formatAuthProvider(sessionUser.auth_provider);
-  }
+  renderAccountPanel(sessionUser);
   if (avatarInitials) {
     avatarInitials.textContent = getAvatarInitials(sessionUser.email);
   }
@@ -3429,6 +3693,7 @@ function route() {
   updateFilterSummary();
   if (routeKey === 'gmail') {
     setView('account');
+    renderAccountPanel();
     void refreshEmailStatus();
   } else if (routeKey === 'privacy') {
     setView('privacy');
@@ -3451,6 +3716,7 @@ function route() {
     void refreshUnsortedEvents();
   } else if (routeKey === 'account') {
     setView('account');
+    renderAccountPanel();
     void refreshEmailStatus();
   } else if (routeKey === 'resume-curator') {
     setView('resume-curator');
@@ -3753,6 +4019,46 @@ if (contactForm && !contactForm.dataset.bound) {
       contactForm.__submitting = false;
       if (submitBtn) submitBtn.disabled = false;
     }
+  });
+}
+
+if (accountEmailCopy && !accountEmailCopy.dataset.bound) {
+  accountEmailCopy.dataset.bound = '1';
+  accountEmailCopy.addEventListener('click', async () => {
+    const email = sessionUser?.email || (accountEmail ? accountEmail.textContent : '');
+    if (!email || email === '—') {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(email);
+    } catch (err) {
+      const temp = document.createElement('textarea');
+      temp.value = email;
+      temp.style.position = 'fixed';
+      temp.style.top = '-1000px';
+      document.body.appendChild(temp);
+      temp.focus();
+      temp.select();
+      try {
+        document.execCommand('copy');
+      } catch (copyErr) {
+        // Ignore clipboard failures.
+      }
+      temp.remove();
+    }
+    accountEmailCopy.textContent = 'Copied';
+    window.setTimeout(() => {
+      if (accountEmailCopy) {
+        accountEmailCopy.textContent = 'Copy';
+      }
+    }, 1200);
+  });
+}
+
+if (accountPasswordButton && !accountPasswordButton.dataset.bound) {
+  accountPasswordButton.dataset.bound = '1';
+  accountPasswordButton.addEventListener('click', () => {
+    openAccountPasswordModal();
   });
 }
 

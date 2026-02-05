@@ -9,7 +9,7 @@
     />
     <title>Applictus</title>
     <link rel="icon" href="/public/Applictus_logo.png" type="image/png" />
-    <link rel="stylesheet" href="/styles.css?v=20" />
+    <link rel="stylesheet" href="/styles.css?v=21" />
   </head>
   <body>
     <div class="noise"></div>
@@ -285,23 +285,41 @@
           <h2>Account</h2>
           <p class="muted">Manage your workspace and connected services.</p>
         </div>
-        <div class="account-grid">
-          <div class="card">
-            <h3>Signed in</h3>
-            <div class="account-row">
-              <div>
-                <div class="muted small">Email</div>
-                <div class="account-email" id="account-email">—</div>
-                <div class="muted small">Auth methods</div>
-                <div class="account-auth" id="account-auth">—</div>
-              </div>
-              <button class="ghost" id="account-logout" type="button">Log out</button>
-            </div>
-          </div>
-          <div class="card">
-            <h3>Gmail connection</h3>
-            <div class="stack">
-              <div class="gmail-panel">
+	        <div class="account-grid">
+	          <div class="card account-panel">
+	            <div class="account-panel-header">
+	              <h3>Account information</h3>
+	              <button class="ghost" id="account-logout" type="button">Log out</button>
+	            </div>
+	            <div class="account-panel-body">
+	              <div class="account-section">
+	                <div class="muted small">Email</div>
+	                <div class="account-email-row">
+	                  <div class="account-email" id="account-email">—</div>
+	                  <button
+	                    class="ghost account-copy"
+	                    id="account-email-copy"
+	                    type="button"
+	                    aria-label="Copy email"
+	                  >
+	                    Copy
+	                  </button>
+	                </div>
+	              </div>
+	              <div class="account-section">
+	                <div class="muted small">Sign-in methods</div>
+	                <div class="account-methods" id="account-methods">—</div>
+	              </div>
+	              <div class="account-section">
+	                <button type="button" id="account-password-button">Change password</button>
+	                <div class="muted small" id="account-password-hint"></div>
+	              </div>
+	            </div>
+	          </div>
+	          <div class="card">
+	            <h3>Gmail connection</h3>
+	            <div class="stack">
+	              <div class="gmail-panel">
                 <button type="button" id="email-connect">Connect Gmail</button>
                 <div class="pill" id="account-gmail-status">Not connected</div>
               </div>
@@ -959,6 +977,6 @@
       </div>
     </div>
 
-    <script type="module" src="/app.js?v=17"></script>
+    <script type="module" src="/app.js?v=18"></script>
   </body>
 </html>
