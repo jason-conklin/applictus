@@ -1350,48 +1350,127 @@ function removeAuthAnimatedBg() {
   }
 }
 
-function populateAuthParticles(layer, { count, debug }) {
+const AUTH_ICON_DEFS = [
+  {
+    type: 'mail',
+    weight: 0.38,
+    color: 'rgb(52, 120, 255)',
+    glow: 'rgba(52, 120, 255, 0.25)',
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">
+  <rect x="4" y="7" width="16" height="10" rx="2"></rect>
+  <path d="M4.5 8.5L12 13.8L19.5 8.5"></path>
+</svg>`
+  },
+  {
+    type: 'check',
+    weight: 0.24,
+    color: 'rgb(34, 197, 94)',
+    glow: 'rgba(34, 197, 94, 0.22)',
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">
+  <circle cx="12" cy="12" r="8"></circle>
+  <path d="M8.5 12.3l2.2 2.2 4.9-5"></path>
+</svg>`
+  },
+  {
+    type: 'clock',
+    weight: 0.22,
+    color: 'rgb(245, 158, 11)',
+    glow: 'rgba(245, 158, 11, 0.22)',
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">
+  <circle cx="12" cy="12" r="8"></circle>
+  <path d="M12 7.8v4.6l2.9 1.7"></path>
+</svg>`
+  },
+  {
+    type: 'x',
+    weight: 0.16,
+    color: 'rgb(239, 68, 68)',
+    glow: 'rgba(239, 68, 68, 0.22)',
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">
+  <circle cx="12" cy="12" r="8"></circle>
+  <path d="M9.4 9.4l5.2 5.2"></path>
+  <path d="M14.6 9.4l-5.2 5.2"></path>
+</svg>`
+  }
+];
+
+function pickAuthIconDef() {
+  const roll = Math.random();
+  let cumulative = 0;
+  for (const def of AUTH_ICON_DEFS) {
+    cumulative += def.weight;
+    if (roll <= cumulative) {
+      return def;
+    }
+  }
+  return AUTH_ICON_DEFS[0];
+}
+
+function populateAuthIcons(layer, { count, debug }) {
   if (!layer) {
     return 0;
   }
   layer.innerHTML = '';
 
-  const minOpacity = debug ? 0.45 : 0.35;
-  const maxOpacity = debug ? 0.95 : 0.85;
+  const opacityBump = debug ? 0.08 : 0;
 
   for (let index = 0; index < count; index += 1) {
-    const particle = document.createElement('span');
-    particle.className = 'auth-particle';
+    const icon = document.createElement('span');
+    icon.className = 'auth-icon';
+    icon.setAttribute('aria-hidden', 'true');
 
+    const def = pickAuthIconDef();
     const left = Math.random() * 100;
-    const hero = Math.random() < (debug ? 0.1 : 0.06);
-    const size = hero ? 10 + Math.random() * 4 : 2 + Math.random() * 6;
-    const opacity = minOpacity + Math.random() * (maxOpacity - minOpacity);
-    const blur = hero ? Math.random() * 0.9 : Math.random() * 1.2;
-    const driftX = (Math.random() * 80 - 40).toFixed(1);
-    const duration = (debug ? 8 : 9) + Math.random() * (debug ? 8 : 9);
-    const delay = -Math.random() * duration;
-    const startY = 55 + Math.random() * 15;
-    const endY = -30 + Math.random() * 20;
-    const twinkleDur = 3 + Math.random() * 3;
-    const twinkleDelay = -Math.random() * twinkleDur;
 
-    particle.style.setProperty('--x', `${left.toFixed(2)}vw`);
-    particle.style.setProperty('--size', `${size.toFixed(2)}px`);
-    particle.style.setProperty('--opacity', opacity.toFixed(3));
-    particle.style.setProperty('--blur', `${blur.toFixed(2)}px`);
-    particle.style.setProperty('--driftX', `${driftX}px`);
-    particle.style.setProperty('--dur', `${duration.toFixed(2)}s`);
-    particle.style.setProperty('--delay', `${delay.toFixed(2)}s`);
-    particle.style.setProperty('--startY', `${startY.toFixed(2)}vh`);
-    particle.style.setProperty('--endY', `${endY.toFixed(2)}vh`);
-    particle.style.setProperty('--twinkleDur', `${twinkleDur.toFixed(2)}s`);
-    particle.style.setProperty('--twinkleDelay', `${twinkleDelay.toFixed(2)}s`);
-    if (hero) {
-      particle.dataset.hero = '1';
+    const sizeRoll = Math.random();
+    let sizeBase = 14;
+    let durationMin = 18;
+    let durationMax = 22;
+    let opacityMin = 0.22;
+    let opacityMax = 0.32;
+    if (sizeRoll > 0.55 && sizeRoll <= 0.87) {
+      sizeBase = 18;
+      durationMin = 14;
+      durationMax = 20;
+      opacityMin = 0.24;
+      opacityMax = 0.36;
+    } else if (sizeRoll > 0.87) {
+      sizeBase = 26;
+      durationMin = 10;
+      durationMax = 16;
+      opacityMin = 0.28;
+      opacityMax = 0.4;
     }
 
-    layer.appendChild(particle);
+    const size = sizeBase + (Math.random() * 2 - 1);
+    const opacityMinClamped = Math.min(opacityMin + opacityBump, 0.75);
+    const opacityMaxClamped = Math.min(opacityMax + opacityBump, 0.75);
+    const opacity = opacityMinClamped + Math.random() * (opacityMaxClamped - opacityMinClamped);
+    const driftX = (Math.random() * 120 - 60).toFixed(1);
+    const duration = durationMin + Math.random() * (durationMax - durationMin);
+    const delay = -Math.random() * duration;
+    const startY = 54 + Math.random() * 18;
+    const endY = -(20 + Math.random() * 25);
+    const rot0 = (Math.random() * 16 - 8);
+    const rotDelta = Math.random() * 20 - 10;
+    const rot1 = Math.max(-15, Math.min(15, rot0 + rotDelta));
+
+    icon.style.setProperty('--x', `${left.toFixed(2)}vw`);
+    icon.style.setProperty('--size', `${size.toFixed(2)}px`);
+    icon.style.setProperty('--opacity', opacity.toFixed(3));
+    icon.style.setProperty('--driftX', `${driftX}px`);
+    icon.style.setProperty('--dur', `${duration.toFixed(2)}s`);
+    icon.style.setProperty('--delay', `${delay.toFixed(2)}s`);
+    icon.style.setProperty('--startY', `${startY.toFixed(2)}vh`);
+    icon.style.setProperty('--endY', `${endY.toFixed(2)}vh`);
+    icon.style.setProperty('--rot0', `${rot0.toFixed(1)}deg`);
+    icon.style.setProperty('--rot1', `${rot1.toFixed(1)}deg`);
+    icon.style.setProperty('--icon-color', def.color);
+    icon.style.setProperty('--icon-glow', def.glow);
+    icon.dataset.icon = def.type;
+    icon.innerHTML = def.svg;
+
+    layer.appendChild(icon);
   }
 
   return count;
@@ -1407,9 +1486,9 @@ function ensureAuthAnimatedBg() {
   if (existing) {
     if (debug && existing.dataset.debug !== '1') {
       existing.dataset.debug = '1';
-      const particlesLayer = existing.querySelector('.auth-bg-particles');
-      if (!reducedMotion && particlesLayer) {
-        populateAuthParticles(particlesLayer, { count: 240, debug: true });
+      const iconsLayer = existing.querySelector('.auth-bg-icons');
+      if (!reducedMotion && iconsLayer) {
+        populateAuthIcons(iconsLayer, { count: 44, debug: true });
       }
       // eslint-disable-next-line no-console
       console.debug('[auth-bg] debug enabled');
@@ -1436,35 +1515,33 @@ function ensureAuthAnimatedBg() {
   const scanlineLayer = document.createElement('div');
   scanlineLayer.className = 'auth-bg-scanlines';
 
-  const particlesLayer = document.createElement('div');
-  particlesLayer.className = 'auth-bg-particles';
-  particlesLayer.id = 'auth-bg-particles';
+  const iconsLayer = document.createElement('div');
+  iconsLayer.className = 'auth-bg-icons';
+  iconsLayer.id = 'auth-bg-icons';
 
   container.appendChild(gradientLayer);
   container.appendChild(scanlineLayer);
-  container.appendChild(particlesLayer);
+  container.appendChild(iconsLayer);
 
   document.body.insertBefore(container, document.body.firstChild);
 
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth || 1024 : 1024;
-  let desiredCount = 220;
+  let desiredCount = 30;
   if (viewportWidth < 520) {
-    desiredCount = 140;
+    desiredCount = 14;
   } else if (viewportWidth < 900) {
-    desiredCount = 190;
+    desiredCount = 22;
   }
   if (debug) {
-    desiredCount = Math.max(desiredCount, 240);
+    desiredCount = Math.max(desiredCount, 44);
   }
 
-  const particleCount = reducedMotion
-    ? 0
-    : populateAuthParticles(particlesLayer, { count: desiredCount, debug });
+  const iconCount = reducedMotion ? 0 : populateAuthIcons(iconsLayer, { count: desiredCount, debug });
   container.dataset.debug = debug ? '1' : '0';
 
   if (debug) {
     // eslint-disable-next-line no-console
-    console.debug('[auth-bg] mounted', { particles: particleCount, reducedMotion });
+    console.debug('[auth-bg] mounted', { icons: iconCount, reducedMotion });
     document.body?.classList.add('auth-bg-debug');
     document.body.classList.add('auth-bg-debug-flash');
     if (authBgFlashTimer) {

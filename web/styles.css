@@ -150,61 +150,33 @@ body.auth-mode .auth-bg {
   will-change: transform;
 }
 
-.auth-bg-particles {
+.auth-bg-icons {
   position: absolute;
   inset: 0;
   z-index: 2;
   pointer-events: none;
 }
 
-.auth-particle {
+.auth-icon {
   position: absolute;
   left: var(--x);
   top: 0;
   width: var(--size);
   height: var(--size);
-  border-radius: 999px;
+  color: var(--icon-color);
   opacity: 0;
-  background: radial-gradient(
-    circle at 30% 30%,
-    rgba(210, 240, 255, 0.95) 0%,
-    rgba(70, 150, 255, 0.78) 22%,
-    rgba(30, 110, 255, 0.18) 46%,
-    rgba(30, 110, 255, 0) 72%
-  );
-  filter: blur(var(--blur));
-  transform: translate3d(0, var(--startY), 0);
-  box-shadow:
-    0 0 12px rgba(60, 140, 255, 0.35),
-    0 0 28px rgba(60, 140, 255, 0.22),
-    0 0 2px rgba(255, 255, 255, 0.3);
-  animation: authParticleRise var(--dur) linear infinite;
+  transform: translate3d(0, var(--startY), 0) rotate(var(--rot0));
+  transform-origin: center;
+  filter: drop-shadow(0 0 10px var(--icon-glow));
+  animation: authIconFloatUp var(--dur) linear infinite;
   animation-delay: var(--delay);
   will-change: transform, opacity;
 }
 
-.auth-particle::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(
-    circle,
-    rgba(255, 255, 255, 0.95) 0%,
-    rgba(180, 220, 255, 0.35) 32%,
-    rgba(180, 220, 255, 0) 70%
-  );
-  opacity: 0.7;
-  animation: authParticleTwinkle var(--twinkleDur) ease-in-out infinite;
-  animation-delay: var(--twinkleDelay);
-  will-change: opacity;
-}
-
-.auth-particle[data-hero='1'] {
-  box-shadow:
-    0 0 18px rgba(60, 140, 255, 0.45),
-    0 0 46px rgba(60, 140, 255, 0.28),
-    0 0 3px rgba(255, 255, 255, 0.35);
+.auth-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 @keyframes authBgShift {
@@ -227,34 +199,24 @@ body.auth-mode .auth-bg {
   }
 }
 
-@keyframes authParticleRise {
+@keyframes authIconFloatUp {
   0% {
-    transform: translate3d(0, var(--startY), 0) scale(0.92);
+    transform: translate3d(0, var(--startY), 0) rotate(var(--rot0));
     opacity: 0;
   }
-  10% {
+  12% {
     opacity: calc(var(--opacity) * var(--auth-particle-opacity-mult));
   }
-  70% {
+  86% {
     opacity: calc(var(--opacity) * var(--auth-particle-opacity-mult));
   }
   100% {
-    transform: translate3d(var(--driftX), var(--endY), 0) scale(0.98);
+    transform: translate3d(var(--driftX), var(--endY), 0) rotate(var(--rot1));
     opacity: 0;
   }
 }
 
-@keyframes authParticleTwinkle {
-  0%,
-  100% {
-    opacity: 0.55;
-  }
-  50% {
-    opacity: 0.95;
-  }
-}
-
-body.auth-bg-debug-flash .auth-particle {
+body.auth-bg-debug-flash .auth-icon {
   outline: 1px solid rgba(0, 0, 0, 0.16);
 }
 
@@ -265,11 +227,10 @@ body.auth-bg-debug-flash .auth-particle {
   .auth-bg-scanlines {
     animation: none !important;
   }
-  .auth-bg-particles {
+  .auth-bg-icons {
     display: none;
   }
-  .auth-particle,
-  .auth-particle::before {
+  .auth-icon {
     animation: none !important;
   }
 }
