@@ -823,6 +823,15 @@ p {
   text-align: center;
 }
 
+.about-headshot {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 12px;
+  display: block;
+  background: rgba(255, 255, 255, 0.7);
+}
+
 .about-initials {
   width: 42px;
   height: 42px;
