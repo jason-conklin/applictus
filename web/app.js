@@ -17,6 +17,27 @@ let authMode = 'signin';
 const DEBUG_APP = typeof window !== 'undefined' && window.DEBUG_APP;
 const APP_TITLE = 'Applictus';
 
+if (DEBUG_APP && typeof window !== 'undefined' && !window.__APP_DEBUG_ERRORS_BOUND) {
+  window.__APP_DEBUG_ERRORS_BOUND = true;
+  window.addEventListener('error', (event) => {
+    // eslint-disable-next-line no-console
+    console.error('[debug][app] window error', {
+      message: event?.message,
+      stack: event?.error?.stack || null,
+      detailApplicationId: window.__APP_DEBUG_DETAIL_ID || null
+    });
+  });
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event?.reason;
+    // eslint-disable-next-line no-console
+    console.error('[debug][app] unhandled rejection', {
+      message: reason?.message || String(reason),
+      stack: reason?.stack || null,
+      detailApplicationId: window.__APP_DEBUG_DETAIL_ID || null
+    });
+  });
+}
+
 function normalizeStatusValue(status) {
   if (!status) return 'UNKNOWN';
   const upper = String(status).toUpperCase().replace(/\s+/g, '_');
@@ -836,14 +857,34 @@ function createSelectField({ label, name, value = '', options = [] }) {
 }
 
 function formatDate(value) {
-  if (!value) {
-    return '—';
+  const date = parseDate(value);
+  return date ? date.toLocaleDateString() : '—';
+}
+
+function parseDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
   }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return '—';
+  if (typeof value === 'number') {
+    const ms = value < 1e12 ? value * 1000 : value;
+    const date = new Date(ms);
+    return Number.isNaN(date.getTime()) ? null : date;
   }
-  return date.toLocaleDateString();
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^\d+$/.test(trimmed)) {
+      const num = Number(trimmed);
+      if (!Number.isFinite(num)) return null;
+      const ms = num < 1e12 ? num * 1000 : num;
+      const date = new Date(ms);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+    const date = new Date(trimmed);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  return null;
 }
 
 function setSyncProgressState({ visible, progress, label, error = false }) {
@@ -1087,14 +1128,8 @@ function startSyncPolling(syncId) {
 }
 
 function formatDateTime(value) {
-  if (!value) {
-    return '—';
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return '—';
-  }
-  return date.toLocaleString();
+  const date = parseDate(value);
+  return date ? date.toLocaleString() : '—';
 }
 
 function getActivityDate(application) {
@@ -3198,7 +3233,12 @@ function renderDetail(application, events) {
   if (!application) {
     return;
   }
-  lastDetailEvents = events || [];
+  const safeEvents = Array.isArray(events)
+    ? events
+    : events && Array.isArray(events.rows)
+    ? events.rows
+    : [];
+  lastDetailEvents = safeEvents;
   if (lastDetailId !== application.id) {
     explanationOpen = false;
     lastDetailId = application.id;
@@ -3304,7 +3344,7 @@ function renderDetail(application, events) {
   }
 
   if (detailTimeline) {
-    if (!events.length) {
+    if (!safeEvents.length) {
       detailTimeline.innerHTML = '<div class="muted">No events yet.</div>';
     } else {
       const typeIcon = (type) => {
@@ -3315,11 +3355,9 @@ function renderDetail(application, events) {
         if (t.includes('offer')) return '🎉';
         return '•';
       };
-      detailTimeline.innerHTML = events
+      detailTimeline.innerHTML = safeEvents
         .map((eventItem) => {
-          const eventDate = eventItem.internal_date
-            ? new Date(Number(eventItem.internal_date)).toISOString()
-            : eventItem.created_at;
+          const eventDate = eventItem.internal_date || eventItem.created_at || null;
           const classificationConfidence =
             eventItem.classification_confidence ?? eventItem.confidence_score ?? null;
           const confidence =
@@ -3348,11 +3386,22 @@ function renderDetail(application, events) {
 
 async function openDetail(applicationId) {
   try {
+    if (DEBUG_APP && typeof window !== 'undefined') {
+      window.__APP_DEBUG_DETAIL_ID = applicationId;
+    }
     const data = await api(`/api/applications/${applicationId}`);
     currentDetail = data.application;
     renderDetail(currentDetail, data.events || []);
     setDrawerOpen(true);
   } catch (err) {
+    if (DEBUG_APP) {
+      // eslint-disable-next-line no-console
+      console.error('[debug][app] openDetail failed', {
+        applicationId,
+        message: err?.message || String(err),
+        stack: err?.stack || null
+      });
+    }
     showNotice(err.message);
   }
 }

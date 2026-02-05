@@ -1321,7 +1321,36 @@ app.get('/api/applications/:id', requireAuth, async (req, res) => {
       )
       .all(application.id, limit);
 
-    return res.json({ application, events: Array.isArray(events) ? events : [] });
+    const rows = Array.isArray(events)
+      ? events
+      : events && Array.isArray(events.rows)
+      ? events.rows
+      : [];
+
+    function normalizeEpochMs(value) {
+      if (!value) return null;
+      if (value instanceof Date) return value.getTime();
+      if (typeof value === 'number') return value < 1e12 ? value * 1000 : value;
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        if (/^\d+$/.test(trimmed)) {
+          const num = Number(trimmed);
+          if (!Number.isFinite(num)) return null;
+          return num < 1e12 ? num * 1000 : num;
+        }
+        const parsed = Date.parse(trimmed);
+        return Number.isNaN(parsed) ? null : parsed;
+      }
+      return null;
+    }
+
+    const normalizedEvents = rows.map((row) => ({
+      ...row,
+      internal_date: normalizeEpochMs(row.internal_date)
+    }));
+
+    return res.json({ application, events: normalizedEvents });
   } catch (err) {
     if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
       // eslint-disable-next-line no-console
