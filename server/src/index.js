@@ -38,6 +38,22 @@ const resumeCuratorRouter = require('./routes/resumeCurator');
 const { coalesceTimestamps } = require('./sqlHelpers');
 const { pgMigrate, assertPgSchema } = require('./pgMigrate');
 
+function isProd() {
+  return process.env.NODE_ENV === 'production';
+}
+
+const PORT = process.env.PORT || 3000;
+const WEB_BASE_URL = process.env.APP_WEB_BASE_URL || (isProd() ? 'https://applictus.com' : 'http://localhost:3000');
+const COOKIE_DOMAIN = process.env.APP_COOKIE_DOMAIN || '';
+const ALLOWED_ORIGINS = new Set(
+  [
+    process.env.APP_WEB_BASE_URL,
+    'https://applictus.com',
+    'http://localhost:3000',
+    'http://localhost:5173'
+  ].filter(Boolean)
+);
+
 // Stack choice: Express + SQLite keeps the backend lightweight and easy to ship locally.
 const app = express();
 const db = openDb();
@@ -52,6 +68,28 @@ if (process.env.NODE_ENV === 'production' || process.env.TRUST_PROXY === '1') {
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.set('Access-Control-Allow-Origin', origin);
+    res.set('Access-Control-Allow-Credentials', 'true');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, X-CSRF-Token');
+    res.set('Access-Control-Allow-Methods', 'GET,POST,PATCH,PUT,DELETE,OPTIONS');
+    res.set('Access-Control-Expose-Headers', 'Location');
+    res.set('Vary', 'Origin');
+    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+      // eslint-disable-next-line no-console
+      console.debug('[cors] allowed origin', { origin, path: req.path });
+    }
+  } else if (process.env.JOBTRACK_LOG_LEVEL === 'debug' && origin) {
+    // eslint-disable-next-line no-console
+    console.debug('[cors] blocked origin', { origin, path: req.path });
+  }
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  return next();
+});
+app.use((req, res, next) => {
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('Referrer-Policy', 'same-origin');
   res.set(
@@ -60,10 +98,11 @@ app.use((req, res, next) => {
   );
   return next();
 });
-app.use('/public', express.static(path.join(__dirname, '..', '..', 'public')));
-app.use(express.static(path.join(__dirname, '..', '..', 'web')));
+if (!isProd()) {
+  app.use('/public', express.static(path.join(__dirname, '..', '..', 'public')));
+  app.use(express.static(path.join(__dirname, '..', '..', 'web')));
+}
 
-const PORT = process.env.PORT || 3000;
 const SESSION_COOKIE = 'jt_session';
 const CSRF_COOKIE = 'jt_csrf';
 const SESSION_TTL_DAYS = 30;
@@ -81,10 +120,6 @@ const preauthCsrfStore = new Map();
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-function isProd() {
-  return process.env.NODE_ENV === 'production';
 }
 
 function normalizeEmail(email) {
@@ -195,12 +230,21 @@ async function createSession(userId) {
   return { token, expiresAt, csrfToken };
 }
 
+function cookieDomainOptions() {
+  return COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {};
+}
+
+function isCrossSiteAuth() {
+  return Boolean(process.env.APP_WEB_BASE_URL) && !process.env.APP_WEB_BASE_URL.includes('localhost');
+}
+
 function sessionCookieOptions({ isProd: isProdOverride } = {}) {
   return {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: isProdOverride ?? isProd(),
-    maxAge: SESSION_TTL_MS
+    sameSite: isCrossSiteAuth() ? 'none' : 'lax',
+    secure: isCrossSiteAuth() || (isProdOverride ?? isProd()),
+    maxAge: SESSION_TTL_MS,
+    ...cookieDomainOptions()
   };
 }
 
@@ -211,8 +255,9 @@ function setSessionCookie(res, token) {
 function clearSessionCookie(res) {
   res.clearCookie(SESSION_COOKIE, {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: isProd()
+    sameSite: isCrossSiteAuth() ? 'none' : 'lax',
+    secure: isCrossSiteAuth() || isProd(),
+    ...cookieDomainOptions()
   });
 }
 
@@ -239,17 +284,19 @@ async function cleanupExpiredSessions() {
 function setCsrfCookie(res, csrfId) {
   res.cookie(CSRF_COOKIE, csrfId, {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: isProd(),
-    maxAge: CSRF_TTL_MS
+    sameSite: isCrossSiteAuth() ? 'none' : 'lax',
+    secure: isCrossSiteAuth() || isProd(),
+    maxAge: CSRF_TTL_MS,
+    ...cookieDomainOptions()
   });
 }
 
 function clearCsrfCookie(res) {
   res.clearCookie(CSRF_COOKIE, {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: isProd()
+    sameSite: isCrossSiteAuth() ? 'none' : 'lax',
+    secure: isCrossSiteAuth() || isProd(),
+    ...cookieDomainOptions()
   });
 }
 
@@ -489,6 +536,14 @@ const contactIpLimiter = createRateLimiter({
 
 app.use(async (req, res, next) => {
   const token = req.cookies[SESSION_COOKIE];
+  if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+    // eslint-disable-next-line no-console
+    console.debug('[auth] session check', {
+      origin: req.headers.origin || null,
+      hasCookie: Boolean(token),
+      path: req.path
+    });
+  }
   if (!token) {
     req.user = null;
     req.session = null;
@@ -509,6 +564,14 @@ app.use(async (req, res, next) => {
   const user = await getUserById(session.user_id);
   req.user = user || null;
   req.session = session;
+  if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+    // eslint-disable-next-line no-console
+    console.debug('[auth] session user', {
+      origin: req.headers.origin || null,
+      userId: user?.id || null,
+      sessionId: session?.id || null
+    });
+  }
   return next();
 });
 
@@ -517,6 +580,10 @@ app.use(enforceCsrf);
 app.get('/api/auth/csrf', (req, res) => {
   const csrfToken = issueCsrfToken(req, res);
   return res.json({ csrfToken });
+});
+
+app.get('/api/health', (_req, res) => {
+  return res.json({ ok: true });
 });
 
 app.use('/api/resume-curator', resumeCuratorRouter);
@@ -652,9 +719,10 @@ app.get('/api/auth/google/start', authIpLimiter, (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
   res.cookie(GOOGLE_STATE_COOKIE, state, {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: isProd(),
-    maxAge: GOOGLE_STATE_TTL_MS
+    sameSite: isCrossSiteAuth() ? 'none' : 'lax',
+    secure: isCrossSiteAuth() || isProd(),
+    maxAge: GOOGLE_STATE_TTL_MS,
+    ...cookieDomainOptions()
   });
   const url = getGoogleAuthUrl(oAuthClient, state);
   return res.redirect(url);
@@ -671,15 +739,17 @@ app.get('/api/auth/google/callback', authIpLimiter, async (req, res) => {
   if (!state || !storedState || state !== storedState) {
     res.clearCookie(GOOGLE_STATE_COOKIE, {
       httpOnly: true,
-      sameSite: 'lax',
-      secure: isProd()
+      sameSite: isCrossSiteAuth() ? 'none' : 'lax',
+      secure: isCrossSiteAuth() || isProd(),
+      ...cookieDomainOptions()
     });
     return res.status(400).send('Invalid OAuth state.');
   }
   res.clearCookie(GOOGLE_STATE_COOKIE, {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: isProd()
+    sameSite: isCrossSiteAuth() ? 'none' : 'lax',
+    secure: isCrossSiteAuth() || isProd(),
+    ...cookieDomainOptions()
   });
 
   let profile = null;
@@ -741,7 +811,7 @@ app.get('/api/auth/google/callback', authIpLimiter, async (req, res) => {
     if (process.env.NODE_ENV === 'test') {
       return res.status(500).json({ error: 'OAUTH_USER_CREATE_FAILED' });
     }
-    return res.redirect('/#account?error=OAUTH_USER_CREATE_FAILED');
+    return res.redirect(`${WEB_BASE_URL}/#account?error=OAUTH_USER_CREATE_FAILED`);
   }
 
   const existingToken = req.cookies[SESSION_COOKIE];
@@ -752,7 +822,7 @@ app.get('/api/auth/google/callback', authIpLimiter, async (req, res) => {
   const session = await createSession(user.id);
   setSessionCookie(res, session.token);
   clearCsrfCookie(res);
-  return res.redirect('/#dashboard');
+  return res.redirect(`${WEB_BASE_URL}/#dashboard`);
 });
 
 app.post('/api/auth/logout', requireAuth, async (req, res) => {
@@ -925,7 +995,7 @@ app.get('/api/email/callback', requireAuth, async (req, res) => {
       connectedEmail = null;
     }
     await upsertTokens(db, req.user.id, tokens, connectedEmail);
-    return res.redirect('/#gmail');
+    return res.redirect(`${WEB_BASE_URL}/#account`);
   } catch (err) {
     return res.status(500).send('Failed to connect Gmail.');
   }
@@ -1838,9 +1908,11 @@ app.get('/api/email/sync-debug', requireAuth, (req, res) => {
   return res.json({ samples });
 });
 
-app.get('*', (req, res) => {
-  return res.sendFile(path.join(__dirname, '..', '..', 'web', 'index.html'));
-});
+if (!isProd()) {
+  app.get('*', (req, res) => {
+    return res.sendFile(path.join(__dirname, '..', '..', 'web', 'index.html'));
+  });
+}
 
 let server = null;
 

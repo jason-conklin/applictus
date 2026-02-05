@@ -1,7 +1,7 @@
 const { google } = require('googleapis');
 
 const GOOGLE_SCOPES = ['openid', 'email', 'profile'];
-const DEFAULT_REDIRECT = 'http://localhost:3000/api/auth/google/callback';
+const DEFAULT_REDIRECT = `${process.env.APP_API_BASE_URL || 'http://localhost:3000'}/api/auth/google/callback`;
 
 function getGoogleOAuthClient() {
   const clientId = process.env.GOOGLE_CLIENT_ID;

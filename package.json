@@ -10,7 +10,8 @@
     "dev": "node server/src/index.js",
     "start": "node server/src/index.js",
     "seed": "node server/scripts/seed.js",
-    "test": "node server/scripts/run-tests.js"
+    "test": "node server/scripts/run-tests.js",
+    "copy:web": "node server/scripts/copy-web-to-public.js"
   },
   "engines": {
     "node": ">=20 <21"
