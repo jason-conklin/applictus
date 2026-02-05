@@ -105,48 +105,54 @@ body.auth-mode .noise {
   overflow: hidden;
   z-index: 0;
   display: none;
+  transform: translateZ(0);
 }
 
 body.auth-mode .auth-bg {
   display: block;
 }
 
-.auth-bg-gradient {
+.auth-bg::before {
+  content: '';
   position: absolute;
-  inset: 0;
+  inset: -16%;
   z-index: 0;
-  /* Clean, continuous vertical gradient (no horizon band). */
-  background-image: linear-gradient(180deg, #ffffff 0%, #f3f8ff 26%, #c7dcff 56%, #3a70ff 84%, #0b2cff 100%);
+  /* Base gradient + soft mesh blobs layered together. */
+  background-image:
+    linear-gradient(180deg, #ffffff 0%, #eef5ff 25%, #c7dcff 52%, #3a70ff 82%, #0b2cff 100%),
+    radial-gradient(circle at 18% 62%, rgba(60, 140, 255, 0.22), transparent 62%),
+    radial-gradient(circle at 78% 42%, rgba(120, 180, 255, 0.18), transparent 64%),
+    radial-gradient(circle at 44% 78%, rgba(20, 70, 210, 0.18), transparent 66%);
   background-repeat: no-repeat;
-  background-size: 260% 260%;
-  background-position: 50% 0%;
-  animation: authBgShift 12s ease-in-out infinite alternate;
-  will-change: background-position, background-size;
+  background-size: 100% 100%;
+  transform: translate3d(0, 0, 0) scale(1.08);
+  animation: authBgDrift 16s ease-in-out infinite alternate;
+  will-change: transform;
 }
 
-.auth-bg-scanlines {
+.auth-bg::after {
+  content: '';
   position: absolute;
   inset: -22%;
   z-index: 1;
-  pointer-events: none;
   background-image:
     repeating-linear-gradient(
       20deg,
       rgba(255, 255, 255, 0) 0px,
-      rgba(255, 255, 255, 0.65) 1px,
-      rgba(255, 255, 255, 0) 10px
+      rgba(255, 255, 255, 0.7) 1px,
+      rgba(255, 255, 255, 0) 11px
     ),
     repeating-linear-gradient(
       -20deg,
       rgba(0, 0, 0, 0) 0px,
-      rgba(40, 120, 255, 0.35) 1px,
-      rgba(0, 0, 0, 0) 16px
+      rgba(40, 120, 255, 0.4) 1px,
+      rgba(0, 0, 0, 0) 17px
     );
   background-size: 220px 220px;
   opacity: calc(var(--auth-scanline-opacity) * var(--auth-bg-intensity));
   mix-blend-mode: soft-light;
   transform: translate3d(0, 0, 0);
-  animation: authScanMove 14s linear infinite;
+  animation: authScanMove 12s linear infinite;
   will-change: transform;
 }
 
@@ -179,14 +185,12 @@ body.auth-mode .auth-bg {
   display: block;
 }
 
-@keyframes authBgShift {
+@keyframes authBgDrift {
   0% {
-    background-position: 45% 0%;
-    background-size: 260% 260%;
+    transform: translate3d(-1.5%, -1.2%, 0) scale(1.08);
   }
   100% {
-    background-position: 58% 22%;
-    background-size: 290% 290%;
+    transform: translate3d(1.6%, 1.2%, 0) scale(1.12);
   }
 }
 
@@ -221,17 +225,15 @@ body.auth-bg-debug-flash .auth-icon {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .auth-bg-gradient,
-  .auth-bg-gradient::before,
-  .auth-bg-gradient::after,
-  .auth-bg-scanlines {
-    animation: none !important;
+  body:not(.force-auth-animation) .auth-bg::before,
+  body:not(.force-auth-animation) .auth-bg::after {
+    animation: none;
   }
-  .auth-bg-icons {
-    display: none;
-  }
-  .auth-icon {
-    animation: none !important;
+
+  body:not(.force-auth-animation) .auth-icon {
+    animation: none;
+    opacity: calc(var(--opacity) * 0.35);
+    transform: translate3d(0, var(--startY), 0) rotate(var(--rot0));
   }
 }
 

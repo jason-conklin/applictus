@@ -1462,6 +1462,7 @@ function removeAuthAnimatedBg() {
   }
   document.body?.classList.remove('auth-bg-debug-flash');
   document.body?.classList.remove('auth-bg-debug');
+  document.body?.classList.remove('force-auth-animation');
   if (authBgFlashTimer) {
     clearTimeout(authBgFlashTimer);
     authBgFlashTimer = null;
@@ -1600,12 +1601,15 @@ function ensureAuthAnimatedBg() {
   }
   const existing = document.querySelector('.auth-bg');
   const debug = Boolean(window?.DEBUG_AUTH_BG);
-  const reducedMotion = prefersReducedMotion();
+  const prefersReduced = prefersReducedMotion();
+  const forceAnimation = Boolean(window?.FORCE_AUTH_ANIMATION);
+  const reducedMotion = prefersReduced && !forceAnimation;
+  document.body.classList.toggle('force-auth-animation', forceAnimation);
   if (existing) {
     if (debug && existing.dataset.debug !== '1') {
       existing.dataset.debug = '1';
       const iconsLayer = existing.querySelector('.auth-bg-icons');
-      if (!reducedMotion && iconsLayer) {
+      if (iconsLayer) {
         populateAuthIcons(iconsLayer, { count: 44, debug: true });
       }
       // eslint-disable-next-line no-console
@@ -1620,6 +1624,24 @@ function ensureAuthAnimatedBg() {
         authBgFlashTimer = null;
       }, 5000);
     }
+    if (debug && !existing.dataset.debugLogged) {
+      existing.dataset.debugLogged = '1';
+      const beforeAnim = getComputedStyle(existing, '::before')?.animationName || null;
+      const afterAnim = getComputedStyle(existing, '::after')?.animationName || null;
+      const icon = existing.querySelector('.auth-icon');
+      const iconAnim = icon ? getComputedStyle(icon).animationName : null;
+      // eslint-disable-next-line no-console
+      console.debug('[auth-bg] status', {
+        authActive: document.body.classList.contains('auth-mode'),
+        prefersReducedMotion: prefersReduced,
+        forceAuthAnimation: forceAnimation,
+        reducedMotionEffective: reducedMotion,
+        exists: true,
+        beforeAnim,
+        afterAnim,
+        iconAnim
+      });
+    }
     return;
   }
 
@@ -1627,18 +1649,10 @@ function ensureAuthAnimatedBg() {
   container.className = 'auth-bg';
   container.setAttribute('aria-hidden', 'true');
 
-  const gradientLayer = document.createElement('div');
-  gradientLayer.className = 'auth-bg-gradient';
-
-  const scanlineLayer = document.createElement('div');
-  scanlineLayer.className = 'auth-bg-scanlines';
-
   const iconsLayer = document.createElement('div');
   iconsLayer.className = 'auth-bg-icons';
   iconsLayer.id = 'auth-bg-icons';
 
-  container.appendChild(gradientLayer);
-  container.appendChild(scanlineLayer);
   container.appendChild(iconsLayer);
 
   document.body.insertBefore(container, document.body.firstChild);
@@ -1654,12 +1668,26 @@ function ensureAuthAnimatedBg() {
     desiredCount = Math.max(desiredCount, 44);
   }
 
-  const iconCount = reducedMotion ? 0 : populateAuthIcons(iconsLayer, { count: desiredCount, debug });
+  const effectiveCount = reducedMotion ? Math.min(desiredCount, 14) : desiredCount;
+  const iconCount = populateAuthIcons(iconsLayer, { count: effectiveCount, debug });
   container.dataset.debug = debug ? '1' : '0';
 
   if (debug) {
     // eslint-disable-next-line no-console
-    console.debug('[auth-bg] mounted', { icons: iconCount, reducedMotion });
+    const beforeAnim = getComputedStyle(container, '::before')?.animationName || null;
+    const afterAnim = getComputedStyle(container, '::after')?.animationName || null;
+    const icon = container.querySelector('.auth-icon');
+    const iconAnim = icon ? getComputedStyle(icon).animationName : null;
+    console.debug('[auth-bg] mounted', {
+      icons: iconCount,
+      authActive: document.body.classList.contains('auth-mode'),
+      prefersReducedMotion: prefersReduced,
+      forceAuthAnimation: forceAnimation,
+      reducedMotionEffective: reducedMotion,
+      beforeAnim,
+      afterAnim,
+      iconAnim
+    });
     document.body?.classList.add('auth-bg-debug');
     document.body.classList.add('auth-bg-debug-flash');
     if (authBgFlashTimer) {
