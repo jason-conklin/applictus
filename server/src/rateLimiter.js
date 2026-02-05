@@ -11,10 +11,19 @@ function getMax() {
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_MAX;
 }
 
-function createRateLimiter({ windowMs = getWindowMs(), max = getMax(), keyGenerator } = {}) {
+function createRateLimiter({ windowMs, max, keyGenerator } = {}) {
   const hits = new Map();
+  let lastConfigKey = null;
 
   return function rateLimit(req, res, next) {
+    const windowMsValue =
+      Number.isFinite(windowMs) && windowMs > 0 ? windowMs : getWindowMs();
+    const maxValue = Number.isFinite(max) && max > 0 ? max : getMax();
+    const configKey = `${windowMsValue}:${maxValue}`;
+    if (configKey !== lastConfigKey) {
+      hits.clear();
+      lastConfigKey = configKey;
+    }
     const key = keyGenerator ? keyGenerator(req) : req.ip;
     if (!key) {
       return next();
@@ -22,10 +31,10 @@ function createRateLimiter({ windowMs = getWindowMs(), max = getMax(), keyGenera
     const now = Date.now();
     const entry = hits.get(key);
     if (!entry || entry.resetAt <= now) {
-      hits.set(key, { count: 1, resetAt: now + windowMs });
+      hits.set(key, { count: 1, resetAt: now + windowMsValue });
       return next();
     }
-    if (entry.count >= max) {
+    if (entry.count >= maxValue) {
       return res.status(429).json({
         error: 'RATE_LIMITED',
         message: 'Too many requests. Please try again later.'

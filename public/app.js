@@ -23,7 +23,8 @@ const API_BASE_URL = (() => {
   const configured = window.APP_CONFIG?.API_BASE_URL || metaValue;
   if (configured) return configured.replace(/\/$/, '');
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  return isLocal ? 'http://localhost:3000' : 'https://api.applictus.com';
+  if (isLocal) return 'http://localhost:3000';
+  return '';
 })();
 
 function apiUrl(path) {
