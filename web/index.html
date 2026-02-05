@@ -9,7 +9,7 @@
     />
     <title>Applictus</title>
     <link rel="icon" href="/public/Applictus_logo.png" type="image/png" />
-    <link rel="stylesheet" href="/styles.css?v=18" />
+    <link rel="stylesheet" href="/styles.css?v=19" />
   </head>
   <body>
     <div class="noise"></div>
@@ -79,10 +79,6 @@
             <div class="brand-name">Applictus</div>
             <div class="brand-sub">Job Application Status Tracker</div>
           </div>
-        </div>
-        <div class="auth-switch">
-          <button class="ghost" data-auth="signin" type="button">Sign in</button>
-          <button class="ghost" data-auth="signup" type="button">Create account</button>
         </div>
         <div class="auth-social">
           <button class="google-btn" id="google-auth" type="button">
@@ -191,6 +187,10 @@
               </div>
             </label>
             <button type="submit">Sign in</button>
+            <div class="auth-switch">
+              New to Applictus?
+              <button type="button" class="link-button" data-auth-switch="signup">Create an account</button>
+            </div>
           </form>
         </div>
         <div class="auth-panel hidden" data-panel="signup">
@@ -272,6 +272,10 @@
               </div>
             </label>
             <button type="submit">Create account</button>
+            <div class="auth-switch">
+              Already have an account?
+              <button type="button" class="link-button" data-auth-switch="signin">Sign in here</button>
+            </div>
           </form>
         </div>
       </section>
@@ -955,6 +959,6 @@
       </div>
     </div>
 
-    <script type="module" src="/app.js?v=15"></script>
+    <script type="module" src="/app.js?v=16"></script>
   </body>
 </html>

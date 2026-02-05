@@ -58,7 +58,6 @@ const topbar = document.getElementById('topbar');
 const accountAvatar = document.getElementById('account-avatar');
 const avatarInitials = document.getElementById('avatar-initials');
 
-const authSwitch = document.querySelector('.auth-switch');
 const loginForm = document.getElementById('login-form');
 const signupForm = document.getElementById('signup-form');
 const googleAuth = document.getElementById('google-auth');
@@ -3442,18 +3441,28 @@ function bindPasswordVisibilityToggles(root = document) {
 
 bindPasswordVisibilityToggles();
 
-if (authSwitch && !authSwitch.dataset.bound) {
-  authSwitch.dataset.bound = '1';
-  authSwitch.addEventListener('click', (event) => {
-    const button = event.target.closest('button[data-auth]');
+if (authView && !authView.dataset.authSwitchBound) {
+  authView.dataset.authSwitchBound = '1';
+  authView.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-auth-switch]');
     if (!button) {
+      return;
+    }
+    event.preventDefault();
+    const nextPanel = button.dataset.authSwitch;
+    if (nextPanel !== 'signin' && nextPanel !== 'signup') {
       return;
     }
     if (DEBUG_AUTH) {
       // eslint-disable-next-line no-console
-      console.debug('[auth] switch', { next: button.dataset.auth, current: authMode });
+      console.debug('[auth] switch', { next: nextPanel, current: authMode });
     }
-    setAuthPanel(button.dataset.auth);
+    setAuthPanel(nextPanel);
+    const emailInput =
+      nextPanel === 'signin'
+        ? loginForm?.querySelector('input[name="email"]')
+        : signupForm?.querySelector('input[name="email"]');
+    emailInput?.focus();
   });
 }
 
