@@ -22,6 +22,11 @@ Set these in the Vercel project:
 - `GOOGLE_CLIENT_SECRET=...`
 - `GOOGLE_REDIRECT_URI=https://applictus.com/api/auth/google/callback`
 
+### Gmail OAuth (required scopes)
+- Scopes must be **exactly**:
+  - `https://www.googleapis.com/auth/gmail.readonly`
+  - (No additional Gmail scopes)
+
 ### Security
 - `JOBTRACK_ENC_KEY=...` (token encryption)
 
@@ -30,8 +35,13 @@ Set these in the Vercel project:
 - Static assets are served directly by Vercel from `/public`.
 - No frontend framework required.
 
+## Google OAuth Console
+Authorized Redirect URIs:
+- `https://applictus.com/api/auth/google/callback` (Google sign-in)
+- `https://applictus.com/api/email/callback` (Gmail connect)
+
+
 ## Quick Smoke Checks
 - `GET https://applictus.com/` → returns the SPA (no 404)
 - `GET https://applictus.com/api/health` → `{ ok: true }`
 - `GET https://applictus.com/api/auth/session` (with cookies) → user payload
-

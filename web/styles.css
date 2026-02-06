@@ -2630,6 +2630,12 @@ details summary {
   align-items: center;
 }
 
+.gmail-verification-note {
+  font-size: 12px;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
 .sync-panel {
   display: grid;
   grid-template-columns: 1fr auto auto;

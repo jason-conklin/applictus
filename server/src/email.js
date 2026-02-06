@@ -17,6 +17,16 @@ function getOAuthClient() {
 }
 
 function getAuthUrl(oAuthClient) {
+  if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+    const redirectUri = oAuthClient.redirectUri || process.env.GMAIL_REDIRECT_URI || DEFAULT_REDIRECT;
+    const appDomain = process.env.APP_WEB_BASE_URL || process.env.APP_API_BASE_URL || 'http://localhost:3000';
+    // eslint-disable-next-line no-console
+    console.debug('[gmail-oauth] config', {
+      redirect_uri: redirectUri,
+      scopes: GMAIL_SCOPES,
+      app_domain: appDomain
+    });
+  }
   return oAuthClient.generateAuthUrl({
     access_type: 'offline',
     scope: GMAIL_SCOPES,
