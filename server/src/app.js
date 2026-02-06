@@ -1762,35 +1762,58 @@ app.post('/api/applications/:id/suggestion/dismiss', requireAuth, (req, res) => 
   return res.json({ application: updated });
 });
 
-app.delete('/api/applications/:id', requireAuth, (req, res) => {
+app.delete('/api/applications/:id', requireAuth, async (req, res) => {
   const id = req.params.id;
-  const existing = db
+  const existingRes = db
     .prepare('SELECT id FROM job_applications WHERE id = ? AND user_id = ?')
     .get(id, req.user.id);
+  const existing = existingRes && typeof existingRes.then === 'function' ? await existingRes : existingRes;
   if (!existing) {
     return res.status(404).json({ error: 'NOT_FOUND' });
   }
-
-  const deleteApplication = db.transaction((applicationId, userId) => {
-    db.prepare('DELETE FROM email_events WHERE application_id = ? AND user_id = ?').run(
-      applicationId,
-      userId
-    );
-    db.prepare('DELETE FROM user_actions WHERE application_id = ? AND user_id = ?').run(
-      applicationId,
-      userId
-    );
-    db.prepare('DELETE FROM job_applications WHERE id = ? AND user_id = ?').run(
-      applicationId,
-      userId
-    );
-  });
-
   try {
-    deleteApplication(id, req.user.id);
+    if (db.isAsync) {
+      await db.transaction(async (tx) => {
+        await tx
+          .prepare('DELETE FROM email_events WHERE application_id = ? AND user_id = ?')
+          .run(id, req.user.id);
+        await tx
+          .prepare('DELETE FROM user_actions WHERE application_id = ? AND user_id = ?')
+          .run(id, req.user.id);
+        await tx
+          .prepare('DELETE FROM job_applications WHERE id = ? AND user_id = ?')
+          .run(id, req.user.id);
+      });
+    } else {
+      const deleteApplication = db.transaction((applicationId, userId) => {
+        db.prepare('DELETE FROM email_events WHERE application_id = ? AND user_id = ?').run(
+          applicationId,
+          userId
+        );
+        db.prepare('DELETE FROM user_actions WHERE application_id = ? AND user_id = ?').run(
+          applicationId,
+          userId
+        );
+        db.prepare('DELETE FROM job_applications WHERE id = ? AND user_id = ?').run(
+          applicationId,
+          userId
+        );
+      });
+      deleteApplication(id, req.user.id);
+    }
     return res.json({ ok: true, deletedApplicationId: id });
   } catch (err) {
-    return res.status(500).json({ error: 'DELETE_FAILED' });
+    logError('application delete failed', {
+      userId: req.user?.id || null,
+      applicationId: id,
+      code: err?.code || null,
+      detail: err?.detail || null,
+      message: err?.message || String(err)
+    });
+    return res.status(500).json({
+      ok: false,
+      error: err?.code || 'DELETE_FAILED'
+    });
   }
 });
 
