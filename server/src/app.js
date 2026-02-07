@@ -17,7 +17,13 @@ const {
   fetchConnectedEmail,
   isEncryptionReady
 } = require('./email');
-const { getGoogleOAuthClient, getGoogleAuthUrl, getGoogleProfileFromCode } = require('./googleAuth');
+const {
+  getGoogleAuthConfig,
+  getGoogleOAuthClient,
+  getGoogleAuthUrl,
+  getGoogleProfileFromCode,
+  GOOGLE_AUTH_SCOPES
+} = require('./googleAuth');
 const { syncGmailMessages, getSyncProgress } = require('./ingest');
 const { logError } = require('./logger');
 const {
@@ -114,6 +120,7 @@ const CONTACT_EMAIL_MAX = 254;
 const CONTACT_MESSAGE_MAX = 4000;
 const GOOGLE_STATE_COOKIE = 'jt_google_state';
 const GOOGLE_STATE_TTL_MS = 10 * 60 * 1000;
+const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 const VALID_STATUSES = new Set(Object.values(ApplicationStatus));
 const CSRF_HEADER = 'x-csrf-token';
 const CSRF_TTL_MS = 2 * 60 * 60 * 1000;
@@ -324,6 +331,45 @@ function clearCsrfCookie(res) {
     secure: isCrossSiteAuth() || isProd(),
     ...cookieDomainOptions()
   });
+}
+
+function getWebAuthErrorRedirect(errorCode) {
+  const target = new URL(WEB_BASE_URL);
+  target.pathname = '/';
+  target.searchParams.set('auth_error', errorCode);
+  return target.toString();
+}
+
+function hasGrantedScope(tokens, scope) {
+  if (!scope) {
+    return false;
+  }
+  const scopeValue = typeof tokens?.scope === 'string' ? tokens.scope : '';
+  if (!scopeValue) {
+    return false;
+  }
+  return scopeValue.split(/\s+/).includes(scope);
+}
+
+async function getStoredGmailTokenRow(userId) {
+  const rowOrPromise = db
+    .prepare('SELECT * FROM oauth_tokens WHERE provider = ? AND user_id = ?')
+    .get('gmail', userId);
+  return rowOrPromise && typeof rowOrPromise.then === 'function' ? await rowOrPromise : rowOrPromise;
+}
+
+async function hasStoredGmailConnection(userId) {
+  const row = await getStoredGmailTokenRow(userId);
+  if (!row) {
+    return false;
+  }
+  return Boolean(
+    row.connected_email ||
+      row.access_token_enc ||
+      row.refresh_token_enc ||
+      row.access_token ||
+      row.refresh_token
+  );
 }
 
 function getPreauthCsrfToken(req) {
@@ -746,8 +792,9 @@ app.post('/api/auth/signup', authIpLimiter, authEmailLimiter, async (req, res) =
 
 app.get('/api/auth/google/start', authIpLimiter, (req, res) => {
   const oAuthClient = getGoogleOAuthClient();
-  if (!oAuthClient) {
-    return res.status(400).json({ error: 'GOOGLE_NOT_CONFIGURED' });
+  const authConfig = getGoogleAuthConfig();
+  if (!oAuthClient || !authConfig) {
+    return res.redirect(getWebAuthErrorRedirect('GOOGLE_NOT_CONFIGURED'));
   }
   const state = crypto.randomBytes(16).toString('hex');
   res.cookie(GOOGLE_STATE_COOKIE, state, {
@@ -757,14 +804,25 @@ app.get('/api/auth/google/start', authIpLimiter, (req, res) => {
     maxAge: GOOGLE_STATE_TTL_MS,
     ...cookieDomainOptions()
   });
-  const url = getGoogleAuthUrl(oAuthClient, state);
+  if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+    // eslint-disable-next-line no-console
+    console.debug('[google-auth] start', {
+      redirect_uri: authConfig.redirectUri,
+      scopes: GOOGLE_AUTH_SCOPES,
+      app_domain: WEB_BASE_URL
+    });
+  }
+  const url = getGoogleAuthUrl(oAuthClient, state, {
+    accessType: 'offline',
+    prompt: 'consent'
+  });
   return res.redirect(url);
 });
 
 app.get('/api/auth/google/callback', authIpLimiter, async (req, res) => {
   const oAuthClient = getGoogleOAuthClient();
   if (!oAuthClient) {
-    return res.status(400).send('Google OAuth not configured.');
+    return res.redirect(getWebAuthErrorRedirect('GOOGLE_NOT_CONFIGURED'));
   }
 
   const state = String(req.query.state || '');
@@ -776,7 +834,7 @@ app.get('/api/auth/google/callback', authIpLimiter, async (req, res) => {
       secure: isCrossSiteAuth() || isProd(),
       ...cookieDomainOptions()
     });
-    return res.status(400).send('Invalid OAuth state.');
+    return res.redirect(getWebAuthErrorRedirect('OAUTH_STATE_INVALID'));
   }
   res.clearCookie(GOOGLE_STATE_COOKIE, {
     httpOnly: true,
@@ -786,26 +844,43 @@ app.get('/api/auth/google/callback', authIpLimiter, async (req, res) => {
   });
 
   let profile = null;
+  let googleTokens = null;
   if (process.env.NODE_ENV === 'test' && req.query.test_email) {
     profile = {
       email: String(req.query.test_email),
       emailVerified: true,
       name: req.query.test_name ? String(req.query.test_name) : null
     };
+    googleTokens = {
+      access_token: req.query.test_access_token ? String(req.query.test_access_token) : null,
+      refresh_token: req.query.test_refresh_token ? String(req.query.test_refresh_token) : null,
+      scope: req.query.test_scope
+        ? String(req.query.test_scope)
+        : `${GOOGLE_AUTH_SCOPES.join(' ')}`,
+      expiry_date: req.query.test_expiry_date
+        ? Number(req.query.test_expiry_date)
+        : Date.now() + 60 * 60 * 1000
+    };
   } else {
     const code = req.query.code;
     if (!code) {
-      return res.status(400).send('Missing OAuth code.');
+      return res.redirect(getWebAuthErrorRedirect('OAUTH_CODE_MISSING'));
     }
     try {
-      profile = await getGoogleProfileFromCode(oAuthClient, code);
+      const result = await getGoogleProfileFromCode(oAuthClient, code);
+      profile = result || null;
+      googleTokens = result?.tokens || null;
     } catch (err) {
-      return res.status(500).send('Failed to verify Google sign-in.');
+      logError('google-auth.verify-failed', {
+        code: err && err.code ? String(err.code) : null,
+        message: err && err.message ? String(err.message) : String(err)
+      });
+      return res.redirect(getWebAuthErrorRedirect('GOOGLE_AUTH_VERIFY_FAILED'));
     }
   }
 
   if (!profile?.email || !profile.emailVerified) {
-    return res.status(401).send('Google account email not verified.');
+    return res.redirect(getWebAuthErrorRedirect('GOOGLE_EMAIL_UNVERIFIED'));
   }
 
   const email = normalizeEmail(profile.email);
@@ -833,6 +908,29 @@ app.get('/api/auth/google/callback', authIpLimiter, async (req, res) => {
     }
   }
 
+  // Auto-connect Gmail only when no connection exists yet.
+  // Never overwrite an existing Gmail token row during Google sign-in.
+  if (user?.id) {
+    try {
+      const alreadyConnected = await hasStoredGmailConnection(user.id);
+      const shouldAttach =
+        !alreadyConnected &&
+        isEncryptionReady() &&
+        googleTokens &&
+        (hasGrantedScope(googleTokens, GMAIL_READONLY_SCOPE) || !googleTokens.scope) &&
+        (googleTokens.refresh_token || googleTokens.access_token);
+      if (shouldAttach) {
+        await upsertTokens(db, user.id, googleTokens, email);
+      }
+    } catch (err) {
+      logError('google-auth.auto-connect-failed', {
+        userId: user.id,
+        code: err && err.code ? String(err.code) : null,
+        message: err && err.message ? String(err.message) : String(err)
+      });
+    }
+  }
+
   // Guard against missing user id before session creation (dialect-safe)
   if (!user || !user.id) {
     if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
@@ -844,7 +942,7 @@ app.get('/api/auth/google/callback', authIpLimiter, async (req, res) => {
     if (process.env.NODE_ENV === 'test') {
       return res.status(500).json({ error: 'OAUTH_USER_CREATE_FAILED' });
     }
-    return res.redirect(`${WEB_BASE_URL}/#account?error=OAUTH_USER_CREATE_FAILED`);
+    return res.redirect(getWebAuthErrorRedirect('OAUTH_USER_CREATE_FAILED'));
   }
 
   const existingToken = req.cookies[SESSION_COOKIE];
@@ -855,7 +953,7 @@ app.get('/api/auth/google/callback', authIpLimiter, async (req, res) => {
   const session = await createSession(user.id);
   setSessionCookie(res, session.token);
   clearCsrfCookie(res);
-  return res.redirect(`${WEB_BASE_URL}/#dashboard`);
+  return res.redirect(`${WEB_BASE_URL}/`);
 });
 
 app.post('/api/auth/logout', requireAuth, async (req, res) => {

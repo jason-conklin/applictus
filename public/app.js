@@ -1234,9 +1234,31 @@ function authErrorMessage(code) {
     EMAIL_IN_USE: 'That email already exists. Try signing in.',
     ACCOUNT_EXISTS: 'Account already exists. Please sign in.',
     INVALID_CREDENTIALS: 'Invalid email or password.',
-    NO_SESSION: 'Your session expired. Please sign in again.'
+    NO_SESSION: 'Your session expired. Please sign in again.',
+    GOOGLE_NOT_CONFIGURED: 'Google sign-in is not configured yet. Please use email/password for now.',
+    OAUTH_STATE_INVALID: 'Google sign-in expired or was interrupted. Please try again.',
+    OAUTH_CODE_MISSING: 'Google sign-in did not return a valid authorization code.',
+    GOOGLE_AUTH_VERIFY_FAILED: 'We could not verify your Google sign-in. Please try again.',
+    GOOGLE_EMAIL_UNVERIFIED: 'Your Google account email must be verified before signing in.',
+    OAUTH_USER_CREATE_FAILED: 'We could not finish Google sign-in. Please try again.'
   };
   return messages[code] || 'Unable to sign in. Please try again.';
+}
+
+function consumeAuthRedirectError() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const url = new URL(window.location.href);
+  const errorCode = url.searchParams.get('auth_error') || url.searchParams.get('error');
+  if (!errorCode) {
+    return null;
+  }
+  url.searchParams.delete('auth_error');
+  url.searchParams.delete('error');
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState({}, '', nextUrl || '/');
+  return errorCode;
 }
 
 function contactErrorMessage(code) {
@@ -4602,6 +4624,10 @@ window.addEventListener('hashchange', route);
   await loadCsrfToken();
   await loadSession();
   route();
+  const authRedirectError = consumeAuthRedirectError();
+  if (authRedirectError) {
+    showNotice(authErrorMessage(authRedirectError), 'Google sign-in');
+  }
 })();
 async function rcLoadRun(runId) {
   const data = await api(`/api/resume-curator/${runId}`);

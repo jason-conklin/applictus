@@ -18,14 +18,22 @@ Set these in the Vercel project:
 - `APP_COOKIE_DOMAIN=` (leave empty for host‑only cookies)
 
 ### Auth
-- `GOOGLE_CLIENT_ID=...`
-- `GOOGLE_CLIENT_SECRET=...`
-- `GOOGLE_REDIRECT_URI=https://applictus.com/api/auth/google/callback`
+- `GOOGLE_AUTH_CLIENT_ID=...`
+- `GOOGLE_AUTH_CLIENT_SECRET=...`
+- `GOOGLE_AUTH_REDIRECT_URI=https://applictus.com/api/auth/google/callback`
+- Backward-compatible fallback envs are still accepted:
+  - `GOOGLE_CLIENT_ID`
+  - `GOOGLE_CLIENT_SECRET`
+  - `GOOGLE_REDIRECT_URI`
 
-### Gmail OAuth (required scopes)
-- Scopes must be **exactly**:
+### Google OAuth scopes
+- **Sign in with Google** scopes:
+  - `openid`
+  - `email`
+  - `profile`
   - `https://www.googleapis.com/auth/gmail.readonly`
-  - (No additional Gmail scopes)
+- **Connect Gmail** scope:
+  - `https://www.googleapis.com/auth/gmail.readonly`
 
 ### Security
 - `JOBTRACK_ENC_KEY=...` (token encryption)
