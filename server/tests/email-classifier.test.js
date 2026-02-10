@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { classifyEmail } = require('../../shared/emailClassifier');
+const { classifyEmail, isLinkedInJobsUpdateEmail } = require('../../shared/emailClassifier');
 
 test('classifyEmail rejects newsletters via denylist', () => {
   const result = classifyEmail({
@@ -225,6 +225,21 @@ test('classifyEmail detects LinkedIn Easy Apply confirmation', () => {
   assert.ok(result.confidenceScore >= 0.92);
 });
 
+test('isLinkedInJobsUpdateEmail detects LinkedIn jobs update envelope', () => {
+  const detected = isLinkedInJobsUpdateEmail({
+    subject: 'Your application to Software Engineer at Concorde Research Technologies',
+    snippet: 'Your update from Concorde Research Technologies.',
+    sender: 'jobs-noreply@linkedin.com'
+  });
+  const notDetected = isLinkedInJobsUpdateEmail({
+    subject: 'Top jobs this week on LinkedIn',
+    snippet: 'Unsubscribe from these updates.',
+    sender: 'notifications-noreply@linkedin.com'
+  });
+  assert.equal(detected, true);
+  assert.equal(notDetected, false);
+});
+
 test('classifyEmail detects LinkedIn rejection update (Concorde Research Technologies)', () => {
   const result = classifyEmail({
     subject: 'Your application to Software Engineer at Concorde Research Technologies',
@@ -247,6 +262,33 @@ test('classifyEmail detects LinkedIn rejection update (Tata Consultancy Services
   assert.equal(result.isJobRelated, true);
   assert.equal(result.detectedType, 'rejection');
   assert.ok(result.confidenceScore >= 0.95);
+});
+
+test('classifyEmail keeps LinkedIn jobs rejection allowlisted even with unsubscribe footer', () => {
+  const result = classifyEmail({
+    subject: 'Your application to Full Stack Engineer at Concorde Research Technologies',
+    snippet:
+      'Your update from Concorde Research Technologies. Unfortunately, we will not be moving forward with your application.',
+    body:
+      'Your update from Concorde Research Technologies. Unfortunately, we will not be moving forward with your application. Unsubscribe from these updates anytime.',
+    sender: 'jobs-noreply@linkedin.com'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'rejection');
+  assert.ok(result.confidenceScore >= 0.95);
+  assert.notEqual(result.reason, 'denylisted');
+});
+
+test('classifyEmail allowlists LinkedIn jobs updates before denylist-only content', () => {
+  const result = classifyEmail({
+    subject: 'Your application to Software Engineer at Concorde Research Technologies',
+    snippet: 'Your update from Concorde Research Technologies.',
+    body: 'Your update from Concorde Research Technologies. Unsubscribe from these updates.',
+    sender: 'jobs-noreply@linkedin.com'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'other_job_related');
+  assert.equal(result.reason, 'linkedin_jobs_update_allowlisted');
 });
 
 test('classifyEmail keeps LinkedIn newsletter/social notices out of rejection', () => {

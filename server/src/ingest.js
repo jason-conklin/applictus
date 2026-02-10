@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { google } = require('googleapis');
 const { getAuthorizedClient } = require('./email');
-const { classifyEmail } = require('../../shared/emailClassifier');
+const { classifyEmail, isLinkedInJobsUpdateEmail } = require('../../shared/emailClassifier');
 const { matchAndAssignEvent } = require('./matching');
 const {
   extractThreadIdentity,
@@ -467,11 +467,18 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
         }
       }
 
+      const linkedInJobsUpdate = isLinkedInJobsUpdateEmail({ subject, snippet, sender, body: bodyText });
+      if (process.env.DEBUG_INGEST_LINKEDIN === '1' && /jobs-noreply@linkedin\.com/i.test(String(sender || ''))) {
+        logDebug('ingest.linkedin_jobs_fetched', {
+          subject: subject || null,
+          sender: sender || null,
+          isLinkedInJobsUpdate: linkedInJobsUpdate
+        });
+      }
       const classification = classifyEmail({ subject, snippet, sender, body: bodyText });
-      const isLinkedInJobsSender = /jobs-noreply@linkedin\.com/i.test(String(sender || ''));
       if (
-        process.env.DEBUG_INGEST === '1' &&
-        isLinkedInJobsSender &&
+        process.env.DEBUG_INGEST_LINKEDIN === '1' &&
+        linkedInJobsUpdate &&
         (!classification.isJobRelated || classification.detectedType === 'confirmation')
       ) {
         const linkedInText = `${subject || ''}\n${snippet || ''}\n${bodyText || ''}`;
@@ -512,6 +519,15 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
           reasons.below_threshold += 1;
         } else {
           reasons.classified_not_job_related += 1;
+        }
+        if (process.env.DEBUG_INGEST_LINKEDIN === '1' && linkedInJobsUpdate) {
+          logDebug('ingest.linkedin_jobs_dropped', {
+            subject: subject || null,
+            sender: sender || null,
+            reasonCode,
+            classifierReason: classification.reason || null,
+            classifierType: classification.detectedType || null
+          });
         }
         await recordSkipSample({
           db,
@@ -723,6 +739,18 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
         identity: effectiveIdentity
       }));
       let rejectionApplied = false;
+      if (process.env.DEBUG_INGEST_LINKEDIN === '1' && linkedInJobsUpdate) {
+        logDebug('ingest.linkedin_jobs_match_result', {
+          subject: subject || null,
+          sender: sender || null,
+          classification: classification.detectedType || null,
+          classificationConfidence: classification.confidenceScore || null,
+          companyName: effectiveIdentity.companyName || null,
+          jobTitle: effectiveIdentity.jobTitle || effectiveRole?.jobTitle || null,
+          matchAction: matchResult.action,
+          matchReason: matchResult.reason || null
+        });
+      }
 
       logDebug('ingest.event_classified', {
         userId,

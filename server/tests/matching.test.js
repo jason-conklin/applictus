@@ -365,6 +365,17 @@ test('extractThreadIdentity parses LinkedIn rejection update template', () => {
   assert.ok((identity.roleConfidence || 0) >= 0.8);
 });
 
+test('extractThreadIdentity strips LinkedIn company location suffixes in rejection updates', () => {
+  const subject = 'Your application to Full Stack Engineer at Tata Consultancy Services · Remote';
+  const sender = 'jobs-noreply@linkedin.com';
+  const snippet =
+    'Your update from Tata Consultancy Services · Jersey City, NJ. We will not be moving forward with your application.';
+
+  const identity = extractThreadIdentity({ subject, sender, snippet });
+  assert.equal(identity.companyName, 'Tata Consultancy Services');
+  assert.equal(identity.jobTitle, 'Full Stack Engineer');
+});
+
 test('matchAndAssignEvent auto-creates for LinkedIn Easy Apply confirmation', async () => {
   const subject = 'Jason, your application was sent to BeaconFire Inc.';
   const sender = 'jobs-noreply@linkedin.com';

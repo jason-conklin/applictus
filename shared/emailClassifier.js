@@ -22,7 +22,7 @@ const LINKEDIN_CONFIRMATION_RULE = {
 const LINKEDIN_REJECTION_RULE = {
   name: 'linkedin_application_rejection_update',
   detectedType: 'rejection',
-  confidence: 0.96,
+  confidence: 0.97,
   senderPattern: /jobs-noreply@linkedin\.com/i,
   subjectPattern: /^your application to\s+.+\s+at\s+.+/i,
   bodyPatterns: [
@@ -250,6 +250,16 @@ function normalize(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
+function isLinkedInJobsUpdateEmail({ subject, snippet, sender, body }) {
+  const senderText = String(sender || '');
+  if (!/jobs-noreply@linkedin\.com/i.test(senderText)) {
+    return false;
+  }
+  const normalizedSubject = normalize(subject);
+  const combinedText = `${normalizedSubject}\n${normalize(snippet)}\n${normalize(body || '')}`;
+  return /^your application to\s+/i.test(normalizedSubject) || /your update from\s+.+/i.test(combinedText);
+}
+
 function isLinkedInSocialNotification(text, sender = '') {
   const lower = text.toLowerCase();
   const senderLower = String(sender || '').toLowerCase();
@@ -310,8 +320,10 @@ function classifyEmail({ subject, snippet, sender, body }) {
     return { isJobRelated: false, explanation: 'Empty subject/snippet.' };
   }
 
+  const linkedInJobsUpdate = isLinkedInJobsUpdateEmail({ subject, snippet, sender, body });
+
   // Early guard: LinkedIn social/notification emails should not be classified as interview.
-  if (isLinkedInSocialNotification(textSource, sender)) {
+  if (!linkedInJobsUpdate && isLinkedInSocialNotification(textSource, sender)) {
     return { isJobRelated: false, explanation: 'LinkedIn social notification.' };
   }
 
@@ -319,11 +331,7 @@ function classifyEmail({ subject, snippet, sender, body }) {
   const linkedInRejectionSignal = LINKEDIN_REJECTION_RULE.bodyPatterns.find((pattern) =>
     pattern.test(textSource)
   );
-  if (
-    LINKEDIN_REJECTION_RULE.senderPattern.test(sender || '') &&
-    LINKEDIN_REJECTION_RULE.subjectPattern.test(normalizedSubject) &&
-    linkedInRejectionSignal
-  ) {
+  if (linkedInJobsUpdate && LINKEDIN_REJECTION_RULE.subjectPattern.test(normalizedSubject) && linkedInRejectionSignal) {
     return {
       isJobRelated: true,
       detectedType: LINKEDIN_REJECTION_RULE.detectedType,
@@ -393,6 +401,15 @@ function classifyEmail({ subject, snippet, sender, body }) {
   // Denylist overrides generic allowlist (except for the strong rejection rule above).
   for (const pattern of DENYLIST) {
     if (pattern.test(text)) {
+      if (linkedInJobsUpdate) {
+        return {
+          isJobRelated: true,
+          detectedType: 'other_job_related',
+          confidenceScore: 0.8,
+          explanation: 'LinkedIn jobs update allowlisted.',
+          reason: 'linkedin_jobs_update_allowlisted'
+        };
+      }
       return {
         isJobRelated: false,
         explanation: `Denied by ${pattern}.`,
@@ -458,6 +475,7 @@ function classifyEmail({ subject, snippet, sender, body }) {
 
 module.exports = {
   classifyEmail,
+  isLinkedInJobsUpdateEmail,
   RULES,
   DENYLIST
 };
