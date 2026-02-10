@@ -104,43 +104,152 @@ function decodeBase64Url(value) {
   return Buffer.from(padded, 'base64').toString('utf8');
 }
 
-function stripHtml(value) {
+function decodeQuotedPrintable(value) {
+  const source = String(value || '');
+  if (!source || !/(=\r?\n|=[0-9A-Fa-f]{2})/.test(source)) {
+    return source;
+  }
+  const cleaned = source.replace(/=\r?\n/g, '');
+  const bytes = [];
+  for (let i = 0; i < cleaned.length; i += 1) {
+    const ch = cleaned[i];
+    const hex = cleaned.slice(i + 1, i + 3);
+    if (ch === '=' && /^[0-9A-Fa-f]{2}$/.test(hex)) {
+      bytes.push(parseInt(hex, 16));
+      i += 2;
+    } else {
+      bytes.push(cleaned.charCodeAt(i));
+    }
+  }
+  return Buffer.from(bytes).toString('utf8');
+}
+
+function decodeHtmlEntities(value) {
+  const named = {
+    nbsp: ' ',
+    amp: '&',
+    lt: '<',
+    gt: '>',
+    quot: '"',
+    apos: "'",
+    '#39': "'"
+  };
+  return String(value || '').replace(/&([a-zA-Z0-9#]+);/g, (match, entity) => {
+    const key = String(entity).toLowerCase();
+    if (named[key] !== undefined) {
+      return named[key];
+    }
+    if (key.startsWith('#x')) {
+      const codePoint = parseInt(key.slice(2), 16);
+      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : match;
+    }
+    if (key.startsWith('#')) {
+      const codePoint = parseInt(key.slice(1), 10);
+      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : match;
+    }
+    return match;
+  });
+}
+
+function normalizeExtractedText(value) {
   return String(value || '')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/\r\n/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
-function findPayloadPart(payload, predicate) {
+function stripHtml(value) {
+  const withBreaks = String(value || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\/\s*(p|div|li|tr|h[1-6])\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ');
+  return normalizeExtractedText(decodeHtmlEntities(withBreaks));
+}
+
+function collectTextParts(payload, list = []) {
   if (!payload) {
-    return null;
+    return list;
   }
   const mimeType = String(payload.mimeType || '').toLowerCase();
-  if (predicate(mimeType) && payload.body?.data) {
-    return payload;
+  const body = payload.body || {};
+  if (
+    mimeType.startsWith('text/plain') ||
+    mimeType.startsWith('text/html')
+  ) {
+    list.push({
+      mimeType,
+      data: body.data || null,
+      attachmentId: body.attachmentId || null
+    });
   }
   const parts = payload.parts || [];
   for (const part of parts) {
-    const found = findPayloadPart(part, predicate);
-    if (found) {
-      return found;
-    }
+    collectTextParts(part, list);
   }
-  return null;
+  return list;
 }
 
-function extractPlainTextFromPayload(payload) {
-  const textPart = findPayloadPart(payload, (mime) => mime.startsWith('text/plain'));
-  if (textPart) {
-    return decodeBase64Url(textPart.body.data);
+async function loadPartBodyText(part, { gmail, messageId, fetchAttachmentBodies = false } = {}) {
+  if (!part) {
+    return '';
   }
-  const htmlPart = findPayloadPart(payload, (mime) => mime.startsWith('text/html'));
-  if (htmlPart) {
-    return stripHtml(decodeBase64Url(htmlPart.body.data));
+  let raw = '';
+  if (part.data) {
+    raw = decodeBase64Url(part.data);
+  } else if (part.attachmentId && fetchAttachmentBodies && gmail && messageId) {
+    try {
+      const attachment = await gmail.users.messages.attachments.get({
+        userId: 'me',
+        messageId,
+        id: part.attachmentId
+      });
+      raw = decodeBase64Url(attachment?.data?.data);
+    } catch (err) {
+      if (process.env.DEBUG_INGEST_LINKEDIN === '1') {
+        logDebug('ingest.attachment_fetch_failed', {
+          messageId,
+          attachmentId: part.attachmentId,
+          error: err && err.message ? String(err.message) : String(err)
+        });
+      }
+      raw = '';
+    }
   }
-  return '';
+  if (!raw) {
+    return '';
+  }
+  const decoded = decodeQuotedPrintable(raw);
+  if (part.mimeType.startsWith('text/html')) {
+    return stripHtml(decoded);
+  }
+  return normalizeExtractedText(decodeHtmlEntities(decoded));
+}
+
+async function extractEmailBodyText(payload, options = {}) {
+  if (!payload) {
+    return '';
+  }
+  const parts = collectTextParts(payload, []);
+  if (!parts.length) {
+    const rootMime = String(payload.mimeType || '').toLowerCase();
+    const rootData = payload?.body?.data || null;
+    const rootAttachmentId = payload?.body?.attachmentId || null;
+    if (rootMime.startsWith('text/plain') || rootMime.startsWith('text/html')) {
+      parts.push({ mimeType: rootMime, data: rootData, attachmentId: rootAttachmentId });
+    }
+  }
+  const bodyChunks = [];
+  for (const part of parts) {
+    const partText = await loadPartBodyText(part, options);
+    if (partText) {
+      bodyChunks.push(partText);
+    }
+  }
+  return truncateBodyText(bodyChunks.join('\n\n'));
 }
 
 function truncateBodyText(text, max = 4000) {
@@ -155,14 +264,14 @@ function truncateBodyText(text, max = 4000) {
   return clean.length > max ? clean.slice(0, max) : clean;
 }
 
-function extractMessageMetadata(details) {
+async function extractMessageMetadata(details, options = {}) {
   const headers = details?.payload?.headers || [];
   const sender = parseHeader(headers, 'From');
   const subject = parseHeader(headers, 'Subject');
   const rfcMessageId = parseHeader(headers, 'Message-ID') || null;
   const snippet = details?.snippet || '';
   const internalDate = details?.internalDate ? Number(details.internalDate) : null;
-  const bodyText = truncateBodyText(extractPlainTextFromPayload(details?.payload));
+  const bodyText = await extractEmailBodyText(details?.payload, options);
   return { sender, subject, rfcMessageId, snippet, internalDate, bodyText };
 }
 
@@ -525,6 +634,16 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
         format: 'full'
       });
 
+      const previewHeaders = details.data?.payload?.headers || [];
+      const previewSender = parseHeader(previewHeaders, 'From');
+      const previewSubject = parseHeader(previewHeaders, 'Subject');
+      const shouldFetchLinkedInAttachments = isLinkedInJobsUpdateEmail({
+        sender: previewSender,
+        subject: previewSubject,
+        snippet: details.data?.snippet || '',
+        body: ''
+      });
+
       const {
         sender,
         subject,
@@ -532,7 +651,11 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
         snippet,
         internalDate,
         bodyText
-      } = extractMessageMetadata(details.data);
+      } = await extractMessageMetadata(details.data, {
+        gmail,
+        messageId: message.id,
+        fetchAttachmentBodies: shouldFetchLinkedInAttachments
+      });
       const sourceBucket = categorizeSenderDomain(sender);
       messageSourceCounts[sourceBucket] = (messageSourceCounts[sourceBucket] || 0) + 1;
 
@@ -569,7 +692,12 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
           subject: subject || null,
           sender: sender || null,
           isLinkedInJobsUpdate: linkedInJobsUpdate,
-          reprocessingDuplicate: Boolean(shouldReprocessLinkedInDuplicate)
+          reprocessingDuplicate: Boolean(shouldReprocessLinkedInDuplicate),
+          snippetLength: String(snippet || '').length,
+          snippetPreview: truncateSnippet(snippet, 120),
+          bodyTextLength: String(bodyText || '').length,
+          bodyHasRejectionPhrase: hasLinkedInRejectionPhrase(bodyText),
+          fetchedAttachmentBodies: shouldFetchLinkedInAttachments
         });
       }
       const classification = classifyEmail({ subject, snippet, sender, body: bodyText });

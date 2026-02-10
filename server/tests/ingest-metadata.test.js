@@ -7,6 +7,7 @@ const path = require('path');
 const Database = require('better-sqlite3');
 
 const { extractMessageMetadata, insertEmailEventRecord } = require('../src/ingest');
+const { classifyEmail } = require('../../shared/emailClassifier');
 
 function runMigrations(db) {
   const migrationsDir = path.join(__dirname, '..', 'migrations');
@@ -36,7 +37,7 @@ function insertUser(db) {
   return userId;
 }
 
-test('extractMessageMetadata tolerates missing headers/snippet/body', () => {
+test('extractMessageMetadata tolerates missing headers/snippet/body', async () => {
   const details = {
     payload: {
       headers: [
@@ -45,12 +46,59 @@ test('extractMessageMetadata tolerates missing headers/snippet/body', () => {
       ]
     }
   };
-  const result = extractMessageMetadata(details);
+  const result = await extractMessageMetadata(details);
   assert.equal(result.sender, 'Workday <pru@myworkday.com>');
   assert.equal(result.subject, 'Thank you for applying!');
   assert.equal(result.rfcMessageId, null);
   assert.equal(result.snippet, '');
   assert.equal(result.bodyText, '');
+});
+
+test('extractMessageMetadata captures LinkedIn rejection phrase from nested html payload when snippet lacks it', async () => {
+  const htmlBody =
+    '<div>Your update from Concorde Research Technologies.</div>=0A' +
+    '<div>Unfortunately, we will not be moving forward with your application at this time.</div>';
+  const details = {
+    snippet: 'Your update from Concorde Research Technologies.',
+    payload: {
+      headers: [
+        { name: 'From', value: 'jobs-noreply@linkedin.com' },
+        { name: 'Subject', value: 'Your application to Software Engineer at Concorde Research Technologies' }
+      ],
+      mimeType: 'multipart/mixed',
+      parts: [
+        {
+          mimeType: 'multipart/alternative',
+          parts: [
+            {
+              mimeType: 'text/plain',
+              body: {
+                data: Buffer.from('Your update from Concorde Research Technologies.', 'utf8').toString('base64url')
+              }
+            },
+            {
+              mimeType: 'text/html',
+              body: {
+                data: Buffer.from(htmlBody, 'utf8').toString('base64url')
+              }
+            }
+          ]
+        }
+      ]
+    }
+  };
+
+  const result = await extractMessageMetadata(details);
+  assert.match(result.bodyText, /will not be moving forward with your application/i);
+  const classification = classifyEmail({
+    subject: result.subject,
+    snippet: result.snippet,
+    sender: result.sender,
+    body: result.bodyText
+  });
+  assert.equal(classification.detectedType, 'rejection');
+  assert.ok(classification.confidenceScore >= 0.97);
+  assert.equal(classification.reason, 'linkedin_jobs_rejection_phrase_body');
 });
 
 test('insertEmailEventRecord accepts null rfc_message_id and external_req_id', () => {

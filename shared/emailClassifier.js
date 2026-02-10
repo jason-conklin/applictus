@@ -311,6 +311,8 @@ function findRuleMatch(rules, text, minConfidence, jobContext) {
 }
 
 function classifyEmail({ subject, snippet, sender, body }) {
+  const normalizedSnippet = normalize(snippet);
+  const normalizedBody = normalize(body || '');
   const textSource = `${normalize(body || '')} ${normalize(snippet)} ${normalize(subject)} ${normalize(
     sender
   )}`.trim();
@@ -328,16 +330,24 @@ function classifyEmail({ subject, snippet, sender, body }) {
   }
 
   // Dedicated LinkedIn rejection template override for jobs updates.
-  const linkedInRejectionSignal = LINKEDIN_REJECTION_RULE.bodyPatterns.find((pattern) =>
-    pattern.test(textSource)
+  const linkedInRejectionInSnippet = LINKEDIN_REJECTION_RULE.bodyPatterns.some((pattern) =>
+    pattern.test(normalizedSnippet)
   );
+  const linkedInRejectionInBody = LINKEDIN_REJECTION_RULE.bodyPatterns.some((pattern) =>
+    pattern.test(normalizedBody)
+  );
+  const linkedInRejectionSignal =
+    linkedInRejectionInSnippet ||
+    linkedInRejectionInBody ||
+    LINKEDIN_REJECTION_RULE.bodyPatterns.some((pattern) => pattern.test(textSource));
   if (linkedInJobsUpdate && LINKEDIN_REJECTION_RULE.subjectPattern.test(normalizedSubject) && linkedInRejectionSignal) {
+    const bodyOnlyReason = linkedInRejectionInBody && !linkedInRejectionInSnippet;
     return {
       isJobRelated: true,
       detectedType: LINKEDIN_REJECTION_RULE.detectedType,
       confidenceScore: LINKEDIN_REJECTION_RULE.confidence,
       explanation: 'LinkedIn rejection update detected.',
-      reason: LINKEDIN_REJECTION_RULE.name
+      reason: bodyOnlyReason ? 'linkedin_jobs_rejection_phrase_body' : LINKEDIN_REJECTION_RULE.name
     };
   }
 

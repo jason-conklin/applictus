@@ -275,6 +275,7 @@ test('classifyEmail detects LinkedIn rejection when phrase appears in body only'
   assert.equal(result.isJobRelated, true);
   assert.equal(result.detectedType, 'rejection');
   assert.ok(result.confidenceScore >= 0.97);
+  assert.equal(result.reason, 'linkedin_jobs_rejection_phrase_body');
 });
 
 test('classifyEmail keeps LinkedIn jobs rejection allowlisted even with unsubscribe footer', () => {
