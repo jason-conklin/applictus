@@ -264,6 +264,19 @@ test('classifyEmail detects LinkedIn rejection update (Tata Consultancy Services
   assert.ok(result.confidenceScore >= 0.95);
 });
 
+test('classifyEmail detects LinkedIn rejection when phrase appears in body only', () => {
+  const result = classifyEmail({
+    subject: 'Your application to Full Stack Engineer at Concorde Research Technologies',
+    snippet: 'Your update from Concorde Research Technologies.',
+    body:
+      'Thanks for your interest. Unfortunately, we will not be moving forward with your application at this time.',
+    sender: 'jobs-noreply@linkedin.com'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'rejection');
+  assert.ok(result.confidenceScore >= 0.97);
+});
+
 test('classifyEmail keeps LinkedIn jobs rejection allowlisted even with unsubscribe footer', () => {
   const result = classifyEmail({
     subject: 'Your application to Full Stack Engineer at Concorde Research Technologies',

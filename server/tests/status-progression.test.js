@@ -260,6 +260,130 @@ Applied on February 1, 2026`;
   db.close();
 });
 
+test('re-evaluated LinkedIn rejection event can update an existing non-rejection event to REJECTED', async () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+  const sender = 'jobs-noreply@linkedin.com';
+
+  const confirmationSubject = 'Jason, your application was sent to Concorde Research Technologies';
+  const confirmationBody = `Jason, your application was sent to Concorde Research Technologies.
+Software Engineer · Concorde Research Technologies · Remote
+Applied on February 1, 2026`;
+  const confirmationIdentity = extractThreadIdentity({
+    subject: confirmationSubject,
+    sender,
+    bodyText: confirmationBody
+  });
+  const confirmationId = insertEmailEvent(db, {
+    userId,
+    messageId: 'msg-linkedin-reprocess-confirm',
+    sender,
+    subject: confirmationSubject,
+    detectedType: 'confirmation',
+    confidenceScore: 0.92,
+    classificationConfidence: 0.92,
+    snippet: 'Your application was sent to Concorde Research Technologies.'
+  });
+  const confirmationMatch = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: confirmationId,
+      sender,
+      subject: confirmationSubject,
+      snippet: 'Your application was sent to Concorde Research Technologies.',
+      detected_type: 'confirmation',
+      confidence_score: 0.92,
+      classification_confidence: 0.92,
+      role_title: confirmationIdentity.jobTitle,
+      role_confidence: confirmationIdentity.roleConfidence,
+      role_source: 'identity',
+      created_at: new Date().toISOString()
+    },
+    identity: confirmationIdentity
+  });
+  assert.equal(confirmationMatch.action, 'created_application');
+  const appId = confirmationMatch.applicationId;
+
+  const rejectionSubject = 'Your application to Software Engineer at Concorde Research Technologies';
+  const rejectionUpdateOnlySnippet = 'Your update from Concorde Research Technologies.';
+  const rejectionIdentity = extractThreadIdentity({
+    subject: rejectionSubject,
+    sender,
+    snippet: rejectionUpdateOnlySnippet,
+    bodyText: rejectionUpdateOnlySnippet
+  });
+
+  const rejectionId = insertEmailEvent(db, {
+    userId,
+    messageId: 'msg-linkedin-reprocess-reject',
+    sender,
+    subject: rejectionSubject,
+    detectedType: 'other_job_related',
+    confidenceScore: 0.8,
+    classificationConfidence: 0.8,
+    snippet: rejectionUpdateOnlySnippet
+  });
+
+  await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: rejectionId,
+      sender,
+      subject: rejectionSubject,
+      snippet: rejectionUpdateOnlySnippet,
+      detected_type: 'other_job_related',
+      confidence_score: 0.8,
+      classification_confidence: 0.8,
+      role_title: rejectionIdentity.jobTitle,
+      role_confidence: rejectionIdentity.roleConfidence,
+      role_source: 'identity',
+      created_at: new Date().toISOString()
+    },
+    identity: rejectionIdentity
+  });
+
+  runStatusInferenceForApplication(db, userId, appId);
+  const before = db.prepare('SELECT current_status FROM job_applications WHERE id = ?').get(appId);
+  assert.notEqual(before.current_status, ApplicationStatus.REJECTED);
+
+  const reprocessedSnippet =
+    'Your update from Concorde Research Technologies. Unfortunately, we will not be moving forward with your application at this time.';
+  db.prepare(
+    `UPDATE email_events
+     SET detected_type = ?, confidence_score = ?, classification_confidence = ?, snippet = ?
+     WHERE id = ?`
+  ).run('rejection', 0.97, 0.97, reprocessedSnippet, rejectionId);
+
+  const reprocessedMatch = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: rejectionId,
+      sender,
+      subject: rejectionSubject,
+      snippet: reprocessedSnippet,
+      detected_type: 'rejection',
+      confidence_score: 0.97,
+      classification_confidence: 0.97,
+      role_title: rejectionIdentity.jobTitle,
+      role_confidence: rejectionIdentity.roleConfidence,
+      role_source: 'identity',
+      created_at: new Date().toISOString()
+    },
+    identity: rejectionIdentity
+  });
+  assert.equal(reprocessedMatch.action, 'matched_existing');
+  assert.equal(reprocessedMatch.applicationId, appId);
+
+  runStatusInferenceForApplication(db, userId, appId);
+  const after = db.prepare('SELECT current_status FROM job_applications WHERE id = ?').get(appId);
+  assert.equal(after.current_status, ApplicationStatus.REJECTED);
+  db.close();
+});
+
 test('user override prevents auto-rejection', async () => {
   const db = new Database(':memory:');
   runMigrations(db);
