@@ -1091,6 +1091,24 @@ app.get('/api/email/connect/start', requireAuth, (req, res) => {
     accessType: 'offline',
     prompt: 'consent'
   });
+  if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+    try {
+      const parsed = new URL(url);
+      const scopes = (parsed.searchParams.get('scope') || '')
+        .split(/\s+/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+      // eslint-disable-next-line no-console
+      console.debug('[gmail-oauth] start', {
+        mode,
+        client_id: parsed.searchParams.get('client_id'),
+        scopes
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.debug('[gmail-oauth] start', { mode, parse_error: String(err && err.message ? err.message : err) });
+    }
+  }
   return res.redirect(url);
 });
 
