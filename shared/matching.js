@@ -1422,8 +1422,8 @@ function domainConfidence(companyName, senderDomain) {
 
 function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender }) {
   const senderDomain = extractSenderDomain(sender);
-  const isLinkedInSender = /linkedin\.com/i.test(senderDomain || '') || /linkedin\.com/i.test(sender || '');
-  if (!isLinkedInSender) {
+  const isLinkedInJobsSender = /jobs-noreply@linkedin\.com/i.test(String(sender || ''));
+  if (!isLinkedInJobsSender) {
     return null;
   }
 

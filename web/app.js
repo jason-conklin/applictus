@@ -1240,7 +1240,10 @@ function authErrorMessage(code) {
     OAUTH_CODE_MISSING: 'Google sign-in did not return a valid authorization code.',
     GOOGLE_AUTH_VERIFY_FAILED: 'We could not verify your Google sign-in. Please try again.',
     GOOGLE_EMAIL_UNVERIFIED: 'Your Google account email must be verified before signing in.',
-    OAUTH_USER_CREATE_FAILED: 'We could not finish Google sign-in. Please try again.'
+    OAUTH_USER_CREATE_FAILED: 'We could not finish Google sign-in. Please try again.',
+    GMAIL_NOT_CONFIGURED: 'Gmail connect is not configured yet.',
+    TOKEN_ENC_KEY_REQUIRED: 'Token encryption is not configured yet.',
+    GMAIL_CONNECT_FAILED: 'Google sign-in worked, but Gmail connection could not be completed.'
   };
   return messages[code] || 'Unable to sign in. Please try again.';
 }
@@ -1259,6 +1262,21 @@ function consumeAuthRedirectError() {
   const nextUrl = `${url.pathname}${url.search}${url.hash}`;
   window.history.replaceState({}, '', nextUrl || '/');
   return errorCode;
+}
+
+function consumeAuthRedirectSuccess() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const url = new URL(window.location.href);
+  const gmailConnected = url.searchParams.get('gmail_connected');
+  if (!gmailConnected) {
+    return null;
+  }
+  url.searchParams.delete('gmail_connected');
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState({}, '', nextUrl || '/');
+  return { gmailConnected: gmailConnected === '1' };
 }
 
 function contactErrorMessage(code) {
@@ -4624,6 +4642,10 @@ window.addEventListener('hashchange', route);
   await loadCsrfToken();
   await loadSession();
   route();
+  const authRedirectSuccess = consumeAuthRedirectSuccess();
+  if (authRedirectSuccess?.gmailConnected) {
+    showNotice('Gmail connected successfully.', 'Google sign-in');
+  }
   const authRedirectError = consumeAuthRedirectError();
   if (authRedirectError) {
     showNotice(authErrorMessage(authRedirectError), 'Google sign-in');

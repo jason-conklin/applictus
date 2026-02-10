@@ -1,8 +1,9 @@
 const { google } = require('googleapis');
 const { encryptText, decryptText, isEncryptionReady } = require('./crypto');
+const { GOOGLE_GMAIL_SCOPES } = require('./googleAuth');
 
 const DEFAULT_REDIRECT = 'http://localhost:3000/api/email/callback';
-const GMAIL_SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
+const GMAIL_SCOPES = GOOGLE_GMAIL_SCOPES;
 
 function getOAuthClient() {
   const clientId = process.env.GMAIL_CLIENT_ID;
@@ -16,7 +17,10 @@ function getOAuthClient() {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
-function getAuthUrl(oAuthClient) {
+function getAuthUrl(oAuthClient, options = {}) {
+  const prompt = options.prompt || 'consent';
+  const accessType = options.accessType || 'offline';
+  const state = options.state || undefined;
   if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
     const redirectUri = oAuthClient.redirectUri || process.env.GMAIL_REDIRECT_URI || DEFAULT_REDIRECT;
     const appDomain = process.env.APP_WEB_BASE_URL || process.env.APP_API_BASE_URL || 'http://localhost:3000';
@@ -28,9 +32,10 @@ function getAuthUrl(oAuthClient) {
     });
   }
   return oAuthClient.generateAuthUrl({
-    access_type: 'offline',
+    access_type: accessType,
     scope: GMAIL_SCOPES,
-    prompt: 'consent'
+    prompt,
+    state
   });
 }
 

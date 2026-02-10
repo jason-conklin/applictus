@@ -476,12 +476,20 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
       ) {
         const linkedInText = `${subject || ''}\n${snippet || ''}\n${bodyText || ''}`;
         const linkedInIdentity = extractThreadIdentity({ subject, sender, snippet, bodyText });
+        const hasUnfortunatelyMovingForward =
+          /unfortunately,\s*we will not be moving forward with your application/i.test(linkedInText);
+        const hasMovingForwardExact =
+          /we will not be moving forward with your application/i.test(linkedInText);
+        const hasNotBeMovingForward =
+          /not be moving forward with your application/i.test(linkedInText);
         logDebug('ingest.linkedin_jobs_classification_debug', {
           subject: subject || null,
           sender: sender || null,
           hasSubjectPattern: /^your application to\s+.+\s+at\s+.+/i.test(String(subject || '')),
           hasUpdateFromPattern: /your update from\s+.+/i.test(linkedInText),
-          hasMovingForwardPattern: /not be moving forward with your application/i.test(linkedInText),
+          hasUnfortunatelyMovingForward,
+          hasMovingForwardExact,
+          hasNotBeMovingForward,
           extractedCompany: linkedInIdentity?.companyName || null,
           extractedRole: linkedInIdentity?.jobTitle || null,
           classification: classification.detectedType || null,

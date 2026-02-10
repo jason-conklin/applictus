@@ -55,11 +55,12 @@ JOBTRACK_RATE_LIMIT_WINDOW_MS=600000
 ### Google Sign-In (identity)
 Create OAuth credentials (Web application) and set:
 ```bash
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
+GOOGLE_AUTH_CLIENT_ID=...
+GOOGLE_AUTH_CLIENT_SECRET=...
+GOOGLE_AUTH_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
 ```
 Scopes: `openid`, `email`, `profile`.
+Backward-compatible fallback envs are also accepted: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`.
 
 ## Gmail OAuth (read-only)
 Create OAuth credentials in Google Cloud and set:
