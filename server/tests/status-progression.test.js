@@ -8,6 +8,8 @@ const Database = require('better-sqlite3');
 const { matchAndAssignEvent } = require('../src/matching');
 const { runStatusInferenceForApplication } = require('../src/statusInferenceRunner');
 const { ApplicationStatus } = require('../../shared/types');
+const { extractThreadIdentity } = require('../../shared/matching');
+const { classifyEmail } = require('../../shared/emailClassifier');
 
 function runMigrations(db) {
   const migrationsDir = path.join(__dirname, '..', 'migrations');
@@ -134,6 +136,123 @@ test('matched rejection updates application status', async () => {
     }
   });
   assert.equal(rejectionMatch.action, 'matched_existing');
+
+  runStatusInferenceForApplication(db, userId, appId);
+  const updated = db.prepare('SELECT current_status FROM job_applications WHERE id = ?').get(appId);
+  assert.equal(updated.current_status, ApplicationStatus.REJECTED);
+  db.close();
+});
+
+test('LinkedIn confirmation and rejection lifecycle updates existing application to REJECTED', async () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+  const sender = 'jobs-noreply@linkedin.com';
+
+  const confirmationSubject = 'Jason, your application was sent to Concorde Research Technologies';
+  const confirmationBody = `Jason, your application was sent to Concorde Research Technologies.
+Software Engineer · Concorde Research Technologies · Remote
+Applied on February 1, 2026`;
+  const confirmationClassification = classifyEmail({
+    subject: confirmationSubject,
+    snippet: confirmationBody,
+    sender,
+    body: confirmationBody
+  });
+  assert.equal(confirmationClassification.detectedType, 'confirmation');
+
+  const confirmationIdentity = extractThreadIdentity({
+    subject: confirmationSubject,
+    sender,
+    bodyText: confirmationBody
+  });
+  assert.equal(confirmationIdentity.companyName, 'Concorde Research Technologies');
+  assert.equal(confirmationIdentity.jobTitle, 'Software Engineer');
+
+  const confirmationId = insertEmailEvent(db, {
+    userId,
+    messageId: 'msg-linkedin-confirm',
+    sender,
+    subject: confirmationSubject,
+    detectedType: confirmationClassification.detectedType,
+    confidenceScore: confirmationClassification.confidenceScore,
+    classificationConfidence: confirmationClassification.confidenceScore,
+    snippet: 'Your application was sent to Concorde Research Technologies.'
+  });
+
+  const confirmationMatch = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: confirmationId,
+      sender,
+      subject: confirmationSubject,
+      snippet: 'Your application was sent to Concorde Research Technologies.',
+      detected_type: confirmationClassification.detectedType,
+      confidence_score: confirmationClassification.confidenceScore,
+      classification_confidence: confirmationClassification.confidenceScore,
+      role_title: confirmationIdentity.jobTitle,
+      role_confidence: confirmationIdentity.roleConfidence,
+      role_source: 'identity',
+      created_at: new Date().toISOString()
+    },
+    identity: confirmationIdentity
+  });
+  assert.equal(confirmationMatch.action, 'created_application');
+  const appId = confirmationMatch.applicationId;
+
+  const rejectionSubject = 'Your application to Software Engineer at Concorde Research Technologies';
+  const rejectionBody =
+    'Your update from Concorde Research Technologies. Unfortunately, we will not be moving forward with your application at this time.';
+  const rejectionClassification = classifyEmail({
+    subject: rejectionSubject,
+    snippet: rejectionBody,
+    sender,
+    body: rejectionBody
+  });
+  assert.equal(rejectionClassification.detectedType, 'rejection');
+  assert.ok(rejectionClassification.confidenceScore >= 0.95);
+
+  const rejectionIdentity = extractThreadIdentity({
+    subject: rejectionSubject,
+    sender,
+    snippet: rejectionBody,
+    bodyText: rejectionBody
+  });
+  assert.equal(rejectionIdentity.companyName, 'Concorde Research Technologies');
+  assert.equal(rejectionIdentity.jobTitle, 'Software Engineer');
+
+  const rejectionId = insertEmailEvent(db, {
+    userId,
+    messageId: 'msg-linkedin-reject',
+    sender,
+    subject: rejectionSubject,
+    detectedType: rejectionClassification.detectedType,
+    confidenceScore: rejectionClassification.confidenceScore,
+    classificationConfidence: rejectionClassification.confidenceScore,
+    snippet: rejectionBody
+  });
+
+  const rejectionMatch = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: rejectionId,
+      sender,
+      subject: rejectionSubject,
+      snippet: rejectionBody,
+      detected_type: rejectionClassification.detectedType,
+      confidence_score: rejectionClassification.confidenceScore,
+      classification_confidence: rejectionClassification.confidenceScore,
+      role_title: rejectionIdentity.jobTitle,
+      role_confidence: rejectionIdentity.roleConfidence,
+      role_source: 'identity',
+      created_at: new Date().toISOString()
+    },
+    identity: rejectionIdentity
+  });
+  assert.equal(rejectionMatch.action, 'matched_existing');
+  assert.equal(rejectionMatch.applicationId, appId);
 
   runStatusInferenceForApplication(db, userId, appId);
   const updated = db.prepare('SELECT current_status FROM job_applications WHERE id = ?').get(appId);

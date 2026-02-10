@@ -1420,7 +1420,7 @@ function domainConfidence(companyName, senderDomain) {
   return { score: 0.4, isAtsDomain: false };
 }
 
-function extractLinkedInApplicationIdentity({ subject, bodyText, sender }) {
+function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender }) {
   const senderDomain = extractSenderDomain(sender);
   const isLinkedInSender = /linkedin\.com/i.test(senderDomain || '') || /linkedin\.com/i.test(sender || '');
   if (!isLinkedInSender) {
@@ -1428,12 +1428,29 @@ function extractLinkedInApplicationIdentity({ subject, bodyText, sender }) {
   }
 
   const normalizedSubject = String(subject || '').trim();
-  const body = String(bodyText || '').replace(/\r\n/g, '\n');
+  const text = [String(snippet || ''), String(bodyText || '')].filter(Boolean).join('\n');
+  const body = text.replace(/\r\n/g, '\n');
   const lines = body.split('\n').map((line) => line.trim()).filter(Boolean);
 
+  const rejectionSubjectMatch = normalizedSubject.match(
+    /^your application to\s+(.+?)\s+at\s+(.+?)(?:[.!?]\s*)?$/i
+  );
   let companyName = null;
+  let jobTitle = null;
+  if (rejectionSubjectMatch) {
+    jobTitle = rejectionSubjectMatch[1].trim();
+    companyName = rejectionSubjectMatch[2].trim();
+  }
+
+  const rejectionCompanyMatch =
+    body.match(/your update from\s+([^\n.]+?)(?:[.!?\n]|$)/i) ||
+    normalizedSubject.match(/\byour update from\s+(.+?)(?:[.!?]|$)/i);
+  if (rejectionCompanyMatch && rejectionCompanyMatch[1]) {
+    companyName = rejectionCompanyMatch[1].trim();
+  }
+
   const subjectCompanyMatch = normalizedSubject.match(/application was sent to\s+(.+?)\.?$/i);
-  if (subjectCompanyMatch) {
+  if (!companyName && subjectCompanyMatch) {
     companyName = subjectCompanyMatch[1].trim();
   }
 
@@ -1447,7 +1464,6 @@ function extractLinkedInApplicationIdentity({ subject, bodyText, sender }) {
     }
   }
 
-  let jobTitle = null;
   let companyLineIndex = -1;
   lines.forEach((line, idx) => {
     if (companyLineIndex === -1 && /application was sent to/i.test(line)) {
@@ -1523,7 +1539,9 @@ function extractLinkedInApplicationIdentity({ subject, bodyText, sender }) {
     isAtsDomain: domainResult.isAtsDomain,
     isPlatformEmail: true,
     bodyTextAvailable: Boolean(body && body.trim()),
-    explanation: 'LinkedIn application was sent template'
+    explanation: rejectionSubjectMatch
+      ? 'LinkedIn rejection update template'
+      : 'LinkedIn application was sent template'
   };
 }
 
@@ -1533,6 +1551,7 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   const bodyTextRaw = String(bodyText || '');
   const linkedInIdentity = extractLinkedInApplicationIdentity({
     subject: subjectText,
+    snippet: snippetText,
     bodyText: bodyTextRaw,
     sender
   });

@@ -468,6 +468,27 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
       }
 
       const classification = classifyEmail({ subject, snippet, sender, body: bodyText });
+      const isLinkedInJobsSender = /jobs-noreply@linkedin\.com/i.test(String(sender || ''));
+      if (
+        process.env.DEBUG_INGEST === '1' &&
+        isLinkedInJobsSender &&
+        (!classification.isJobRelated || classification.detectedType === 'confirmation')
+      ) {
+        const linkedInText = `${subject || ''}\n${snippet || ''}\n${bodyText || ''}`;
+        const linkedInIdentity = extractThreadIdentity({ subject, sender, snippet, bodyText });
+        logDebug('ingest.linkedin_jobs_classification_debug', {
+          subject: subject || null,
+          sender: sender || null,
+          hasSubjectPattern: /^your application to\s+.+\s+at\s+.+/i.test(String(subject || '')),
+          hasUpdateFromPattern: /your update from\s+.+/i.test(linkedInText),
+          hasMovingForwardPattern: /not be moving forward with your application/i.test(linkedInText),
+          extractedCompany: linkedInIdentity?.companyName || null,
+          extractedRole: linkedInIdentity?.jobTitle || null,
+          classification: classification.detectedType || null,
+          isJobRelated: Boolean(classification.isJobRelated),
+          reason: classification.reason || null
+        });
+      }
       if (!classification.isJobRelated) {
         skippedNotJob += 1;
         let reasonCode = 'classified_not_job_related';

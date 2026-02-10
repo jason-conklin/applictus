@@ -352,6 +352,19 @@ Applied on January 23, 2026`;
   assert.ok(identity.companyConfidence >= 0.85);
 });
 
+test('extractThreadIdentity parses LinkedIn rejection update template', () => {
+  const subject = 'Your application to Software Engineer at Concorde Research Technologies';
+  const sender = 'jobs-noreply@linkedin.com';
+  const snippet =
+    'Your update from Concorde Research Technologies. Unfortunately, we will not be moving forward with your application at this time.';
+
+  const identity = extractThreadIdentity({ subject, sender, snippet });
+  assert.equal(identity.companyName, 'Concorde Research Technologies');
+  assert.equal(identity.jobTitle, 'Software Engineer');
+  assert.ok(identity.companyConfidence >= 0.85);
+  assert.ok((identity.roleConfidence || 0) >= 0.8);
+});
+
 test('matchAndAssignEvent auto-creates for LinkedIn Easy Apply confirmation', async () => {
   const subject = 'Jason, your application was sent to BeaconFire Inc.';
   const sender = 'jobs-noreply@linkedin.com';

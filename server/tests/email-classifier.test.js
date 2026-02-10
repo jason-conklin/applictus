@@ -225,6 +225,39 @@ test('classifyEmail detects LinkedIn Easy Apply confirmation', () => {
   assert.ok(result.confidenceScore >= 0.92);
 });
 
+test('classifyEmail detects LinkedIn rejection update (Concorde Research Technologies)', () => {
+  const result = classifyEmail({
+    subject: 'Your application to Software Engineer at Concorde Research Technologies',
+    snippet:
+      'Your update from Concorde Research Technologies. Unfortunately, we will not be moving forward with your application at this time.',
+    sender: 'jobs-noreply@linkedin.com'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'rejection');
+  assert.ok(result.confidenceScore >= 0.95);
+});
+
+test('classifyEmail detects LinkedIn rejection update (Tata Consultancy Services)', () => {
+  const result = classifyEmail({
+    subject: 'Your application to Data Analyst at Tata Consultancy Services',
+    snippet:
+      'Your update from Tata Consultancy Services. We will not be moving forward with your application.',
+    sender: 'jobs-noreply@linkedin.com'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'rejection');
+  assert.ok(result.confidenceScore >= 0.95);
+});
+
+test('classifyEmail keeps LinkedIn newsletter/social notices out of rejection', () => {
+  const result = classifyEmail({
+    subject: 'Top jobs this week on LinkedIn',
+    snippet: 'Unsubscribe from these updates at any time.',
+    sender: 'notifications-noreply@linkedin.com'
+  });
+  assert.notEqual(result.detectedType, 'rejection');
+});
+
 test('classifyEmail rejection wins when body contains rejection cues', () => {
   const result = classifyEmail({
     subject: 'Application Update',

@@ -19,6 +19,19 @@ const LINKEDIN_CONFIRMATION_RULE = {
   senderPattern: /linkedin\.com/i
 };
 
+const LINKEDIN_REJECTION_RULE = {
+  name: 'linkedin_application_rejection_update',
+  detectedType: 'rejection',
+  confidence: 0.96,
+  senderPattern: /jobs-noreply@linkedin\.com/i,
+  subjectPattern: /^your application to\s+.+\s+at\s+.+/i,
+  bodyPatterns: [
+    /unfortunately,\s*we will not be moving forward with your application/i,
+    /we will not be moving forward with your application/i,
+    /not be moving forward with your application/i
+  ]
+};
+
 const STRONG_REJECTION_PATTERNS = [
   /unable to move forward/i,
   /we are unable to move forward/i,
@@ -291,6 +304,7 @@ function classifyEmail({ subject, snippet, sender, body }) {
   const textSource = `${normalize(body || '')} ${normalize(snippet)} ${normalize(subject)} ${normalize(
     sender
   )}`.trim();
+  const normalizedSubject = normalize(subject);
   const text = textSource.toLowerCase();
   if (!text) {
     return { isJobRelated: false, explanation: 'Empty subject/snippet.' };
@@ -299,6 +313,24 @@ function classifyEmail({ subject, snippet, sender, body }) {
   // Early guard: LinkedIn social/notification emails should not be classified as interview.
   if (isLinkedInSocialNotification(textSource, sender)) {
     return { isJobRelated: false, explanation: 'LinkedIn social notification.' };
+  }
+
+  // Dedicated LinkedIn rejection template override for jobs updates.
+  const linkedInRejectionSignal = LINKEDIN_REJECTION_RULE.bodyPatterns.find((pattern) =>
+    pattern.test(textSource)
+  );
+  if (
+    LINKEDIN_REJECTION_RULE.senderPattern.test(sender || '') &&
+    LINKEDIN_REJECTION_RULE.subjectPattern.test(normalizedSubject) &&
+    linkedInRejectionSignal
+  ) {
+    return {
+      isJobRelated: true,
+      detectedType: LINKEDIN_REJECTION_RULE.detectedType,
+      confidenceScore: LINKEDIN_REJECTION_RULE.confidence,
+      explanation: 'LinkedIn rejection update detected.',
+      reason: LINKEDIN_REJECTION_RULE.name
+    };
   }
 
   const minConfidence = 0.6;
