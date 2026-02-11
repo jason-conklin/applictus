@@ -1,7 +1,11 @@
 const crypto = require('crypto');
 const { google } = require('googleapis');
 const { getAuthorizedClient } = require('./email');
-const { classifyEmail, isLinkedInJobsUpdateEmail } = require('../../shared/emailClassifier');
+const {
+  classifyEmail,
+  isLinkedInJobsUpdateEmail,
+  isLinkedInJobsApplicationSentEmail
+} = require('../../shared/emailClassifier');
 const { matchAndAssignEvent } = require('./matching');
 const {
   extractThreadIdentity,
@@ -460,16 +464,41 @@ function isLinkedInDuplicateReprocessCandidate(existingEvent) {
   if (!existingEvent || !existingEvent.id) {
     return false;
   }
-  const linkedInEnvelope = isLinkedInJobsUpdateEmail({
+  const linkedInRejectionEnvelope = isLinkedInJobsUpdateEmail({
     sender: existingEvent.sender || '',
     subject: existingEvent.subject || '',
     snippet: existingEvent.snippet || '',
     body: ''
   });
-  if (!linkedInEnvelope) {
+  const linkedInConfirmationEnvelope = isLinkedInJobsApplicationSentEmail({
+    sender: existingEvent.sender || '',
+    subject: existingEvent.subject || '',
+    snippet: existingEvent.snippet || '',
+    body: ''
+  });
+  if (!linkedInRejectionEnvelope && !linkedInConfirmationEnvelope) {
     return false;
   }
   const detectedType = String(existingEvent.detected_type || '').toLowerCase();
+  const reasonCode = String(existingEvent.reason_code || '').toLowerCase();
+  const storedRole = String(existingEvent.role_title || existingEvent.identity_job_title || '').toLowerCase();
+  const malformedLinkedInRole =
+    !storedRole ||
+    /your application was sent to/i.test(storedRole) ||
+    /linkedin/i.test(storedRole) ||
+    storedRole === 'unknown role';
+  if (linkedInConfirmationEnvelope) {
+    if (!detectedType) {
+      return true;
+    }
+    if (reasonCode && ['classified_not_job_related', 'denylisted', 'below_threshold'].includes(reasonCode)) {
+      return true;
+    }
+    if (detectedType !== 'confirmation') {
+      return true;
+    }
+    return malformedLinkedInRole;
+  }
   if (!detectedType) {
     return true;
   }
@@ -579,7 +608,8 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
       const existingProvider = await awaitMaybe(
         db
           .prepare(
-            `SELECT id, sender, subject, snippet, detected_type, reason_code, ingest_decision, created_at
+            `SELECT id, application_id, sender, subject, snippet, detected_type, reason_code, ingest_decision,
+                    role_title, identity_job_title, created_at
              FROM email_events
              WHERE user_id = ? AND provider = ? AND (provider_message_id = ? OR message_id = ?)`
           )
@@ -983,6 +1013,47 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
         },
         identity: effectiveIdentity
       }));
+      const priorApplicationId =
+        shouldReprocessLinkedInDuplicate && existingProvider?.application_id
+          ? String(existingProvider.application_id)
+          : null;
+      const matchedApplicationId = matchResult?.applicationId ? String(matchResult.applicationId) : null;
+      if (
+        priorApplicationId &&
+        matchedApplicationId &&
+        priorApplicationId !== matchedApplicationId
+      ) {
+        try {
+          const remaining = await awaitMaybe(
+            db
+              .prepare('SELECT COUNT(*) AS count FROM email_events WHERE user_id = ? AND application_id = ?')
+              .get(userId, priorApplicationId)
+          );
+          const remainingCount = Number(remaining?.count || 0);
+          if (remainingCount === 0) {
+            await awaitMaybe(
+              db
+                .prepare('UPDATE job_applications SET archived = ?, updated_at = ? WHERE user_id = ? AND id = ?')
+                .run(db && db.isAsync ? true : 1, new Date().toISOString(), userId, priorApplicationId)
+            );
+            if (process.env.DEBUG_INGEST_LINKEDIN === '1') {
+              logDebug('ingest.linkedin_jobs_orphan_archived', {
+                userId,
+                priorApplicationId,
+                reassignedTo: matchedApplicationId
+              });
+            }
+          }
+        } catch (err) {
+          if (process.env.DEBUG_INGEST_LINKEDIN === '1') {
+            logDebug('ingest.linkedin_jobs_orphan_archive_failed', {
+              userId,
+              priorApplicationId,
+              error: err && err.message ? String(err.message) : String(err)
+            });
+          }
+        }
+      }
       let rejectionApplied = false;
       if (process.env.DEBUG_INGEST_LINKEDIN === '1' && linkedInJobsUpdate) {
         logDebug('ingest.linkedin_jobs_match_result', {

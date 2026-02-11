@@ -1444,6 +1444,41 @@ function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender
     return candidate;
   };
 
+  const normalizeLinkedInRole = (value, normalizedCompany) => {
+    if (!value) {
+      return null;
+    }
+    let candidate = cleanRoleEntity(value)
+      .replace(/^\s*(?:your application was sent to|your update from)\s+/i, '')
+      .replace(/\s+\((?:remote|hybrid|on[- ]site)\)\s*$/i, '')
+      .replace(/\s+(?:remote|hybrid|on[- ]site)\b.*$/i, '')
+      .replace(/\s+[·•|]\s+.*$/g, '')
+      .replace(/\s+applied on\s+.+$/i, '')
+      .replace(/[,:;|]+$/g, '')
+      .trim();
+    if (normalizedCompany) {
+      const escapedCompany = escapeRegExp(normalizedCompany);
+      candidate = candidate
+        .replace(new RegExp(`^${escapedCompany}\\s+`, 'i'), '')
+        .replace(new RegExp(`\\s+${escapedCompany}$`, 'i'), '')
+        .trim();
+    }
+    candidate = trimTrailingLocation(sanitizeJobTitle(candidate));
+    if (!candidate || candidate.length < 3 || candidate.length > 120) {
+      return null;
+    }
+    if (/your application was sent to/i.test(candidate) || /your update from/i.test(candidate)) {
+      return null;
+    }
+    if (isGenericRole(candidate)) {
+      return null;
+    }
+    if (normalizedCompany && slugify(candidate) === slugify(normalizedCompany)) {
+      return null;
+    }
+    return candidate;
+  };
+
   const normalizedSubject = String(subject || '').trim();
   const text = [String(snippet || ''), String(bodyText || '')].filter(Boolean).join('\n');
   const body = text.replace(/\r\n/g, '\n');
@@ -1452,7 +1487,11 @@ function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender
   let companyName = null;
   let jobTitle = null;
   let matchedRejectionTemplate = false;
+  let matchedConfirmationTemplate = false;
   const rejectionSubjectTail = normalizedSubject.match(/^your application to\s+(.+)$/i);
+  const confirmationSubjectMatch = normalizedSubject.match(
+    /^(?:.+,\s*)?your application was sent to\s+(.+?)(?:\.|$)/i
+  );
   if (rejectionSubjectTail && rejectionSubjectTail[1]) {
     const tail = rejectionSubjectTail[1].trim();
     const splitIdx = tail.toLowerCase().lastIndexOf(' at ');
@@ -1463,6 +1502,11 @@ function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender
     }
   }
 
+  if (!companyName && confirmationSubjectMatch && confirmationSubjectMatch[1]) {
+    matchedConfirmationTemplate = true;
+    companyName = confirmationSubjectMatch[1].trim();
+  }
+
   const rejectionCompanyMatch =
     body.match(/your update from\s+([^\n]+?)(?:[.!?\n]|$)/i) ||
     normalizedSubject.match(/\byour update from\s+(.+?)(?:[.!?]|$)/i);
@@ -1471,7 +1515,8 @@ function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender
   }
 
   const subjectCompanyMatch = normalizedSubject.match(/application was sent to\s+(.+?)\.?$/i);
-  if (!companyName && subjectCompanyMatch) {
+  if (!companyName && subjectCompanyMatch && subjectCompanyMatch[1]) {
+    matchedConfirmationTemplate = true;
     companyName = subjectCompanyMatch[1].trim();
   }
 
@@ -1500,8 +1545,11 @@ function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender
       if (parts.length) {
         const roleCandidate = parts[0];
         const companyCandidate = parts[1];
-        if (!jobTitle && roleCandidate && (!companyName || slugify(roleCandidate) !== slugify(companyName))) {
-          jobTitle = roleCandidate;
+        if (!jobTitle && roleCandidate) {
+          const normalizedRole = normalizeLinkedInRole(roleCandidate, companyName);
+          if (normalizedRole) {
+            jobTitle = normalizedRole;
+          }
         }
         if (!companyName && companyCandidate) {
           companyName = companyCandidate;
@@ -1514,10 +1562,16 @@ function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender
     for (let j = companyLineIndex + 1; j < lines.length; j++) {
       const candidate = lines[j];
       if (!candidate) continue;
-      const roleCandidate = candidate.split('·')[0]?.trim();
-      if (roleCandidate && (!companyName || slugify(roleCandidate) !== slugify(companyName))) {
-        jobTitle = roleCandidate;
+      if (/^applied on\b/i.test(candidate)) {
         break;
+      }
+      const roleCandidate = candidate.split('·')[0]?.trim();
+      if (roleCandidate) {
+        const normalizedRole = normalizeLinkedInRole(roleCandidate, companyName);
+        if (normalizedRole) {
+          jobTitle = normalizedRole;
+          break;
+        }
       }
     }
   }
@@ -1542,12 +1596,55 @@ function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender
   companyName = sanitizedCompany.companyName;
   const companyConfidence = sanitizedCompany.companyConfidence || 0.9;
 
-  const jobTitleRaw = jobTitle ? jobTitle.trim() : null;
-  if (jobTitle) {
-    jobTitle = trimTrailingLocation(sanitizeJobTitle(jobTitle));
+  // For LinkedIn "application sent" emails, parse role from body context, not subject.
+  if (!matchedRejectionTemplate) {
+    const companySlug = slugify(companyName);
+    const indexedCompanyLine = lines.findIndex((line) => {
+      const left = line.split(/[·•|]/)[0]?.trim();
+      return slugify(left || line) === companySlug;
+    });
+    if (!jobTitle && indexedCompanyLine >= 0) {
+      for (let i = indexedCompanyLine + 1; i < lines.length; i += 1) {
+        const line = lines[i];
+        if (!line || /^applied on\b/i.test(line)) {
+          break;
+        }
+        const left = line.split(/[·•|]/)[0]?.trim();
+        const normalizedRole = normalizeLinkedInRole(left || line, companyName);
+        if (normalizedRole) {
+          jobTitle = normalizedRole;
+          break;
+        }
+      }
+    }
+
+    if (!jobTitle) {
+      const compactBody = `${String(bodyText || '')}\n${String(snippet || '')}`
+        .replace(/\r\n/g, '\n')
+        .replace(/\n+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (compactBody) {
+        const escapedCompany = escapeRegExp(companyName);
+        const betweenMatch = compactBody.match(
+          new RegExp(`${escapedCompany}\\s+(.{3,120}?)\\s+${escapedCompany}\\s*[·•|]`, 'i')
+        );
+        if (betweenMatch && betweenMatch[1]) {
+          const candidate = normalizeLinkedInRole(betweenMatch[1], companyName);
+          if (candidate) {
+            jobTitle = candidate;
+          }
+        }
+      }
+    }
   }
 
-  const roleConfidence = jobTitle ? 0.88 : null;
+  const jobTitleRaw = jobTitle ? jobTitle.trim() : null;
+  if (jobTitle) {
+    jobTitle = normalizeLinkedInRole(jobTitle, companyName);
+  }
+
+  const roleConfidence = jobTitle ? (matchedRejectionTemplate ? 0.88 : 0.9) : null;
   const domainResult = domainConfidence(companyName, senderDomain);
   const matchConfidence = jobTitle
     ? Math.min(companyConfidence, roleConfidence || companyConfidence, domainResult.score || companyConfidence)
@@ -1567,7 +1664,9 @@ function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender
     bodyTextAvailable: Boolean(body && body.trim()),
     explanation: matchedRejectionTemplate
       ? 'LinkedIn rejection update template'
-      : 'LinkedIn application was sent template'
+      : matchedConfirmationTemplate
+      ? 'LinkedIn application sent template'
+      : 'LinkedIn jobs update template'
   };
 }
 

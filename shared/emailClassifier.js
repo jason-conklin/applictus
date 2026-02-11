@@ -8,15 +8,13 @@ const DENYLIST = [
 ];
 
 const LINKEDIN_CONFIRMATION_RULE = {
-  name: 'linkedin_application_sent',
+  name: 'linkedin_application_sent_confirmation',
   detectedType: 'confirmation',
-  confidence: 0.92,
+  confidence: 0.95,
   requiresJobContext: false,
-  patterns: [
-    /your application was sent to/i,
-    /applied on\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}/i
-  ],
-  senderPattern: /linkedin\.com/i
+  senderPattern: /jobs-noreply@linkedin\.com/i,
+  subjectPattern: /^(?:.+,\s*)?your application was sent to\s+.+$/i,
+  bodyPatterns: [/your application was sent to/i, /applied on\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}/i]
 };
 
 const LINKEDIN_REJECTION_RULE = {
@@ -250,10 +248,30 @@ function normalize(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
-function isLinkedInJobsUpdateEmail({ subject, snippet, sender, body }) {
-  const senderText = String(sender || '');
-  if (!/jobs-noreply@linkedin\.com/i.test(senderText)) {
+function isLinkedInJobsSender(sender) {
+  return /jobs-noreply@linkedin\.com/i.test(String(sender || ''));
+}
+
+function isLinkedInJobsApplicationSentEmail({ subject, snippet, sender, body }) {
+  if (!isLinkedInJobsSender(sender)) {
     return false;
+  }
+  const normalizedSubject = normalize(subject);
+  const combinedText = `${normalize(snippet)}\n${normalize(body || '')}`;
+  const hasSubjectEnvelope =
+    /^.+,\s*your application was sent to\s+.+$/i.test(normalizedSubject) ||
+    /^your application was sent to\s+.+$/i.test(normalizedSubject);
+  const hasBodyEnvelope = /your application was sent to\s+.+/i.test(combinedText);
+  const hasAppliedOn = /applied on\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}/i.test(combinedText);
+  return hasSubjectEnvelope && (hasBodyEnvelope || hasAppliedOn);
+}
+
+function isLinkedInJobsUpdateEmail({ subject, snippet, sender, body }) {
+  if (!isLinkedInJobsSender(sender)) {
+    return false;
+  }
+  if (isLinkedInJobsApplicationSentEmail({ subject, snippet, sender, body })) {
+    return true;
   }
   const normalizedSubject = normalize(subject);
   const combinedText = `${normalizedSubject}\n${normalize(snippet)}\n${normalize(body || '')}`;
@@ -323,6 +341,7 @@ function classifyEmail({ subject, snippet, sender, body }) {
   }
 
   const linkedInJobsUpdate = isLinkedInJobsUpdateEmail({ subject, snippet, sender, body });
+  const linkedInApplicationSent = isLinkedInJobsApplicationSentEmail({ subject, snippet, sender, body });
 
   // Early guard: LinkedIn social/notification emails should not be classified as interview.
   if (!linkedInJobsUpdate && isLinkedInSocialNotification(textSource, sender)) {
@@ -349,6 +368,19 @@ function classifyEmail({ subject, snippet, sender, body }) {
       explanation: 'LinkedIn rejection update detected.',
       reason: bodyOnlyReason ? 'linkedin_jobs_rejection_phrase_body' : LINKEDIN_REJECTION_RULE.name
     };
+  }
+
+  if (linkedInApplicationSent && LINKEDIN_CONFIRMATION_RULE.subjectPattern.test(normalizedSubject)) {
+    const hasLinkedInBodySignal = LINKEDIN_CONFIRMATION_RULE.bodyPatterns.some((p) => p.test(textSource));
+    if (hasLinkedInBodySignal) {
+      return {
+        isJobRelated: true,
+        detectedType: LINKEDIN_CONFIRMATION_RULE.detectedType,
+        confidenceScore: LINKEDIN_CONFIRMATION_RULE.confidence,
+        explanation: 'LinkedIn application sent confirmation detected.',
+        reason: LINKEDIN_CONFIRMATION_RULE.name
+      };
+    }
   }
 
   const minConfidence = 0.6;
@@ -380,21 +412,6 @@ function classifyEmail({ subject, snippet, sender, body }) {
       explanation: 'Strong rejection phrase detected',
       reason: 'rejection_override'
     };
-  }
-
-  // High-confidence LinkedIn Easy Apply confirmation override (before denylist).
-  const senderMatchesLinkedIn = LINKEDIN_CONFIRMATION_RULE.senderPattern.test(sender || '');
-  if (senderMatchesLinkedIn) {
-    const linkedInMatch = LINKEDIN_CONFIRMATION_RULE.patterns.find((p) => p.test(text));
-    if (linkedInMatch) {
-      return {
-        isJobRelated: true,
-        detectedType: 'confirmation',
-        confidenceScore: LINKEDIN_CONFIRMATION_RULE.confidence,
-        explanation: 'LinkedIn application sent',
-        reason: LINKEDIN_CONFIRMATION_RULE.name
-      };
-    }
   }
 
   const strongRejection = findRuleMatch([STRONG_REJECTION_RULE], text, 0.95, jobContext);
@@ -486,6 +503,7 @@ function classifyEmail({ subject, snippet, sender, body }) {
 module.exports = {
   classifyEmail,
   isLinkedInJobsUpdateEmail,
+  isLinkedInJobsApplicationSentEmail,
   RULES,
   DENYLIST
 };

@@ -352,6 +352,22 @@ Applied on January 23, 2026`;
   assert.ok(identity.companyConfidence >= 0.85);
 });
 
+test('extractThreadIdentity parses LinkedIn confirmation with company line then role line', () => {
+  const subject = 'Jason, your application was sent to Tata Consultancy Services';
+  const sender = 'jobs-noreply@linkedin.com';
+  const bodyText = `Jason, your application was sent to Tata Consultancy Services
+Tata Consultancy Services
+Artificial Intelligence Engineer - Entry Level
+Tata Consultancy Services · Edison, NJ (On-site)
+Applied on February 6, 2026`;
+
+  const identity = extractThreadIdentity({ subject, sender, bodyText });
+  assert.equal(identity.companyName, 'Tata Consultancy Services');
+  assert.equal(identity.jobTitle, 'Artificial Intelligence Engineer - Entry Level');
+  assert.ok(identity.companyConfidence >= 0.85);
+  assert.ok((identity.roleConfidence || 0) >= 0.85);
+});
+
 test('extractThreadIdentity parses LinkedIn rejection update template', () => {
   const subject = 'Your application to Software Engineer at Concorde Research Technologies';
   const sender = 'jobs-noreply@linkedin.com';

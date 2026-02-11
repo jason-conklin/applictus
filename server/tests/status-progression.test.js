@@ -260,6 +260,127 @@ Applied on February 1, 2026`;
   db.close();
 });
 
+test('LinkedIn Tata confirmation/rejection lifecycle keeps one application with correct role', async () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+  const sender = 'jobs-noreply@linkedin.com';
+
+  const confirmationSubject = 'Jason, your application was sent to Tata Consultancy Services';
+  const confirmationBody = `Jason, your application was sent to Tata Consultancy Services
+Tata Consultancy Services
+Artificial Intelligence Engineer - Entry Level
+Tata Consultancy Services · Edison, NJ (On-site)
+Applied on February 6, 2026`;
+  const confirmationClassification = classifyEmail({
+    subject: confirmationSubject,
+    snippet: 'Your application was sent to Tata Consultancy Services',
+    sender,
+    body: confirmationBody
+  });
+  assert.equal(confirmationClassification.detectedType, 'confirmation');
+
+  const confirmationIdentity = extractThreadIdentity({
+    subject: confirmationSubject,
+    sender,
+    bodyText: confirmationBody
+  });
+  assert.equal(confirmationIdentity.companyName, 'Tata Consultancy Services');
+  assert.equal(confirmationIdentity.jobTitle, 'Artificial Intelligence Engineer - Entry Level');
+
+  const confirmationId = insertEmailEvent(db, {
+    userId,
+    messageId: 'msg-linkedin-tata-confirm',
+    sender,
+    subject: confirmationSubject,
+    detectedType: confirmationClassification.detectedType,
+    confidenceScore: confirmationClassification.confidenceScore,
+    classificationConfidence: confirmationClassification.confidenceScore,
+    snippet: 'Your application was sent to Tata Consultancy Services.'
+  });
+
+  const confirmationMatch = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: confirmationId,
+      sender,
+      subject: confirmationSubject,
+      snippet: 'Your application was sent to Tata Consultancy Services.',
+      detected_type: confirmationClassification.detectedType,
+      confidence_score: confirmationClassification.confidenceScore,
+      classification_confidence: confirmationClassification.confidenceScore,
+      role_title: confirmationIdentity.jobTitle,
+      role_confidence: confirmationIdentity.roleConfidence,
+      role_source: 'identity',
+      created_at: new Date().toISOString()
+    },
+    identity: confirmationIdentity
+  });
+  assert.equal(confirmationMatch.action, 'created_application');
+  const appId = confirmationMatch.applicationId;
+
+  const rejectionSubject = 'Your application to Artificial Intelligence Engineer - Entry Level at Tata Consultancy Services';
+  const rejectionBody =
+    'Your update from Tata Consultancy Services · Edison, NJ. Unfortunately, we will not be moving forward with your application at this time.';
+  const rejectionClassification = classifyEmail({
+    subject: rejectionSubject,
+    snippet: rejectionBody,
+    sender,
+    body: rejectionBody
+  });
+  assert.equal(rejectionClassification.detectedType, 'rejection');
+
+  const rejectionIdentity = extractThreadIdentity({
+    subject: rejectionSubject,
+    sender,
+    snippet: rejectionBody,
+    bodyText: rejectionBody
+  });
+  assert.equal(rejectionIdentity.companyName, 'Tata Consultancy Services');
+  assert.equal(rejectionIdentity.jobTitle, 'Artificial Intelligence Engineer - Entry Level');
+
+  const rejectionId = insertEmailEvent(db, {
+    userId,
+    messageId: 'msg-linkedin-tata-reject',
+    sender,
+    subject: rejectionSubject,
+    detectedType: rejectionClassification.detectedType,
+    confidenceScore: rejectionClassification.confidenceScore,
+    classificationConfidence: rejectionClassification.confidenceScore,
+    snippet: rejectionBody
+  });
+
+  const rejectionMatch = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: rejectionId,
+      sender,
+      subject: rejectionSubject,
+      snippet: rejectionBody,
+      detected_type: rejectionClassification.detectedType,
+      confidence_score: rejectionClassification.confidenceScore,
+      classification_confidence: rejectionClassification.confidenceScore,
+      role_title: rejectionIdentity.jobTitle,
+      role_confidence: rejectionIdentity.roleConfidence,
+      role_source: 'identity',
+      created_at: new Date().toISOString()
+    },
+    identity: rejectionIdentity
+  });
+  assert.equal(rejectionMatch.action, 'matched_existing');
+  assert.equal(rejectionMatch.applicationId, appId);
+
+  const apps = db.prepare('SELECT id, current_status FROM job_applications WHERE user_id = ?').all(userId);
+  assert.equal(apps.length, 1);
+
+  runStatusInferenceForApplication(db, userId, appId);
+  const updated = db.prepare('SELECT current_status FROM job_applications WHERE id = ?').get(appId);
+  assert.equal(updated.current_status, ApplicationStatus.REJECTED);
+  db.close();
+});
+
 test('re-evaluated LinkedIn rejection event can update an existing non-rejection event to REJECTED', async () => {
   const db = new Database(':memory:');
   runMigrations(db);

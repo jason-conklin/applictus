@@ -18,6 +18,18 @@ test('LinkedIn duplicate reprocess candidate is true for non-rejection jobs upda
   assert.equal(shouldReprocess, true);
 });
 
+test('LinkedIn duplicate reprocess candidate is true for confirmation with malformed role', () => {
+  const shouldReprocess = isLinkedInDuplicateReprocessCandidate({
+    id: 'evt-confirm-1',
+    sender: 'jobs-noreply@linkedin.com',
+    subject: 'Jason, your application was sent to Tata Consultancy Services',
+    snippet: 'Your application was sent to Tata Consultancy Services.',
+    detected_type: 'confirmation',
+    role_title: 'Your application was sent to Tata Consultancy Services'
+  });
+  assert.equal(shouldReprocess, true);
+});
+
 test('LinkedIn duplicate reprocess candidate is false for already-rejected events', () => {
   const shouldReprocess = isLinkedInDuplicateReprocessCandidate({
     id: 'evt-2',
@@ -50,4 +62,3 @@ test('hasLinkedInRejectionPhrase detects moving-forward rejection phrase', () =>
   );
   assert.equal(hasLinkedInRejectionPhrase('Your update from Concorde Research Technologies.'), false);
 });
-

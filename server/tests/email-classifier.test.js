@@ -1,7 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { classifyEmail, isLinkedInJobsUpdateEmail } = require('../../shared/emailClassifier');
+const {
+  classifyEmail,
+  isLinkedInJobsUpdateEmail,
+  isLinkedInJobsApplicationSentEmail
+} = require('../../shared/emailClassifier');
 
 test('classifyEmail rejects newsletters via denylist', () => {
   const result = classifyEmail({
@@ -222,7 +226,22 @@ test('classifyEmail detects LinkedIn Easy Apply confirmation', () => {
   });
   assert.equal(result.isJobRelated, true);
   assert.equal(result.detectedType, 'confirmation');
-  assert.ok(result.confidenceScore >= 0.92);
+  assert.ok(result.confidenceScore >= 0.95);
+  assert.equal(result.reason, 'linkedin_application_sent_confirmation');
+});
+
+test('classifyEmail detects LinkedIn confirmation from subject + body envelope', () => {
+  const result = classifyEmail({
+    subject: 'Jason, your application was sent to Tata Consultancy Services',
+    snippet: 'Your application was sent to Tata Consultancy Services',
+    body:
+      'Tata Consultancy Services\nArtificial Intelligence Engineer - Entry Level\nTata Consultancy Services · Edison, NJ (On-site)\nApplied on February 6, 2026',
+    sender: 'jobs-noreply@linkedin.com'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'confirmation');
+  assert.ok(result.confidenceScore >= 0.95);
+  assert.equal(result.reason, 'linkedin_application_sent_confirmation');
 });
 
 test('isLinkedInJobsUpdateEmail detects LinkedIn jobs update envelope', () => {
@@ -232,6 +251,22 @@ test('isLinkedInJobsUpdateEmail detects LinkedIn jobs update envelope', () => {
     sender: 'jobs-noreply@linkedin.com'
   });
   const notDetected = isLinkedInJobsUpdateEmail({
+    subject: 'Top jobs this week on LinkedIn',
+    snippet: 'Unsubscribe from these updates.',
+    sender: 'notifications-noreply@linkedin.com'
+  });
+  assert.equal(detected, true);
+  assert.equal(notDetected, false);
+});
+
+test('isLinkedInJobsApplicationSentEmail detects confirmation envelope', () => {
+  const detected = isLinkedInJobsApplicationSentEmail({
+    subject: 'Jason, your application was sent to Tata Consultancy Services',
+    snippet: 'Your application was sent to Tata Consultancy Services',
+    body: 'Applied on February 6, 2026',
+    sender: 'jobs-noreply@linkedin.com'
+  });
+  const notDetected = isLinkedInJobsApplicationSentEmail({
     subject: 'Top jobs this week on LinkedIn',
     snippet: 'Unsubscribe from these updates.',
     sender: 'notifications-noreply@linkedin.com'
