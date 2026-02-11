@@ -1511,7 +1511,7 @@ function refreshDashboardEmptyStateIfNeeded() {
   }
 }
 
-let authBgFlashTimer = null;
+let animatedBgFlashTimer = null;
 
 function prefersReducedMotion() {
   if (typeof window === 'undefined' || !window.matchMedia) {
@@ -1520,17 +1520,17 @@ function prefersReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-function removeAuthAnimatedBg() {
-  const existing = document.querySelector('.auth-bg');
+function removeAnimatedBackgroundLayout() {
+  const existing = document.querySelector('.animated-bg');
   if (existing) {
     existing.remove();
   }
   document.body?.classList.remove('auth-bg-debug-flash');
   document.body?.classList.remove('auth-bg-debug');
   document.body?.classList.remove('force-auth-animation');
-  if (authBgFlashTimer) {
-    clearTimeout(authBgFlashTimer);
-    authBgFlashTimer = null;
+  if (animatedBgFlashTimer) {
+    clearTimeout(animatedBgFlashTimer);
+    animatedBgFlashTimer = null;
   }
 }
 
@@ -1590,7 +1590,7 @@ function pickAuthIconDef() {
   return AUTH_ICON_DEFS[0];
 }
 
-function populateAuthIcons(layer, { count, debug }) {
+function populateAnimatedBackgroundIcons(layer, { count, debug }) {
   if (!layer) {
     return 0;
   }
@@ -1600,7 +1600,7 @@ function populateAuthIcons(layer, { count, debug }) {
 
   for (let index = 0; index < count; index += 1) {
     const icon = document.createElement('span');
-    icon.className = 'auth-icon';
+    icon.className = 'animated-bg-icon';
     icon.setAttribute('aria-hidden', 'true');
 
     const def = pickAuthIconDef();
@@ -1660,44 +1660,46 @@ function populateAuthIcons(layer, { count, debug }) {
   return count;
 }
 
-function ensureAuthAnimatedBg() {
+// Shared layout wrapper for animated backgrounds used by auth and dashboard views.
+function ensureAnimatedBackgroundLayout({ variant }) {
   if (!document?.body) {
     return;
   }
-  const existing = document.querySelector('.auth-bg');
+  const existing = document.querySelector('.animated-bg');
   const debug = Boolean(window?.DEBUG_AUTH_BG);
   const prefersReduced = prefersReducedMotion();
   const forceAnimation = Boolean(window?.FORCE_AUTH_ANIMATION);
   const reducedMotion = prefersReduced && !forceAnimation;
   document.body.classList.toggle('force-auth-animation', forceAnimation);
   if (existing) {
+    existing.dataset.variant = variant;
     if (debug && existing.dataset.debug !== '1') {
       existing.dataset.debug = '1';
-      const iconsLayer = existing.querySelector('.auth-bg-icons');
+      const iconsLayer = existing.querySelector('.animated-bg-icons');
       if (iconsLayer) {
-        populateAuthIcons(iconsLayer, { count: 44, debug: true });
+        populateAnimatedBackgroundIcons(iconsLayer, { count: 44, debug: true });
       }
       // eslint-disable-next-line no-console
-      console.debug('[auth-bg] debug enabled');
+      console.debug('[animated-bg] debug enabled');
       document.body?.classList.add('auth-bg-debug');
       document.body.classList.add('auth-bg-debug-flash');
-      if (authBgFlashTimer) {
-        clearTimeout(authBgFlashTimer);
+      if (animatedBgFlashTimer) {
+        clearTimeout(animatedBgFlashTimer);
       }
-      authBgFlashTimer = setTimeout(() => {
+      animatedBgFlashTimer = setTimeout(() => {
         document.body?.classList.remove('auth-bg-debug-flash');
-        authBgFlashTimer = null;
+        animatedBgFlashTimer = null;
       }, 5000);
     }
     if (debug && !existing.dataset.debugLogged) {
       existing.dataset.debugLogged = '1';
       const beforeAnim = getComputedStyle(existing, '::before')?.animationName || null;
       const afterAnim = getComputedStyle(existing, '::after')?.animationName || null;
-      const icon = existing.querySelector('.auth-icon');
+      const icon = existing.querySelector('.animated-bg-icon');
       const iconAnim = icon ? getComputedStyle(icon).animationName : null;
       // eslint-disable-next-line no-console
-      console.debug('[auth-bg] status', {
-        authActive: document.body.classList.contains('auth-mode'),
+      console.debug('[animated-bg] status', {
+        variant,
         prefersReducedMotion: prefersReduced,
         forceAuthAnimation: forceAnimation,
         reducedMotionEffective: reducedMotion,
@@ -1711,12 +1713,13 @@ function ensureAuthAnimatedBg() {
   }
 
   const container = document.createElement('div');
-  container.className = 'auth-bg';
+  container.className = 'animated-bg';
   container.setAttribute('aria-hidden', 'true');
+  container.dataset.variant = variant;
 
   const iconsLayer = document.createElement('div');
-  iconsLayer.className = 'auth-bg-icons';
-  iconsLayer.id = 'auth-bg-icons';
+  iconsLayer.className = 'animated-bg-icons';
+  iconsLayer.id = 'animated-bg-icons';
 
   container.appendChild(iconsLayer);
 
@@ -1734,18 +1737,18 @@ function ensureAuthAnimatedBg() {
   }
 
   const effectiveCount = reducedMotion ? Math.min(desiredCount, 14) : desiredCount;
-  const iconCount = populateAuthIcons(iconsLayer, { count: effectiveCount, debug });
+  const iconCount = populateAnimatedBackgroundIcons(iconsLayer, { count: effectiveCount, debug });
   container.dataset.debug = debug ? '1' : '0';
 
   if (debug) {
     // eslint-disable-next-line no-console
     const beforeAnim = getComputedStyle(container, '::before')?.animationName || null;
     const afterAnim = getComputedStyle(container, '::after')?.animationName || null;
-    const icon = container.querySelector('.auth-icon');
+    const icon = container.querySelector('.animated-bg-icon');
     const iconAnim = icon ? getComputedStyle(icon).animationName : null;
-    console.debug('[auth-bg] mounted', {
+    console.debug('[animated-bg] mounted', {
       icons: iconCount,
-      authActive: document.body.classList.contains('auth-mode'),
+      variant,
       prefersReducedMotion: prefersReduced,
       forceAuthAnimation: forceAnimation,
       reducedMotionEffective: reducedMotion,
@@ -1755,12 +1758,12 @@ function ensureAuthAnimatedBg() {
     });
     document.body?.classList.add('auth-bg-debug');
     document.body.classList.add('auth-bg-debug-flash');
-    if (authBgFlashTimer) {
-      clearTimeout(authBgFlashTimer);
+    if (animatedBgFlashTimer) {
+      clearTimeout(animatedBgFlashTimer);
     }
-    authBgFlashTimer = setTimeout(() => {
+    animatedBgFlashTimer = setTimeout(() => {
       document.body?.classList.remove('auth-bg-debug-flash');
-      authBgFlashTimer = null;
+      animatedBgFlashTimer = null;
     }, 5000);
   }
 }
@@ -1784,11 +1787,15 @@ function closeProfileMenu() {
 
 function setView(view) {
   if (document?.body) {
+    const animatedVariant = view === 'auth' ? 'auth' : view === 'dashboard' ? 'dashboard' : null;
     document.body.classList.toggle('auth-mode', view === 'auth');
-    if (view === 'auth') {
-      ensureAuthAnimatedBg();
+    document.body.classList.toggle('animated-bg-mode', Boolean(animatedVariant));
+    document.body.classList.toggle('animated-bg-auth', animatedVariant === 'auth');
+    document.body.classList.toggle('animated-bg-dashboard', animatedVariant === 'dashboard');
+    if (animatedVariant) {
+      ensureAnimatedBackgroundLayout({ variant: animatedVariant });
     } else {
-      removeAuthAnimatedBg();
+      removeAnimatedBackgroundLayout();
     }
   }
   setPageMeta(view);
@@ -1831,8 +1838,8 @@ function setAuthPanel(panel) {
   if (panel === 'signup' || panel === 'signin') {
     authMode = panel;
   }
-  if (document?.body?.classList.contains('auth-mode')) {
-    ensureAuthAnimatedBg();
+  if (document?.body?.classList.contains('animated-bg-auth')) {
+    ensureAnimatedBackgroundLayout({ variant: 'auth' });
   }
 }
 

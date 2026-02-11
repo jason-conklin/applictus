@@ -70,7 +70,7 @@ body.modal-open {
   overflow: hidden;
 }
 
-body.auth-mode {
+body.animated-bg-mode {
   /* Keep layering predictable for pseudo-elements. */
   isolation: isolate;
   --auth-bg-intensity: 1;
@@ -80,25 +80,30 @@ body.auth-mode {
   background: linear-gradient(180deg, #ffffff 0%, #f3f8ff 28%, #c7dcff 58%, #3a70ff 84%, #0b2cff 100%);
 }
 
-body.auth-mode.auth-bg-debug {
+body.animated-bg-dashboard {
+  --auth-particle-opacity-mult: 0.9;
+  --auth-scanline-opacity: 0.09;
+}
+
+body.animated-bg-mode.auth-bg-debug {
   --auth-bg-intensity: 1.25;
   --auth-particle-opacity-mult: 1.25;
   --auth-scanline-opacity: 0.16;
 }
 
-body.auth-mode .layout,
-body.auth-mode .topbar {
+body.animated-bg-mode .layout,
+body.animated-bg-mode .topbar {
   position: relative;
   z-index: 3;
 }
 
-body.auth-mode .noise {
+body.animated-bg-mode .noise {
   /* Keep auth background crisp and prevent overlays from hiding animation. */
   display: none;
 }
 
-/* Dedicated auth background container (JS mounts/unmounts this). */
-.auth-bg {
+/* Shared animated background layout (JS mounts/unmounts this). */
+.animated-bg {
   position: fixed;
   inset: 0;
   pointer-events: none;
@@ -108,11 +113,11 @@ body.auth-mode .noise {
   transform: translateZ(0);
 }
 
-body.auth-mode .auth-bg {
+body.animated-bg-mode .animated-bg {
   display: block;
 }
 
-.auth-bg::before {
+.animated-bg::before {
   content: '';
   position: absolute;
   inset: -16%;
@@ -130,7 +135,7 @@ body.auth-mode .auth-bg {
   will-change: transform;
 }
 
-.auth-bg::after {
+.animated-bg::after {
   content: '';
   position: absolute;
   inset: -22%;
@@ -156,14 +161,14 @@ body.auth-mode .auth-bg {
   will-change: transform;
 }
 
-.auth-bg-icons {
+.animated-bg-icons {
   position: absolute;
   inset: 0;
   z-index: 2;
   pointer-events: none;
 }
 
-.auth-icon {
+.animated-bg-icon {
   position: absolute;
   left: var(--x);
   top: 0;
@@ -179,7 +184,7 @@ body.auth-mode .auth-bg {
   will-change: transform, opacity;
 }
 
-.auth-icon svg {
+.animated-bg-icon svg {
   width: 100%;
   height: 100%;
   display: block;
@@ -220,17 +225,17 @@ body.auth-mode .auth-bg {
   }
 }
 
-body.auth-bg-debug-flash .auth-icon {
+body.auth-bg-debug-flash .animated-bg-icon {
   outline: 1px solid rgba(0, 0, 0, 0.16);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body:not(.force-auth-animation) .auth-bg::before,
-  body:not(.force-auth-animation) .auth-bg::after {
+  body:not(.force-auth-animation) .animated-bg::before,
+  body:not(.force-auth-animation) .animated-bg::after {
     animation: none;
   }
 
-  body:not(.force-auth-animation) .auth-icon {
+  body:not(.force-auth-animation) .animated-bg-icon {
     animation: none;
     opacity: calc(var(--opacity) * 0.35);
     transform: translate3d(0, var(--startY), 0) rotate(var(--rot0));
