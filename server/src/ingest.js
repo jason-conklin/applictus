@@ -10,7 +10,8 @@ const { matchAndAssignEvent } = require('./matching');
 const {
   extractThreadIdentity,
   extractJobTitle,
-  extractExternalReqId
+  extractExternalReqId,
+  normalizeJobIdentity
 } = require('../../shared/matching');
 const { runStatusInferenceForApplication } = require('./statusInferenceRunner');
 const { logInfo, logDebug } = require('./logger');
@@ -22,6 +23,21 @@ async function awaitMaybe(value) {
   return value && typeof value.then === 'function' ? await value : value;
 }
 
+function normalizeRowList(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (value && Array.isArray(value.rows)) return value.rows;
+  if (value && typeof value === 'object') return [value];
+  return [];
+}
+
+function boolBind(db, value) {
+  if (db && db.isAsync) {
+    return Boolean(value);
+  }
+  return value ? 1 : 0;
+}
+
 const REASON_KEYS = [
   'classified_not_job_related',
   'denylisted',
@@ -31,6 +47,7 @@ const REASON_KEYS = [
   'ambiguous_sender',
   'ambiguous_match',
   'ambiguous_match_rejection',
+  'ambiguous_linkedin_match',
   'below_threshold',
   'provider_filtered',
   'parse_error',
@@ -511,6 +528,194 @@ function hasLinkedInRejectionPhrase(text) {
   );
 }
 
+function toValidMs(value) {
+  if (!value) {
+    return null;
+  }
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function pickApplicationAnchorMs(app) {
+  return (
+    toValidMs(app.applied_at) ||
+    toValidMs(app.last_activity_at) ||
+    toValidMs(app.updated_at) ||
+    toValidMs(app.created_at)
+  );
+}
+
+function normalizeLinkedInIdentityKey(companyName, roleTitle) {
+  const companyKey = normalizeJobIdentity(companyName || null);
+  const roleKey = normalizeJobIdentity(roleTitle || null);
+  if (!companyKey || !roleKey) {
+    return null;
+  }
+  return `${companyKey}|${roleKey}`;
+}
+
+function pickLinkedInMergeWinner(candidates) {
+  const scored = [...candidates].sort((a, b) => {
+    const scoreA = (a.rejectionCount > 0 ? 2 : 0) + (a.confirmationCount > 0 ? 1 : 0);
+    const scoreB = (b.rejectionCount > 0 ? 2 : 0) + (b.confirmationCount > 0 ? 1 : 0);
+    if (scoreA !== scoreB) {
+      return scoreB - scoreA;
+    }
+    const anchorA = pickApplicationAnchorMs(a);
+    const anchorB = pickApplicationAnchorMs(b);
+    if (anchorA && anchorB) {
+      return anchorA - anchorB;
+    }
+    if (anchorA && !anchorB) return -1;
+    if (!anchorA && anchorB) return 1;
+    return String(a.id).localeCompare(String(b.id));
+  });
+  return scored[0] || null;
+}
+
+async function repairLinkedInSplitApplications(db, userId, { syncStart, syncEnd } = {}) {
+  const startIso = syncStart ? new Date(syncStart).toISOString() : new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString();
+  const endIso = syncEnd ? new Date(syncEnd).toISOString() : new Date().toISOString();
+  const archivedFalse = boolBind(db, false);
+  const archivedTrue = boolBind(db, true);
+
+  const rows = normalizeRowList(
+    await awaitMaybe(
+      db
+        .prepare(
+          `SELECT
+             a.id,
+             a.company,
+             a.company_name,
+             a.role,
+             a.job_title,
+             a.applied_at,
+             a.last_activity_at,
+             a.updated_at,
+             a.created_at,
+             a.current_status,
+             SUM(CASE WHEN e.detected_type = 'rejection' THEN 1 ELSE 0 END) AS rejection_count,
+             SUM(CASE WHEN e.detected_type = 'confirmation' THEN 1 ELSE 0 END) AS confirmation_count,
+             COUNT(e.id) AS event_count
+           FROM job_applications a
+           JOIN email_events e ON e.application_id = a.id
+           WHERE a.user_id = ?
+             AND a.archived = ?
+             AND e.user_id = ?
+             AND e.created_at >= ?
+             AND e.created_at <= ?
+             AND lower(e.sender) LIKE ?
+           GROUP BY a.id`
+        )
+        .all(userId, archivedFalse, userId, startIso, endIso, '%jobs-noreply@linkedin.com%')
+    )
+  );
+
+  const candidates = rows
+    .map((row) => {
+      const key = normalizeLinkedInIdentityKey(row.company_name || row.company, row.job_title || row.role);
+      return {
+        ...row,
+        identityKey: key,
+        rejectionCount: Number(row.rejection_count || 0),
+        confirmationCount: Number(row.confirmation_count || 0),
+        eventCount: Number(row.event_count || 0)
+      };
+    })
+    .filter((row) => row.identityKey && row.eventCount > 0 && row.eventCount <= 5);
+
+  const byKey = new Map();
+  for (const row of candidates) {
+    if (!byKey.has(row.identityKey)) {
+      byKey.set(row.identityKey, []);
+    }
+    byKey.get(row.identityKey).push(row);
+  }
+
+  let mergedPairs = 0;
+  let movedEvents = 0;
+  let archivedApps = 0;
+  for (const [identityKey, group] of byKey.entries()) {
+    if (group.length !== 2) {
+      continue;
+    }
+    const hasRejection = group.some((g) => g.rejectionCount > 0 || String(g.current_status || '').toUpperCase() === 'REJECTED');
+    const hasConfirmation = group.some((g) => g.confirmationCount > 0 || String(g.current_status || '').toUpperCase() === 'APPLIED');
+    if (!hasRejection || !hasConfirmation) {
+      continue;
+    }
+
+    const anchors = group.map((g) => pickApplicationAnchorMs(g)).filter((ms) => Number.isFinite(ms));
+    if (anchors.length < 2) {
+      continue;
+    }
+    const spanDays = Math.abs(Math.max(...anchors) - Math.min(...anchors)) / (24 * 60 * 60 * 1000);
+    if (spanDays > 21) {
+      continue;
+    }
+
+    const winner = pickLinkedInMergeWinner(group);
+    if (!winner) {
+      continue;
+    }
+    const losers = group.filter((g) => g.id !== winner.id);
+    if (losers.length !== 1) {
+      continue;
+    }
+    const loser = losers[0];
+
+    const moved = await awaitMaybe(
+      db
+        .prepare('UPDATE email_events SET application_id = ? WHERE user_id = ? AND application_id = ?')
+        .run(winner.id, userId, loser.id)
+    );
+    const movedCount = Number(moved?.changes || moved?.rowCount || 0);
+    if (movedCount <= 0) {
+      continue;
+    }
+    movedEvents += movedCount;
+
+    await awaitMaybe(
+      db
+        .prepare('UPDATE job_applications SET archived = ?, user_override = ?, updated_at = ? WHERE user_id = ? AND id = ?')
+        .run(archivedTrue, archivedTrue, new Date().toISOString(), userId, loser.id)
+    );
+    archivedApps += 1;
+    mergedPairs += 1;
+
+    await awaitMaybe(runStatusInferenceForApplication(db, userId, winner.id));
+
+    if (process.env.DEBUG_INGEST_LINKEDIN_MATCH === '1') {
+      logDebug('ingest.linkedin_repair_merge_applied', {
+        userId,
+        identityKey,
+        winnerId: winner.id,
+        loserId: loser.id,
+        movedEvents: movedCount,
+        spanDays: Number(spanDays.toFixed(3))
+      });
+    }
+  }
+
+  if (process.env.DEBUG_INGEST_LINKEDIN_MATCH === '1') {
+    logDebug('ingest.linkedin_repair_merge_summary', {
+      userId,
+      syncStart: startIso,
+      syncEnd: endIso,
+      candidateCount: candidates.length,
+      mergedPairs,
+      movedEvents,
+      archivedApps
+    });
+  }
+
+  return {
+    mergedPairs,
+    movedEvents,
+    archivedApps
+  };
+}
+
 async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, syncId = null }) {
   const authClient = await getAuthorizedClient(db, userId);
   if (!authClient) {
@@ -547,6 +752,9 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
   let unsortedRejectionTotal = 0;
   let skippedDuplicatesProvider = 0;
   let skippedDuplicatesRfc = 0;
+  let linkedInRepairMergedPairs = 0;
+  let linkedInRepairMovedEvents = 0;
+  let linkedInRepairArchivedApps = 0;
   let llmCalls = 0;
   let llmCacheHits = 0;
   let llmFailures = 0;
@@ -1155,6 +1363,8 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
           reasons.ambiguous_match += 1;
         } else if (matchResult.reason === 'ambiguous_match_rejection') {
           reasons.ambiguous_match_rejection += 1;
+        } else if (matchResult.reason === 'ambiguous_linkedin_match') {
+          reasons.ambiguous_linkedin_match += 1;
         }
       }
       created += 1;
@@ -1191,6 +1401,23 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
 
     pageToken = list.data.nextPageToken;
   } while (pageToken && fetched < limit);
+
+  try {
+    const repair = await repairLinkedInSplitApplications(db, userId, {
+      syncStart: timeWindowStart,
+      syncEnd: new Date()
+    });
+    linkedInRepairMergedPairs = Number(repair?.mergedPairs || 0);
+    linkedInRepairMovedEvents = Number(repair?.movedEvents || 0);
+    linkedInRepairArchivedApps = Number(repair?.archivedApps || 0);
+  } catch (err) {
+    if (process.env.DEBUG_INGEST_LINKEDIN_MATCH === '1') {
+      logDebug('ingest.linkedin_repair_merge_failed', {
+        userId,
+        error: err && err.message ? String(err.message) : String(err)
+      });
+    }
+  }
 
   setSyncProgress(syncId, {
     status: 'completed',
@@ -1243,6 +1470,9 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
     pagesFetched,
     totalMessagesListed,
     messageSourceCounts,
+    linkedInRepairMergedPairs,
+    linkedInRepairMovedEvents,
+    linkedInRepairArchivedApps,
     timeWindowStart: timeWindowStart.toISOString(),
     timeWindowEnd: timeWindowEnd.toISOString(),
     stoppedReason,
@@ -1297,6 +1527,9 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
     pages_fetched: pagesFetched,
     total_messages_listed: totalMessagesListed,
     message_source_counts: messageSourceCounts,
+    linkedin_repair_merged_pairs: linkedInRepairMergedPairs,
+    linkedin_repair_moved_events: linkedInRepairMovedEvents,
+    linkedin_repair_archived_apps: linkedInRepairArchivedApps,
     time_window_start: timeWindowStart.toISOString(),
     time_window_end: timeWindowEnd.toISOString(),
     stopped_reason: stoppedReason,
@@ -1312,5 +1545,6 @@ module.exports = {
   extractMessageMetadata,
   insertEmailEventRecord,
   isLinkedInDuplicateReprocessCandidate,
-  hasLinkedInRejectionPhrase
+  hasLinkedInRejectionPhrase,
+  repairLinkedInSplitApplications
 };

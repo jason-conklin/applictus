@@ -106,6 +106,15 @@ function extractSenderDomain(sender) {
   return match ? match[1].toLowerCase() : null;
 }
 
+function extractSenderEmail(sender) {
+  if (!sender) return null;
+  const text = String(sender).trim();
+  const angle = text.match(/<([^>]+)>/);
+  const raw = angle && angle[1] ? angle[1] : text;
+  const email = String(raw).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return email ? email[0].toLowerCase() : null;
+}
+
 function buildEventText(event = {}) {
   const parts = [
     event.subject,
@@ -867,7 +876,7 @@ async function findCompanyMatches(db, userId, identity, senderDomain, recencyDay
 }
 
 function isLinkedInJobsEnvelope(event) {
-  const sender = String(event?.sender || '').toLowerCase();
+  const sender = extractSenderEmail(event?.sender || '');
   const subject = String(event?.subject || '');
   if (sender !== 'jobs-noreply@linkedin.com') {
     return false;
@@ -915,6 +924,10 @@ function getLinkedInNormalizedRole(identity, event) {
 async function findLinkedInStrictFallbackMatch(db, userId, identity, event) {
   const normalizedCompany = normalizeJobIdentity(identity?.companyName || null);
   const normalizedRole = getLinkedInNormalizedRole(identity, event);
+  const eventKey =
+    normalizedCompany && normalizedRole ? `${normalizedCompany}|${normalizedRole}` : null;
+  const eventMs = getEventTimestampMs(event);
+  const eventIso = new Date(eventMs).toISOString();
   if (!normalizedCompany || !normalizedRole) {
     return {
       match: null,
@@ -922,33 +935,53 @@ async function findLinkedInStrictFallbackMatch(db, userId, identity, event) {
       reason: 'missing_identity',
       candidateCount: 0,
       normalizedCompany,
-      normalizedRole
+      normalizedRole,
+      eventKey,
+      eventTimestamp: eventIso,
+      rawCompany: identity?.companyName || null,
+      rawRole: identity?.jobTitle || event?.role_title || null,
+      dbCandidateCount: 0,
+      keyMatchCount: 0
     };
   }
 
+  const lookbackIso = new Date(eventMs - 45 * 24 * 60 * 60 * 1000).toISOString();
+  const archivedFalse = dbDialect(db) === 'postgres' ? false : 0;
   const rows = normalizeRowList(
     await awaitMaybe(
       db
         .prepare(
           `SELECT * FROM job_applications
            WHERE user_id = ?
-             AND archived = false`
+             AND archived = ?
+             AND created_at >= ?
+           ORDER BY created_at DESC
+           LIMIT 200`
         )
-        .all(userId)
+        .all(userId, archivedFalse, lookbackIso)
     )
   );
 
-  const eventMs = getEventTimestampMs(event);
-  const matchingCandidates = [];
+  const keyMatched = [];
   for (const app of rows) {
     const candidateCompany = normalizeJobIdentity(app.company_name || app.company || null);
-    const candidateRole = normalizeJobIdentity(app.job_title || app.role || null);
+    const candidateRole = normalizeJobIdentity(app.job_title || app.role || app.role_title || null);
     if (!candidateCompany || !candidateRole) {
       continue;
     }
-    if (candidateCompany !== normalizedCompany || candidateRole !== normalizedRole) {
+    const appKey = `${candidateCompany}|${candidateRole}`;
+    if (appKey !== eventKey) {
       continue;
     }
+    keyMatched.push({
+      app,
+      appKey
+    });
+  }
+
+  const matchingCandidates = [];
+  for (const matched of keyMatched) {
+    const app = matched.app;
     const anchor = getLinkedInCandidateAnchor(app);
     if (!anchor.ts) {
       continue;
@@ -959,6 +992,7 @@ async function findLinkedInStrictFallbackMatch(db, userId, identity, event) {
     }
     matchingCandidates.push({
       app,
+      appKey: matched.appKey,
       anchorSource: anchor.source,
       ageDays
     });
@@ -972,6 +1006,12 @@ async function findLinkedInStrictFallbackMatch(db, userId, identity, event) {
       candidateCount: 1,
       normalizedCompany,
       normalizedRole,
+      eventKey,
+      eventTimestamp: eventIso,
+      rawCompany: identity?.companyName || null,
+      rawRole: identity?.jobTitle || event?.role_title || null,
+      dbCandidateCount: rows.length,
+      keyMatchCount: keyMatched.length,
       anchorSource: matchingCandidates[0].anchorSource,
       ageDays: matchingCandidates[0].ageDays
     };
@@ -983,7 +1023,13 @@ async function findLinkedInStrictFallbackMatch(db, userId, identity, event) {
     reason: matchingCandidates.length > 1 ? 'multiple_candidates' : 'no_candidate',
     candidateCount: matchingCandidates.length,
     normalizedCompany,
-    normalizedRole
+    normalizedRole,
+    eventKey,
+    eventTimestamp: eventIso,
+    rawCompany: identity?.companyName || null,
+    rawRole: identity?.jobTitle || event?.role_title || null,
+    dbCandidateCount: rows.length,
+    keyMatchCount: keyMatched.length
   };
 }
 
@@ -1482,7 +1528,14 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
     const fallback = await findLinkedInStrictFallbackMatch(db, userId, identity, event);
     logLinkedInMatchDebug({
       eventId: event.id,
+      subject: event.subject || null,
       detectedType: event.detected_type,
+      eventTimestamp: fallback.eventTimestamp || null,
+      rawCompany: fallback.rawCompany || null,
+      rawRole: fallback.rawRole || null,
+      eventKey: fallback.eventKey || null,
+      dbCandidateCount: fallback.dbCandidateCount || 0,
+      keyMatchCount: fallback.keyMatchCount || 0,
       normalizedCompany: fallback.normalizedCompany,
       normalizedRole: fallback.normalizedRole,
       candidateCount: fallback.candidateCount,

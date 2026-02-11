@@ -182,7 +182,7 @@ test('LinkedIn confirmation and rejection lifecycle updates existing application
   const db = new Database(':memory:');
   runMigrations(db);
   const userId = insertUser(db);
-  const sender = 'jobs-noreply@linkedin.com';
+  const sender = 'LinkedIn Jobs <jobs-noreply@linkedin.com>';
 
   const confirmationSubject = 'Jason, your application was sent to Concorde Research Technologies';
   const confirmationBody = `Jason, your application was sent to Concorde Research Technologies.
@@ -299,7 +299,7 @@ test('LinkedIn Tata confirmation/rejection lifecycle keeps one application with 
   const db = new Database(':memory:');
   runMigrations(db);
   const userId = insertUser(db);
-  const sender = 'jobs-noreply@linkedin.com';
+  const sender = 'LinkedIn Jobs <jobs-noreply@linkedin.com>';
 
   const confirmationSubject = 'Jason, your application was sent to Tata Consultancy Services';
   const confirmationBody = `Jason, your application was sent to Tata Consultancy Services
