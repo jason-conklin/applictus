@@ -5,6 +5,7 @@ const {
   isProviderName,
   isInvalidCompanyCandidate,
   normalizeExternalReqId,
+  normalizeJobIdentity,
   sanitizeJobTitle,
   normalizeRoleTokens,
   roleStrength,
@@ -33,6 +34,7 @@ const MIN_DOMAIN_CONFIDENCE = 0.4;
 const MIN_ROLE_CONFIDENCE = 0.8;
 const DEDUPE_RECENCY_DAYS = 7;
 const FUZZY_CONFIRMATION_WINDOW_HOURS = 6;
+const LINKEDIN_MATCH_WINDOW_DAYS = 21;
 
 async function awaitMaybe(value) {
   return value && typeof value.then === 'function' ? await value : value;
@@ -40,6 +42,17 @@ async function awaitMaybe(value) {
 
 function dbDialect(db) {
   return db && db.isAsync ? 'postgres' : 'sqlite';
+}
+
+function isLinkedInMatchDebugEnabled() {
+  return String(process.env.DEBUG_INGEST_LINKEDIN_MATCH || '').trim() === '1';
+}
+
+function logLinkedInMatchDebug(meta) {
+  if (!isLinkedInMatchDebugEnabled()) {
+    return;
+  }
+  logDebug('matching.linkedin_fallback', meta);
 }
 
 function normalizeBindValue(value, dialect) {
@@ -853,6 +866,127 @@ async function findCompanyMatches(db, userId, identity, senderDomain, recencyDay
   return normalizeRowList(rows);
 }
 
+function isLinkedInJobsEnvelope(event) {
+  const sender = String(event?.sender || '').toLowerCase();
+  const subject = String(event?.subject || '');
+  if (sender !== 'jobs-noreply@linkedin.com') {
+    return false;
+  }
+  if (/^\s*your application to\s+/i.test(subject)) {
+    return true;
+  }
+  return /(?:^|\s),?\s*your application was sent to\s+/i.test(subject);
+}
+
+function getEventTimestampMs(event) {
+  const fromInternal = event?.internal_date ? Number(event.internal_date) : null;
+  if (Number.isFinite(fromInternal) && fromInternal > 0) {
+    return fromInternal;
+  }
+  const fromCreated = event?.created_at ? new Date(event.created_at).getTime() : null;
+  if (Number.isFinite(fromCreated) && fromCreated > 0) {
+    return fromCreated;
+  }
+  return Date.now();
+}
+
+function getLinkedInCandidateAnchor(candidate) {
+  if (candidate?.applied_at) {
+    const appliedMs = new Date(candidate.applied_at).getTime();
+    if (Number.isFinite(appliedMs) && appliedMs > 0) {
+      return { ts: appliedMs, source: 'applied_at' };
+    }
+  }
+  const fallbackIso = candidate?.last_activity_at || candidate?.updated_at || candidate?.created_at || null;
+  if (!fallbackIso) {
+    return { ts: null, source: 'none' };
+  }
+  const fallbackMs = new Date(fallbackIso).getTime();
+  if (!Number.isFinite(fallbackMs) || fallbackMs <= 0) {
+    return { ts: null, source: 'none' };
+  }
+  return { ts: fallbackMs, source: 'last_activity' };
+}
+
+function getLinkedInNormalizedRole(identity, event) {
+  return normalizeJobIdentity(identity?.jobTitle || event?.role_title || null);
+}
+
+async function findLinkedInStrictFallbackMatch(db, userId, identity, event) {
+  const normalizedCompany = normalizeJobIdentity(identity?.companyName || null);
+  const normalizedRole = getLinkedInNormalizedRole(identity, event);
+  if (!normalizedCompany || !normalizedRole) {
+    return {
+      match: null,
+      ambiguous: false,
+      reason: 'missing_identity',
+      candidateCount: 0,
+      normalizedCompany,
+      normalizedRole
+    };
+  }
+
+  const rows = normalizeRowList(
+    await awaitMaybe(
+      db
+        .prepare(
+          `SELECT * FROM job_applications
+           WHERE user_id = ?
+             AND archived = false`
+        )
+        .all(userId)
+    )
+  );
+
+  const eventMs = getEventTimestampMs(event);
+  const matchingCandidates = [];
+  for (const app of rows) {
+    const candidateCompany = normalizeJobIdentity(app.company_name || app.company || null);
+    const candidateRole = normalizeJobIdentity(app.job_title || app.role || null);
+    if (!candidateCompany || !candidateRole) {
+      continue;
+    }
+    if (candidateCompany !== normalizedCompany || candidateRole !== normalizedRole) {
+      continue;
+    }
+    const anchor = getLinkedInCandidateAnchor(app);
+    if (!anchor.ts) {
+      continue;
+    }
+    const ageDays = (eventMs - anchor.ts) / (24 * 60 * 60 * 1000);
+    if (!Number.isFinite(ageDays) || ageDays < 0 || ageDays > LINKEDIN_MATCH_WINDOW_DAYS) {
+      continue;
+    }
+    matchingCandidates.push({
+      app,
+      anchorSource: anchor.source,
+      ageDays
+    });
+  }
+
+  if (matchingCandidates.length === 1) {
+    return {
+      match: matchingCandidates[0].app,
+      ambiguous: false,
+      reason: 'matched',
+      candidateCount: 1,
+      normalizedCompany,
+      normalizedRole,
+      anchorSource: matchingCandidates[0].anchorSource,
+      ageDays: matchingCandidates[0].ageDays
+    };
+  }
+
+  return {
+    match: null,
+    ambiguous: matchingCandidates.length > 1,
+    reason: matchingCandidates.length > 1 ? 'multiple_candidates' : 'no_candidate',
+    candidateCount: matchingCandidates.length,
+    normalizedCompany,
+    normalizedRole
+  };
+}
+
 async function updateApplicationActivity(db, application, event) {
   const updates = {};
   const eventTimestamp = toIsoFromInternalDate(event.internal_date, new Date(event.created_at));
@@ -1340,6 +1474,33 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
         });
         existing = null;
       }
+    }
+  }
+
+  const linkedInEnvelope = isLinkedInJobsEnvelope(event);
+  if (!existing && linkedInEnvelope) {
+    const fallback = await findLinkedInStrictFallbackMatch(db, userId, identity, event);
+    logLinkedInMatchDebug({
+      eventId: event.id,
+      detectedType: event.detected_type,
+      normalizedCompany: fallback.normalizedCompany,
+      normalizedRole: fallback.normalizedRole,
+      candidateCount: fallback.candidateCount,
+      reason: fallback.reason,
+      matchedApplicationId: fallback.match ? fallback.match.id : null,
+      anchorSource: fallback.anchorSource || null,
+      ageDays: Number.isFinite(fallback.ageDays) ? Number(fallback.ageDays.toFixed(3)) : null
+    });
+
+    if (fallback.match) {
+      existing = fallback.match;
+    } else if (fallback.ambiguous && isRejection) {
+      return {
+        action: 'unassigned',
+        reason: 'ambiguous_linkedin_match',
+        reasonDetail: 'Multiple LinkedIn applications match this rejection update.',
+        identity
+      };
     }
   }
 

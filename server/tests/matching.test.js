@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { extractThreadIdentity, shouldAutoCreate, matchAndAssignEvent } = require('../src/matching');
-const { extractJobTitle } = require('../../shared/matching');
+const { extractJobTitle, normalizeJobIdentity } = require('../../shared/matching');
 
 test('extractThreadIdentity requires company, role, and matching domain', () => {
   const identity = extractThreadIdentity({
@@ -366,6 +366,12 @@ Applied on February 6, 2026`;
   assert.equal(identity.jobTitle, 'Artificial Intelligence Engineer - Entry Level');
   assert.ok(identity.companyConfidence >= 0.85);
   assert.ok((identity.roleConfidence || 0) >= 0.85);
+});
+
+test('normalizeJobIdentity canonicalizes Tata LinkedIn role strings for strict matching', () => {
+  const confirmationRole = 'Artificial Intelligence Engineer - Entry Level';
+  const rejectionRole = 'Artificial\u00a0Intelligence Engineer \u2013 Entry Level';
+  assert.equal(normalizeJobIdentity(confirmationRole), normalizeJobIdentity(rejectionRole));
 });
 
 test('extractThreadIdentity parses LinkedIn rejection update template', () => {

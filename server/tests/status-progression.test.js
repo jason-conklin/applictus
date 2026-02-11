@@ -74,6 +74,41 @@ function insertEmailEvent(db, {
   return id;
 }
 
+function insertApplication(db, {
+  userId,
+  company,
+  role,
+  appliedAt,
+  lastActivityAt,
+  archived = 0
+}) {
+  const id = crypto.randomUUID();
+  const nowIso = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO job_applications
+     (id, user_id, company, company_name, role, job_title, status, current_status, status_updated_at,
+      created_at, updated_at, applied_at, last_activity_at, archived, user_override)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    userId,
+    company,
+    company,
+    role,
+    role,
+    ApplicationStatus.APPLIED,
+    ApplicationStatus.APPLIED,
+    appliedAt || nowIso,
+    nowIso,
+    nowIso,
+    appliedAt || nowIso,
+    lastActivityAt || appliedAt || nowIso,
+    archived,
+    0
+  );
+  return id;
+}
+
 test('matched rejection updates application status', async () => {
   const db = new Database(':memory:');
   runMigrations(db);
@@ -378,6 +413,179 @@ Applied on February 6, 2026`;
   runStatusInferenceForApplication(db, userId, appId);
   const updated = db.prepare('SELECT current_status FROM job_applications WHERE id = ?').get(appId);
   assert.equal(updated.current_status, ApplicationStatus.REJECTED);
+  db.close();
+});
+
+test('LinkedIn fallback matching merges rejection when stored app identity has NBSP/dash variants', async () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+  const sender = 'jobs-noreply@linkedin.com';
+
+  const confirmationSubject = 'Jason, your application was sent to Tata Consultancy Services';
+  const confirmationBody = `Jason, your application was sent to Tata Consultancy Services
+Tata Consultancy Services
+Artificial Intelligence Engineer - Entry Level
+Tata Consultancy Services · Edison, NJ (On-site)
+Applied on February 6, 2026`;
+  const confirmationIdentity = extractThreadIdentity({
+    subject: confirmationSubject,
+    sender,
+    bodyText: confirmationBody
+  });
+  const confirmationId = insertEmailEvent(db, {
+    userId,
+    messageId: 'msg-linkedin-tata-fallback-confirm',
+    sender,
+    subject: confirmationSubject,
+    detectedType: 'confirmation',
+    confidenceScore: 0.96,
+    classificationConfidence: 0.96,
+    snippet: 'Your application was sent to Tata Consultancy Services.'
+  });
+  const confirmationMatch = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: confirmationId,
+      sender,
+      subject: confirmationSubject,
+      snippet: 'Your application was sent to Tata Consultancy Services.',
+      detected_type: 'confirmation',
+      confidence_score: 0.96,
+      classification_confidence: 0.96,
+      role_title: confirmationIdentity.jobTitle,
+      role_confidence: confirmationIdentity.roleConfidence,
+      role_source: 'identity',
+      created_at: '2026-02-06T13:00:00.000Z'
+    },
+    identity: confirmationIdentity
+  });
+  assert.equal(confirmationMatch.action, 'created_application');
+  const appId = confirmationMatch.applicationId;
+
+  // Simulate older rows containing NBSP/en-dash that break exact SQL matching.
+  db.prepare(
+    `UPDATE job_applications
+     SET company = ?, company_name = ?, role = ?, job_title = ?, applied_at = ?, last_activity_at = ?
+     WHERE id = ?`
+  ).run(
+    'Tata\u00a0Consultancy Services',
+    'Tata\u00a0Consultancy Services',
+    'Artificial\u00a0Intelligence Engineer \u2013 Entry Level',
+    'Artificial\u00a0Intelligence Engineer \u2013 Entry Level',
+    '2026-02-06T13:00:00.000Z',
+    '2026-02-06T13:00:00.000Z',
+    appId
+  );
+
+  const rejectionSubject = 'Your application to Artificial Intelligence Engineer - Entry Level at Tata Consultancy Services';
+  const rejectionBody =
+    'Your update from Tata Consultancy Services · Edison, NJ. Unfortunately, we will not be moving forward with your application at this time.';
+  const rejectionIdentity = extractThreadIdentity({
+    subject: rejectionSubject,
+    sender,
+    snippet: rejectionBody,
+    bodyText: rejectionBody
+  });
+  const rejectionId = insertEmailEvent(db, {
+    userId,
+    messageId: 'msg-linkedin-tata-fallback-reject',
+    sender,
+    subject: rejectionSubject,
+    detectedType: 'rejection',
+    confidenceScore: 0.98,
+    classificationConfidence: 0.98,
+    snippet: rejectionBody
+  });
+  const rejectionMatch = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: rejectionId,
+      sender,
+      subject: rejectionSubject,
+      snippet: rejectionBody,
+      detected_type: 'rejection',
+      confidence_score: 0.98,
+      classification_confidence: 0.98,
+      role_title: rejectionIdentity.jobTitle,
+      role_confidence: rejectionIdentity.roleConfidence,
+      role_source: 'identity',
+      created_at: '2026-02-09T13:00:00.000Z'
+    },
+    identity: rejectionIdentity
+  });
+  assert.equal(rejectionMatch.action, 'matched_existing');
+  assert.equal(rejectionMatch.applicationId, appId);
+
+  const apps = db.prepare('SELECT id FROM job_applications WHERE user_id = ?').all(userId);
+  assert.equal(apps.length, 1);
+  db.close();
+});
+
+test('LinkedIn fallback avoids auto-attach when multiple normalized candidates exist in window', async () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+  const sender = 'jobs-noreply@linkedin.com';
+
+  insertApplication(db, {
+    userId,
+    company: 'Tata\u00a0Consultancy Services',
+    role: 'Artificial\u00a0Intelligence Engineer \u2013 Entry Level',
+    appliedAt: '2026-02-01T10:00:00.000Z',
+    lastActivityAt: '2026-02-01T10:00:00.000Z'
+  });
+  insertApplication(db, {
+    userId,
+    company: 'Tata\u00a0Consultancy Services',
+    role: 'Artificial\u00a0Intelligence Engineer \u2013 Entry Level',
+    appliedAt: '2026-02-15T10:00:00.000Z',
+    lastActivityAt: '2026-02-15T10:00:00.000Z'
+  });
+
+  const rejectionSubject = 'Your application to Artificial Intelligence Engineer - Entry Level at Tata Consultancy Services';
+  const rejectionBody =
+    'Your update from Tata Consultancy Services · Edison, NJ. Unfortunately, we will not be moving forward with your application at this time.';
+  const identity = extractThreadIdentity({
+    subject: rejectionSubject,
+    sender,
+    snippet: rejectionBody,
+    bodyText: rejectionBody
+  });
+  const rejectionId = insertEmailEvent(db, {
+    userId,
+    messageId: 'msg-linkedin-tata-ambiguous-reject',
+    sender,
+    subject: rejectionSubject,
+    detectedType: 'rejection',
+    confidenceScore: 0.98,
+    classificationConfidence: 0.98,
+    snippet: rejectionBody
+  });
+
+  const result = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: rejectionId,
+      sender,
+      subject: rejectionSubject,
+      snippet: rejectionBody,
+      detected_type: 'rejection',
+      confidence_score: 0.98,
+      classification_confidence: 0.98,
+      role_title: identity.jobTitle,
+      role_confidence: identity.roleConfidence,
+      role_source: 'identity',
+      created_at: '2026-02-20T11:00:00.000Z'
+    },
+    identity
+  });
+
+  assert.equal(result.action, 'unassigned');
+  assert.equal(result.reason, 'ambiguous_linkedin_match');
   db.close();
 });
 

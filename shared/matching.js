@@ -457,7 +457,36 @@ const GENERIC_ROLE_TERMS = new Set([
 ]);
 
 function normalize(text) {
-  return String(text || '').replace(/\s+/g, ' ').trim();
+  let value = String(text || '');
+  if (!value) {
+    return '';
+  }
+  if (typeof value.normalize === 'function') {
+    value = value.normalize('NFKC');
+  }
+  return value
+    .replace(/[\u00a0\u1680\u180e\u2000-\u200d\u202f\u205f\u3000]/g, ' ')
+    .replace(/[‐‑‒–—―−]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeJobIdentity(value) {
+  let text = normalize(value);
+  if (!text) {
+    return null;
+  }
+
+  text = text
+    .replace(/\s+[·•|]\s+.*$/g, '')
+    .replace(/\s*[,-]\s*(?:remote|hybrid|on[- ]site|onsite)\b.*$/i, '')
+    .replace(/\s*[,-]\s*[A-Za-z .'-]+,\s*[A-Z]{2}\b.*$/i, '')
+    .replace(/\s*\((?:remote|hybrid|on[- ]site|onsite)[^)]*\)\s*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  return text || null;
 }
 
 function escapeRegExp(text) {
@@ -1473,8 +1502,16 @@ function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender
     if (isGenericRole(candidate)) {
       return null;
     }
-    if (normalizedCompany && slugify(candidate) === slugify(normalizedCompany)) {
-      return null;
+    if (normalizedCompany) {
+      const normalizedRoleIdentity = normalizeJobIdentity(candidate);
+      const normalizedCompanyIdentity = normalizeJobIdentity(normalizedCompany);
+      if (
+        normalizedRoleIdentity &&
+        normalizedCompanyIdentity &&
+        normalizedRoleIdentity === normalizedCompanyIdentity
+      ) {
+        return null;
+      }
     }
     return candidate;
   };
@@ -1891,6 +1928,7 @@ module.exports = {
   extractJobTitle,
   extractExternalReqId,
   buildMatchKey,
+  normalizeJobIdentity,
   isProviderName,
   isInvalidCompanyCandidate,
   extractCompanyFromBodyText,
