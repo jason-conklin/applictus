@@ -85,12 +85,6 @@ body.animated-bg-auth {
   --animated-bg-gradient: linear-gradient(180deg, #ffffff 0%, #eef5ff 25%, #c7dcff 52%, #3a70ff 82%, #0b2cff 100%);
 }
 
-body.animated-bg-dashboard {
-  --animated-bg-gradient: linear-gradient(180deg, #ffffff 0%, #f3f8ff 28%, #dbeaff 56%, #9bc4ff 82%, #7aabf8 100%);
-  --auth-particle-opacity-mult: 0.9;
-  --auth-scanline-opacity: 0.09;
-}
-
 body.animated-bg-mode.auth-bg-debug {
   --auth-bg-intensity: 1.25;
   --auth-particle-opacity-mult: 1.25;
@@ -105,6 +99,32 @@ body.animated-bg-mode .topbar {
 
 body.animated-bg-mode .noise {
   /* Keep auth background crisp and prevent overlays from hiding animation. */
+  display: none;
+}
+
+/* Shared static gradient background for app data pages (dashboard/archive/account). */
+body.app-page-bg {
+  isolation: isolate;
+  --app-page-gradient: linear-gradient(180deg, #ffffff 0%, #f3f8ff 28%, #dbeaff 56%, #9bc4ff 82%, #7aabf8 100%);
+}
+
+body.app-page-bg::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--app-page-gradient);
+}
+
+body.app-page-bg .layout,
+body.app-page-bg .topbar,
+body.app-page-bg .app-footer {
+  position: relative;
+  z-index: 3;
+}
+
+body.app-page-bg .noise {
   display: none;
 }
 

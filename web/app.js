@@ -1660,6 +1660,23 @@ function populateAnimatedBackgroundIcons(layer, { count, debug }) {
   return count;
 }
 
+function getAnimatedBackgroundIconCount({ variant, debug, reducedMotion }) {
+  if (variant !== 'auth') {
+    return 0;
+  }
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth || 1024 : 1024;
+  let desiredCount = 30;
+  if (viewportWidth < 520) {
+    desiredCount = 14;
+  } else if (viewportWidth < 900) {
+    desiredCount = 22;
+  }
+  if (debug) {
+    desiredCount = Math.max(desiredCount, 44);
+  }
+  return reducedMotion ? Math.min(desiredCount, 14) : desiredCount;
+}
+
 // Shared layout wrapper for animated backgrounds used by auth and dashboard views.
 function ensureAnimatedBackgroundLayout({ variant }) {
   if (!document?.body) {
@@ -1670,15 +1687,31 @@ function ensureAnimatedBackgroundLayout({ variant }) {
   const prefersReduced = prefersReducedMotion();
   const forceAnimation = Boolean(window?.FORCE_AUTH_ANIMATION);
   const reducedMotion = prefersReduced && !forceAnimation;
+  const desiredIconCount = getAnimatedBackgroundIconCount({
+    variant,
+    debug,
+    reducedMotion
+  });
   document.body.classList.toggle('force-auth-animation', forceAnimation);
   if (existing) {
+    const previousVariant = existing.dataset.variant || '';
     existing.dataset.variant = variant;
-    if (debug && existing.dataset.debug !== '1') {
-      existing.dataset.debug = '1';
-      const iconsLayer = existing.querySelector('.animated-bg-icons');
-      if (iconsLayer) {
-        populateAnimatedBackgroundIcons(iconsLayer, { count: 44, debug: true });
+    const previousCount = Number(existing.dataset.iconCount || '-1');
+    const iconsLayer = existing.querySelector('.animated-bg-icons');
+    if (iconsLayer && (previousVariant !== variant || previousCount !== desiredIconCount)) {
+      if (desiredIconCount > 0) {
+        populateAnimatedBackgroundIcons(iconsLayer, {
+          count: desiredIconCount,
+          debug
+        });
+      } else {
+        iconsLayer.innerHTML = '';
       }
+      existing.dataset.iconCount = String(desiredIconCount);
+    }
+    existing.dataset.debug = debug ? '1' : '0';
+    if (debug && !existing.dataset.debugEnabled) {
+      existing.dataset.debugEnabled = '1';
       // eslint-disable-next-line no-console
       console.debug('[animated-bg] debug enabled');
       document.body?.classList.add('auth-bg-debug');
@@ -1704,6 +1737,7 @@ function ensureAnimatedBackgroundLayout({ variant }) {
         forceAuthAnimation: forceAnimation,
         reducedMotionEffective: reducedMotion,
         exists: true,
+        icons: desiredIconCount,
         beforeAnim,
         afterAnim,
         iconAnim
@@ -1724,20 +1758,11 @@ function ensureAnimatedBackgroundLayout({ variant }) {
   container.appendChild(iconsLayer);
 
   document.body.insertBefore(container, document.body.firstChild);
-
-  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth || 1024 : 1024;
-  let desiredCount = 30;
-  if (viewportWidth < 520) {
-    desiredCount = 14;
-  } else if (viewportWidth < 900) {
-    desiredCount = 22;
+  let iconCount = 0;
+  if (desiredIconCount > 0) {
+    iconCount = populateAnimatedBackgroundIcons(iconsLayer, { count: desiredIconCount, debug });
   }
-  if (debug) {
-    desiredCount = Math.max(desiredCount, 44);
-  }
-
-  const effectiveCount = reducedMotion ? Math.min(desiredCount, 14) : desiredCount;
-  const iconCount = populateAnimatedBackgroundIcons(iconsLayer, { count: effectiveCount, debug });
+  container.dataset.iconCount = String(iconCount);
   container.dataset.debug = debug ? '1' : '0';
 
   if (debug) {
@@ -1787,11 +1812,13 @@ function closeProfileMenu() {
 
 function setView(view) {
   if (document?.body) {
-    const animatedVariant = view === 'auth' ? 'auth' : view === 'dashboard' ? 'dashboard' : null;
+    const animatedVariant = view === 'auth' ? 'auth' : null;
+    const useAppGradient = view === 'dashboard' || view === 'archive' || view === 'account';
     document.body.classList.toggle('auth-mode', view === 'auth');
     document.body.classList.toggle('animated-bg-mode', Boolean(animatedVariant));
     document.body.classList.toggle('animated-bg-auth', animatedVariant === 'auth');
-    document.body.classList.toggle('animated-bg-dashboard', animatedVariant === 'dashboard');
+    document.body.classList.remove('animated-bg-dashboard');
+    document.body.classList.toggle('app-page-bg', useAppGradient);
     if (animatedVariant) {
       ensureAnimatedBackgroundLayout({ variant: animatedVariant });
     } else {
