@@ -76,11 +76,17 @@ body.animated-bg-mode {
   --auth-bg-intensity: 1;
   --auth-particle-opacity-mult: 1;
   --auth-scanline-opacity: 0.1;
+  --animated-bg-gradient: linear-gradient(180deg, #ffffff 0%, #eef5ff 25%, #c7dcff 52%, #3a70ff 82%, #0b2cff 100%);
   /* Fallback in case JS doesn't mount the animated auth background. */
-  background: linear-gradient(180deg, #ffffff 0%, #f3f8ff 28%, #c7dcff 58%, #3a70ff 84%, #0b2cff 100%);
+  background: var(--animated-bg-gradient);
+}
+
+body.animated-bg-auth {
+  --animated-bg-gradient: linear-gradient(180deg, #ffffff 0%, #eef5ff 25%, #c7dcff 52%, #3a70ff 82%, #0b2cff 100%);
 }
 
 body.animated-bg-dashboard {
+  --animated-bg-gradient: linear-gradient(180deg, #ffffff 0%, #f3f8ff 28%, #dbeaff 56%, #9bc4ff 82%, #7aabf8 100%);
   --auth-particle-opacity-mult: 0.9;
   --auth-scanline-opacity: 0.09;
 }
@@ -124,7 +130,7 @@ body.animated-bg-mode .animated-bg {
   z-index: 0;
   /* Base gradient + soft mesh blobs layered together. */
   background-image:
-    linear-gradient(180deg, #ffffff 0%, #eef5ff 25%, #c7dcff 52%, #3a70ff 82%, #0b2cff 100%),
+    var(--animated-bg-gradient),
     radial-gradient(circle at 18% 62%, rgba(60, 140, 255, 0.22), transparent 62%),
     radial-gradient(circle at 78% 42%, rgba(120, 180, 255, 0.18), transparent 64%),
     radial-gradient(circle at 44% 78%, rgba(20, 70, 210, 0.18), transparent 66%);
