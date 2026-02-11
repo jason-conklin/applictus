@@ -94,13 +94,14 @@ const contactView = document.getElementById('contact-view');
 const aboutView = document.getElementById('about-view');
 const nav = document.getElementById('nav');
 const topbar = document.getElementById('topbar');
+const profileMenu = document.getElementById('profile-menu');
+const profileMenuPanel = document.getElementById('profile-menu-panel');
 const accountAvatar = document.getElementById('account-avatar');
 const avatarInitials = document.getElementById('avatar-initials');
 
 const loginForm = document.getElementById('login-form');
 const signupForm = document.getElementById('signup-form');
 const googleAuth = document.getElementById('google-auth');
-const logoutBtn = document.getElementById('logout-btn');
 const accountLogout = document.getElementById('account-logout');
 const accountEmail = document.getElementById('account-email');
 const accountEmailCopy = document.getElementById('account-email-copy');
@@ -336,6 +337,7 @@ const syncUiState = {
 };
 renderSyncSummary({ status: 'idle', rawDetails: '' });
 
+let profileMenuOpen = false;
 let modalState = {
   onClose: null,
   allowBackdropClose: false,
@@ -1316,7 +1318,6 @@ function setPageMeta(view) {
     dashboard: `${APP_TITLE} – Dashboard`,
     account: `${APP_TITLE} – Account`,
     archive: `${APP_TITLE} – Archive`,
-    unsorted: `${APP_TITLE} – Unsorted Events`,
     'resume-curator': `${APP_TITLE} – Resume Curator`,
     privacy: `${APP_TITLE} – Privacy Policy`,
     terms: `${APP_TITLE} – Terms of Service`,
@@ -1330,7 +1331,6 @@ function setPageMeta(view) {
       'Applictus helps you track job applications and sync Gmail updates so you always know your application status.',
     account: 'Manage your Applictus account and Gmail connection.',
     archive: 'Browse archived job applications in Applictus.',
-    unsorted: 'Review unsorted email events and signals.',
     privacy: 'Read the Applictus Privacy Policy.',
     terms: 'Read the Applictus Terms of Service.',
     contact: 'Contact the Applictus team.',
@@ -1357,8 +1357,11 @@ function routeFromPathname(pathname = '') {
 
 function getCurrentRouteKey() {
   const hash = window.location.hash.replace('#', '');
-  if (hash) return hash;
-  return routeFromPathname(window.location.pathname);
+  const routeKey = hash || routeFromPathname(window.location.pathname);
+  if (routeKey === 'unsorted') {
+    return 'dashboard';
+  }
+  return routeKey;
 }
 
 function buildListParams(overrides = {}) {
@@ -1762,6 +1765,23 @@ function ensureAuthAnimatedBg() {
   }
 }
 
+function setProfileMenuOpen(nextOpen) {
+  profileMenuOpen = Boolean(nextOpen);
+  if (profileMenuPanel) {
+    profileMenuPanel.classList.toggle('hidden', !profileMenuOpen);
+  }
+  if (profileMenu) {
+    profileMenu.classList.toggle('open', profileMenuOpen);
+  }
+  if (accountAvatar) {
+    accountAvatar.setAttribute('aria-expanded', profileMenuOpen ? 'true' : 'false');
+  }
+}
+
+function closeProfileMenu() {
+  setProfileMenuOpen(false);
+}
+
 function setView(view) {
   if (document?.body) {
     document.body.classList.toggle('auth-mode', view === 'auth');
@@ -1789,13 +1809,11 @@ function setView(view) {
   if (nav) {
     nav.classList.toggle('hidden', !isAuthed);
   }
-  if (logoutBtn) {
-    logoutBtn.classList.toggle('hidden', !isAuthed);
-  }
   if (accountAvatar) {
     accountAvatar.classList.toggle('hidden', !isAuthed);
     accountAvatar.classList.toggle('active', view === 'account');
   }
+  closeProfileMenu();
 
   if (nav) {
     const links = nav.querySelectorAll('.nav-link');
@@ -3854,9 +3872,6 @@ function route() {
       }
       showNotice('Unable to load archived applications.', 'Archive');
     });
-  } else if (routeKey === 'unsorted') {
-    setView('unsorted');
-    void refreshUnsortedEvents();
   } else if (routeKey === 'account') {
     setView('account');
     renderAccountPanel();
@@ -4194,22 +4209,73 @@ if (accountPasswordButton && !accountPasswordButton.dataset.bound) {
   });
 }
 
-logoutBtn?.addEventListener('click', async () => {
+async function performLogout() {
   await api('/api/auth/logout', { method: 'POST' });
   sessionUser = null;
+  closeProfileMenu();
   window.location.hash = '#account';
   setAuthPanel('signin');
   setView('auth');
   await loadCsrfToken();
-});
+}
 
 accountLogout?.addEventListener('click', async () => {
-  await api('/api/auth/logout', { method: 'POST' });
-  sessionUser = null;
-  window.location.hash = '#account';
-  setAuthPanel('signin');
-  setView('auth');
-  await loadCsrfToken();
+  await performLogout();
+});
+
+accountAvatar?.addEventListener('click', (event) => {
+  event.preventDefault();
+  if (!sessionUser) {
+    return;
+  }
+  setProfileMenuOpen(!profileMenuOpen);
+});
+
+profileMenuPanel?.addEventListener('click', async (event) => {
+  const actionTarget = event.target.closest('[data-menu-action]');
+  if (!actionTarget) {
+    return;
+  }
+  event.preventDefault();
+  const action = actionTarget.dataset.menuAction;
+  if (action === 'account' || action === 'gmail') {
+    closeProfileMenu();
+    window.location.hash = '#account';
+    return;
+  }
+  if (action === 'dashboard' || action === 'archive') {
+    closeProfileMenu();
+    window.location.hash = `#${action}`;
+    return;
+  }
+  if (action === 'password') {
+    closeProfileMenu();
+    if (sessionUser) {
+      openAccountPasswordModal();
+    } else {
+      window.location.hash = '#account';
+    }
+    return;
+  }
+  if (action === 'logout') {
+    await performLogout();
+  }
+});
+
+document.addEventListener('click', (event) => {
+  if (!profileMenuOpen || !profileMenu) {
+    return;
+  }
+  if (profileMenu.contains(event.target)) {
+    return;
+  }
+  closeProfileMenu();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && profileMenuOpen) {
+    closeProfileMenu();
+  }
 });
 
 document.addEventListener('click', (event) => {

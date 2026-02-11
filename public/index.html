@@ -9,7 +9,7 @@
     />
     <meta name="app-api-base-url" content="" />
     <title>Applictus</title>
-    <link rel="icon" href="/Applictus_logo.png" type="image/png" />
+    <link rel="icon" href="/public/Applictus_logo.png" type="image/png" />
     <link rel="stylesheet" href="/styles.css?v=22" />
   </head>
   <body>
@@ -19,7 +19,7 @@
         <span class="logo-wrap brand-mark" aria-hidden="true">
           <span class="logo-fallback">A</span>
           <img
-            src="/Applictus_logo.png"
+            src="/public/Applictus_logo.png"
             alt="Applictus logo"
             class="brand-logo"
             data-logo
@@ -30,37 +30,68 @@
           <div class="brand-sub">Application Status Tracker</div>
         </div>
       </a>
-      <nav class="nav" id="nav">
-        <a href="#dashboard" class="nav-link">Dashboard</a>
-        <a href="#archive" class="nav-link">Archive</a>
-        <a href="#unsorted" class="nav-link">Unsorted Events</a>
-      </nav>
-      <div class="topbar-actions" id="session-actions">
-        <button class="ghost" id="logout-btn" type="button">Log out</button>
-        <a href="#account" class="avatar" id="account-avatar" aria-label="Account">
-          <span class="avatar-mark" aria-hidden="true">
-            <svg
-              class="avatar-icon"
-              xmlns="http://www.w3.org/2000/svg"
-              width="96"
-              height="96"
-              viewBox="0 0 96 96"
-              role="img"
-              aria-label="Profile"
+      <div class="topbar-right">
+        <nav class="nav" id="nav">
+          <a href="#dashboard" class="nav-link">Dashboard</a>
+          <a href="#archive" class="nav-link">Archive</a>
+        </nav>
+        <div class="profile-menu" id="profile-menu">
+          <button
+            class="avatar account-menu-trigger hidden"
+            id="account-avatar"
+            type="button"
+            aria-label="Account"
+            aria-haspopup="menu"
+            aria-expanded="false"
+            aria-controls="profile-menu-panel"
+          >
+            <span class="avatar-mark" aria-hidden="true">
+              <svg
+                class="avatar-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                width="96"
+                height="96"
+                viewBox="0 0 96 96"
+                role="img"
+                aria-label="Profile"
+              >
+                <circle cx="48" cy="48" r="46" fill="#ECECEC" />
+                <circle cx="48" cy="34" r="18" fill="#BFC4C4" />
+                <defs>
+                  <clipPath id="avatar-clip">
+                    <circle cx="48" cy="48" r="46" />
+                  </clipPath>
+                </defs>
+                <g clip-path="url(#avatar-clip)">
+                  <circle cx="48" cy="78" r="30" fill="#BFC4C4" />
+                </g>
+              </svg>
+            </span>
+            <span class="sr-only">Open account menu</span>
+          </button>
+          <div class="profile-menu-panel hidden" id="profile-menu-panel" role="menu" aria-label="Account menu">
+            <a class="profile-menu-item" href="#account" role="menuitem" data-menu-action="account">Account</a>
+            <a class="profile-menu-item" href="#account" role="menuitem" data-menu-action="gmail"
+              >Manage Gmail</a
             >
-              <circle cx="48" cy="48" r="46" fill="#ECECEC" />
-              <circle cx="48" cy="34" r="18" fill="#BFC4C4" />
-              <defs>
-                <clipPath id="avatar-clip">
-                  <circle cx="48" cy="48" r="46" />
-                </clipPath>
-              </defs>
-              <g clip-path="url(#avatar-clip)">
-                <circle cx="48" cy="78" r="30" fill="#BFC4C4" />
-              </g>
-            </svg>
-          </span>
-        </a>
+            <button class="profile-menu-item" type="button" role="menuitem" data-menu-action="password">
+              Change Password
+            </button>
+            <a
+              class="profile-menu-item profile-menu-mobile"
+              href="#dashboard"
+              role="menuitem"
+              data-menu-action="dashboard"
+              >Dashboard</a
+            >
+            <a class="profile-menu-item profile-menu-mobile" href="#archive" role="menuitem" data-menu-action="archive"
+              >Archive</a
+            >
+            <button class="profile-menu-item danger" type="button" role="menuitem" data-menu-action="logout">
+              Logout
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -70,7 +101,7 @@
           <span class="logo-wrap auth-logo" aria-hidden="true">
             <span class="logo-fallback">A</span>
             <img
-              src="/Applictus_logo.png"
+              src="/public/Applictus_logo.png"
               alt="Applictus logo"
               class="auth-logo-image"
               data-logo
@@ -931,7 +962,7 @@
 		                <div class="profile-avatar">
 		                  <img
 		                    class="profile-headshot"
-		                    src="/jason.png"
+		                    src="/public/jason.png"
 		                    alt="Jason Conklin"
 		                    loading="lazy"
 		                    onload="this.parentElement.classList.add('has-image')"
@@ -949,7 +980,7 @@
 		                <div class="profile-avatar">
 		                  <img
 		                    class="profile-headshot"
-		                    src="/shane.png"
+		                    src="/public/shane.png"
 		                    alt="Shane Conklin"
 		                    loading="lazy"
 		                    onload="this.parentElement.classList.add('has-image')"
