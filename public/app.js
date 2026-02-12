@@ -240,6 +240,7 @@ let rcSessionId = null;
 let rcVersionId = null;
 let rcLastResumeId = null;
 let rcRunId = null;
+let dbUnavailableNoticeOpen = false;
 function formatRoleSource(application) {
   const source = application?.role_source;
   if (!source) {
@@ -503,9 +504,26 @@ async function loadCsrfToken() {
   try {
     const response = await fetch(apiUrl('/api/auth/csrf'), { credentials: 'include' });
     const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(body.error || `Request failed (${response.status})`);
+      error.code = body.error || body.code || response.status;
+      error.status = response.status;
+      throw error;
+    }
     csrfToken = body.csrfToken || null;
+    return Boolean(csrfToken);
   } catch (err) {
     csrfToken = null;
+    if (isDbUnavailableClientError(err)) {
+      showDbUnavailableNotice(async () => {
+        await loadCsrfToken();
+        const ok = await loadSession();
+        if (ok) {
+          route();
+        }
+      });
+    }
+    return false;
   }
 }
 
@@ -757,6 +775,45 @@ function showNotice(message, title = 'Something went wrong') {
     body,
     footer,
     allowBackdropClose: true
+  });
+}
+
+function isDbUnavailableClientError(err) {
+  const code = String(err?.code || err?.message || '').toUpperCase();
+  return code === 'DB_UNAVAILABLE' || (err?.status === 503 && code === '503');
+}
+
+function showDbUnavailableNotice(onRetry) {
+  if (dbUnavailableNoticeOpen) {
+    return;
+  }
+  dbUnavailableNoticeOpen = true;
+  const body = document.createElement('div');
+  body.className = 'stack';
+  const text = document.createElement('p');
+  text.textContent = 'Service temporarily unavailable. Please retry in a moment.';
+  body.appendChild(text);
+  const footer = buildModalFooter({ confirmText: 'Retry', cancelText: 'Dismiss' });
+  const retryButton = footer.querySelector('[data-role="confirm"]');
+  retryButton?.addEventListener('click', async () => {
+    closeModal('confirm');
+    if (typeof onRetry === 'function') {
+      try {
+        await onRetry();
+      } catch (_) {
+        // Retry failures are handled by existing request flows.
+      }
+    }
+  });
+  openModal({
+    title: 'Service temporarily unavailable',
+    description: '',
+    body,
+    footer,
+    allowBackdropClose: true,
+    onClose: () => {
+      dbUnavailableNoticeOpen = false;
+    }
   });
 }
 
@@ -1245,7 +1302,8 @@ function authErrorMessage(code) {
     OAUTH_USER_CREATE_FAILED: 'We could not finish Google sign-in. Please try again.',
     GMAIL_NOT_CONFIGURED: 'Gmail connect is not configured yet.',
     TOKEN_ENC_KEY_REQUIRED: 'Token encryption is not configured yet.',
-    GMAIL_CONNECT_FAILED: 'Google sign-in worked, but Gmail connection could not be completed.'
+    GMAIL_CONNECT_FAILED: 'Google sign-in worked, but Gmail connection could not be completed.',
+    DB_UNAVAILABLE: 'Service temporarily unavailable. Please retry in a moment.'
   };
   return messages[code] || 'Unable to sign in. Please try again.';
 }
@@ -2061,6 +2119,16 @@ async function loadSession() {
   try {
     data = await api('/api/auth/session');
   } catch (err) {
+    if (isDbUnavailableClientError(err)) {
+      showDbUnavailableNotice(async () => {
+        await loadCsrfToken();
+        const ok = await loadSession();
+        if (ok) {
+          route();
+        }
+      });
+      return false;
+    }
     if (DEBUG_AUTH) {
       // eslint-disable-next-line no-console
       console.debug('[auth] loadSession failed', err);

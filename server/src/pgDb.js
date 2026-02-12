@@ -1,4 +1,13 @@
 const { Pool } = require('pg');
+const { getRuntimeDatabaseConfig } = require('./dbConfig');
+
+const GLOBAL_POOL_KEY = '__APPLICTUS_PG_POOL__';
+const POOL_OPTIONS = {
+  max: 1,
+  connectionTimeoutMillis: 5_000,
+  idleTimeoutMillis: 10_000,
+  allowExitOnIdle: true
+};
 
 function convertPlaceholders(sql = '') {
   let index = 0;
@@ -84,14 +93,70 @@ function debugParamSummary(params) {
 }
 
 function createPool(databaseUrl) {
-  const ssl =
-    databaseUrl && databaseUrl.includes('sslmode=require')
-      ? { rejectUnauthorized: false }
-      : { rejectUnauthorized: false };
-  return new Pool({
+  if (!databaseUrl) {
+    const err = new Error('DATABASE_URL_MISSING');
+    err.code = 'DATABASE_URL_MISSING';
+    throw err;
+  }
+  const pool = new Pool({
     connectionString: databaseUrl,
-    ssl
+    ssl: { rejectUnauthorized: false },
+    ...POOL_OPTIONS
   });
+  pool.on('error', (err) => {
+    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+      // eslint-disable-next-line no-console
+      console.error('[pgDb] pool.error', {
+        code: err && err.code ? String(err.code) : null,
+        message: err && err.message ? String(err.message) : null
+      });
+    }
+  });
+  if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+    const endpoint = getDatabaseEndpoint(databaseUrl);
+    // eslint-disable-next-line no-console
+    console.debug('[pgDb] pool.init', {
+      host: endpoint.host,
+      port: endpoint.port,
+      source: getRuntimeDatabaseConfig().source,
+      max: POOL_OPTIONS.max,
+      connectionTimeoutMillis: POOL_OPTIONS.connectionTimeoutMillis,
+      idleTimeoutMillis: POOL_OPTIONS.idleTimeoutMillis
+    });
+  }
+  return pool;
+}
+
+function getDatabaseEndpoint(databaseUrl) {
+  try {
+    const url = new URL(databaseUrl);
+    return {
+      host: url.hostname || null,
+      port: url.port || null
+    };
+  } catch (_) {
+    return { host: null, port: null };
+  }
+}
+
+function getGlobalPoolState() {
+  if (!globalThis[GLOBAL_POOL_KEY]) {
+    globalThis[GLOBAL_POOL_KEY] = { url: null, pool: null };
+  }
+  return globalThis[GLOBAL_POOL_KEY];
+}
+
+function getOrCreatePool(databaseUrl) {
+  const state = getGlobalPoolState();
+  if (state.pool && state.url === databaseUrl) {
+    return state.pool;
+  }
+  if (state.pool && state.url !== databaseUrl) {
+    state.pool.end().catch(() => {});
+  }
+  state.url = databaseUrl;
+  state.pool = createPool(databaseUrl);
+  return state.pool;
 }
 
 function prepareFactory(pool, clientOverride) {
@@ -142,7 +207,9 @@ function prepareFactory(pool, clientOverride) {
 }
 
 function createDb(databaseUrl, poolOverride = null) {
-  const pool = poolOverride || createPool(databaseUrl);
+  const runtime = getRuntimeDatabaseConfig();
+  const connectionString = databaseUrl || runtime.url;
+  const pool = poolOverride || getOrCreatePool(connectionString);
   const db = { isAsync: true };
   db.prepare = prepareFactory(pool, null);
   db.transaction = async (fn) => {

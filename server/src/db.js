@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { createDb: createPgDb } = require('./pgDb');
+const { getRuntimeDatabaseUrl } = require('./dbConfig');
 
 let Database;
 try {
@@ -29,9 +30,10 @@ function openDb() {
     process.env.npm_lifecycle_event === 'test' ||
     process.env.RUNNING_TESTS === '1';
   const forcePg = process.env.FORCE_POSTGRES === '1';
+  const runtimeDatabaseUrl = getRuntimeDatabaseUrl();
 
-  if (process.env.DATABASE_URL && !isTestEnv && (forcePg || process.env.NODE_ENV === 'production')) {
-    const pg = createPgDb(process.env.DATABASE_URL);
+  if (runtimeDatabaseUrl && !isTestEnv && (forcePg || process.env.NODE_ENV === 'production')) {
+    const pg = createPgDb(runtimeDatabaseUrl);
     pg.isAsync = true;
     return pg;
   }

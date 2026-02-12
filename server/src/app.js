@@ -43,6 +43,7 @@ const { mergeApplications } = require('./merge');
 const resumeCuratorRouter = require('./routes/resumeCurator');
 const { coalesceTimestamps } = require('./sqlHelpers');
 const { pgMigrate, assertPgSchema } = require('./pgMigrate');
+const { getRuntimeDatabaseUrl } = require('./dbConfig');
 
 function isProd() {
   return process.env.NODE_ENV === 'production';
@@ -124,10 +125,99 @@ const GMAIL_AUTO_CONNECT_STATE = 'auto_connect';
 const VALID_STATUSES = new Set(Object.values(ApplicationStatus));
 const CSRF_HEADER = 'x-csrf-token';
 const CSRF_TTL_MS = 2 * 60 * 60 * 1000;
+const AUTH_DB_TIMEOUT_MS = 2_000;
+const DB_HEALTH_TIMEOUT_MS = 2_000;
 const preauthCsrfStore = new Map();
+const DB_UNAVAILABLE_CODES = new Set([
+  'ETIMEDOUT',
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  '57P01',
+  '57P03',
+  '53300'
+]);
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function sanitizeDbMessage(message) {
+  return String(message || '')
+    .replace(/postgres(?:ql)?:\/\/[^@\s]+@/gi, 'postgres://[REDACTED]@')
+    .slice(0, 240);
+}
+
+function walkErrors(err, out = []) {
+  if (!err || out.length >= 12) {
+    return out;
+  }
+  out.push({
+    code: err.code ? String(err.code).toUpperCase() : null,
+    name: err.name ? String(err.name) : null,
+    message: err.message ? String(err.message) : null
+  });
+  if (Array.isArray(err.errors)) {
+    err.errors.forEach((child) => walkErrors(child, out));
+  }
+  if (err.cause && err.cause !== err) {
+    walkErrors(err.cause, out);
+  }
+  return out;
+}
+
+function isDbUnavailableError(err) {
+  const entries = walkErrors(err);
+  if (!entries.length) {
+    return false;
+  }
+  return entries.some((entry) => {
+    if (entry.code && DB_UNAVAILABLE_CODES.has(entry.code)) {
+      return true;
+    }
+    const text = `${entry.name || ''} ${entry.message || ''}`;
+    return /(etimedout|timed out|aggregateerror|connection.*(terminated|closed|timeout)|getaddrinfo enotfound|econnrefused)/i.test(
+      text
+    );
+  });
+}
+
+function buildDbUnavailableMeta(err, context) {
+  const entries = walkErrors(err);
+  const first = entries[0] || {};
+  return {
+    context,
+    code: first.code || null,
+    name: first.name || null,
+    detail: sanitizeDbMessage(first.message || '')
+  };
+}
+
+function respondDbUnavailable(res, err, context) {
+  logError('db.unavailable', buildDbUnavailableMeta(err, context));
+  return res.status(503).json({ error: 'DB_UNAVAILABLE' });
+}
+
+async function withTimeout(promise, timeoutMs, timeoutCode = 'ETIMEDOUT') {
+  let timeout = null;
+  const timer = new Promise((_, reject) => {
+    timeout = setTimeout(() => {
+      const err = new Error(timeoutCode);
+      err.code = timeoutCode;
+      reject(err);
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timer]);
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+async function dbTimed(fn, timeoutMs = AUTH_DB_TIMEOUT_MS, timeoutCode = 'ETIMEDOUT') {
+  return withTimeout(Promise.resolve().then(fn), timeoutMs, timeoutCode);
 }
 
 function normalizeEmail(email) {
@@ -170,26 +260,32 @@ function isLikelyEmail(email) {
 }
 
 async function getUserByEmail(email) {
-  const res = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-  return res && typeof res.then === 'function' ? await res : res;
+  return dbTimed(async () => {
+    const res = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    return res && typeof res.then === 'function' ? await res : res;
+  });
 }
 
 async function getUserById(id) {
-  const res = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
-  return res && typeof res.then === 'function' ? await res : res;
+  return dbTimed(async () => {
+    const res = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    return res && typeof res.then === 'function' ? await res : res;
+  });
 }
 
 async function createUser({ email, name, passwordHash, authProvider }) {
   const id = crypto.randomUUID();
   const createdAt = nowIso();
   const provider = authProvider || 'password';
-  const runRes = db.prepare(
-    `INSERT INTO users (id, email, name, password_hash, auth_provider, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, email, name || null, passwordHash || null, provider, createdAt, createdAt);
-  if (runRes && typeof runRes.then === 'function') {
-    await runRes;
-  }
+  await dbTimed(async () => {
+    const runRes = db.prepare(
+      `INSERT INTO users (id, email, name, password_hash, auth_provider, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, email, name || null, passwordHash || null, provider, createdAt, createdAt);
+    if (runRes && typeof runRes.then === 'function') {
+      await runRes;
+    }
+  });
   return getUserById(id);
 }
 
@@ -202,10 +298,12 @@ async function updateUser(userId, fields) {
   const setClause = [...keys.map((key) => `${key} = ?`), 'updated_at = ?'].join(', ');
   const values = keys.map((key) => fields[key]);
   values.push(updatedAt, userId);
-  const res = db.prepare(`UPDATE users SET ${setClause} WHERE id = ?`).run(...values);
-  if (res && typeof res.then === 'function') {
-    await res;
-  }
+  await dbTimed(async () => {
+    const res = db.prepare(`UPDATE users SET ${setClause} WHERE id = ?`).run(...values);
+    if (res && typeof res.then === 'function') {
+      await res;
+    }
+  });
 }
 
 function mergeAuthProvider(existing, incoming) {
@@ -244,12 +342,14 @@ async function createSession(userId) {
   const createdAt = nowIso();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
   const csrfToken = crypto.randomBytes(32).toString('hex');
-  const res = db.prepare(
-    'INSERT INTO sessions (id, user_id, created_at, expires_at, csrf_token) VALUES (?, ?, ?, ?, ?)'
-  ).run(token, userId, createdAt, expiresAt, csrfToken);
-  if (res && typeof res.then === 'function') {
-    await res;
-  }
+  await dbTimed(async () => {
+    const res = db.prepare(
+      'INSERT INTO sessions (id, user_id, created_at, expires_at, csrf_token) VALUES (?, ?, ?, ?, ?)'
+    ).run(token, userId, createdAt, expiresAt, csrfToken);
+    if (res && typeof res.then === 'function') {
+      await res;
+    }
+  });
   if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
     // eslint-disable-next-line no-console
     console.debug('[auth] created session for user', userId);
@@ -295,23 +395,29 @@ function clearSessionCookie(res) {
 }
 
 async function getSession(token) {
-  const res = db.prepare('SELECT * FROM sessions WHERE id = ?').get(token);
-  return res && typeof res.then === 'function' ? await res : res;
+  return dbTimed(async () => {
+    const res = db.prepare('SELECT * FROM sessions WHERE id = ?').get(token);
+    return res && typeof res.then === 'function' ? await res : res;
+  });
 }
 
 async function deleteSession(token) {
-  const res = db.prepare('DELETE FROM sessions WHERE id = ?').run(token);
-  if (res && typeof res.then === 'function') {
-    await res;
-  }
+  await dbTimed(async () => {
+    const res = db.prepare('DELETE FROM sessions WHERE id = ?').run(token);
+    if (res && typeof res.then === 'function') {
+      await res;
+    }
+  });
 }
 
 async function cleanupExpiredSessions() {
   const now = nowIso();
-  const res = db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(now);
-  if (res && typeof res.then === 'function') {
-    await res;
-  }
+  await dbTimed(async () => {
+    const res = db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(now);
+    if (res && typeof res.then === 'function') {
+      await res;
+    }
+  });
 }
 
 function setCsrfCookie(res, csrfId) {
@@ -386,11 +492,16 @@ function getPreauthCsrfToken(req) {
   return { csrfId, token: entry.token };
 }
 
-function issueCsrfToken(req, res) {
+async function issueCsrfToken(req, res) {
   if (req.session && req.session.id) {
     if (!req.session.csrf_token) {
       const csrfToken = crypto.randomBytes(32).toString('hex');
-      db.prepare('UPDATE sessions SET csrf_token = ? WHERE id = ?').run(csrfToken, req.session.id);
+      await dbTimed(async () => {
+        const writeRes = db.prepare('UPDATE sessions SET csrf_token = ? WHERE id = ?').run(csrfToken, req.session.id);
+        if (writeRes && typeof writeRes.then === 'function') {
+          await writeRes;
+        }
+      });
       req.session.csrf_token = csrfToken;
     }
     return req.session.csrf_token;
@@ -615,55 +726,93 @@ const contactIpLimiter = createRateLimiter({
 });
 
 app.use(async (req, res, next) => {
-  const token = req.cookies[SESSION_COOKIE];
-  if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
-    // eslint-disable-next-line no-console
-    console.debug('[auth] session check', {
-      origin: req.headers.origin || null,
-      hasCookie: Boolean(token),
-      path: req.path
-    });
-  }
-  if (!token) {
+  try {
+    const token = req.cookies[SESSION_COOKIE];
+    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+      // eslint-disable-next-line no-console
+      console.debug('[auth] session check', {
+        origin: req.headers.origin || null,
+        hasCookie: Boolean(token),
+        path: req.path
+      });
+    }
+    if (!token) {
+      req.user = null;
+      req.session = null;
+      return next();
+    }
+    const session = await getSession(token);
+    if (!session) {
+      req.user = null;
+      req.session = null;
+      return next();
+    }
+    if (new Date(session.expires_at).getTime() < Date.now()) {
+      await deleteSession(token);
+      req.user = null;
+      req.session = null;
+      return next();
+    }
+    const user = await getUserById(session.user_id);
+    req.user = user || null;
+    req.session = session;
+    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+      // eslint-disable-next-line no-console
+      console.debug('[auth] session user', {
+        origin: req.headers.origin || null,
+        userId: user?.id || null,
+        sessionId: session?.id || null
+      });
+    }
+    return next();
+  } catch (err) {
     req.user = null;
     req.session = null;
+    if (isDbUnavailableError(err) && req.path.startsWith('/api/')) {
+      return respondDbUnavailable(res, err, 'auth.session_middleware');
+    }
+    if (req.path.startsWith('/api/')) {
+      logError('auth.session_middleware.failed', buildDbUnavailableMeta(err, 'auth.session_middleware'));
+      return res.status(500).json({ error: 'AUTH_SESSION_FAILED' });
+    }
     return next();
   }
-  const session = await getSession(token);
-  if (!session) {
-    req.user = null;
-    req.session = null;
-    return next();
-  }
-  if (new Date(session.expires_at).getTime() < Date.now()) {
-    await deleteSession(token);
-    req.user = null;
-    req.session = null;
-    return next();
-  }
-  const user = await getUserById(session.user_id);
-  req.user = user || null;
-  req.session = session;
-  if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
-    // eslint-disable-next-line no-console
-    console.debug('[auth] session user', {
-      origin: req.headers.origin || null,
-      userId: user?.id || null,
-      sessionId: session?.id || null
-    });
-  }
-  return next();
 });
 
 app.use(enforceCsrf);
 
-app.get('/api/auth/csrf', (req, res) => {
-  const csrfToken = issueCsrfToken(req, res);
-  return res.json({ csrfToken });
+app.get('/api/auth/csrf', async (req, res) => {
+  try {
+    const csrfToken = await issueCsrfToken(req, res);
+    return res.json({ csrfToken });
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'auth.csrf');
+    }
+    logError('auth.csrf.failed', buildDbUnavailableMeta(err, 'auth.csrf'));
+    return res.status(500).json({ error: 'CSRF_FAILED' });
+  }
 });
 
 app.get('/api/health', (_req, res) => {
   return res.json({ ok: true });
+});
+
+app.get('/api/health/db', async (_req, res) => {
+  try {
+    const row = await withTimeout(
+      Promise.resolve().then(() => db.prepare('SELECT 1 AS ok').get()),
+      DB_HEALTH_TIMEOUT_MS,
+      'ETIMEDOUT'
+    );
+    return res.json({ ok: Boolean(row) });
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return res.status(503).json({ ok: false, error: 'DB_UNAVAILABLE' });
+    }
+    logError('health.db.failed', buildDbUnavailableMeta(err, 'health.db'));
+    return res.status(503).json({ ok: false, error: 'DB_UNAVAILABLE' });
+  }
 });
 
 app.use('/api/resume-curator', resumeCuratorRouter);
@@ -715,6 +864,9 @@ app.post('/api/auth/login', authIpLimiter, authEmailLimiter, async (req, res) =>
       user: { id: user.id, email: user.email, name: user.name, auth_provider: user.auth_provider }
     });
   } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'auth.login');
+    }
     if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
       // eslint-disable-next-line no-console
       console.error('login failed', err);
@@ -783,6 +935,9 @@ app.post('/api/auth/signup', authIpLimiter, authEmailLimiter, async (req, res) =
       user: { id: user.id, email: user.email, name: user.name, auth_provider: user.auth_provider }
     });
   } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'auth.signup');
+    }
     if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
       // eslint-disable-next-line no-console
       console.error('signup failed', err);
@@ -942,12 +1097,20 @@ app.get('/api/auth/google/callback', authIpLimiter, async (req, res) => {
 });
 
 app.post('/api/auth/logout', requireAuth, async (req, res) => {
-  const token = req.cookies[SESSION_COOKIE];
-  if (token) {
-    await deleteSession(token);
-    clearSessionCookie(res);
+  try {
+    const token = req.cookies[SESSION_COOKIE];
+    if (token) {
+      await deleteSession(token);
+      clearSessionCookie(res);
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'auth.logout');
+    }
+    logError('auth.logout.failed', buildDbUnavailableMeta(err, 'auth.logout'));
+    return res.status(500).json({ error: 'LOGOUT_FAILED' });
   }
-  return res.json({ ok: true });
 });
 
 app.post('/api/account/password', requireAuth, async (req, res) => {
@@ -2141,7 +2304,7 @@ function startServer(port = PORT, options = {}) {
   const host = options.host || process.env.HOST || '0.0.0.0';
   return (async () => {
     const shouldRunPgMigrations =
-      Boolean(process.env.DATABASE_URL) && db && db.isAsync && process.env.NODE_ENV !== 'test';
+      Boolean(getRuntimeDatabaseUrl()) && db && db.isAsync && process.env.NODE_ENV !== 'test';
     if (shouldRunPgMigrations) {
       await pgMigrate(db, { log: shouldLog });
       await assertPgSchema(db);
