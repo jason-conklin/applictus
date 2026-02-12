@@ -34,6 +34,24 @@ function apiUrl(path) {
   return `${base}${path}`;
 }
 
+let splashHidden = false;
+
+function hideSplash() {
+  if (splashHidden || typeof document === 'undefined') {
+    return;
+  }
+  splashHidden = true;
+  document.body?.classList.add('app-ready');
+  const splash = document.getElementById('app-splash');
+  if (!splash) {
+    return;
+  }
+  splash.classList.add('splash-hide');
+  window.setTimeout(() => {
+    splash.remove();
+  }, 250);
+}
+
 if (DEBUG_APP && typeof window !== 'undefined' && !window.__APP_DEBUG_ERRORS_BOUND) {
   window.__APP_DEBUG_ERRORS_BOUND = true;
   window.addEventListener('error', (event) => {
@@ -4807,6 +4825,8 @@ window.addEventListener('hashchange', route);
 (async () => {
   setAuthPanel('signin');
   setupLogoFallback();
+  route();
+  hideSplash();
   await loadCsrfToken();
   await loadSession();
   route();

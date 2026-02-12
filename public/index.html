@@ -11,8 +11,142 @@
     <title>Applictus</title>
     <link rel="icon" href="/Applictus_logo.png" type="image/png" />
     <link rel="stylesheet" href="/styles.css?v=23" />
+    <style>
+      body:not(.app-ready) #app {
+        visibility: hidden;
+      }
+
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background:
+          radial-gradient(circle at 20% 16%, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.82) 42%, rgba(225, 239, 255, 0.72) 100%),
+          linear-gradient(180deg, #f6faff 0%, #eaf2ff 52%, #d6e7ff 100%);
+        transition: opacity 250ms ease, filter 250ms ease;
+      }
+
+      #app-splash.splash-hide {
+        opacity: 0;
+        filter: blur(2px);
+        pointer-events: none;
+      }
+
+      #app-splash .splash-card {
+        width: min(420px, 100%);
+        padding: 34px 30px;
+        border-radius: 20px;
+        text-align: center;
+        border: 1px solid rgba(21, 61, 126, 0.1);
+        background: rgba(255, 255, 255, 0.9);
+        box-shadow:
+          0 22px 54px rgba(16, 57, 122, 0.16),
+          0 6px 18px rgba(16, 57, 122, 0.1);
+      }
+
+      #app-splash .splash-logo {
+        width: 66px;
+        height: 66px;
+        border-radius: 16px;
+        object-fit: cover;
+        border: 1px solid rgba(22, 75, 160, 0.16);
+        box-shadow: 0 10px 22px rgba(29, 82, 165, 0.18);
+      }
+
+      #app-splash .splash-title {
+        margin-top: 14px;
+        font-size: 1.4rem;
+        line-height: 1.2;
+        font-weight: 700;
+        color: #153d7e;
+        letter-spacing: 0.01em;
+      }
+
+      #app-splash .splash-subtitle {
+        margin-top: 7px;
+        font-size: 0.95rem;
+        color: #4f6382;
+      }
+
+      #app-splash .splash-loader {
+        margin-top: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      #app-splash .splash-loader span {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: #245cb7;
+        opacity: 0.35;
+        animation: splash-dot-pulse 1.25s ease-in-out infinite;
+      }
+
+      #app-splash .splash-loader span:nth-child(2) {
+        animation-delay: 0.16s;
+      }
+
+      #app-splash .splash-loader span:nth-child(3) {
+        animation-delay: 0.32s;
+      }
+
+      #app-splash .splash-still {
+        margin-top: 14px;
+        min-height: 1.1em;
+        font-size: 0.82rem;
+        color: #60789d;
+        opacity: 0;
+        animation: splash-still-reveal 0s linear 9s forwards;
+      }
+
+      @keyframes splash-dot-pulse {
+        0%,
+        80%,
+        100% {
+          transform: translateY(0);
+          opacity: 0.35;
+        }
+        40% {
+          transform: translateY(-4px);
+          opacity: 1;
+        }
+      }
+
+      @keyframes splash-still-reveal {
+        to {
+          opacity: 1;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #app-splash {
+          transition: none;
+        }
+
+        #app-splash.splash-hide {
+          filter: none;
+        }
+
+        #app-splash .splash-loader span {
+          animation: none;
+          opacity: 0.5;
+        }
+
+        #app-splash .splash-still {
+          animation: none;
+          opacity: 0.72;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="app">
     <div class="noise"></div>
     <header class="topbar hidden" id="topbar">
       <a class="brand" id="brand-link" href="#dashboard" aria-label="Applictus dashboard">
@@ -1106,7 +1240,20 @@
         <div class="modal-footer" id="modal-footer"></div>
       </div>
     </div>
+    </div>
 
-    <script type="module" src="/app.js?v=20"></script>
+    <div id="app-splash" aria-label="Loading Applictus" role="status">
+      <div class="splash-card">
+        <img src="/Applictus_logo.png" alt="Applictus" class="splash-logo" />
+        <div class="splash-title">Applictus</div>
+        <div class="splash-subtitle">Application Status Tracker</div>
+        <div class="splash-loader" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="splash-still">Still loading...</div>
+      </div>
+    </div>
+
+    <script type="module" src="/app.js?v=21"></script>
   </body>
 </html>
