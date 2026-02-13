@@ -2651,12 +2651,29 @@ function renderSyncSummary({ status = 'idle', result = null, rawDetails = '', la
   applySyncDetailsVisibility(shouldOpen, hasDetails, allowToggle);
 }
 
+function isGmailReconnectRequiredError(err) {
+  const code = String(err?.code || err?.message || '').toUpperCase();
+  return code === 'GMAIL_RECONNECT_REQUIRED';
+}
+
+async function startGmailConnectFlow() {
+  const data = await api('/api/email/connect', { method: 'POST' });
+  if (!data?.url) {
+    throw new Error('GMAIL_CONNECT_URL_MISSING');
+  }
+  window.location.href = data.url;
+}
+
 async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
   if (buttonEl?.disabled) {
     return;
   }
   if (syncErrorBanner) {
     syncErrorBanner.classList.add('hidden');
+  }
+  if (syncErrorToggle) {
+    syncErrorToggle.dataset.mode = 'details';
+    syncErrorToggle.textContent = 'Show details';
   }
   renderSyncSummary({ status: 'running', rawDetails: 'Sync in progress…' });
   if (statusEl) {
@@ -2704,6 +2721,30 @@ async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
     await refreshUnsortedEvents();
     enterFinishing();
   } catch (err) {
+    if (isGmailReconnectRequiredError(err)) {
+      const reconnectMessage = 'Your Gmail connection expired. Please reconnect.';
+      if (statusEl) {
+        statusEl.textContent = 'Reconnect required';
+      }
+      if (syncErrorBanner && syncErrorMessage && syncErrorDetail) {
+        syncErrorMessage.textContent = reconnectMessage;
+        syncErrorDetail.textContent = 'Google no longer accepts the saved Gmail token. Reconnect to continue syncing.';
+        syncErrorBanner.classList.remove('hidden');
+        syncErrorDetail.classList.add('hidden');
+      }
+      if (syncErrorToggle) {
+        syncErrorToggle.dataset.mode = 'reconnect';
+        syncErrorToggle.textContent = 'Reconnect Gmail';
+      }
+      renderSyncSummary({ status: 'failed', rawDetails: reconnectMessage, label: 'Reconnect Gmail' });
+      if (resultEl) {
+        resultEl.textContent = reconnectMessage;
+      }
+      setSyncProgressState({ visible: true, progress: syncUiState.progress, label: 'Reconnect required', error: true });
+      hideSyncProgress();
+      await refreshEmailStatus().catch(() => {});
+      return;
+    }
     if (statusEl) {
       statusEl.textContent = 'Failed';
     }
@@ -2741,6 +2782,10 @@ async function runQuickSync() {
   if (statusEl) {
     statusEl.textContent = 'Syncing...';
   }
+  if (syncErrorToggle) {
+    syncErrorToggle.dataset.mode = 'details';
+    syncErrorToggle.textContent = 'Show details';
+  }
   renderSyncSummary({ status: 'running', rawDetails: 'Sync in progress…' });
   const syncId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
   startSyncPolling(syncId);
@@ -2764,6 +2809,28 @@ async function runQuickSync() {
     await refreshUnsortedEvents();
     enterFinishing();
   } catch (err) {
+    if (isGmailReconnectRequiredError(err)) {
+      if (statusEl) {
+        statusEl.textContent = 'Reconnect Gmail to continue syncing.';
+      }
+      if (syncErrorBanner && syncErrorMessage && syncErrorDetail) {
+        syncErrorMessage.textContent = 'Your Gmail connection expired. Please reconnect.';
+        syncErrorDetail.textContent = 'Google no longer accepts the saved Gmail token. Reconnect to continue syncing.';
+        syncErrorBanner.classList.remove('hidden');
+        syncErrorDetail.classList.add('hidden');
+      }
+      if (syncErrorToggle) {
+        syncErrorToggle.dataset.mode = 'reconnect';
+        syncErrorToggle.textContent = 'Reconnect Gmail';
+      }
+      renderSyncSummary({
+        status: 'failed',
+        rawDetails: 'Your Gmail connection expired. Please reconnect.',
+        label: 'Reconnect Gmail'
+      });
+      await refreshEmailStatus().catch(() => {});
+      return;
+    }
     if (statusEl) {
       const code = err?.code ? ` (${err.code})` : '';
       statusEl.textContent = `Sync failed: ${err?.message || 'Unexpected error'}${code}`;
@@ -4606,8 +4673,7 @@ emailConnect?.addEventListener('click', async () => {
     return;
   }
   try {
-    const data = await api('/api/email/connect', { method: 'POST' });
-    window.location.href = data.url;
+    await startGmailConnectFlow();
   } catch (err) {
     showNotice(err.message, 'Unable to connect Gmail');
   }
@@ -4623,7 +4689,15 @@ emailSync?.addEventListener('click', async () => {
   });
 });
 
-syncErrorToggle?.addEventListener('click', () => {
+syncErrorToggle?.addEventListener('click', async () => {
+  if (syncErrorToggle?.dataset.mode === 'reconnect') {
+    try {
+      await startGmailConnectFlow();
+    } catch (err) {
+      showNotice(err.message, 'Unable to connect Gmail');
+    }
+    return;
+  }
   if (!syncErrorDetail) return;
   const willShow = syncErrorDetail.classList.contains('hidden');
   syncErrorDetail.classList.toggle('hidden', !willShow);

@@ -1,20 +1,48 @@
 const { google } = require('googleapis');
 const { encryptText, decryptText, isEncryptionReady } = require('./crypto');
-const { GOOGLE_GMAIL_SCOPES } = require('./googleAuth');
+const { GOOGLE_GMAIL_SCOPES, getGoogleAuthConfig } = require('./googleAuth');
 
-const DEFAULT_REDIRECT = 'http://localhost:3000/api/email/callback';
+const DEFAULT_REDIRECT = `${process.env.APP_API_BASE_URL || 'http://localhost:3000'}/api/email/callback`;
 const GMAIL_SCOPES = GOOGLE_GMAIL_SCOPES;
+let loggedLegacyGmailClientWarning = false;
 
-function getOAuthClient() {
+function getOAuthClientConfig() {
+  const googleAuth = getGoogleAuthConfig();
+  const redirectUri =
+    process.env.GMAIL_REDIRECT_URI || process.env.GOOGLE_GMAIL_REDIRECT_URI || DEFAULT_REDIRECT;
+  if (googleAuth && googleAuth.clientId && googleAuth.clientSecret) {
+    return {
+      clientId: googleAuth.clientId,
+      clientSecret: googleAuth.clientSecret,
+      redirectUri,
+      source: 'GOOGLE_AUTH_CLIENT_ID'
+    };
+  }
+
   const clientId = process.env.GMAIL_CLIENT_ID;
   const clientSecret = process.env.GMAIL_CLIENT_SECRET;
-  const redirectUri = process.env.GMAIL_REDIRECT_URI || DEFAULT_REDIRECT;
-
   if (!clientId || !clientSecret) {
     return null;
   }
+  return {
+    clientId,
+    clientSecret,
+    redirectUri,
+    source: 'GMAIL_CLIENT_ID'
+  };
+}
 
-  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+function getOAuthClient() {
+  const config = getOAuthClientConfig();
+  if (!config) {
+    return null;
+  }
+  if (config.source === 'GMAIL_CLIENT_ID' && !loggedLegacyGmailClientWarning) {
+    loggedLegacyGmailClientWarning = true;
+    // eslint-disable-next-line no-console
+    console.warn('[gmail-connect] legacy gmail oauth client in use; migrate to GOOGLE_AUTH_CLIENT_ID');
+  }
+  return new google.auth.OAuth2(config.clientId, config.clientSecret, config.redirectUri);
 }
 
 function getAuthUrl(oAuthClient, options = {}) {
@@ -147,6 +175,7 @@ async function fetchConnectedEmail(authClient) {
 
 module.exports = {
   GMAIL_SCOPES,
+  getOAuthClientConfig,
   getOAuthClient,
   getAuthUrl,
   getStoredTokens,

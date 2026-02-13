@@ -10,6 +10,7 @@ const { openDb, migrate } = require('./db');
 const { ApplicationStatus } = require('../../shared/types');
 const { createRateLimiter } = require('./rateLimiter');
 const {
+  getOAuthClientConfig,
   getOAuthClient,
   getAuthUrl,
   GMAIL_SCOPES,
@@ -466,6 +467,15 @@ async function getStoredGmailTokenRow(userId) {
   return rowOrPromise && typeof rowOrPromise.then === 'function' ? await rowOrPromise : rowOrPromise;
 }
 
+async function clearStoredGmailConnection(userId) {
+  const resultOrPromise = db
+    .prepare('DELETE FROM oauth_tokens WHERE provider = ? AND user_id = ?')
+    .run('gmail', userId);
+  if (resultOrPromise && typeof resultOrPromise.then === 'function') {
+    await resultOrPromise;
+  }
+}
+
 async function hasStoredGmailConnection(userId) {
   const row = await getStoredGmailTokenRow(userId);
   if (!row) {
@@ -478,6 +488,45 @@ async function hasStoredGmailConnection(userId) {
       row.access_token ||
       row.refresh_token
   );
+}
+
+function isGoogleInvalidGrantError(err) {
+  const queue = [err];
+  const visited = new Set();
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object') {
+      continue;
+    }
+    if (visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+    const responseData = current.response && current.response.data ? current.response.data : null;
+    const responseError =
+      responseData && typeof responseData === 'object' ? responseData.error : null;
+    const responseDescription =
+      responseData && typeof responseData === 'object' ? responseData.error_description : null;
+    if (String(responseError || '').toLowerCase() === 'invalid_grant') {
+      return true;
+    }
+    const text = `${current.code || ''} ${current.name || ''} ${current.message || ''} ${
+      responseError || ''
+    } ${responseDescription || ''}`;
+    if (/invalid_grant/i.test(text)) {
+      return true;
+    }
+    if (Array.isArray(current.errors)) {
+      current.errors.forEach((child) => queue.push(child));
+    }
+    if (current.cause) {
+      queue.push(current.cause);
+    }
+    if (responseData && typeof responseData === 'object') {
+      queue.push(responseData);
+    }
+  }
+  return false;
 }
 
 function getPreauthCsrfToken(req) {
@@ -1242,6 +1291,7 @@ app.get('/api/email/status', requireAuth, async (req, res) => {
 });
 
 app.get('/api/email/connect/start', requireAuth, (req, res) => {
+  const oauthConfig = getOAuthClientConfig();
   const oAuthClient = getOAuthClient();
   if (!oAuthClient) {
     return res.redirect(getWebRedirectWithParams({ auth_error: 'GMAIL_NOT_CONFIGURED' }));
@@ -1256,13 +1306,12 @@ app.get('/api/email/connect/start', requireAuth, (req, res) => {
     prompt: 'consent'
   });
   if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
-    const clientId = process.env.GMAIL_CLIENT_ID
-      ? `${String(process.env.GMAIL_CLIENT_ID).slice(0, 12)}...`
-      : null;
+    const clientId = oauthConfig?.clientId ? `${String(oauthConfig.clientId).slice(0, 12)}...` : null;
     // eslint-disable-next-line no-console
     console.debug('[gmail-connect] oauth', {
       clientId,
-      redirectUri: process.env.GMAIL_REDIRECT_URI || null,
+      projectHint: oauthConfig?.source || 'unknown',
+      redirectUri: oauthConfig?.redirectUri || null,
       scopes: GMAIL_SCOPES
     });
     try {
@@ -1288,6 +1337,7 @@ app.get('/api/email/connect/start', requireAuth, (req, res) => {
 app.post('/api/email/connect', requireAuth, (req, res) => {
   // eslint-disable-next-line no-console
   console.log('[gmail-connect] hit', { method: req.method, path: req.originalUrl || req.path });
+  const oauthConfig = getOAuthClientConfig();
   const oAuthClient = getOAuthClient();
   if (!oAuthClient) {
     return res.status(400).json({ error: 'GMAIL_NOT_CONFIGURED' });
@@ -1296,12 +1346,12 @@ app.post('/api/email/connect', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'TOKEN_ENC_KEY_REQUIRED' });
   }
   const url = getAuthUrl(oAuthClient);
-  let clientId = process.env.GMAIL_CLIENT_ID || null;
-  let redirectUri = process.env.GMAIL_REDIRECT_URI || null;
+  let clientId = oauthConfig?.clientId || null;
+  let redirectUri = oauthConfig?.redirectUri || null;
   let scopes = Array.isArray(GMAIL_SCOPES) ? GMAIL_SCOPES : [];
   let authUrlHost = null;
   let scopeStringLength = scopes.join(' ').length;
-  let projectHint = process.env.GMAIL_CLIENT_ID ? 'GMAIL_CLIENT_ID' : 'unknown';
+  let projectHint = oauthConfig?.source || 'unknown';
 
   try {
     const parsed = new URL(url);
@@ -1317,17 +1367,6 @@ app.post('/api/email/connect', requireAuth, (req, res) => {
     scopes = queryScopes.length ? queryScopes : scopes;
     authUrlHost = parsed.host || null;
     scopeStringLength = scopeString.length || scopeStringLength;
-    if (queryClientId && process.env.GMAIL_CLIENT_ID && queryClientId === process.env.GMAIL_CLIENT_ID) {
-      projectHint = 'GMAIL_CLIENT_ID';
-    } else if (
-      queryClientId &&
-      process.env.GOOGLE_AUTH_CLIENT_ID &&
-      queryClientId === process.env.GOOGLE_AUTH_CLIENT_ID
-    ) {
-      projectHint = 'GOOGLE_AUTH_CLIENT_ID';
-    } else {
-      projectHint = 'unknown';
-    }
   } catch (_) {
     // Keep fallbacks from env + configured scopes if URL parsing fails.
   }
@@ -1452,6 +1491,32 @@ app.post('/api/email/sync', requireAuth, async (req, res) => {
     });
     return res.json({ ...result, sync_id: syncId });
   } catch (err) {
+    if (isGoogleInvalidGrantError(err)) {
+      let providerEmail = null;
+      try {
+        const row = await getStoredGmailTokenRow(req.user.id);
+        providerEmail = row?.connected_email || null;
+      } catch (_) {
+        providerEmail = null;
+      }
+      try {
+        await clearStoredGmailConnection(req.user.id);
+      } catch (clearErr) {
+        logError('gmail.refresh.invalid_grant.clear_failed', {
+          userId: req.user.id,
+          code: clearErr && clearErr.code ? String(clearErr.code) : null,
+          detail:
+            clearErr && clearErr.message
+              ? String(clearErr.message).slice(0, 240)
+              : String(clearErr)
+        });
+      }
+      logError('gmail.refresh.invalid_grant', {
+        userId: req.user.id,
+        providerEmail
+      });
+      return res.status(401).json({ error: 'GMAIL_RECONNECT_REQUIRED' });
+    }
     const code = err && typeof err === 'object' ? err.code || err.name : null;
     const message = err && typeof err === 'object' ? err.message : null;
     const detail = message ? String(message).replace(/(access_token|refresh_token|authorization)=\S+/gi, '$1=[REDACTED]') : null;
