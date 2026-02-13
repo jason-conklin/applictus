@@ -12,6 +12,7 @@ const { createRateLimiter } = require('./rateLimiter');
 const {
   getOAuthClient,
   getAuthUrl,
+  GMAIL_SCOPES,
   upsertTokens,
   getStoredTokens,
   fetchConnectedEmail,
@@ -1255,6 +1256,15 @@ app.get('/api/email/connect/start', requireAuth, (req, res) => {
     prompt: 'consent'
   });
   if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+    const clientId = process.env.GMAIL_CLIENT_ID
+      ? `${String(process.env.GMAIL_CLIENT_ID).slice(0, 12)}...`
+      : null;
+    // eslint-disable-next-line no-console
+    console.debug('[gmail-connect] oauth', {
+      clientId,
+      redirectUri: process.env.GMAIL_REDIRECT_URI || null,
+      scopes: GMAIL_SCOPES
+    });
     try {
       const parsed = new URL(url);
       const scopes = (parsed.searchParams.get('scope') || '')
