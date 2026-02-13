@@ -1286,6 +1286,8 @@ app.get('/api/email/connect/start', requireAuth, (req, res) => {
 });
 
 app.post('/api/email/connect', requireAuth, (req, res) => {
+  // eslint-disable-next-line no-console
+  console.log('[gmail-connect] hit', { method: req.method, path: req.originalUrl || req.path });
   const oAuthClient = getOAuthClient();
   if (!oAuthClient) {
     return res.status(400).json({ error: 'GMAIL_NOT_CONFIGURED' });
@@ -1294,6 +1296,67 @@ app.post('/api/email/connect', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'TOKEN_ENC_KEY_REQUIRED' });
   }
   const url = getAuthUrl(oAuthClient);
+  let clientId = process.env.GMAIL_CLIENT_ID || null;
+  let redirectUri = process.env.GMAIL_REDIRECT_URI || null;
+  let scopes = Array.isArray(GMAIL_SCOPES) ? GMAIL_SCOPES : [];
+  let authUrlHost = null;
+  let scopeStringLength = scopes.join(' ').length;
+  let projectHint = process.env.GMAIL_CLIENT_ID ? 'GMAIL_CLIENT_ID' : 'unknown';
+
+  try {
+    const parsed = new URL(url);
+    const queryClientId = parsed.searchParams.get('client_id') || clientId;
+    const queryRedirectUri = parsed.searchParams.get('redirect_uri') || redirectUri;
+    const scopeString = parsed.searchParams.get('scope') || '';
+    const queryScopes = scopeString
+      .split(/\s+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    clientId = queryClientId;
+    redirectUri = queryRedirectUri;
+    scopes = queryScopes.length ? queryScopes : scopes;
+    authUrlHost = parsed.host || null;
+    scopeStringLength = scopeString.length || scopeStringLength;
+    if (queryClientId && process.env.GMAIL_CLIENT_ID && queryClientId === process.env.GMAIL_CLIENT_ID) {
+      projectHint = 'GMAIL_CLIENT_ID';
+    } else if (
+      queryClientId &&
+      process.env.GOOGLE_AUTH_CLIENT_ID &&
+      queryClientId === process.env.GOOGLE_AUTH_CLIENT_ID
+    ) {
+      projectHint = 'GOOGLE_AUTH_CLIENT_ID';
+    } else {
+      projectHint = 'unknown';
+    }
+  } catch (_) {
+    // Keep fallbacks from env + configured scopes if URL parsing fails.
+  }
+
+  const clientIdPrefix = clientId ? `${String(clientId).slice(0, 12)}…` : null;
+  // eslint-disable-next-line no-console
+  console.log('[gmail-connect] oauth', {
+    clientIdPrefix,
+    projectHint,
+    redirectUri,
+    scopes,
+    authUrlHost,
+    scopeStringLength
+  });
+
+  if (process.env.NODE_ENV !== 'production') {
+    return res.json({
+      url,
+      debug: {
+        clientIdPrefix,
+        projectHint,
+        redirectUri,
+        scopes,
+        authUrlHost,
+        scopeStringLength
+      }
+    });
+  }
+
   return res.json({ url });
 });
 
