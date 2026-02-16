@@ -1608,7 +1608,9 @@ function closeProfileMenu() {
 
 function setView(view) {
   if (document?.body) {
-    const animatedVariant = view === 'auth' ? 'auth' : null;
+    const useAnimatedAuthBackground =
+      view === 'auth' || view === 'privacy' || view === 'terms' || view === 'contact' || view === 'about';
+    const animatedVariant = useAnimatedAuthBackground ? 'auth' : null;
     const useAppGradient = view === 'dashboard' || view === 'archive' || view === 'account';
     document.body.classList.toggle('auth-mode', view === 'auth');
     document.body.classList.toggle('animated-bg-mode', Boolean(animatedVariant));
