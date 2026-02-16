@@ -99,22 +99,21 @@
         </section>
       </main>
 
-      <footer class="home-footer">
-        <div class="home-footer-inner">
-          <p>© <span id="home-year"></span> Applictus. Track applications with confidence.</p>
-          <nav aria-label="Footer links">
-            <a href="/privacy">Privacy</a>
-            <a href="/terms">Terms</a>
-            <a href="/about">About</a>
-            <a href="/contact">Contact</a>
+      <footer class="app-footer" role="contentinfo">
+        <div class="app-footer-inner">
+          <div class="app-footer-copy">© 2026 Applictus</div>
+          <nav class="app-footer-links" aria-label="Legal and contact links">
+            <a class="app-footer-link" href="/privacy">PRIVACY</a>
+            <span class="app-footer-sep" aria-hidden="true">·</span>
+            <a class="app-footer-link" href="/terms">TERMS</a>
+            <span class="app-footer-sep" aria-hidden="true">·</span>
+            <a class="app-footer-link" href="/contact">CONTACT</a>
+            <span class="app-footer-sep" aria-hidden="true">·</span>
+            <a class="app-footer-link" href="/about">ABOUT US</a>
           </nav>
         </div>
       </footer>
     </div>
-    <script>
-      const yearEl = document.getElementById('home-year');
-      if (yearEl) yearEl.textContent = String(new Date().getFullYear());
-    </script>
     <script type="module" src="/home.js?v=1"></script>
   </body>
 </html>
