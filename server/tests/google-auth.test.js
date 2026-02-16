@@ -217,7 +217,7 @@ test('existing user with connected gmail is not overwritten by google sign-in', 
     }
   );
   assert.equal(callback.status, 302);
-  assert.equal(callback.headers.get('location'), 'http://localhost:3000/');
+  assert.equal(callback.headers.get('location'), 'http://localhost:3000/app');
 
   const stored = await getStoredTokens(db, userId);
   assert.equal(stored?.access_token, 'existing-access');

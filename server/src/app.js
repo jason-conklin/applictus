@@ -110,7 +110,8 @@ app.use((req, res, next) => {
 });
 if (!isProd()) {
   app.use('/public', express.static(path.join(__dirname, '..', '..', 'public')));
-  app.use(express.static(path.join(__dirname, '..', '..', 'web')));
+  app.use(express.static(path.join(__dirname, '..', '..', 'public')));
+  app.use('/web', express.static(path.join(__dirname, '..', '..', 'web')));
 }
 
 const SESSION_COOKIE = 'jt_session';
@@ -443,14 +444,14 @@ function clearCsrfCookie(res) {
 
 function getWebAuthErrorRedirect(errorCode) {
   const target = new URL(WEB_BASE_URL);
-  target.pathname = '/';
+  target.pathname = '/app';
   target.searchParams.set('auth_error', errorCode);
   return target.toString();
 }
 
 function getWebRedirectWithParams(params = {}) {
   const target = new URL(WEB_BASE_URL);
-  target.pathname = '/';
+  target.pathname = '/app';
   Object.entries(params).forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') {
       return;
@@ -1143,7 +1144,7 @@ app.get('/api/auth/google/callback', authIpLimiter, async (req, res) => {
   if (shouldAutoConnectGmail) {
     return res.redirect('/api/email/connect/start?mode=auto');
   }
-  return res.redirect(`${WEB_BASE_URL}/`);
+  return res.redirect(`${WEB_BASE_URL}/app`);
 });
 
 app.post('/api/auth/logout', requireAuth, async (req, res) => {
@@ -1464,7 +1465,7 @@ app.get('/api/email/callback', requireAuth, async (req, res) => {
     if (mode === 'auto') {
       return res.redirect(getWebRedirectWithParams({ gmail_connected: '1' }));
     }
-    return res.redirect(`${WEB_BASE_URL}/#account`);
+    return res.redirect(`${WEB_BASE_URL}/app#account`);
   } catch (err) {
     if (mode === 'auto') {
       return res.redirect(getWebRedirectWithParams({ auth_error: 'GMAIL_CONNECT_FAILED' }));
@@ -2430,8 +2431,8 @@ app.get('/api/email/sync-debug', requireAuth, (req, res) => {
 });
 
 if (!isProd()) {
-  app.get('*', (req, res) => {
-    return res.sendFile(path.join(__dirname, '..', '..', 'web', 'index.html'));
+  app.get(['/app', '/app/*', '/privacy', '/terms', '/contact', '/about'], (req, res) => {
+    return res.sendFile(path.join(__dirname, '..', '..', 'public', 'app', 'index.html'));
   });
 }
 
