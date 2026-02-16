@@ -54,119 +54,172 @@
           </div>
         </section>
 
-        <section class="home-section home-section-what">
-          <div class="home-split-layout">
-            <div class="home-split-copy">
-              <h2>What Applictus is</h2>
-              <p>
-                Job application tracking dashboard that automatically organizes application emails into statuses and
-                timelines.
-              </p>
+        <section class="home-grid" aria-label="Applictus overview">
+          <section class="home-panel home-panel-what">
+            <header class="home-panel-head">
+              <span class="home-panel-badge" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path
+                    d="M4 8h16v10H4zM4 9l8 5 8-5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </span>
+              <div class="home-panel-copy">
+                <h2>What Applictus is</h2>
+                <p>
+                  Job application tracking dashboard that automatically organizes application emails into statuses and
+                  timelines.
+                </p>
+              </div>
+            </header>
+            <div class="home-feature-rows">
+              <article class="home-feature-row">
+                <span class="home-feature-icon" aria-hidden="true">
+                  <svg viewBox="0 0 20 20">
+                    <path
+                      d="M3 5h14v10H3zM3 6l7 5 7-5"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+                <div class="home-feature-copy">
+                  <h3>Inbox signals, organized automatically</h3>
+                  <p>Turn scattered job updates into one timeline you can trust.</p>
+                </div>
+              </article>
+              <article class="home-feature-row">
+                <span class="home-feature-icon" aria-hidden="true">
+                  <svg viewBox="0 0 20 20">
+                    <circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="1.6" />
+                    <path
+                      d="M6.7 10.3 9 12.6l4.6-4.8"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+                <div class="home-feature-copy">
+                  <h3>Clear status progression</h3>
+                  <p>Track confirmations, interview invites, and rejections without spreadsheet maintenance.</p>
+                </div>
+              </article>
+              <article class="home-feature-row">
+                <span class="home-feature-icon" aria-hidden="true">
+                  <svg viewBox="0 0 20 20">
+                    <path
+                      d="M3.8 10h12.4M11.5 6.6l3.4 3.4-3.4 3.4"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+                <div class="home-feature-copy">
+                  <h3>Built for active job searches</h3>
+                  <p>Focus follow-ups and keep momentum across companies and roles.</p>
+                </div>
+              </article>
             </div>
-            <div class="home-split-cards">
-              <article class="home-feature-card">
-                <span class="home-feature-icon" aria-hidden="true">
-                  <svg viewBox="0 0 20 20">
-                    <path d="M3 5h14v10H3zM3 6l7 5 7-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </span>
-                <h3>Inbox signals, organized automatically</h3>
-                <p>Turn scattered job updates into one timeline you can trust.</p>
-              </article>
-              <article class="home-feature-card">
-                <span class="home-feature-icon" aria-hidden="true">
-                  <svg viewBox="0 0 20 20">
-                    <circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/>
-                    <path d="M6.7 10.3 9 12.6l4.6-4.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </span>
-                <h3>Clear status progression</h3>
-                <p>Track confirmations, interview invites, and rejections without spreadsheet maintenance.</p>
-              </article>
-              <article class="home-feature-card">
-                <span class="home-feature-icon" aria-hidden="true">
-                  <svg viewBox="0 0 20 20">
-                    <path d="M10 2v16M2 10h16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                  </svg>
-                </span>
-                <h3>Built for active job searches</h3>
-                <p>Focus follow-ups and keep momentum across companies and roles.</p>
-              </article>
-            </div>
-          </div>
-        </section>
+          </section>
 
-        <section class="home-section home-section-alt home-section-how">
-          <div class="home-timeline-layout">
-            <div class="home-timeline" aria-label="How Applictus works">
-              <article class="home-timeline-step">
-                <span class="home-timeline-num">1</span>
-                <div class="home-timeline-copy">
+          <section class="home-panel home-panel-how">
+            <header class="home-panel-head">
+              <span class="home-panel-badge" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path
+                    d="M12 4v16m8-8H4"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </span>
+              <div class="home-panel-copy">
+                <h2>How it works</h2>
+                <p>We read job-related emails to detect confirmations, interview invites, and rejections.</p>
+              </div>
+            </header>
+            <div class="home-stepper" aria-label="How Applictus works">
+              <article class="home-step">
+                <span class="home-step-num">1</span>
+                <div class="home-step-copy">
                   <h3>Connect Gmail</h3>
                   <p>Grant read-only access for job-related inbox analysis.</p>
                 </div>
               </article>
-              <article class="home-timeline-step">
-                <span class="home-timeline-num">2</span>
-                <div class="home-timeline-copy">
+              <article class="home-step">
+                <span class="home-step-num">2</span>
+                <div class="home-step-copy">
                   <h3>Detect status signals</h3>
-                  <p>Identify confirmations, interview movement, and rejections.</p>
+                  <p>Identify confirmations, interview movement, and rejection updates.</p>
                 </div>
               </article>
-              <article class="home-timeline-step">
-                <span class="home-timeline-num">3</span>
-                <div class="home-timeline-copy">
+              <article class="home-step">
+                <span class="home-step-num">3</span>
+                <div class="home-step-copy">
                   <h3>Review one clean timeline</h3>
                   <p>Track company + role progress in a single organized dashboard.</p>
                 </div>
               </article>
             </div>
-            <aside class="home-timeline-support">
-              <h3>Automation with human-readable clarity</h3>
-              <p>
-                Applictus uses sender, subject, date, and snippet signals first, then uses body content only when
-                needed to improve classification confidence.
-              </p>
-              <p>
-                The result is a practical timeline you can scan quickly while still keeping control over your account
-                and Gmail connection.
-              </p>
-            </aside>
-          </div>
-        </section>
+          </section>
 
-        <section class="home-section home-permissions-panel">
-          <div class="home-lock-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" role="img" aria-label="Lock">
-              <path
-                d="M7.5 10V8.2A4.5 4.5 0 0 1 12 3.7a4.5 4.5 0 0 1 4.5 4.5V10m-9 0h9a1.8 1.8 0 0 1 1.8 1.8v6.5A1.8 1.8 0 0 1 16.5 20h-9a1.8 1.8 0 0 1-1.8-1.8v-6.5A1.8 1.8 0 0 1 7.5 10Z"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.6"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </div>
-          <div class="home-permissions-head">
-            <h2>Read-Only Gmail Access</h2>
+          <section class="home-panel home-panel-permissions">
+            <header class="home-panel-head">
+              <span class="home-panel-badge home-panel-badge-lock" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img" aria-label="Lock">
+                  <path
+                    d="M7.5 10V8.2A4.5 4.5 0 0 1 12 3.7a4.5 4.5 0 0 1 4.5 4.5V10m-9 0h9a1.8 1.8 0 0 1 1.8 1.8v6.5A1.8 1.8 0 0 1 16.5 20h-9a1.8 1.8 0 0 1-1.8-1.8v-6.5A1.8 1.8 0 0 1 7.5 10Z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </span>
+              <div class="home-panel-copy">
+                <h2>Read-Only Gmail Access</h2>
+                <p>Built with data minimization and clear permission boundaries from day one.</p>
+              </div>
+            </header>
             <p class="home-scope-label">Scope requested</p>
             <p class="home-scope-badge"><code>https://www.googleapis.com/auth/gmail.readonly</code></p>
-          </div>
-          <ul class="home-check-list">
-            <li><span class="home-check" aria-hidden="true">✓</span><span>We do not send/modify/delete email.</span></li>
-            <li><span class="home-check" aria-hidden="true">✓</span><span>We analyze sender/subject/date/snippet; body only when needed for classification.</span></li>
-            <li><span class="home-check" aria-hidden="true">✓</span><span>Users can disconnect anytime.</span></li>
-          </ul>
-        </section>
+            <ul class="home-check-list">
+              <li>
+                <span class="home-check" aria-hidden="true">✓</span><span>We do not send/modify/delete email.</span>
+              </li>
+              <li>
+                <span class="home-check" aria-hidden="true">✓</span
+                ><span>We analyze sender/subject/date/snippet; body only when needed for classification.</span>
+              </li>
+              <li><span class="home-check" aria-hidden="true">✓</span><span>Users can disconnect anytime.</span></li>
+            </ul>
+          </section>
 
-        <section class="home-final-cta">
-          <h2>Ready to organize your job search?</h2>
-          <p>Start with the same Applictus dashboard used to track every status change in one timeline.</p>
-          <div class="home-cta-row">
-            <a class="home-btn home-btn-light" href="/app">Open App</a>
-            <a class="home-btn home-btn-outline-light" href="/app">Sign in</a>
-          </div>
+          <section class="home-panel home-panel-cta">
+            <h2>Ready to organize your job search?</h2>
+            <p>Start with the Applictus dashboard and keep every application update in one timeline.</p>
+            <div class="home-cta-row">
+              <a class="home-btn home-btn-light" href="/app">Open App</a>
+              <a class="home-btn home-btn-outline-light" href="/app">Sign in</a>
+            </div>
+          </section>
         </section>
       </main>
 
