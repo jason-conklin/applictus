@@ -175,6 +175,13 @@ body.home-page .home-main {
   box-shadow: 0 12px 32px rgba(10, 42, 90, 0.14);
 }
 
+.home-nav.legal-home-nav {
+  position: static;
+  top: auto;
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
 .home-brand {
   display: inline-flex;
   align-items: center;
@@ -711,6 +718,10 @@ body.home-page .home-main {
     align-items: stretch;
     gap: 12px;
     padding: 12px;
+  }
+
+  .home-nav.legal-home-nav {
+    margin-top: 0;
   }
 
   .home-nav-actions {
