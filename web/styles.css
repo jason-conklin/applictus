@@ -4315,3 +4315,99 @@ details summary {
 @media (max-width: 860px){
   .home .surface-pad { padding: 18px !important; }
 }
+
+/* =========================================================
+   HOMEPAGE: SOLID WHITE 3D PANELS (HARD OVERRIDE)
+   Do NOT use .surface/.tile on homepage anymore.
+   ========================================================= */
+
+.home .hp-panel,
+.home .hp-item {
+  /* kill any "glass" / blending / filtering from global rules */
+  background-image: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  mix-blend-mode: normal !important;
+  filter: none !important;
+  opacity: 1 !important;
+}
+
+.home .hp-panel {
+  background-color: #ffffff !important;   /* absolute solid face */
+  border-radius: 28px !important;
+  border: 1px solid rgba(18, 55, 110, 0.18) !important;
+
+  /* strong 3D bevel + depth */
+  box-shadow:
+    0 46px 110px rgba(10, 30, 70, 0.30),
+    0 18px 42px rgba(10, 30, 70, 0.18),
+    inset 0 2px 0 rgba(255,255,255, 1),
+    inset 0 14px 24px rgba(255,255,255, 0.75),
+    inset 0 -30px 38px rgba(10,30,70, 0.12),
+    inset 24px 0 26px rgba(255,255,255, 0.55),
+    inset -24px 0 26px rgba(10,30,70, 0.08) !important;
+
+  position: relative !important;
+  z-index: 2 !important;
+  overflow: hidden !important;
+}
+
+.home .hp-panel--pad {
+  padding: 30px !important;
+}
+
+@media (max-width: 860px) {
+  .home .hp-panel--pad { padding: 18px !important; }
+}
+
+.home .hp-item {
+  background-color: #ffffff !important;
+  border-radius: 18px !important;
+  border: 1px solid rgba(18, 55, 110, 0.14) !important;
+
+  box-shadow:
+    0 20px 36px rgba(10, 30, 70, 0.16),
+    0 8px 18px rgba(10, 30, 70, 0.10),
+    inset 0 2px 0 rgba(255,255,255, 1),
+    inset 0 -18px 26px rgba(10,30,70, 0.10) !important;
+
+  position: relative !important;
+}
+
+.home .hp-item--hover {
+  transition: transform .14s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.home .hp-item--hover:hover {
+  transform: translateY(-4px);
+  border-color: rgba(18, 55, 110, 0.22) !important;
+  box-shadow:
+    0 28px 48px rgba(10, 30, 70, 0.18),
+    0 12px 24px rgba(10, 30, 70, 0.12),
+    inset 0 2px 0 rgba(255,255,255, 1),
+    inset 0 -18px 26px rgba(10,30,70, 0.10) !important;
+}
+
+/* Ensure nothing can "paint over" these panels */
+.home .hp-panel::before,
+.home .hp-panel::after,
+.home .hp-item::before,
+.home .hp-item::after {
+  content: none !important;
+  display: none !important;
+}
+
+.home .animated-bg,
+.home canvas,
+.home #animated-bg,
+.home .animated-background,
+.home .bg-canvas {
+  z-index: 0 !important;
+  pointer-events: none !important;
+}
+.home main,
+.home .home-root,
+.home .home-wrap {
+  position: relative;
+  z-index: 1;
+}
