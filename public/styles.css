@@ -3979,68 +3979,74 @@ details summary {
 }
 
 /* =========================
-   Homepage: EXTRA 3D SURFACES
+   Homepage: SOLID 3D BEVEL SURFACES (NO GLASS)
    ========================= */
 
 .home .surface,
 .home-page .surface{
   position: relative;
+  isolation: isolate; /* creates a stable stacking context */
   border-radius: 28px;
-  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 55%, #f6f9ff 100%) !important;
 
-  /* Crisp edge */
+  /* SOLID face (no see-through) */
+  background: #ffffff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+
+  /* crisp edge */
   border: 1px solid rgba(20, 60, 120, .18);
 
-  /* Stronger depth: ambient + key shadow */
+  /* depth + bevel (outer shadows + inner highlights) */
   box-shadow:
-    0 34px 90px rgba(10, 30, 70, .24),
-    0 14px 34px rgba(10, 30, 70, .16),
+    /* key shadow */
+    0 30px 70px rgba(10,30,70,.22),
+    0 10px 26px rgba(10,30,70,.14),
 
-    /* Inner bevel */
-    inset 0 2px 0 rgba(255,255,255,.98),
-    inset 0 10px 22px rgba(255,255,255,.70),
-    inset 0 -22px 30px rgba(10,30,70,.10),
-    inset 18px 0 26px rgba(255,255,255,.55),
-    inset -18px 0 28px rgba(10,30,70,.06);
+    /* inner bevel */
+    inset 0 2px 0 rgba(255,255,255,1),
+    inset 0 14px 24px rgba(255,255,255,.75),
+    inset 0 -18px 28px rgba(10,30,70,.10),
+    inset 18px 0 24px rgba(255,255,255,.55),
+    inset -18px 0 24px rgba(10,30,70,.06);
 
   overflow: hidden;
-  transform: translateZ(0);
 }
 
-/* Base plate behind the panel = extra “lift” cue */
+/* Base plate goes BEHIND the panel, so it can’t tint the face */
 .home .surface::before,
 .home-page .surface::before{
   content: "";
   position: absolute;
-  inset: 0;
+  inset: -2px;
   border-radius: inherit;
-  transform: translate(0px, 6px);
-  background: linear-gradient(180deg, rgba(10,30,70,.10), rgba(10,30,70,.04));
-  filter: blur(10px);
-  opacity: .55;
-  z-index: 0;
+  z-index: -1;                /* behind the surface */
+  transform: translateY(10px);
+  background: rgba(10,30,70,.20); /* solid dark base */
+  filter: blur(18px);
+  opacity: .30;
 }
 
-/* Rim light / sheen on top edge */
+/* Optional: a tiny top rim highlight ONLY (kept subtle) */
 .home .surface::after,
 .home-page .surface::after{
   content: "";
   position: absolute;
-  left: 10px;
-  right: 10px;
-  top: 8px;
-  height: 42%;
-  border-radius: 22px;
-  background: radial-gradient(120% 90% at 50% 0%,
-    rgba(255,255,255,.95) 0%,
-    rgba(255,255,255,.55) 35%,
-    rgba(255,255,255,0) 70%);
-  opacity: .65;
+  left: 12px;
+  right: 12px;
+  top: 10px;
+  height: 26px;
+  border-radius: 999px;
   z-index: 0;
   pointer-events: none;
+
+  /* pure highlight, no large translucent wash */
+  background: linear-gradient(180deg,
+    rgba(255,255,255,.95) 0%,
+    rgba(255,255,255,0) 100%);
+  opacity: .55;
 }
 
-/* Ensure content sits above effects */
+/* keep content above rim highlight */
 .home .surface > *,
 .home-page .surface > *{
   position: relative;
@@ -4048,27 +4054,24 @@ details summary {
 }
 
 .home .surface-pad,
-.home-page .surface-pad{
-  padding: 30px;
-}
-
+.home-page .surface-pad{ padding: 30px; }
 @media (max-width: 860px){
   .home .surface-pad,
   .home-page .surface-pad{ padding: 18px; }
 }
 
-/* Inner tiles also solid + mini bevel */
+/* Inner tiles: solid + mini bevel */
 .home .tile,
 .home-page .tile{
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%) !important;
-  border: 1px solid rgba(20, 60, 120, .14);
+  background: #ffffff !important;
+  border: 1px solid rgba(20,60,120,.14);
   border-radius: 18px;
 
   box-shadow:
-    0 16px 34px rgba(10,30,70,.14),
-    0 6px 14px rgba(10,30,70,.10),
-    inset 0 2px 0 rgba(255,255,255,.98),
-    inset 0 -14px 18px rgba(10,30,70,.08);
+    0 14px 26px rgba(10,30,70,.12),
+    0 5px 12px rgba(10,30,70,.08),
+    inset 0 2px 0 rgba(255,255,255,1),
+    inset 0 -12px 18px rgba(10,30,70,.08);
 
   overflow: hidden;
 }
@@ -4080,15 +4083,15 @@ details summary {
 .home .tile-hover:hover,
 .home-page .tile-hover:hover{
   transform: translateY(-3px);
-  border-color: rgba(20, 60, 120, .20);
+  border-color: rgba(20,60,120,.20);
   box-shadow:
-    0 22px 46px rgba(10,30,70,.16),
-    0 8px 18px rgba(10,30,70,.12),
-    inset 0 2px 0 rgba(255,255,255,.98),
-    inset 0 -14px 18px rgba(10,30,70,.08);
+    0 20px 36px rgba(10,30,70,.14),
+    0 7px 16px rgba(10,30,70,.10),
+    inset 0 2px 0 rgba(255,255,255,1),
+    inset 0 -12px 18px rgba(10,30,70,.08);
 }
 
-/* Remove flat panel backgrounds so only .surface renders the 3D */
+/* Ensure wrapper shells don’t override surfaces */
 .home .home-hero,
 .home-page .home-hero,
 .home .home-panel,
