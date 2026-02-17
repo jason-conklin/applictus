@@ -265,7 +265,7 @@
           </div>
         </a>
         <div class="auth-social">
-          <button class="google-btn" id="google-auth" type="button">
+          <button class="btn btn--secondary btn--md google-btn" id="google-auth" type="button">
             <span class="google-logo" aria-hidden="true">
               <svg
                 width="18"
@@ -370,7 +370,7 @@
                 </button>
               </div>
             </label>
-            <button type="submit">Sign in</button>
+            <button class="btn btn--primary btn--md" type="submit">Sign in</button>
             <div class="auth-switch">
               New to Applictus?
               <button type="button" class="link-button" data-auth-switch="signup">Create an account</button>
@@ -455,7 +455,7 @@
                 </button>
               </div>
             </label>
-            <button type="submit">Create account</button>
+            <button class="btn btn--primary btn--md" type="submit">Create account</button>
             <div class="auth-switch">
               Already have an account?
               <button type="button" class="link-button" data-auth-switch="signin">Sign in here</button>
@@ -473,7 +473,7 @@
 	          <div class="card account-panel">
 	            <div class="account-panel-header">
 	              <h3>Account information</h3>
-	              <button class="ghost" id="account-logout" type="button">Log out</button>
+	              <button class="btn btn--ghost btn--sm" id="account-logout" type="button">Log out</button>
 	            </div>
 	            <div class="account-panel-body">
 	              <div class="account-section">
@@ -481,7 +481,7 @@
 	                <div class="account-email-row">
 	                  <div class="account-email" id="account-email">—</div>
 	                  <button
-	                    class="ghost account-copy"
+	                    class="btn btn--ghost btn--sm account-copy"
 	                    id="account-email-copy"
 	                    type="button"
 	                    aria-label="Copy email"
@@ -495,7 +495,7 @@
 	                <div class="account-methods" id="account-methods">—</div>
 	              </div>
 	              <div class="account-section">
-	                <button type="button" id="account-password-button">Change password</button>
+	                <button class="btn btn--secondary btn--md" type="button" id="account-password-button">Change password</button>
 	                <div class="muted small" id="account-password-hint"></div>
 	              </div>
 	            </div>
@@ -504,7 +504,7 @@
 	            <h3>Gmail connection</h3>
 	            <div class="stack">
 	              <div class="gmail-panel">
-                <button type="button" id="email-connect">Connect Gmail</button>
+                <button class="btn btn--primary btn--md" type="button" id="email-connect">Connect Gmail</button>
                 <div class="pill" id="account-gmail-status">Not connected</div>
               </div>
               <div class="muted" id="account-gmail-email">—</div>
@@ -523,7 +523,7 @@
                   Sync range (days)
                   <input type="number" id="account-sync-days" min="1" max="365" value="30" />
                 </label>
-                <button type="button" id="account-email-sync">Sync now</button>
+                <button class="btn btn--secondary btn--md" type="button" id="account-email-sync">Sync now</button>
                 <div class="muted" id="account-sync-status">Idle</div>
               </div>
               <div class="muted small" id="account-sync-result"></div>
@@ -543,7 +543,7 @@
           </div>
           <div class="sync-band">
             <div class="sync-strip" id="sync-strip">
-              <button class="btn btn-secondary btn-md" type="button" data-action="manage-gmail">
+              <button class="btn btn--secondary btn--md" type="button" data-action="manage-gmail">
                 <span class="btn-icon-left" aria-hidden="true">✉</span>
                 <span class="btn-label">Manage Gmail</span>
               </button>
@@ -557,7 +557,7 @@
                   <label for="sync-days">Sync range (days)</label>
                   <input type="number" id="sync-days" min="1" max="365" value="30" />
                 </div>
-                <button class="btn btn-primary btn-md" type="button" id="email-sync">
+                <button class="btn btn--primary btn--md" type="button" id="email-sync">
                   <span class="btn-icon-left" aria-hidden="true">⟳</span>
                   <span class="btn-label">Sync now</span>
                 </button>
@@ -568,7 +568,7 @@
             </div>
           <div class="sync-error hidden" id="sync-error-banner">
             <div class="sync-error-message" id="sync-error-message">Sync failed.</div>
-            <button class="ghost icon" type="button" id="sync-error-toggle">Show details</button>
+            <button class="btn btn--ghost btn--sm icon" type="button" id="sync-error-toggle">Show details</button>
             <pre class="sync-error-detail hidden" id="sync-error-detail"></pre>
           </div>
           <div class="sync-progress hidden" id="sync-progress">
@@ -705,9 +705,9 @@
           <div class="pipeline-view" id="pipeline-view"></div>
           <div class="table" id="applications-table"></div>
           <div class="pagination" id="table-pagination">
-            <button class="ghost" type="button" id="table-prev">Prev</button>
+            <button class="btn btn--ghost btn--sm" type="button" id="table-prev">Prev</button>
             <div class="muted" id="table-page-info">Page 1</div>
-            <button class="ghost" type="button" id="table-next">Next</button>
+            <button class="btn btn--ghost btn--sm" type="button" id="table-next">Next</button>
           </div>
         </section>
       </section>
@@ -726,9 +726,9 @@
           </div>
           <div class="table" id="archived-table"></div>
           <div class="pagination" id="archived-pagination">
-            <button class="ghost" type="button" id="archived-prev">Prev</button>
+            <button class="btn btn--ghost btn--sm" type="button" id="archived-prev">Prev</button>
             <div class="muted" id="archived-page-info">Page 1</div>
-            <button class="ghost" type="button" id="archived-next">Next</button>
+            <button class="btn btn--ghost btn--sm" type="button" id="archived-next">Next</button>
           </div>
         </div>
       </section>
@@ -762,7 +762,7 @@
               Base resume
               <select id="rc-resume-select"></select>
             </label>
-            <button id="rc-new-resume" type="button" class="ghost">Upload Resume (PDF/DOCX)</button>
+            <button id="rc-new-resume" type="button" class="btn btn--ghost btn--sm">Upload Resume (PDF/DOCX)</button>
 
             <label>
               Company
@@ -818,7 +818,7 @@
               <input type="text" id="rc-keywords" placeholder="react, node, graphql" />
             </label>
 
-            <button id="rc-generate" type="button" class="btn btn-primary">Generate Tailored Resume</button>
+            <button id="rc-generate" type="button" class="btn btn--primary btn--md">Generate Tailored Resume</button>
             <div class="muted small" id="rc-status">Idle</div>
           </div>
 
@@ -838,7 +838,7 @@
                   <h4>Suggested Changes</h4>
                   <div class="muted small">Apply or dismiss to build a version.</div>
                 </div>
-                <button type="button" id="rc-create-version" class="ghost">Create Version</button>
+                <button type="button" id="rc-create-version" class="btn btn--ghost btn--sm">Create Version</button>
               </div>
               <div id="rc-suggestions" class="stack"></div>
             </div>
@@ -848,7 +848,7 @@
                   <h4>Preview</h4>
                   <div class="muted small">Latest tailored version</div>
                 </div>
-                <button type="button" id="rc-mark-exported" class="ghost">Mark Exported</button>
+                <button type="button" id="rc-mark-exported" class="btn btn--ghost btn--sm">Mark Exported</button>
               </div>
               <pre class="preview" id="rc-preview-text"></pre>
             </div>
@@ -874,8 +874,8 @@
 	          <div class="home-nav-actions">
 	            <a class="home-link" href="/privacy">Privacy</a>
 	            <a class="home-link" href="/terms">Terms</a>
-	            <a class="home-btn home-btn-muted" href="/app">Open App</a>
-	            <a class="home-btn" href="/app">Sign in</a>
+	            <a class="btn btn--secondary btn--sm" href="/app">Open App</a>
+	            <a class="btn btn--primary btn--sm" href="/app">Sign in</a>
 	          </div>
 	        </header>
 	        <div class="page-header">
@@ -988,8 +988,8 @@
 	          <div class="home-nav-actions">
 	            <a class="home-link" href="/privacy">Privacy</a>
 	            <a class="home-link" href="/terms">Terms</a>
-	            <a class="home-btn home-btn-muted" href="/app">Open App</a>
-	            <a class="home-btn" href="/app">Sign in</a>
+	            <a class="btn btn--secondary btn--sm" href="/app">Open App</a>
+	            <a class="btn btn--primary btn--sm" href="/app">Sign in</a>
 	          </div>
 	        </header>
 	        <div class="page-header">
@@ -1062,8 +1062,8 @@
 		          <div class="home-nav-actions">
 		            <a class="home-link" href="/privacy">Privacy</a>
 		            <a class="home-link" href="/terms">Terms</a>
-		            <a class="home-btn home-btn-muted" href="/app">Open App</a>
-		            <a class="home-btn" href="/app">Sign in</a>
+		            <a class="btn btn--secondary btn--sm" href="/app">Open App</a>
+		            <a class="btn btn--primary btn--sm" href="/app">Sign in</a>
 		          </div>
 		        </header>
 		        <div class="page-header">
@@ -1113,7 +1113,7 @@
 		              ></textarea>
 		            </label>
 
-		            <button type="submit">Send message</button>
+		            <button class="btn btn--primary btn--md" type="submit">Send message</button>
 
 		            <div class="muted small">
 		              Prefer email? You can write to
@@ -1139,8 +1139,8 @@
 		          <div class="home-nav-actions">
 		            <a class="home-link" href="/privacy">Privacy</a>
 		            <a class="home-link" href="/terms">Terms</a>
-		            <a class="home-btn home-btn-muted" href="/app">Open App</a>
-		            <a class="home-btn" href="/app">Sign in</a>
+		            <a class="btn btn--secondary btn--sm" href="/app">Open App</a>
+		            <a class="btn btn--primary btn--sm" href="/app">Sign in</a>
 		          </div>
 		        </header>
 		        <div class="page-header about-header">
@@ -1272,10 +1272,10 @@
                 <div class="explanation" id="detail-suggestion-label">Suggestion</div>
                 <div class="explanation" id="detail-suggestion-explanation">—</div>
                 <div class="suggestion-actions">
-                  <button class="ghost" type="button" data-action="accept-suggestion" id="detail-suggestion-accept">
+                  <button class="btn btn--ghost btn--sm" type="button" data-action="accept-suggestion" id="detail-suggestion-accept">
                     Accept
                   </button>
-                  <button class="ghost" type="button" data-action="dismiss-suggestion" id="detail-suggestion-dismiss">
+                  <button class="btn btn--ghost btn--sm" type="button" data-action="dismiss-suggestion" id="detail-suggestion-dismiss">
                     Dismiss
                   </button>
                 </div>
@@ -1289,9 +1289,9 @@
           </div>
         </div>
         <div class="drawer-footer action-group" id="detail-actions">
-          <button class="ghost" type="button" data-action="edit">Edit</button>
-          <button class="ghost" type="button" data-action="archive">Archive</button>
-          <button class="ghost danger" type="button" data-action="delete">Delete</button>
+          <button class="btn btn--ghost btn--sm" type="button" data-action="edit">Edit</button>
+          <button class="btn btn--ghost btn--sm" type="button" data-action="archive">Archive</button>
+          <button class="btn btn--danger btn--sm" type="button" data-action="delete">Delete</button>
         </div>
       </aside>
     </div>
@@ -1299,7 +1299,7 @@
     <div class="modal hidden" id="modal-root" aria-hidden="true">
       <div class="modal-backdrop" data-action="backdrop"></div>
       <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-        <button class="ghost modal-close" type="button" data-action="close" aria-label="Close">
+        <button class="btn btn--ghost btn--sm modal-close" type="button" data-action="close" aria-label="Close">
           x
         </button>
         <div class="modal-header">

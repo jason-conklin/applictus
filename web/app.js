@@ -625,8 +625,8 @@ function getDashboardEmptyStateHtml() {
       <h3>No applications yet</h3>
       <p class="muted">Sync Gmail to import applications automatically, or add one manually.</p>
       <div class="empty-state-actions">
-        <button class="btn-primary" type="button" data-action="sync-gmail">Sync Gmail</button>
-        <button class="ghost" type="button" data-action="add-application">Add application</button>
+        <button class="btn btn--primary btn--md" type="button" data-action="sync-gmail">Sync Gmail</button>
+        <button class="btn btn--ghost btn--sm" type="button" data-action="add-application">Add application</button>
       </div>
     </div>
   `;
@@ -751,7 +751,7 @@ function buildModalFooter({ confirmText, cancelText = 'Cancel', formId } = {}) {
   if (cancelText) {
     const cancelButton = document.createElement('button');
     cancelButton.type = 'button';
-    cancelButton.className = 'ghost';
+    cancelButton.className = 'btn btn--ghost btn--sm';
     cancelButton.textContent = cancelText;
     cancelButton.dataset.role = 'cancel';
     cancelButton.addEventListener('click', () => closeModal('cancel'));
@@ -759,6 +759,7 @@ function buildModalFooter({ confirmText, cancelText = 'Cancel', formId } = {}) {
   }
   if (confirmText) {
     const confirmButton = document.createElement('button');
+    confirmButton.className = 'btn btn--primary btn--md';
     confirmButton.textContent = confirmText;
     confirmButton.dataset.role = 'confirm';
     if (formId) {
@@ -3174,8 +3175,8 @@ function renderUnsortedEvents(events) {
           <div>${confidence}</div>
           <div>${formatUnsortedReason(event)}</div>
           <div class="action-group">
-            <button class="ghost" data-action="attach" data-id="${event.id}">Attach</button>
-            <button class="ghost" data-action="create" data-id="${event.id}"
+            <button class="btn btn--ghost btn--sm" data-action="attach" data-id="${event.id}">Attach</button>
+            <button class="btn btn--ghost btn--sm" data-action="create" data-id="${event.id}"
               data-company="${encodeURIComponent(companyPrefill)}"
               data-title="${encodeURIComponent(titlePrefill)}">
               Create (prefilled)
@@ -3347,16 +3348,16 @@ function renderDetail(application, events) {
           <div class="danger-panel-body">This will remove this application and its timeline events. This can't be undone.</div>
           ${deleteError ? `<div class="form-error">${deleteError}</div>` : ''}
           <div class="danger-panel-actions">
-            <button class="ghost" type="button" data-action="delete-cancel"${deleteBusy ? ' disabled' : ''}>Cancel</button>
-            <button class="ghost danger" type="button" data-action="delete-confirm"${deleteBusy ? ' disabled' : ''}>${deleteBusy ? 'Deleting…' : 'Delete permanently'}</button>
+            <button class="btn btn--ghost btn--sm" type="button" data-action="delete-cancel"${deleteBusy ? ' disabled' : ''}>Cancel</button>
+            <button class="btn btn--danger btn--sm" type="button" data-action="delete-confirm"${deleteBusy ? ' disabled' : ''}>${deleteBusy ? 'Deleting…' : 'Delete permanently'}</button>
           </div>
         </div>
       `;
     } else {
       detailActions.innerHTML = `
-        <button class="ghost" type="button" data-action="edit">Edit</button>
-        <button class="ghost" type="button" data-action="archive">${application.archived ? 'Unarchive' : 'Archive'}</button>
-        <button class="ghost danger" type="button" data-action="delete">Delete</button>
+        <button class="btn btn--ghost btn--sm" type="button" data-action="edit">Edit</button>
+        <button class="btn btn--ghost btn--sm" type="button" data-action="archive">${application.archived ? 'Unarchive' : 'Archive'}</button>
+        <button class="btn btn--danger btn--sm" type="button" data-action="delete">Delete</button>
       `;
     }
   }
@@ -3528,7 +3529,7 @@ async function rcLoadVersions(sessionId) {
   (data.versions || []).forEach((v) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'ghost';
+    btn.className = 'btn btn--ghost btn--sm';
     btn.textContent = `${v.version_label || v.version_number || 'v'} • ATS ${v.ats_score ?? '—'}`;
     btn.addEventListener('click', () => {
       rcVersionId = v.id;
@@ -3644,7 +3645,7 @@ function showUploadResumeModal() {
 
   const pasteToggle = document.createElement('button');
   pasteToggle.type = 'button';
-  pasteToggle.className = 'ghost';
+  pasteToggle.className = 'btn btn--ghost btn--sm';
   pasteToggle.textContent = 'Prefer to paste instead';
 
   const pasteLabel = document.createElement('label');
@@ -3666,8 +3667,6 @@ function showUploadResumeModal() {
   form.appendChild(pasteLabel);
 
   const footer = buildModalFooter({ confirmText: 'Upload & Save', cancelText: 'Cancel', formId: form.id });
-  footer.querySelector('[data-role=\"confirm\"]')?.classList.add('btn', 'btn-primary');
-
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const file = fileInput.files && fileInput.files[0];
@@ -4648,7 +4647,7 @@ async function rcLoadRun(runId) {
   (data.versions || []).forEach((v) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'ghost';
+    btn.className = 'btn btn--ghost btn--sm';
     btn.textContent = `${v.version_label || 'v'} • ATS ${v.ats_score ?? '—'}`;
     btn.addEventListener('click', () => {
       rcVersionId = v.id;
@@ -4691,7 +4690,7 @@ function renderSuggestions(suggestions) {
     actions.className = 'inline';
     const applyBtn = document.createElement('button');
     applyBtn.type = 'button';
-    applyBtn.className = 'btn btn-secondary btn-sm';
+    applyBtn.className = 'btn btn--secondary btn--sm';
     applyBtn.textContent = s.status === 'applied' ? 'Applied' : 'Apply';
     applyBtn.disabled = s.status === 'applied';
     applyBtn.addEventListener('click', async () => {
@@ -4705,7 +4704,7 @@ function renderSuggestions(suggestions) {
     });
     const dismissBtn = document.createElement('button');
     dismissBtn.type = 'button';
-    dismissBtn.className = 'ghost';
+    dismissBtn.className = 'btn btn--ghost btn--sm';
     dismissBtn.textContent = s.status === 'dismissed' ? 'Dismissed' : 'Dismiss';
     dismissBtn.disabled = s.status === 'dismissed';
     dismissBtn.addEventListener('click', async () => {

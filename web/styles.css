@@ -50,6 +50,173 @@
   --space-lg: 24px;
 }
 
+/* =========================
+   Buttons (Bevel / 3D)
+   ========================= */
+
+:root {
+  --btn-font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  --btn-radius: 999px;
+  --btn-shadow: 0 14px 30px rgba(10, 30, 70, 0.18), 0 2px 6px rgba(10, 30, 70, 0.10);
+  --btn-shadow-hover: 0 18px 44px rgba(10, 30, 70, 0.22), 0 6px 14px rgba(10, 30, 70, 0.14);
+  --btn-ring: 0 0 0 4px rgba(35, 96, 255, 0.22);
+
+  /* Brand-ish blues (tune if your existing theme uses different tokens) */
+  --btn-blue-900: #0b2a57;
+  --btn-blue-800: #0f3a77;
+  --btn-blue-700: #1a55a6;
+  --btn-blue-600: #2563eb;
+
+  --btn-gray-900: #0f172a;
+  --btn-gray-200: #e5e7eb;
+  --btn-gray-100: #f3f4f6;
+}
+
+/* Base */
+.btn {
+  -webkit-tap-highlight-color: transparent;
+  font-family: var(--btn-font);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+
+  border-radius: var(--btn-radius);
+  border: 1px solid transparent;
+  padding: 0.75rem 1.05rem;
+  min-height: 44px;
+
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  user-select: none;
+  cursor: pointer;
+
+  transform: translateY(0);
+  transition: transform 0.12s ease, box-shadow 0.18s ease, filter 0.18s ease, background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  box-shadow: var(--btn-shadow);
+  position: relative;
+  outline: none;
+}
+
+/* Bevel highlight layer */
+.btn::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: calc(var(--btn-radius) - 2px);
+  pointer-events: none;
+  opacity: 0.95;
+
+  /* top bevel shine */
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.15) 40%, rgba(255, 255, 255, 0) 60%);
+  mix-blend-mode: soft-light;
+}
+
+/* Active “press” */
+.btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 10px 22px rgba(10, 30, 70, 0.16), 0 2px 6px rgba(10, 30, 70, 0.10);
+}
+
+/* Hover */
+.btn:hover {
+  box-shadow: var(--btn-shadow-hover);
+  filter: saturate(1.05);
+}
+
+/* Focus */
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--btn-shadow-hover), var(--btn-ring);
+}
+
+/* Disabled */
+.btn[disabled],
+.btn.btn--disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* Sizes */
+.btn--sm {
+  padding: 0.55rem 0.85rem;
+  min-height: 38px;
+  font-size: 0.95rem;
+}
+
+.btn--md {
+  padding: 0.75rem 1.05rem;
+  min-height: 44px;
+  font-size: 1rem;
+}
+
+.btn--lg {
+  padding: 0.95rem 1.25rem;
+  min-height: 52px;
+  font-size: 1.05rem;
+}
+
+/* Variants */
+.btn--primary {
+  color: white;
+  border-color: rgba(255, 255, 255, 0.14);
+  background:
+    radial-gradient(120% 140% at 20% 10%, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(180deg, var(--btn-blue-700), var(--btn-blue-900));
+}
+
+.btn--primary:hover {
+  background:
+    radial-gradient(120% 140% at 20% 10%, rgba(255, 255, 255, 0.40), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(180deg, var(--btn-blue-600), var(--btn-blue-900));
+}
+
+.btn--secondary {
+  color: var(--btn-blue-900);
+  border-color: rgba(15, 58, 119, 0.18);
+  background:
+    radial-gradient(120% 140% at 20% 10%, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(180deg, #ffffff, #eef4ff);
+}
+
+.btn--secondary:hover {
+  border-color: rgba(15, 58, 119, 0.26);
+}
+
+.btn--ghost {
+  color: var(--btn-blue-900);
+  background: rgba(255, 255, 255, 0.55);
+  border-color: rgba(15, 58, 119, 0.14);
+  box-shadow: 0 10px 20px rgba(10, 30, 70, 0.10);
+}
+
+.btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.70);
+  box-shadow: 0 14px 30px rgba(10, 30, 70, 0.14);
+}
+
+.btn--danger {
+  color: white;
+  border-color: rgba(255, 255, 255, 0.14);
+  background:
+    radial-gradient(120% 140% at 20% 10%, rgba(255, 255, 255, 0.30), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(180deg, #ef4444, #991b1b);
+}
+
+/* Reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  .btn {
+    transition: none;
+  }
+
+  .btn:hover {
+    filter: none;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -252,47 +419,6 @@ body.home-page .home-main {
   outline-offset: 2px;
 }
 
-.home-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: #1f4f96;
-  color: #ffffff;
-  text-decoration: none;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 10px 16px;
-  letter-spacing: 0.01em;
-  box-shadow: 0 9px 22px rgba(20, 66, 133, 0.19);
-  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
-}
-
-.home-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 28px rgba(20, 66, 133, 0.24);
-  background: #1a4687;
-}
-
-.home-btn:focus-visible {
-  outline: 2px solid rgba(31, 79, 150, 0.45);
-  outline-offset: 2px;
-}
-
-.home-btn-muted {
-  background: rgba(255, 255, 255, 0.85);
-  color: #123660;
-  border-color: rgba(19, 55, 99, 0.2);
-  box-shadow: 0 8px 18px rgba(19, 55, 99, 0.13);
-}
-
-.home-btn-muted:hover {
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 11px 24px rgba(19, 55, 99, 0.17);
-}
-
 .home-main {
   display: grid;
   gap: 22px;
@@ -355,81 +481,6 @@ body.home-page .home-main {
 
 .hero-cta {
   margin-top: 24px;
-}
-
-/* =========================================
-   Premium 3D CTA Button - Applictus
-========================================= */
-
-.btn-cta-3d {
-  --cta-blue: #1f3f75;
-  --cta-blue-dark: #17325d;
-  --cta-blue-light: #2a5aa3;
-
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  padding: 14px 32px;
-  min-width: 180px;
-
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-
-  color: #ffffff;
-  text-decoration: none;
-
-  border-radius: 999px;
-  border: 1px solid var(--cta-blue-dark);
-
-  background: linear-gradient(to bottom, var(--cta-blue-light) 0%, var(--cta-blue) 40%, var(--cta-blue-dark) 100%);
-
-  box-shadow:
-    0 10px 20px rgba(0, 0, 0, 0.18),
-    0 4px 8px rgba(0, 0, 0, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.25);
-
-  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;
-}
-
-.btn-cta-3d:hover {
-  transform: translateY(-2px);
-
-  background: linear-gradient(to bottom, #336bc0 0%, #2454a0 40%, #183a6d 100%);
-
-  box-shadow:
-    0 14px 28px rgba(0, 0, 0, 0.22),
-    0 6px 12px rgba(0, 0, 0, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.btn-cta-3d:active {
-  transform: translateY(1px);
-
-  box-shadow:
-    0 6px 12px rgba(0, 0, 0, 0.2),
-    inset 0 3px 6px rgba(0, 0, 0, 0.4);
-}
-
-.btn-cta-3d:focus-visible {
-  outline: none;
-  box-shadow:
-    0 0 0 3px rgba(31, 63, 117, 0.35),
-    0 12px 24px rgba(0, 0, 0, 0.2);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .btn-cta-3d {
-    transition: none;
-    transform: none;
-  }
-  .btn-cta-3d:hover,
-  .btn-cta-3d:active {
-    transform: none;
-  }
 }
 
 .home-trust-line {
@@ -728,28 +779,6 @@ body.home-page .home-main {
 
 .home-panel-cta .home-cta-row {
   margin-top: 20px;
-}
-
-.home-btn-light {
-  background: #ffffff;
-  color: #133a68;
-  border-color: rgba(255, 255, 255, 0.75);
-  box-shadow: 0 12px 24px rgba(12, 42, 85, 0.2);
-}
-
-.home-btn-light:hover {
-  background: #f7fbff;
-}
-
-.home-btn-outline-light {
-  background: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.58);
-  box-shadow: none;
-}
-
-.home-btn-outline-light:hover {
-  background: rgba(255, 255, 255, 0.18);
 }
 
 @media (min-width: 1024px) {
@@ -1341,13 +1370,13 @@ body.auth-bg-debug-flash .animated-bg-icon {
   border-color: var(--color-border);
 }
 
-.topbar .ghost {
+.topbar .btn--ghost {
   background: transparent;
   color: var(--color-nav-hover);
   border: 1px solid var(--color-nav-button-border);
 }
 
-.topbar .ghost:hover {
+.topbar .btn--ghost:hover {
   background: var(--color-nav-button-hover);
   box-shadow: none;
 }
@@ -1476,43 +1505,8 @@ body.auth-bg-debug-flash .animated-bg-icon {
 }
 
 .google-btn {
-  background: #ffffff;
-  color: #3c4043;
-  border: 1px solid #dadce0;
-  min-height: 44px;
-  padding: 0 18px;
-  display: inline-flex;
-  align-items: center;
+  width: 100%;
   justify-content: center;
-  gap: 8px;
-  font-weight: 500;
-  box-shadow: none;
-  transform: none;
-  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
-}
-
-.google-btn:hover {
-  background: #f5f5f5;
-  transform: none;
-  box-shadow: none;
-}
-
-.google-btn:active {
-  background: #f0f0f0;
-  transform: none;
-  box-shadow: none;
-}
-
-.google-btn:focus-visible {
-  transform: none;
-  box-shadow: none;
-}
-
-.google-btn:disabled {
-  opacity: 0.65;
-  cursor: default;
-  transform: none;
-  box-shadow: none;
 }
 
 .google-btn .google-logo {
@@ -1968,12 +1962,12 @@ button:disabled {
   box-shadow: none;
 }
 
-.btn-primary.loading {
+.btn--primary.loading {
   position: relative;
   pointer-events: none;
 }
 
-.btn-primary.loading::before {
+.btn--primary.loading::before {
   content: '';
   width: 14px;
   height: 14px;
@@ -1990,22 +1984,6 @@ button:disabled {
   to {
     transform: rotate(360deg);
   }
-}
-button.ghost {
-  background: var(--color-card);
-  color: var(--color-accent);
-  border: 1px solid var(--color-accent);
-  box-shadow: none;
-}
-
-button.ghost:hover {
-  background: var(--color-accent-tint);
-  box-shadow: none;
-}
-
-button.ghost:active,
-button.btn-primary:active {
-  transform: scale(0.98);
 }
 
 .ghost-link {
@@ -2412,21 +2390,6 @@ textarea:focus-visible {
   box-shadow: none;
 }
 
-button.danger,
-.ghost.danger {
-  color: #b91c1c;
-  border: 1px solid #fca5a5;
-  background: #fef2f2;
-}
-
-.ghost.danger:hover {
-  background: #fee2e2;
-}
-
-.ghost.danger:active {
-  transform: scale(0.98);
-}
-
 .danger-panel {
   background: #fef2f2;
   border: 1px solid #fecdd3;
@@ -2604,18 +2567,6 @@ button.danger,
   justify-content: flex-start;
 }
 
-.btn-primary {
-  background: var(--color-accent);
-  border: 1px solid var(--color-accent);
-  color: white;
-}
-
-.btn-compact {
-  padding: 8px 12px;
-  font-size: 13px;
-  min-height: 34px;
-}
-
 .icon-btn-circle {
   width: 40px;
   height: 40px;
@@ -2644,10 +2595,6 @@ button.danger,
 .icon-btn-circle:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-}
-
-.btn-primary:hover {
-  background: var(--color-accent-hover);
 }
 
 #filter-toggle {
