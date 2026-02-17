@@ -4104,3 +4104,94 @@ details summary {
   box-shadow: none !important;
   border: 0 !important;
 }
+
+/* =========================================
+   FINAL OVERRIDE: HOME SURFACES MUST BE SOLID
+   (kills any glass/transparent layering)
+   ========================================= */
+
+/* Make sure we’re targeting the homepage. If your body uses a different class,
+   include it here too (e.g. .landing). */
+.home .surface,
+.home .tile{
+  background-color: #ffffff !important;
+  background-image: none !important;
+  opacity: 1 !important;
+
+  /* kill “glass” mechanisms */
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+
+  /* prevent inherited translucency tricks */
+  isolation: isolate !important;
+}
+
+/* Remove ALL pseudo-element overlays that can tint the panel face */
+.home .surface::before,
+.home .surface::after,
+.home .tile::before,
+.home .tile::after{
+  content: none !important;
+  display: none !important;
+}
+
+/* Also ensure wrapper shells are not translucent */
+.home .home-hero,
+.home .home-panel,
+.home .home-panel-permissions,
+.home .home-panel-cta{
+  background: transparent !important;
+  background-image: none !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
+}
+
+/* NOW rebuild 3D bevel using ONLY border + shadows (no overlays) */
+.home .surface{
+  border-radius: 28px !important;
+  border: 1px solid rgba(20, 60, 120, .20) !important;
+
+  box-shadow:
+    0 30px 70px rgba(10,30,70,.22),
+    0 12px 28px rgba(10,30,70,.14),
+
+    /* crisp top highlight + inner bevel */
+    inset 0 2px 0 rgba(255,255,255,1),
+    inset 0 10px 18px rgba(255,255,255,.75),
+    inset 0 -18px 28px rgba(10,30,70,.10),
+    inset 18px 0 22px rgba(255,255,255,.60),
+    inset -18px 0 22px rgba(10,30,70,.06) !important;
+}
+
+.home .surface-pad{ padding: 30px !important; }
+@media (max-width: 860px){
+  .home .surface-pad{ padding: 18px !important; }
+}
+
+.home .tile{
+  border-radius: 18px !important;
+  border: 1px solid rgba(20,60,120,.14) !important;
+
+  box-shadow:
+    0 14px 26px rgba(10,30,70,.12),
+    0 6px 14px rgba(10,30,70,.08),
+    inset 0 2px 0 rgba(255,255,255,1),
+    inset 0 -14px 22px rgba(10,30,70,.08) !important;
+}
+
+.home .tile-hover{
+  transition: transform .14s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.home .tile-hover:hover{
+  transform: translateY(-3px);
+  border-color: rgba(20,60,120,.22) !important;
+  box-shadow:
+    0 20px 36px rgba(10,30,70,.14),
+    0 9px 18px rgba(10,30,70,.10),
+    inset 0 2px 0 rgba(255,255,255,1),
+    inset 0 -14px 22px rgba(10,30,70,.08) !important;
+}
