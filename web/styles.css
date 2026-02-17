@@ -427,143 +427,131 @@ body.home-page .home-main {
 }
 
 /* =========================
-   Premium Surfaces (Glass + Bevel)
+   Premium Surfaces (Opaque 3D Bevel)
    ========================= */
 
-:root {
+:root{
   --surface-radius-xl: 28px;
   --surface-radius-lg: 22px;
-  --surface-border: rgba(15, 58, 119, 0.14);
-  --surface-fill: rgba(255, 255, 255, 0.82);
-  --surface-fill-2: rgba(245, 250, 255, 0.86);
 
+  /* Opaque fill */
+  --surface-fill-top: #ffffff;
+  --surface-fill-mid: #fbfdff;
+  --surface-fill-bot: #f3f7ff;
+
+  /* Borders */
+  --surface-border: rgba(20, 60, 120, .16);
+  --surface-border-soft: rgba(20, 60, 120, .10);
+
+  /* Outer shadow (lift) */
   --surface-shadow:
-    0 28px 70px rgba(10, 30, 70, 0.18),
-    0 10px 24px rgba(10, 30, 70, 0.10);
+    0 26px 60px rgba(10, 30, 70, .18),
+    0 10px 22px rgba(10, 30, 70, .10);
 
   --surface-shadow-hover:
-    0 38px 90px rgba(10, 30, 70, 0.22),
-    0 16px 34px rgba(10, 30, 70, 0.12);
+    0 34px 78px rgba(10, 30, 70, .22),
+    0 14px 30px rgba(10, 30, 70, .12);
 
-  --surface-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.75);
-  --surface-inset-shadow: inset 0 -10px 24px rgba(10, 30, 70, 0.06);
+  /* Inner bevel (depth) */
+  --bevel-top: inset 0 1px 0 rgba(255,255,255,.95);
+  --bevel-top-2: inset 0 10px 18px rgba(255,255,255,.75);
+  --bevel-bottom: inset 0 -14px 22px rgba(10, 30, 70, .08);
+  --bevel-sides: inset 12px 0 18px rgba(255,255,255,.55),
+                 inset -12px 0 20px rgba(10, 30, 70, .04);
 }
 
 /* Large containers / sections */
-.surface {
+.surface{
   position: relative;
   border-radius: var(--surface-radius-xl);
+
+  /* OPAQUE panel — no glass */
+  background: linear-gradient(180deg, var(--surface-fill-top) 0%, var(--surface-fill-mid) 45%, var(--surface-fill-bot) 100%);
+
   border: 1px solid var(--surface-border);
+  box-shadow: var(--surface-shadow), var(--bevel-top), var(--bevel-top-2), var(--bevel-bottom), var(--bevel-sides);
 
-  background:
-    radial-gradient(120% 140% at 15% 5%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 55%),
-    linear-gradient(180deg, var(--surface-fill), var(--surface-fill-2));
-
-  box-shadow: var(--surface-shadow), var(--surface-inset-highlight), var(--surface-inset-shadow);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  /* IMPORTANT: remove glass blur */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 
   overflow: hidden;
 }
 
-/* Top sheen like premium UI */
-.surface::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.75;
+/* Subtle top sheen — not transparent/glassy */
+.surface::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  opacity:.55;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0) 42%),
-    radial-gradient(90% 60% at 30% 0%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 60%);
+    radial-gradient(120% 70% at 30% 0%, rgba(255,255,255,.75), rgba(255,255,255,0) 60%),
+    linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,0) 40%);
 }
 
-/* Subtle corner vignette for depth */
-.surface::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.55;
-  background: radial-gradient(120% 120% at 85% 90%, rgba(15, 58, 119, 0.08), rgba(15, 58, 119, 0) 55%);
+/* Very light corner shading (kept subtle) */
+.surface::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  opacity:.25;
+  background: radial-gradient(120% 120% at 85% 90%, rgba(20, 60, 120, .10), rgba(20, 60, 120, 0) 55%);
 }
 
-.surface--tight {
+.surface-pad{
+  position: relative;
+  padding: 28px;
+}
+@media (max-width: 860px){
+  .surface-pad{ padding: 18px; }
+}
+
+/* Optional tighter version */
+.surface--tight{
   border-radius: var(--surface-radius-lg);
 }
 
-.surface > * {
-  position: relative;
-  z-index: 1;
-}
-
-/* Inner padding helper (optional if your layout already pads) */
-.surface-pad {
-  position: relative; /* keep above ::before/::after */
-  padding: 28px;
-}
-
-.surface--tight > .surface-pad {
-  padding: 24px;
-}
-
-@media (max-width: 860px) {
-  .surface-pad {
-    padding: 18px;
-  }
-
-  .surface--tight > .surface-pad {
-    padding: 16px;
-  }
-}
-
-/* Smaller inner tiles (feature rows / step rows) */
-.tile {
+/* Inner tiles (feature rows / steps) — also OPAQUE + bevel */
+.tile{
   position: relative;
   border-radius: 18px;
-  border: 1px solid rgba(15, 58, 119, 0.12);
-  background: rgba(255, 255, 255, 0.88);
+
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 55%, #f4f8ff 100%);
+  border: 1px solid var(--surface-border-soft);
+
   box-shadow:
-    0 14px 34px rgba(10, 30, 70, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    0 12px 26px rgba(10, 30, 70, .12),
+    inset 0 1px 0 rgba(255,255,255,.95),
+    inset 0 -10px 16px rgba(10, 30, 70, .07);
+
   overflow: hidden;
 }
 
-/* Tile bevel + shine */
-.tile::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.65;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0) 45%);
+.tile::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  opacity:.45;
+  background: linear-gradient(180deg, rgba(255,255,255,.65), rgba(255,255,255,0) 46%);
 }
 
-.tile > * {
-  position: relative;
-  z-index: 1;
+.tile-hover{
+  transition: transform .14s ease, box-shadow .18s ease;
 }
-
-.tile-hover {
-  transition: transform 0.14s ease, box-shadow 0.18s ease;
-}
-
-.tile-hover:hover {
+.tile-hover:hover{
   transform: translateY(-2px);
   box-shadow:
-    0 18px 44px rgba(10, 30, 70, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+    0 16px 34px rgba(10, 30, 70, .14),
+    inset 0 1px 0 rgba(255,255,255,.97),
+    inset 0 -10px 16px rgba(10, 30, 70, .07);
 }
 
-/* Reduce motion */
-@media (prefers-reduced-motion: reduce) {
-  .tile-hover {
-    transition: none;
-  }
-
-  .tile-hover:hover {
-    transform: none;
-  }
+@media (prefers-reduced-motion: reduce){
+  .tile-hover{ transition: none; }
+  .tile-hover:hover{ transform: none; }
 }
 
 .home-hero {
@@ -808,9 +796,7 @@ body.home-page .home-main {
 }
 
 .home-panel-permissions {
-  background:
-    radial-gradient(120% 140% at 15% 5%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 55%),
-    linear-gradient(180deg, rgba(247, 252, 255, 0.86), rgba(236, 245, 255, 0.9));
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 52%, #eef4ff 100%);
 }
 
 .home-scope-label {
@@ -874,10 +860,10 @@ body.home-page .home-main {
   align-content: center;
   color: #f6fbff;
   border-color: rgba(63, 122, 209, 0.28);
-  background: linear-gradient(135deg, rgba(31, 79, 150, 0.9) 0%, rgba(47, 103, 193, 0.88) 56%, rgba(92, 149, 242, 0.84) 100%);
+  background: linear-gradient(135deg, #1f4f96 0%, #2f67c1 56%, #5c95f2 100%);
   box-shadow:
     0 28px 56px rgba(17, 59, 116, 0.33),
-    var(--surface-inset-highlight),
+    var(--bevel-top),
     inset 0 -14px 26px rgba(8, 31, 69, 0.2);
 }
 
