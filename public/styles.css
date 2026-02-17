@@ -3593,8 +3593,21 @@ details summary {
 
 .gmail-panel {
   display: flex;
-  gap: 16px;
+  justify-content: space-between;
   align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.gmail-panel-primary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.gmail-panel-disconnect {
+  margin-left: auto;
 }
 
 .gmail-verification-note {

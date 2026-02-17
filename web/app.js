@@ -157,6 +157,7 @@ const archivedPrev = document.getElementById('archived-prev');
 const archivedNext = document.getElementById('archived-next');
 const archivedPageInfo = document.getElementById('archived-page-info');
 const emailConnect = document.getElementById('email-connect');
+const emailDisconnect = document.getElementById('email-disconnect');
 const emailSync = document.getElementById('email-sync');
 const syncDays = document.getElementById('sync-days');
 const syncStatus = document.getElementById('sync-status');
@@ -2047,6 +2048,10 @@ async function refreshEmailStatus() {
       if (emailConnect) {
         emailConnect.disabled = true;
       }
+      if (emailDisconnect) {
+        emailDisconnect.classList.add('hidden');
+        emailDisconnect.disabled = true;
+      }
       setSyncDisabled(true);
       setSyncStatusText('Disabled');
       if (accountGmailEmail) {
@@ -2072,6 +2077,10 @@ async function refreshEmailStatus() {
     if (emailConnect) {
       emailConnect.disabled = true;
     }
+    if (emailDisconnect) {
+      emailDisconnect.classList.add('hidden');
+      emailDisconnect.disabled = true;
+    }
     setSyncDisabled(true);
     setSyncStatusText('Disabled');
       if (accountGmailEmail) {
@@ -2096,6 +2105,10 @@ async function refreshEmailStatus() {
   }
     if (emailConnect) {
       emailConnect.disabled = false;
+    }
+    if (emailDisconnect) {
+      emailDisconnect.classList.toggle('hidden', !data.connected);
+      emailDisconnect.disabled = !data.connected;
     }
     setSyncDisabled(!data.connected);
     if (data.connected) {
@@ -2128,6 +2141,10 @@ async function refreshEmailStatus() {
     emailState.connected = false;
     emailState.email = null;
     setPillState(accountGmailStatus, 'Not connected', 'idle');
+    if (emailDisconnect) {
+      emailDisconnect.classList.add('hidden');
+      emailDisconnect.disabled = true;
+    }
     setSyncDisabled(true);
     setSyncStatusText('Not connected');
     if (gmailHint) {
@@ -2385,6 +2402,27 @@ async function startGmailConnectFlow() {
     throw new Error('GMAIL_CONNECT_URL_MISSING');
   }
   window.location.href = data.url;
+}
+
+async function disconnectGmailConnection(buttonEl) {
+  const originalLabel = buttonEl?.textContent || 'Disconnect';
+  if (buttonEl) {
+    buttonEl.disabled = true;
+    buttonEl.textContent = 'Disconnecting…';
+  }
+  try {
+    await api('/api/email/disconnect', { method: 'POST' });
+    await refreshEmailStatus();
+    renderSyncSummary({ status: 'not_connected', rawDetails: '' });
+    setSyncResultText('');
+  } catch (err) {
+    showNotice(err.message, 'Unable to disconnect Gmail');
+  } finally {
+    if (buttonEl) {
+      buttonEl.textContent = originalLabel;
+      buttonEl.disabled = !emailState.connected;
+    }
+  }
 }
 
 async function runEmailSync({ days, statusEl, resultEl, buttonEl }) {
@@ -4398,6 +4436,13 @@ emailConnect?.addEventListener('click', async () => {
   } catch (err) {
     showNotice(err.message, 'Unable to connect Gmail');
   }
+});
+
+emailDisconnect?.addEventListener('click', async () => {
+  if (emailDisconnect.disabled) {
+    return;
+  }
+  await disconnectGmailConnection(emailDisconnect);
 });
 
 emailSync?.addEventListener('click', async () => {

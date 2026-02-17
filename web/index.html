@@ -504,8 +504,13 @@
 	            <h3>Gmail connection</h3>
 	            <div class="stack">
 	              <div class="gmail-panel">
-                <button class="btn btn--primary btn--md" type="button" id="email-connect">Connect Gmail</button>
-                <div class="pill" id="account-gmail-status">Not connected</div>
+                <div class="gmail-panel-primary">
+                  <button class="btn btn--primary btn--md" type="button" id="email-connect">Connect Gmail</button>
+                  <div class="pill" id="account-gmail-status">Not connected</div>
+                </div>
+                <button class="btn btn--danger btn--md hidden gmail-panel-disconnect" type="button" id="email-disconnect">
+                  Disconnect
+                </button>
               </div>
               <div class="muted" id="account-gmail-email">—</div>
               <div class="callout hidden" id="gmail-hint">

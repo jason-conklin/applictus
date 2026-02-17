@@ -1291,6 +1291,20 @@ app.get('/api/email/status', requireAuth, async (req, res) => {
   });
 });
 
+app.post('/api/email/disconnect', requireAuth, async (req, res) => {
+  try {
+    await clearStoredGmailConnection(req.user.id);
+    return res.json({ ok: true });
+  } catch (err) {
+    logError('gmail.disconnect.failed', {
+      userId: req.user?.id || null,
+      code: err && err.code ? String(err.code) : null,
+      message: err && err.message ? String(err.message) : String(err)
+    });
+    return res.status(500).json({ error: 'GMAIL_DISCONNECT_FAILED' });
+  }
+});
+
 app.get('/api/email/connect/start', requireAuth, (req, res) => {
   const oauthConfig = getOAuthClientConfig();
   const oAuthClient = getOAuthClient();
