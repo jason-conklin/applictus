@@ -4195,3 +4195,123 @@ details summary {
     inset 0 2px 0 rgba(255,255,255,1),
     inset 0 -14px 22px rgba(10,30,70,.08) !important;
 }
+
+/* =========================================
+   FINAL FIX: SOLID 3D SURFACES (OPAQUE FACE LAYER)
+   ========================================= */
+
+/* Put the animated background BEHIND everything */
+.home .animated-bg,
+.home canvas,
+.home #animated-bg,
+.home .animated-background,
+.home .bg-canvas {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Ensure the homepage content sits above background */
+.home body,
+.home main,
+.home .home-root,
+.home .home-wrap,
+.home .home-grid,
+.home .home-section {
+  position: relative;
+  z-index: 1;
+}
+
+/* SOLID panel base: isolate + explicit opaque face */
+.home .surface,
+.home .tile {
+  position: relative !important;
+  isolation: isolate !important;      /* prevents blend-through */
+  z-index: 2 !important;
+
+  background: transparent !important; /* face is drawn by ::before */
+  opacity: 1 !important;
+
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  mix-blend-mode: normal !important;
+  filter: none !important;
+}
+
+/* OPAQUE FACE LAYER */
+.home .surface::before,
+.home .tile::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  border-radius: inherit !important;
+
+  background: #ffffff !important;     /* TRUE solid face */
+  opacity: 1 !important;
+
+  z-index: 0 !important;
+}
+
+/* Kill any other overlays */
+.home .surface::after,
+.home .tile::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Ensure panel content is above the face */
+.home .surface > *,
+.home .tile > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* STRONG 3D BEVEL for surfaces */
+.home .surface {
+  border-radius: 28px !important;
+  border: 1px solid rgba(20, 60, 120, 0.22) !important;
+
+  box-shadow:
+    /* outer depth */
+    0 40px 90px rgba(10, 30, 70, 0.28),
+    0 16px 34px rgba(10, 30, 70, 0.16),
+
+    /* crisp rim highlight + inner bevel */
+    inset 0 2px 0 rgba(255, 255, 255, 1),
+    inset 0 14px 22px rgba(255, 255, 255, 0.75),
+    inset 0 -26px 34px rgba(10, 30, 70, 0.12),
+    inset 26px 0 30px rgba(255, 255, 255, 0.55),
+    inset -26px 0 30px rgba(10, 30, 70, 0.08) !important;
+}
+
+/* STRONG 3D BEVEL for inner tiles */
+.home .tile {
+  border-radius: 18px !important;
+  border: 1px solid rgba(20, 60, 120, 0.18) !important;
+
+  box-shadow:
+    0 18px 32px rgba(10, 30, 70, 0.14),
+    0 7px 16px rgba(10, 30, 70, 0.10),
+    inset 0 2px 0 rgba(255, 255, 255, 1),
+    inset 0 -18px 26px rgba(10, 30, 70, 0.10) !important;
+}
+
+.home .tile-hover {
+  transition: transform .14s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.home .tile-hover:hover {
+  transform: translateY(-4px);
+  border-color: rgba(20, 60, 120, 0.28) !important;
+  box-shadow:
+    0 26px 44px rgba(10, 30, 70, 0.16),
+    0 10px 22px rgba(10, 30, 70, 0.12),
+    inset 0 2px 0 rgba(255, 255, 255, 1),
+    inset 0 -18px 26px rgba(10, 30, 70, 0.10) !important;
+}
+
+/* padding */
+.home .surface-pad { padding: 30px !important; }
+@media (max-width: 860px){
+  .home .surface-pad { padding: 18px !important; }
+}
