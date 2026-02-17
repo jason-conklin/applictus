@@ -2030,6 +2030,22 @@ textarea:focus-visible {
   line-height: 1.4;
 }
 
+.sync-strip [data-action='manage-gmail'].btn--secondary {
+  background:
+    radial-gradient(120% 140% at 20% 10%, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0) 56%),
+    linear-gradient(180deg, #ffffff, #f1f7ff);
+}
+
+.sync-strip [data-action='manage-gmail'].btn--secondary:hover {
+  color: #123a74;
+  border-color: rgba(80, 131, 214, 0.32);
+  background:
+    radial-gradient(120% 140% at 20% 10%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 58%),
+    linear-gradient(180deg, #ffffff, #e7f1ff);
+  box-shadow: 0 14px 30px rgba(16, 50, 100, 0.16), 0 4px 10px rgba(16, 50, 100, 0.1);
+  filter: none;
+}
+
 .sync-strip-status {
   display: flex;
   align-items: center;
