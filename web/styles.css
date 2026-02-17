@@ -353,6 +353,85 @@ body.home-page .home-main {
   gap: 10px;
 }
 
+.hero-cta {
+  margin-top: 24px;
+}
+
+/* =========================================
+   Premium 3D CTA Button - Applictus
+========================================= */
+
+.btn-cta-3d {
+  --cta-blue: #1f3f75;
+  --cta-blue-dark: #17325d;
+  --cta-blue-light: #2a5aa3;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 14px 32px;
+  min-width: 180px;
+
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+
+  color: #ffffff;
+  text-decoration: none;
+
+  border-radius: 999px;
+  border: 1px solid var(--cta-blue-dark);
+
+  background: linear-gradient(to bottom, var(--cta-blue-light) 0%, var(--cta-blue) 40%, var(--cta-blue-dark) 100%);
+
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, 0.18),
+    0 4px 8px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.25);
+
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;
+}
+
+.btn-cta-3d:hover {
+  transform: translateY(-2px);
+
+  background: linear-gradient(to bottom, #336bc0 0%, #2454a0 40%, #183a6d 100%);
+
+  box-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.22),
+    0 6px 12px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.btn-cta-3d:active {
+  transform: translateY(1px);
+
+  box-shadow:
+    0 6px 12px rgba(0, 0, 0, 0.2),
+    inset 0 3px 6px rgba(0, 0, 0, 0.4);
+}
+
+.btn-cta-3d:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px rgba(31, 63, 117, 0.35),
+    0 12px 24px rgba(0, 0, 0, 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-cta-3d {
+    transition: none;
+    transform: none;
+  }
+  .btn-cta-3d:hover,
+  .btn-cta-3d:active {
+    transform: none;
+  }
+}
+
 .home-trust-line {
   margin: 12px 0 0;
   font-size: 0.88rem;
