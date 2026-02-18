@@ -4553,7 +4553,7 @@ body.home-page .home-billboard-cta {
 }
 
 body.home-page .home-hero-trust {
-  margin-top: clamp(28px, 4vh, 34px);
+  margin-top: clamp(14px, 2.4vh, 20px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4796,7 +4796,7 @@ body.home-page.animate-ready.home-loaded .home-hero-trust {
   }
 
   body.home-page .home-hero-trust {
-    margin-top: clamp(24px, 3.8vh, 30px);
+    margin-top: clamp(12px, 2.6vh, 16px);
     justify-content: center;
     gap: 8px 12px;
     font-size: 12px;
