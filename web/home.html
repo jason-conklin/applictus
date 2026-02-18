@@ -35,15 +35,44 @@
         <header class="home-billboard" data-animate="billboard" aria-label="Applictus introduction">
           <div class="home-billboard-inner">
             <img
-              class="home-billboard-banner"
+              class="home-billboard-banner hero-animate-logo"
               src="/applictus-banner-no-background.png"
               alt="Applictus - Application Status Tracker"
             />
-            <div class="home-billboard-cta" data-animate="billboard-cta">
-              <a class="btn btn-bevel btn-primary" href="/app">Get Started</a>
-              <button class="btn btn-bevel btn-secondary" type="button" data-scrollto="#how">
+            <div class="home-billboard-cta hero-animate-cta" data-animate="billboard-cta">
+              <a class="btn btn-bevel btn-primary" href="/app" data-cta-btn="primary">Get Started</a>
+              <button class="btn btn-bevel btn-secondary" type="button" data-scrollto="#how" data-cta-btn="secondary">
                 See how it works
               </button>
+            </div>
+            <div class="home-hero-trust" aria-label="Trust and privacy highlights">
+              <div class="home-hero-trust-item">
+                <span class="home-hero-trust-icon" aria-hidden="true">
+                  <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                    <rect x="5.2" y="8.6" width="9.6" height="7.6" rx="2.1" fill="none" stroke="currentColor" stroke-width="1.4" />
+                    <path d="M7.2 8.4V6.9A2.8 2.8 0 0 1 10 4.1a2.8 2.8 0 0 1 2.8 2.8v1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                  </svg>
+                </span>
+                <span>Read-only access</span>
+              </div>
+              <div class="home-hero-trust-item">
+                <span class="home-hero-trust-icon" aria-hidden="true">
+                  <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                    <circle cx="10" cy="10" r="6.6" fill="none" stroke="currentColor" stroke-width="1.4" />
+                    <path d="M7.3 10.2 9.1 12l3.8-3.9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </span>
+                <span>We never send or modify email</span>
+              </div>
+              <div class="home-hero-trust-item">
+                <span class="home-hero-trust-icon" aria-hidden="true">
+                  <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                    <path d="M7.1 12.9a2.6 2.6 0 0 1 0-3.7l2.3-2.3a2.6 2.6 0 0 1 3.7 3.7L12 11.7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M12.9 7.1a2.6 2.6 0 0 1 0 3.7l-2.3 2.3a2.6 2.6 0 0 1-3.7-3.7l1.1-1.1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </span>
+                <span>Disconnect anytime</span>
+              </div>
             </div>
           </div>
         </header>
