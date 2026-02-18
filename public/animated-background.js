@@ -69,7 +69,7 @@ function populateAnimatedBackgroundIcons(layer, { count, debug }) {
   }
   layer.innerHTML = '';
 
-  const opacityBump = debug ? 0.08 : 0;
+  const opacityBoost = debug ? 1.25 : 1.12;
 
   for (let index = 0; index < count; index += 1) {
     const icon = document.createElement('span');
@@ -100,13 +100,13 @@ function populateAnimatedBackgroundIcons(layer, { count, debug }) {
     }
 
     const size = sizeBase + (Math.random() * 2 - 1);
-    const opacityMinClamped = Math.min(opacityMin + opacityBump, 0.75);
-    const opacityMaxClamped = Math.min(opacityMax + opacityBump, 0.75);
-    const opacity = opacityMinClamped + Math.random() * (opacityMaxClamped - opacityMinClamped);
+    const opacityRaw = opacityMin + Math.random() * (opacityMax - opacityMin);
+    const opacity = Math.min(opacityRaw * opacityBoost, 0.46);
     const driftX = (Math.random() * 120 - 60).toFixed(1);
     const duration = durationMin + Math.random() * (durationMax - durationMin);
     const delay = -Math.random() * duration;
-    const startY = 54 + Math.random() * 18;
+    // Start well below the viewport so icons visibly rise up into view.
+    const startY = 100 + Math.random() * 80;
     const endY = -(20 + Math.random() * 25);
     const rot0 = Math.random() * 16 - 8;
     const rotDelta = Math.random() * 20 - 10;
