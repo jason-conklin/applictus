@@ -9,7 +9,7 @@
     />
     <title>Applictus | Application Status Tracker</title>
     <link rel="icon" href="/Applictus_logo.png" type="image/png" />
-    <link rel="stylesheet" href="/styles.css?v=24" />
+    <link rel="stylesheet" href="/styles.css?v=25" />
   </head>
   <body class="home home-page animated-bg-mode animated-bg-auth">
     <div class="home-shell">
@@ -32,29 +32,24 @@
       </header>
 
       <main class="home-main">
-        <section class="home-hero hp-panel hp-panel--pad">
-          <div class="home-hero-grid">
-            <div class="home-hero-copy">
-              <p class="home-kicker">Inbox-powered application tracking</p>
-              <h1>Automatic job tracking from your inbox.</h1>
-              <p class="home-subhead">
-                Applictus reads job-related emails and turns them into a clean, organized application timeline.
-              </p>
-              <div class="hero-cta">
-                <a href="/app" class="btn btn--primary btn--lg" aria-label="Get started with Applictus">Get Started</a>
-              </div>
-              <p class="home-trust-line">Read-only Gmail access. We never send or modify email.</p>
-            </div>
-            <div class="home-hero-visual">
-              <div class="home-shot-frame">
-                <img src="/Applictus_banner.png" alt="Applictus dashboard preview" class="home-shot" />
-              </div>
+        <header class="home-billboard" data-animate="billboard" aria-label="Applictus introduction">
+          <div class="home-billboard-inner">
+            <img
+              class="home-billboard-banner"
+              src="/applictus-banner-no-background.png"
+              alt="Applictus - Application Status Tracker"
+            />
+            <div class="home-billboard-cta" data-animate="billboard-cta">
+              <a class="btn btn-bevel btn-primary" href="/app">Get Started</a>
+              <button class="btn btn-bevel btn-secondary" type="button" data-scrollto="#how-it-works">
+                See how it works
+              </button>
             </div>
           </div>
-        </section>
+        </header>
 
         <section class="home-grid" aria-label="Applictus overview">
-          <section class="home-panel home-panel-what hp-panel hp-panel--pad">
+          <section class="home-panel home-panel-what hp-panel hp-panel--pad" data-reveal>
             <header class="home-panel-head">
               <span class="home-panel-badge" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
@@ -135,7 +130,7 @@
             </div>
           </section>
 
-          <section class="home-panel home-panel-how hp-panel hp-panel--pad">
+          <section class="home-panel home-panel-how hp-panel hp-panel--pad" id="how-it-works" data-reveal>
             <header class="home-panel-head">
               <span class="home-panel-badge" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
@@ -178,7 +173,7 @@
             </div>
           </section>
 
-          <section class="home-panel home-panel-permissions hp-panel hp-panel--pad">
+          <section class="home-panel home-panel-permissions hp-panel hp-panel--pad" data-reveal>
             <header class="home-panel-head">
               <span class="home-panel-badge home-panel-badge-lock" aria-hidden="true">
                 <svg viewBox="0 0 24 24" role="img" aria-label="Lock">
@@ -211,7 +206,7 @@
             </ul>
           </section>
 
-          <section class="home-panel home-panel-cta hp-panel hp-panel--pad">
+          <section class="home-panel home-panel-cta hp-panel hp-panel--pad" data-reveal>
             <h2>Ready to organize your job search?</h2>
             <p>Start with the Applictus dashboard and keep every application update in one timeline.</p>
             <div class="home-cta-row">
@@ -222,7 +217,7 @@
         </section>
       </main>
 
-      <footer class="app-footer" role="contentinfo">
+      <footer class="app-footer" role="contentinfo" data-reveal>
         <div class="app-footer-inner">
           <div class="app-footer-copy">© 2026 Applictus</div>
           <nav class="app-footer-links" aria-label="Legal and contact links">
@@ -237,6 +232,6 @@
         </div>
       </footer>
     </div>
-    <script type="module" src="/home.js?v=1"></script>
+    <script type="module" src="/home.js?v=2"></script>
   </body>
 </html>
