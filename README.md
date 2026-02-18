@@ -1,4 +1,5 @@
 # Applictus MVP Scaffold
+<img width="1536" height="902" alt="Applictus_banner" src="https://github.com/user-attachments/assets/5d067f07-ec2e-44c0-a031-06dfc8170e8a" />
 
 Desktop-first job application tracker scaffold with auth, database, backend API, and a lightweight frontend shell. Email parsing is intentionally not implemented yet.
 
