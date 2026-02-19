@@ -4715,7 +4715,7 @@ body.home-page .home-billboard {
   --home-nav-overlap: clamp(86px, 10vh, 112px);
   --home-cap-width: 150vw;
   --home-cap-height: clamp(220px, 28vh, 300px);
-  --home-cap-lift: clamp(84px, 10vw, 132px);
+  --home-cap-lift: clamp(180px, 20vw, 260px);
   position: relative;
   width: 100vw;
   margin-left: calc(50% - 50vw);
@@ -4740,7 +4740,7 @@ body.home-page .home-cap {
   transform: translateX(-50%) translateZ(0);
   width: var(--home-cap-width);
   height: calc(var(--home-cap-height) + var(--home-cap-lift));
-  border-radius: 0 0 9999px 9999px;
+  border-radius: 0 0 52% 52% / 0 0 100% 100%;
   background: linear-gradient(180deg, #2f6fe0 0%, #2762d6 35%, #1f56c9 70%, #1a4dbd 100%);
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow:
@@ -5016,7 +5016,7 @@ body.home-page.animate-ready.home-loaded .home-hero-trust {
   body.home-page .home-billboard {
     --home-cap-width: 160vw;
     --home-cap-height: clamp(206px, 24vh, 272px);
-    --home-cap-lift: clamp(70px, 9vw, 110px);
+    --home-cap-lift: clamp(146px, 19vw, 220px);
     --home-nav-overlap: clamp(94px, 13vh, 120px);
     min-height: calc(100svh + var(--home-nav-overlap));
     padding-top: calc(var(--home-cap-height) + clamp(38px, 6vh, 64px));
@@ -5075,7 +5075,7 @@ body.home-page.animate-ready.home-loaded .home-hero-trust {
   body.home-page .home-billboard {
     --home-cap-width: 180vw;
     --home-cap-height: clamp(188px, 22vh, 236px);
-    --home-cap-lift: clamp(54px, 11vw, 94px);
+    --home-cap-lift: clamp(110px, 20vw, 170px);
     --home-nav-overlap: clamp(106px, 18vh, 138px);
     min-height: calc(100svh + var(--home-nav-overlap));
     padding-top: calc(var(--home-cap-height) + clamp(28px, 4vh, 44px));
