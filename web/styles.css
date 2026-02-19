@@ -4669,15 +4669,18 @@ body.home-page .home-nav {
 
 body.home-page .home-billboard {
   --home-nav-overlap: clamp(86px, 10vh, 112px);
-  --home-cap-width: 150vw;
-  --home-cap-height: clamp(220px, 28vh, 300px);
+  --home-nav-height: 64px;
+  --home-cap-gap: clamp(10px, 1.8vh, 18px);
+  --home-cap-width: 140vw;
+  --home-cap-height: clamp(180px, 24vw, 250px);
+  --home-cap-top: calc(var(--home-nav-overlap) + var(--home-nav-height) + var(--home-cap-gap));
   position: relative;
   width: 100vw;
   margin-left: calc(50% - 50vw);
   margin-right: calc(50% - 50vw);
   margin-top: calc(var(--home-nav-overlap) * -1);
   min-height: calc(100svh + var(--home-nav-overlap));
-  padding: calc(var(--home-cap-height) + clamp(50px, 7.4vh, 86px)) 20px clamp(66px, 9vh, 104px);
+  padding: calc(var(--home-cap-top) + var(--home-cap-height) + clamp(18px, 3.2vh, 30px)) 20px clamp(66px, 9vh, 104px);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -4690,12 +4693,12 @@ body.home-page .home-billboard {
    =========================== */
 body.home-page .home-cap {
   position: absolute;
-  top: calc(var(--home-cap-height) - var(--home-cap-width));
+  top: var(--home-cap-top);
   left: 50%;
   transform: translateX(-50%) translateZ(0);
   width: var(--home-cap-width);
-  height: var(--home-cap-width);
-  border-radius: 50%;
+  height: var(--home-cap-height);
+  border-radius: 0 0 9999px 9999px;
   background: linear-gradient(180deg, #2f6fe0 0%, #2762d6 35%, #1f56c9 70%, #1a4dbd 100%);
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow:
@@ -4992,11 +4995,12 @@ body.home-page.animate-ready.home-loaded .home-hero-trust {
 
 @media (max-width: 980px) {
   body.home-page .home-billboard {
-    --home-cap-width: 170vw;
-    --home-cap-height: clamp(206px, 24vh, 272px);
+    --home-nav-height: 66px;
+    --home-cap-width: 150vw;
+    --home-cap-height: clamp(174px, 23vw, 236px);
     --home-nav-overlap: clamp(94px, 13vh, 120px);
     min-height: calc(100svh + var(--home-nav-overlap));
-    padding-top: calc(var(--home-cap-height) + clamp(38px, 6vh, 64px));
+    padding-top: calc(var(--home-cap-top) + var(--home-cap-height) + clamp(16px, 3vh, 26px));
   }
 
   body.home-page .home-billboard-cta {
@@ -5042,11 +5046,12 @@ body.home-page.animate-ready.home-loaded .home-hero-trust {
   }
 
   body.home-page .home-billboard {
-    --home-cap-width: 210vw;
-    --home-cap-height: clamp(188px, 22vh, 236px);
+    --home-nav-height: 78px;
+    --home-cap-width: 170vw;
+    --home-cap-height: clamp(164px, 26vw, 220px);
     --home-nav-overlap: clamp(106px, 18vh, 138px);
     min-height: calc(100svh + var(--home-nav-overlap));
-    padding-top: calc(var(--home-cap-height) + clamp(28px, 4vh, 44px));
+    padding-top: calc(var(--home-cap-top) + var(--home-cap-height) + clamp(12px, 2.8vh, 22px));
   }
 
   body.home-page .home-hero-trust {
