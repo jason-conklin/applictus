@@ -116,7 +116,7 @@ Notes:
 - The local default DB path is used when `JOBTRACK_DB_PATH` is not set.
 
 ### Gmail sync
-Use the Gmail screen in the UI to run "Sync now", or call:
+Use the Gmail screen in the UI to run "Scan emails", or call:
 ```
 POST /api/email/sync
 ```
