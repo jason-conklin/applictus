@@ -4,6 +4,11 @@ function supportsReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+function getRevealNodes() {
+  const nodes = Array.from(document.querySelectorAll('.reveal, [data-reveal]'));
+  return Array.from(new Set(nodes));
+}
+
 function setupScrollCtas(reducedMotion) {
   const triggers = document.querySelectorAll('[data-scrollto]');
   triggers.forEach((trigger) => {
@@ -26,12 +31,12 @@ function setupScrollCtas(reducedMotion) {
 }
 
 function revealAllSections() {
-  const revealNodes = document.querySelectorAll('[data-reveal]');
+  const revealNodes = getRevealNodes();
   revealNodes.forEach((node) => node.classList.add('is-visible'));
 }
 
 function setupScrollReveal(reducedMotion) {
-  const revealNodes = Array.from(document.querySelectorAll('[data-reveal]'));
+  const revealNodes = getRevealNodes();
   if (!revealNodes.length) {
     return;
   }
