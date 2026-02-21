@@ -3179,15 +3179,15 @@ textarea:focus-visible {
 }
 
 #applications-table .table-row:nth-child(odd) {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 252, 255, 0.97));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.97));
 }
 
 #applications-table .table-row:nth-child(even) {
-  background: linear-gradient(180deg, rgba(231, 241, 255, 0.9), rgba(223, 236, 255, 0.88));
+  background: linear-gradient(180deg, rgba(242, 245, 248, 0.96), rgba(236, 240, 245, 0.94));
 }
 
 #applications-table .table-row:hover {
-  background: linear-gradient(180deg, rgba(221, 234, 252, 0.96), rgba(212, 227, 248, 0.94));
+  background: linear-gradient(180deg, rgba(233, 238, 244, 0.98), rgba(227, 233, 240, 0.96));
 }
 
 #applications-table .table-row.table-row-selected,
