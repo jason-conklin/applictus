@@ -119,6 +119,24 @@ const INVALID_COMPANY_TERMS = new Set([
   'human resources'
 ]);
 
+const SYSTEM_INBOX_COMPANY_TERMS = new Set([
+  'talentacquisition',
+  'talent',
+  'recruiting',
+  'recruitment',
+  'careers',
+  'career',
+  'jobs',
+  'noreply',
+  'noreplyteam',
+  'donotreply',
+  'no-reply',
+  'no_reply',
+  'notifications',
+  'notification',
+  'support'
+]);
+
 const ROLE_COMPANY_PATTERNS = [
   {
     name: 'profile_submitted_subject',
@@ -290,6 +308,11 @@ const ROLE_PATTERNS = [
     name: 'your_application_colon_role',
     regex: /your application:\s*(.+)$/i,
     confidence: 0.94
+  },
+  {
+    name: 'recent_job_application_for_role',
+    regex: /your recent job application for\s+([^.\n]+)/i,
+    confidence: 0.95
   },
   {
     name: 'thank_you_applying_for_role_tail',
@@ -653,6 +676,26 @@ function isProviderName(name) {
   return false;
 }
 
+function looksLikeEmailOrDomain(value) {
+  const text = normalize(value).toLowerCase();
+  if (!text) {
+    return false;
+  }
+  if (text.includes('@')) {
+    return true;
+  }
+  if (/\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/i.test(text)) {
+    return true;
+  }
+  if (/^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i.test(text)) {
+    return true;
+  }
+  if (/\boraclecloud\.[a-z0-9.-]+\.[a-z]{2,}\b/i.test(text)) {
+    return true;
+  }
+  return false;
+}
+
 function isInvalidCompanyCandidate(value) {
   const text = normalize(value);
   if (!text) {
@@ -664,7 +707,14 @@ function isInvalidCompanyCandidate(value) {
   if (!/[A-Za-z]/.test(text)) {
     return true;
   }
+  if (looksLikeEmailOrDomain(text)) {
+    return true;
+  }
   const lower = text.toLowerCase();
+  const compact = lower.replace(/[^a-z]/g, '');
+  if (SYSTEM_INBOX_COMPANY_TERMS.has(compact)) {
+    return true;
+  }
   if (/^(hi|hello|dear|hey)\b/.test(lower)) {
     return true;
   }
@@ -689,18 +739,6 @@ function isInvalidCompanyCandidate(value) {
   if (/unsubscribe|view in browser/i.test(lower)) {
     return true;
   }
-  if (/^(your|our|this|that|these|those|my)\b/.test(lower)) {
-    return true;
-  }
-  if (/^[A-Za-z]{2,40},/.test(text) || /,\s*thank you/i.test(lower)) {
-    return true;
-  }
-  if (lower.includes('thank you') && lower.split(/\s+/).length <= 6) {
-    return true;
-  }
-  if (/\bjoining us\b/i.test(lower) || /\bwe appreciate\b/i.test(lower) || /\bthank you so much\b/i.test(lower)) {
-    return true;
-  }
   if (INVALID_COMPANY_TERMS.has(lower)) {
     return true;
   }
@@ -721,6 +759,84 @@ function cleanEntity(value) {
 
 function cleanRoleEntity(value) {
   return normalize(value).replace(/\s+\[.*\]$/, '').trim();
+}
+
+const ROLE_PREFIX_PATTERNS = [
+  /^role of\s+/i,
+  /^position of\s+/i,
+  /^job application:\s*/i,
+  /^application:\s*/i,
+  /^re:\s*/i,
+  /^your application to\s+/i,
+  /^application to\s+/i,
+  /^applying for\s+/i,
+  /^applied for\s+/i,
+  /^for\s+(?:the\s+)?role of\s+/i,
+  /^for\s+(?:the\s+)?position of\s+/i,
+  /^(?:the\s+)?role of\s+/i,
+  /^(?:the\s+)?position of\s+/i
+];
+
+const ROLE_BOILERPLATE_PATTERNS = [
+  /^thank you for/i,
+  /^we regret to inform/i,
+  /^after careful consideration/i,
+  /^unfortunately/i,
+  /time and effort you put into applying/i,
+  /we (?:will not|won't) be moving forward/i
+];
+
+function isBoilerplateRoleCandidate(value) {
+  const text = normalize(value).toLowerCase();
+  if (!text) {
+    return true;
+  }
+  if (ROLE_BOILERPLATE_PATTERNS.some((pattern) => pattern.test(text))) {
+    return true;
+  }
+  if (text.length > 80 && /\b(thank you|we regret|after careful consideration|unfortunately|time and effort)\b/i.test(text)) {
+    return true;
+  }
+  return false;
+}
+
+function normalizeRole(raw) {
+  let text = normalize(raw);
+  if (!text) {
+    return null;
+  }
+
+  text = text.replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').trim();
+
+  let previous = null;
+  while (text && text !== previous) {
+    previous = text;
+    for (const pattern of ROLE_PREFIX_PATTERNS) {
+      text = text.replace(pattern, '');
+    }
+    text = text.replace(/^(?:the|a|an)\s+/i, '').trim();
+    text = normalize(text);
+  }
+
+  text = text.replace(/[.!,;:]+$/g, '').trim();
+  text = normalize(text);
+  if (isBoilerplateRoleCandidate(text)) {
+    return null;
+  }
+  return text || null;
+}
+
+function normalizeCompany(raw) {
+  let text = normalize(raw);
+  if (!text) {
+    return null;
+  }
+
+  text = text.replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').trim();
+  text = text.replace(/\s+(?:Recruiting Department|Talent Acquisition Team|Department)\s*$/i, '');
+  text = text.replace(/[.!,;:]+$/g, '').trim();
+  text = normalize(text);
+  return text || null;
 }
 
 function normalizeDisplayTitle(title) {
@@ -782,7 +898,8 @@ function cleanCompanyCandidate(value) {
     .replace(/^(?:no[-\s]?reply|noreply|do not reply)\b[: ]*/i, '')
     .replace(/[,:;|]+$/g, '')
     .trim();
-  const lower = cleaned.toLowerCase();
+  const normalizedCompany = normalizeCompany(cleaned);
+  const lower = String(normalizedCompany || '').toLowerCase();
   const stopPhrases = [
     'taking the time to apply',
     'thank you for your interest',
@@ -795,22 +912,26 @@ function cleanCompanyCandidate(value) {
     'notifications',
     'joining us'
   ];
-  if (!cleaned || cleaned.length > 60) {
+  if (!normalizedCompany || normalizedCompany.length > 60) {
     return null;
   }
   if (stopPhrases.some((p) => lower.includes(p))) {
     return null;
   }
-  if (/\b(apply|applying|apply)\b/i.test(cleaned)) {
+  if (/\b(apply|applying|apply)\b/i.test(normalizedCompany)) {
     return null;
   }
-  if (/^(hi|hello|dear|hey)\b/i.test(cleaned)) {
+  if (/^(hi|hello|dear|hey)\b/i.test(normalizedCompany)) {
     return null;
   }
-  if (!cleaned || isProviderName(cleaned) || isInvalidCompanyCandidate(cleaned)) {
+  if (
+    !normalizedCompany ||
+    isProviderName(normalizedCompany) ||
+    isInvalidCompanyCandidate(normalizedCompany)
+  ) {
     return null;
   }
-  return cleaned || null;
+  return normalizedCompany || null;
 }
 
 function stripSignatureNoise(line) {
@@ -956,7 +1077,12 @@ function normalizeRoleCandidate(value, companyName) {
   if (!value) {
     return null;
   }
-  let text = cleanRoleEntity(value);
+  let text = normalizeRole(cleanRoleEntity(value));
+  if (!text) {
+    return null;
+  }
+  text = text.replace(/\s*\|\s*-\s*#?\d{2,}\s*$/i, '');
+  text = text.replace(/\s+(?:-|–|—|\|)\s*(?:req(?:uisition)?\s*(?:id)?\s*)?#?\d{2,}\s*$/i, '');
   text = text.replace(/\b(?:req(?:uisition)?|job id|job)\s*#?:?\s*[A-Z]*-?\d+\b/gi, '');
   text = text.replace(/\bR-\d+\b/gi, '');
   text = text.replace(/\s*[,;|]\s*R-\d+$/i, '');
@@ -971,7 +1097,10 @@ function normalizeRoleCandidate(value, companyName) {
     ''
   );
   text = text.replace(/[\s,:;\-|]+$/g, '');
-  text = sanitizeJobTitle(text);
+  text = normalizeRole(sanitizeJobTitle(text));
+  if (isBoilerplateRoleCandidate(text)) {
+    return null;
+  }
   return text || null;
 }
 
@@ -1035,6 +1164,24 @@ function isGenericRole(value) {
   }
   return words.every((word) => GENERIC_ROLE_TERMS.has(word));
 }
+
+const INDEED_APPLY_COMPANY_DENYLIST = new Set([
+  'indeed',
+  'indeed apply',
+  'unknown',
+  'application submitted'
+]);
+
+const INDEED_APPLY_IGNORED_LINE_PATTERNS = [
+  /^application submitted\b/i,
+  /^next steps?\b/i,
+  /^good luck\b/i,
+  /^indeed\b/i,
+  /^view (?:application|job)\b/i,
+  /^manage (?:preferences|alerts)\b/i,
+  /^the following items were sent to\b/i,
+  /^this information was sent to\b/i
+];
 
 function scoreForSource(base, source) {
   if (source === 'subject') {
@@ -1449,6 +1596,408 @@ function domainConfidence(companyName, senderDomain) {
   return { score: 0.4, isAtsDomain: false };
 }
 
+function isOracleCloudSender(sender) {
+  const senderEmail = extractEmailAddress(sender) || '';
+  const senderDomain = extractSenderDomain(sender) || '';
+  return /oraclecloud\./i.test(senderEmail) || /oraclecloud\./i.test(senderDomain);
+}
+
+function normalizeOracleCompany(value) {
+  if (!value) {
+    return null;
+  }
+  let candidate = normalize(value)
+    .replace(/\s*[|]\s*.*$/g, '')
+    .replace(/\s+(?:careers|recruiting team)\s*$/i, '')
+    .replace(/[.!,;:]+$/g, '')
+    .trim();
+  candidate = normalizeCompany(candidate);
+  if (!candidate || isInvalidCompanyCandidate(candidate)) {
+    return null;
+  }
+  return candidate;
+}
+
+function extractOracleCloudIdentity({ subject, snippet, bodyText, sender }) {
+  if (!isOracleCloudSender(sender)) {
+    return null;
+  }
+  const normalizedSubject = normalize(subject);
+  const bodySource = `${String(bodyText || '')}\n${String(snippet || '')}`.replace(/\r\n/g, '\n');
+  const lines = bodySource
+    .split(/\r?\n/)
+    .map((line) => normalize(line))
+    .filter(Boolean);
+
+  const subjectRoleMatch = normalizedSubject.match(/your recent job application for\s+(.+?)(?:[.!?]|$)/i);
+  const joiningMatch =
+    bodySource.match(/thanks? for your interest in joining\s+(.+?)\s+for\s+(.+?)(?:[.\n]|$)/i) ||
+    bodySource.match(/joining\s+(.+?)\s+for\s+(.+?)(?:[.\n]|$)/i);
+  const applyingMatch = bodySource.match(
+    /applying for (?:the )?(.+?)\s+(?:\|\s*)?position\s+to\s+(.+?)(?:[.\n]|$)/i
+  );
+
+  let companyName = null;
+  let companySource = 'none';
+  if (joiningMatch) {
+    const candidate = normalizeOracleCompany(joiningMatch[1]);
+    if (candidate) {
+      companyName = candidate;
+      companySource = 'joining_for';
+    }
+  }
+  if (!companyName && applyingMatch) {
+    const candidate = normalizeOracleCompany(applyingMatch[2]);
+    if (candidate) {
+      companyName = candidate;
+      companySource = 'position_to';
+    }
+  }
+  if (!companyName) {
+    for (const line of lines) {
+      const careersMatch = line.match(/^(.+?)\s+careers(?:\s*[|:-]\s*(.+))?$/i);
+      if (careersMatch) {
+        const rightCandidate = normalizeOracleCompany(careersMatch[2] || '');
+        const leftCandidate = normalizeOracleCompany(careersMatch[1]);
+        const candidate = rightCandidate || leftCandidate;
+        if (candidate) {
+          companyName = candidate;
+          companySource = 'signature_careers';
+          break;
+        }
+      }
+      const recruitingMatch = line.match(/^(.+?)\s+recruiting team$/i);
+      if (recruitingMatch) {
+        const candidate = normalizeOracleCompany(recruitingMatch[1]);
+        if (candidate) {
+          companyName = candidate;
+          companySource = 'signature_recruiting';
+          break;
+        }
+      }
+    }
+  }
+
+  const roleRaw =
+    (subjectRoleMatch && subjectRoleMatch[1] && normalize(subjectRoleMatch[1])) ||
+    (joiningMatch && joiningMatch[2] && normalize(joiningMatch[2])) ||
+    (applyingMatch && applyingMatch[1] && normalize(applyingMatch[1])) ||
+    null;
+  const jobTitle = normalizeRoleCandidate(roleRaw, companyName);
+  if (!companyName && !jobTitle) {
+    return null;
+  }
+
+  const senderDomain = extractSenderDomain(sender);
+  const domainResult = domainConfidence(companyName, senderDomain);
+  const companyConfidence =
+    companySource === 'joining_for' || companySource === 'position_to'
+      ? 0.95
+      : companySource === 'signature_careers' || companySource === 'signature_recruiting'
+      ? 0.9
+      : 0;
+  const roleConfidence = jobTitle
+    ? subjectRoleMatch
+      ? 0.95
+      : joiningMatch || applyingMatch
+      ? 0.92
+      : 0.88
+    : null;
+  const matchConfidence = companyName
+    ? jobTitle
+      ? Math.min(companyConfidence, roleConfidence || companyConfidence)
+      : companyConfidence
+    : 0;
+
+  return {
+    providerHint: 'oracle_cloud',
+    companyName: companyName || null,
+    jobTitle: jobTitle || null,
+    senderDomain,
+    companyConfidence,
+    roleConfidence,
+    domainConfidence: domainResult.score,
+    matchConfidence,
+    isAtsDomain: domainResult.isAtsDomain,
+    isPlatformEmail: true,
+    bodyTextAvailable: Boolean(String(bodyText || '').trim()),
+    explanation: `Oracle Cloud parser (${companySource || 'none'} company).`
+  };
+}
+
+function stripTrailingBracketedSegments(value) {
+  let text = normalize(value);
+  if (!text) {
+    return '';
+  }
+  let previous = null;
+  while (text && text !== previous) {
+    previous = text;
+    text = text
+      .replace(/\s*\([^()]*\)\s*$/g, '')
+      .replace(/\s*\[[^\[\]]*]\s*$/g, '')
+      .trim();
+  }
+  return text;
+}
+
+function splitApplicationToTarget(target) {
+  const separators = [' - ', ' – ', ' — ', ' | ', ' : '];
+  for (const separator of separators) {
+    const index = target.indexOf(separator);
+    if (index <= 0) {
+      continue;
+    }
+    const left = target.slice(0, index).trim();
+    const right = target.slice(index + separator.length).trim();
+    if (!left || !right) {
+      continue;
+    }
+    return { left, right, separator };
+  }
+  const compactHyphen = target.match(/^(.+?)\s*-\s*(.+)$/);
+  if (compactHyphen && compactHyphen[1] && compactHyphen[2]) {
+    return {
+      left: compactHyphen[1].trim(),
+      right: compactHyphen[2].trim(),
+      separator: '-'
+    };
+  }
+  return null;
+}
+
+function extractApplicationToSubjectIdentity({ subject, sender }) {
+  const subjectText = stripTrailingBracketedSegments(subject);
+  if (!subjectText) {
+    return null;
+  }
+  const targetMatch =
+    subjectText.match(/^thank you for your application to\s+(.+)$/i) ||
+    subjectText.match(/\byour application to\s+(.+)$/i) ||
+    subjectText.match(/\bapplication submitted to\s+(.+)$/i);
+  if (!targetMatch || !targetMatch[1]) {
+    return null;
+  }
+
+  const target = normalize(targetMatch[1]).replace(/[.!?]+$/g, '').trim();
+  if (!target) {
+    return null;
+  }
+
+  const split = splitApplicationToTarget(target);
+  const companyName = normalizeCompany(split ? split.left : target);
+  let jobTitle = split ? normalizeRole(split.right) : null;
+  if (jobTitle && isGenericRole(jobTitle)) {
+    jobTitle = null;
+  }
+
+  if (!companyName || isInvalidCompanyCandidate(companyName)) {
+    return null;
+  }
+
+  const senderDomain = extractSenderDomain(sender);
+  const senderName = extractSenderName(sender);
+  const isPlatformSender = senderName ? isProviderName(senderName) : false;
+  const domainResult = domainConfidence(companyName, senderDomain);
+  const companyConfidence = split ? 0.93 : 0.9;
+  const roleConfidence = jobTitle ? 0.92 : null;
+  const matchConfidence = jobTitle
+    ? Math.min(companyConfidence, roleConfidence || companyConfidence)
+    : companyConfidence;
+
+  return {
+    providerHint: 'application_to_subject',
+    companyName,
+    jobTitle,
+    senderDomain,
+    companyConfidence,
+    roleConfidence,
+    domainConfidence: domainResult.score,
+    matchConfidence,
+    isAtsDomain: domainResult.isAtsDomain,
+    isPlatformEmail: isPlatformSender || domainResult.isAtsDomain,
+    bodyTextAvailable: false,
+    explanation: split
+      ? `Parsed application-to subject using ${split.separator} separator.`
+      : 'Parsed application-to subject without explicit role separator.'
+  };
+}
+
+function isIndeedApplyApplicationSubmittedEmail({ subject, sender, snippet, bodyText }) {
+  const senderEmail = extractEmailAddress(sender) || String(sender || '');
+  if (!/indeedapply@indeed\.com/i.test(senderEmail)) {
+    return false;
+  }
+  const normalizedSubject = normalize(subject);
+  const combinedText = `${normalize(snippet)}\n${normalize(bodyText)}`;
+  return /indeed application:/i.test(normalizedSubject) || /application submitted/i.test(combinedText);
+}
+
+function isIndeedApplyIgnoredLine(value) {
+  const text = normalize(value);
+  if (!text) {
+    return true;
+  }
+  return INDEED_APPLY_IGNORED_LINE_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function normalizeIndeedApplyRole(value) {
+  const text = normalize(value);
+  if (!text || isIndeedApplyIgnoredLine(text)) {
+    return null;
+  }
+  if (/\bsent to\b/i.test(text)) {
+    return null;
+  }
+  if ((text.match(/[.!?]/g) || []).length > 1) {
+    return null;
+  }
+  if (text.split(/\s+/).length > 14 && /[.!?]/.test(text)) {
+    return null;
+  }
+  let normalizedRole = text
+    .replace(/^(?:role|position|title)\s*[:\-]\s*/i, '')
+    .replace(/\s+[·•|]\s+.*$/g, '')
+    .replace(/\s+\((?:remote|hybrid|on[- ]site)\)\s*$/i, '')
+    .trim();
+  normalizedRole = normalizedRole.replace(/[;|]+$/g, '').trim();
+  normalizedRole = normalizedRole.replace(/[.!?]+$/g, '').trim();
+  if (!normalizedRole || normalizedRole.length > 120 || isGenericRole(normalizedRole)) {
+    return null;
+  }
+  if (/\b(?:indeed|application submitted|next steps?)\b/i.test(normalizedRole)) {
+    return null;
+  }
+  return normalizedRole;
+}
+
+function normalizeIndeedApplyCompany(value) {
+  const text = normalize(value);
+  if (!text || isIndeedApplyIgnoredLine(text)) {
+    return null;
+  }
+  let candidate = text
+    .replace(/^(?:company|employer)\s*[:\-]\s*/i, '')
+    .replace(/^(?:to|at)\s+/i, '')
+    .replace(/\s+[·•|]\s+.*$/g, '')
+    .replace(/[,:;]+$/g, '')
+    .trim();
+  if (!candidate) {
+    return null;
+  }
+  const locationSplit = candidate.split(/\s+-\s+/);
+  if (locationSplit.length > 1) {
+    candidate = locationSplit[0].trim();
+  }
+  candidate = candidate.replace(/[.!?]+$/g, '').trim();
+  if (!candidate) {
+    return null;
+  }
+  if (INDEED_APPLY_COMPANY_DENYLIST.has(candidate.toLowerCase())) {
+    return null;
+  }
+  if (isProviderName(candidate) || isInvalidCompanyCandidate(candidate)) {
+    return null;
+  }
+  return candidate;
+}
+
+function extractIndeedApplyIdentity({ subject, snippet, bodyText, sender }) {
+  if (!isIndeedApplyApplicationSubmittedEmail({ subject, sender, snippet, bodyText })) {
+    return null;
+  }
+
+  const normalizedSubject = normalize(subject);
+  const combinedText = `${String(bodyText || '')}\n${String(snippet || '')}`.replace(/\r\n/g, '\n');
+  const lines = combinedText
+    .split(/\r?\n/)
+    .map((line) => normalize(line))
+    .filter(Boolean);
+
+  const subjectRoleMatch = normalizedSubject.match(/indeed application:\s*(.+)$/i);
+  const subjectRole = subjectRoleMatch ? normalizeIndeedApplyRole(subjectRoleMatch[1]) : null;
+
+  const applicationSubmittedIndex = lines.findIndex((line) => /application submitted/i.test(line));
+  const scanStart = applicationSubmittedIndex >= 0 ? applicationSubmittedIndex + 1 : 0;
+  const scanEnd = Math.min(lines.length, scanStart + 12);
+
+  let bodyRole = null;
+  let roleLineIndex = -1;
+  for (let i = scanStart; i < scanEnd; i += 1) {
+    const roleCandidate = normalizeIndeedApplyRole(lines[i]);
+    if (!roleCandidate) {
+      continue;
+    }
+    bodyRole = roleCandidate;
+    roleLineIndex = i;
+    break;
+  }
+
+  const jobTitle = subjectRole || bodyRole || null;
+  const roleSource = subjectRole ? 'subject' : bodyRole ? 'body' : 'none';
+
+  let companyName = null;
+  let companySource = 'none';
+  const companyScanStart = roleLineIndex >= 0 ? roleLineIndex + 1 : scanStart;
+  const companyScanEnd = Math.min(lines.length, companyScanStart + 8);
+  for (let i = companyScanStart; i < companyScanEnd; i += 1) {
+    const companyCandidate = normalizeIndeedApplyCompany(lines[i]);
+    if (!companyCandidate) {
+      continue;
+    }
+    companyName = companyCandidate;
+    companySource = 'body_adjacent';
+    break;
+  }
+
+  if (!companyName) {
+    const sentToMatch =
+      combinedText.match(/the following items were sent to\s+(.+?)\.\s*good luck!?/i) ||
+      combinedText.match(/\bsent to\s+(.+?)\.\s*good luck!?/i) ||
+      combinedText.match(/\bsent to\s+(.+?)(?:[.!?]|$)/i);
+    if (sentToMatch && sentToMatch[1]) {
+      const sentenceCompany = normalizeIndeedApplyCompany(sentToMatch[1]);
+      if (sentenceCompany) {
+        companyName = sentenceCompany;
+        companySource = 'sent_to_sentence';
+      }
+    }
+  }
+
+  if (!companyName && !jobTitle) {
+    return null;
+  }
+
+  const senderDomain = extractSenderDomain(sender);
+  const companyConfidence = companyName
+    ? companySource === 'body_adjacent'
+      ? 0.93
+      : 0.9
+    : 0;
+  const roleConfidence = jobTitle ? (roleSource === 'subject' ? 0.95 : 0.9) : null;
+  const domainResult = domainConfidence(companyName, senderDomain);
+  const matchConfidence = companyName
+    ? jobTitle
+      ? Math.min(companyConfidence, roleConfidence || companyConfidence)
+      : companyConfidence
+    : 0;
+
+  return {
+    providerHint: 'indeed_apply',
+    companyName: companyName || null,
+    jobTitle,
+    senderDomain,
+    companyConfidence,
+    roleConfidence,
+    domainConfidence: domainResult.score,
+    matchConfidence,
+    isAtsDomain: domainResult.isAtsDomain,
+    isPlatformEmail: true,
+    bodyTextAvailable: Boolean(String(bodyText || '').trim()),
+    explanation: `Indeed Apply parser (${roleSource} role, ${companySource} company).`
+  };
+}
+
 function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender }) {
   const senderDomain = extractSenderDomain(sender);
   const isLinkedInJobsSender = /jobs-noreply@linkedin\.com/i.test(String(sender || ''));
@@ -1711,6 +2260,15 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   const subjectText = normalize(subject);
   const snippetText = normalize(snippet);
   const bodyTextRaw = String(bodyText || '');
+  const indeedApplyIdentity = extractIndeedApplyIdentity({
+    subject: subjectText,
+    snippet: snippetText,
+    bodyText: bodyTextRaw,
+    sender
+  });
+  if (indeedApplyIdentity) {
+    return indeedApplyIdentity;
+  }
   const linkedInIdentity = extractLinkedInApplicationIdentity({
     subject: subjectText,
     snippet: snippetText,
@@ -1723,6 +2281,22 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   const digestIdentity = extractWorkdayDigestIdentity({ subject: subjectText, bodyText: bodyTextRaw, sender });
   if (digestIdentity) {
     return digestIdentity;
+  }
+  const oracleCloudIdentity = extractOracleCloudIdentity({
+    subject: subjectText,
+    snippet: snippetText,
+    bodyText: bodyTextRaw,
+    sender
+  });
+  if (oracleCloudIdentity) {
+    return oracleCloudIdentity;
+  }
+  const applicationToSubjectIdentity = extractApplicationToSubjectIdentity({
+    subject: subjectText,
+    sender
+  });
+  if (applicationToSubjectIdentity) {
+    return applicationToSubjectIdentity;
   }
   const senderName = extractSenderName(sender);
   const roleMatch =
@@ -1934,6 +2508,8 @@ module.exports = {
   extractCompanyFromBodyText,
   normalizeExternalReqId,
   sanitizeJobTitle,
+  normalizeRole,
+  normalizeCompany,
   normalizeRoleTokens,
   roleStrength,
   extractRoleTail,

@@ -1031,6 +1031,21 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
       });
 
       const identity = extractThreadIdentity({ subject, sender, snippet, bodyText });
+      const indeedApplyDebugEnabled =
+        process.env.JOBTRACK_LOG_LEVEL === 'debug' || String(process.env.DEBUG_INGEST_INDEED_MATCH || '') === '1';
+      if (indeedApplyDebugEnabled && /indeedapply@indeed\.com/i.test(String(sender || ''))) {
+        logDebug('ingest.indeed_apply_identity', {
+          providerMessageId: message.id,
+          subject: subject || null,
+          sender: sender || null,
+          providerHint: identity?.providerHint || null,
+          extractedCompany: identity?.companyName || null,
+          extractedRole: identity?.jobTitle || null,
+          companyConfidence: identity?.companyConfidence || 0,
+          roleConfidence: identity?.roleConfidence || 0,
+          explanation: identity?.explanation || null
+        });
+      }
       const roleResult = extractJobTitle({
         subject,
         snippet,

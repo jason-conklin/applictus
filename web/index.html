@@ -701,13 +701,21 @@
               </div>
             </div>
             <div class="header-right">
-              <div class="view-toggle segmented" id="view-toggle">
-                <button class="active" type="button" data-view="pipeline">Pipeline</button>
-                <button type="button" data-view="table">Table</button>
+              <div class="pager-pill" id="table-pager-top" aria-label="Applications pagination">
+                <button class="pager-btn" type="button" id="table-prev-top" aria-label="Previous page">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m15 18-6-6 6-6" />
+                  </svg>
+                </button>
+                <div class="pager-text" id="table-page-info-top">- / -</div>
+                <button class="pager-btn" type="button" id="table-next-top" aria-label="Next page">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
+                </button>
               </div>
             </div>
           </div>
-          <div class="pipeline-view" id="pipeline-view"></div>
           <div class="table" id="applications-table"></div>
           <div class="pagination" id="table-pagination">
             <button class="btn btn--ghost btn--sm" type="button" id="table-prev">Prev</button>

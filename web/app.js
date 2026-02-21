@@ -139,12 +139,10 @@ const addToggle = document.getElementById('add-toggle');
 const addPanel = null;
 const filterCount = document.getElementById('filter-count');
 const applicationsTable = document.getElementById('applications-table');
-const pipelineView = document.getElementById('pipeline-view');
 const appCount = document.getElementById('app-count');
 const archivedTable = document.getElementById('archived-table');
 const archivedCount = document.getElementById('archived-count');
 const unsortedTable = document.getElementById('unsorted-table');
-const viewToggle = document.getElementById('view-toggle');
 const filterStatus = document.getElementById('filter-status');
 const filterCompany = document.getElementById('filter-company');
 const filterCompanyClear = document.getElementById('filter-company-clear');
@@ -153,6 +151,9 @@ const filterRoleClear = document.getElementById('filter-role-clear');
 const tablePrev = document.getElementById('table-prev');
 const tableNext = document.getElementById('table-next');
 const tablePageInfo = document.getElementById('table-page-info');
+const tablePrevTop = document.getElementById('table-prev-top');
+const tableNextTop = document.getElementById('table-next-top');
+const tablePageInfoTop = document.getElementById('table-page-info-top');
 const archivedPrev = document.getElementById('archived-prev');
 const archivedNext = document.getElementById('archived-next');
 const archivedPageInfo = document.getElementById('archived-page-info');
@@ -253,8 +254,6 @@ let currentDetail = null;
 let csrfToken = null;
 const STATUS_OPTIONS = Object.keys(STATUS_LABELS);
 const PAGE_SIZE = 25;
-const PIPELINE_LIMIT = 15;
-const VIEW_MODE_KEY = 'applictus:viewMode';
 const SYNC_DETAILS_KEY = 'applictus:syncDetailsOpen';
 let rcInitialized = false;
 let rcSessionId = null;
@@ -282,18 +281,6 @@ function formatRoleSource(application) {
   return `Email ${source}`;
 }
 
-function getInitialViewMode() {
-  try {
-    const stored = localStorage.getItem(VIEW_MODE_KEY);
-    if (stored === 'pipeline' || stored === 'table') {
-      return stored;
-    }
-  } catch (err) {
-    return 'table';
-  }
-  return 'table';
-}
-
 function formatShortDate(date, includeYear = false) {
   if (!date) return '';
   const d = typeof date === 'string' ? new Date(date) : date;
@@ -314,7 +301,6 @@ function formatDateRange(startIso, endIso) {
 }
 
 const state = {
-  viewMode: getInitialViewMode(),
   filters: {
     status: '',
     company: '',
@@ -1472,15 +1458,6 @@ function buildListParams(overrides = {}) {
   return params;
 }
 
-function syncViewToggle() {
-  if (!viewToggle) {
-    return;
-  }
-  viewToggle.querySelectorAll('button[data-view]').forEach((button) => {
-    button.classList.toggle('active', button.dataset.view === state.viewMode);
-  });
-}
-
 function toggleSection(section, isVisible) {
   if (!section) {
     return;
@@ -1526,9 +1503,6 @@ function updateDashboardMeta(total) {
   if (appCount) {
     appCount.textContent = `${total} tracked`;
   }
-  if (viewToggle) {
-    viewToggle.classList.toggle('hidden', total === 0);
-  }
 }
 
 function updateKpiCounts({ total = 0, applied = 0, offer = 0, rejected = 0 } = {}) {
@@ -1562,7 +1536,7 @@ function getKpiCountsFromColumns(columns) {
   return counts;
 }
 
-async function refreshKpisFromPipeline() {
+async function refreshDashboardKpis() {
   if (!kpiTotal) {
     return;
   }
@@ -1584,11 +1558,7 @@ function refreshDashboardEmptyStateIfNeeded() {
   if (hash && hash !== 'dashboard') {
     return;
   }
-  if (state.viewMode === 'pipeline') {
-    renderPipeline([], 0);
-  } else {
-    renderApplicationsTable([]);
-  }
+  renderApplicationsTable([]);
 }
 
 function setProfileMenuOpen(nextOpen) {
@@ -1892,7 +1862,6 @@ async function loadSession() {
   addToggle?.setAttribute('aria-expanded', 'false');
 
   setView('dashboard');
-  syncViewToggle();
 
   try {
     await loadActiveApplications();
@@ -1915,76 +1884,43 @@ async function loadSession() {
 }
 
 async function loadActiveApplications() {
-  if (state.viewMode === 'pipeline') {
-    await refreshPipeline();
-  } else {
-    await refreshTable();
-  }
-}
-
-async function refreshPipeline() {
-  if (!pipelineView) {
-    return;
-  }
-  pipelineView.classList.remove('hidden');
-  if (applicationsTable) {
-    applicationsTable.classList.add('hidden');
-  }
-  const pagination = document.getElementById('table-pagination');
-  if (pagination) {
-    pagination.classList.add('hidden');
-  }
-  const params = buildListParams();
-  params.set('per_status_limit', String(PIPELINE_LIMIT));
-  const data = await api(`/api/applications/pipeline?${params.toString()}`);
-  if (DEBUG_AUTH) {
-    // eslint-disable-next-line no-console
-    console.debug('[apps] pipeline response', {
-      status: data?.status,
-      type: typeof data,
-      isArray: Array.isArray(data)
-    });
-  }
-  const columns = data.columns || [];
-  const total = columns.reduce((sum, col) => sum + (col.count || 0), 0);
-  updateDashboardMeta(total);
-  updateKpiCounts(getKpiCountsFromColumns(columns));
-  state.lastTotal = total;
-  renderPipeline(columns, total);
+  await refreshTable();
 }
 
 async function refreshTable() {
   if (!applicationsTable) {
     return;
   }
-  if (pipelineView) {
-    pipelineView.classList.add('hidden');
+  setTablePaginationLoading(true);
+  try {
+    applicationsTable.classList.remove('hidden');
+    const pagination = document.getElementById('table-pagination');
+    if (pagination) {
+      pagination.classList.remove('hidden');
+    }
+    const params = buildListParams();
+    params.set('limit', String(PAGE_SIZE));
+    params.set('offset', String(state.table.offset));
+    const data = await api(`/api/applications?${params.toString()}`);
+    if (DEBUG_AUTH) {
+      // eslint-disable-next-line no-console
+      console.debug('[apps] table response', {
+        status: data?.status,
+        type: typeof data,
+        isArray: Array.isArray(data)
+      });
+    }
+    const apps = normalizeApplicationsList(data);
+    state.table.total = data.total || apps.length || 0;
+    state.table.data = apps;
+    updateDashboardMeta(state.table.total);
+    state.lastTotal = state.table.total;
+    renderApplicationsTable(sortApplications(state.table.data));
+    await refreshDashboardKpis();
+  } finally {
+    setTablePaginationLoading(false);
+    updateTablePagination();
   }
-  applicationsTable.classList.remove('hidden');
-  const pagination = document.getElementById('table-pagination');
-  if (pagination) {
-    pagination.classList.remove('hidden');
-  }
-  const params = buildListParams();
-  params.set('limit', String(PAGE_SIZE));
-  params.set('offset', String(state.table.offset));
-  const data = await api(`/api/applications?${params.toString()}`);
-  if (DEBUG_AUTH) {
-    // eslint-disable-next-line no-console
-    console.debug('[apps] table response', {
-      status: data?.status,
-      type: typeof data,
-      isArray: Array.isArray(data)
-    });
-  }
-  const apps = normalizeApplicationsList(data);
-  state.table.total = data.total || apps.length || 0;
-  state.table.data = apps;
-  updateDashboardMeta(state.table.total);
-  state.lastTotal = state.table.total;
-  renderApplicationsTable(sortApplications(state.table.data));
-  updateTablePagination();
-  await refreshKpisFromPipeline();
 }
 
 async function refreshArchivedApplications() {
@@ -2976,60 +2912,6 @@ async function openCreateModal(eventId, defaults = {}) {
   });
 }
 
-function renderPipeline(columns, total) {
-  if (!pipelineView) {
-    return;
-  }
-  if (!columns.length || total === 0) {
-    pipelineView.innerHTML = getDashboardEmptyStateHtml();
-    return;
-  }
-  const html = columns
-    .map((column) => {
-      const statusLabel = STATUS_LABELS[column.status] || column.status;
-      const cards = (column.applications || [])
-        .map((app) => {
-          const statusValue = normalizeStatusValue(app.current_status || 'UNKNOWN');
-          const statusPill = renderStatusPill(statusValue);
-          const confidenceValue = getConfidence(app);
-          const confidence = confidenceValue !== null ? `${Math.round(confidenceValue * 100)}%` : '—';
-          const activity = formatDate(getActivityDate(app));
-          const sourceLabel = statusSourceLabel(getStatusSource(app));
-          const suggestionLabel = app.suggested_status
-            ? STATUS_LABELS[app.suggested_status] || app.suggested_status
-            : null;
-          return `
-            <div class="pipeline-card" data-id="${app.id}">
-              <div><strong>${app.company_name || '—'}</strong></div>
-              <div class="meta">${app.job_title || '—'}</div>
-              <div class="status-cell">${statusPill}</div>
-              <div class="meta">Last activity: ${activity}</div>
-              <div class="badge-row">
-                <span class="badge">${confidence}</span>
-                <span class="pill subtle">${sourceLabel}</span>
-                ${suggestionLabel ? `<span class="pill">${suggestionLabel} suggested</span>` : ''}
-              </div>
-            </div>
-          `;
-        })
-        .join('');
-
-      const emptyColumn = '<div class="pipeline-empty">No items</div>';
-      return `
-        <div class="pipeline-column">
-          <div class="pipeline-column-header">
-            <span>${statusLabel}</span>
-            <span>${column.count || 0}</span>
-          </div>
-          <div class="pipeline-column-body">${cards || emptyColumn}</div>
-        </div>
-      `;
-    })
-    .join('');
-
-  pipelineView.innerHTML = html;
-}
-
 function renderApplicationsTable(applications) {
   if (!applications.length) {
     applicationsTable.innerHTML = getDashboardEmptyStateHtml();
@@ -3122,26 +3004,68 @@ function renderArchivedApplications(applications) {
   archivedTable.innerHTML = header + rows;
 }
 
+function setTablePaginationLoading(isLoading) {
+  if (!isLoading) {
+    return;
+  }
+  if (tablePageInfo) {
+    tablePageInfo.textContent = 'Page - of -';
+  }
+  if (tablePageInfoTop) {
+    tablePageInfoTop.textContent = '- / -';
+  }
+  [tablePrev, tableNext, tablePrevTop, tableNextTop].forEach((button) => {
+    if (button) {
+      button.disabled = true;
+    }
+  });
+}
+
 function updateTablePagination() {
   if (!tablePageInfo) {
     return;
   }
+  const hasRecords = state.table.total > 0;
+  const currentPage = hasRecords ? Math.floor(state.table.offset / PAGE_SIZE) + 1 : null;
+  const totalPages = hasRecords ? Math.max(Math.ceil(state.table.total / PAGE_SIZE), 1) : null;
   const pagination = document.getElementById('table-pagination');
   if (pagination) {
-    pagination.classList.toggle('hidden', state.table.total === 0);
+    pagination.classList.toggle('hidden', !hasRecords);
   }
-  if (state.table.total === 0) {
-    return;
+  if (tablePageInfoTop) {
+    tablePageInfoTop.textContent = hasRecords ? `${currentPage} / ${totalPages}` : '- / -';
   }
-  const currentPage = Math.floor(state.table.offset / PAGE_SIZE) + 1;
-  const totalPages = Math.max(Math.ceil(state.table.total / PAGE_SIZE), 1);
-  tablePageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+  tablePageInfo.textContent = hasRecords ? `Page ${currentPage} of ${totalPages}` : 'Page - of -';
+  const canGoPrev = hasRecords && state.table.offset > 0;
+  const canGoNext = hasRecords && state.table.offset + PAGE_SIZE < state.table.total;
   if (tablePrev) {
-    tablePrev.disabled = state.table.offset <= 0;
+    tablePrev.disabled = !canGoPrev;
   }
   if (tableNext) {
-    tableNext.disabled = state.table.offset + PAGE_SIZE >= state.table.total;
+    tableNext.disabled = !canGoNext;
   }
+  if (tablePrevTop) {
+    tablePrevTop.disabled = !canGoPrev;
+  }
+  if (tableNextTop) {
+    tableNextTop.disabled = !canGoNext;
+  }
+}
+
+async function goPrevPage() {
+  if (state.table.offset <= 0) {
+    return;
+  }
+  state.table.offset = Math.max(state.table.offset - PAGE_SIZE, 0);
+  await refreshTable();
+}
+
+async function goNextPage() {
+  if (state.table.offset + PAGE_SIZE >= state.table.total) {
+    return;
+  }
+  state.table.offset += PAGE_SIZE;
+  await refreshTable();
 }
 
 function updateArchivedPagination() {
@@ -3827,7 +3751,6 @@ function route() {
     initResumeCurator();
   } else {
     setView('dashboard');
-    syncViewToggle();
     void loadActiveApplications().catch((err) => {
       const authFailure = err?.status === 401 || err?.message === 'AUTH_REQUIRED';
       if (authFailure) {
@@ -4243,30 +4166,6 @@ addToggle?.addEventListener('click', () => {
   openAddModal();
 });
 
-viewToggle?.addEventListener('click', async (event) => {
-  const button = event.target.closest('button[data-view]');
-  if (!button) {
-    return;
-  }
-  const nextView = button.dataset.view;
-  if (nextView !== 'pipeline' && nextView !== 'table') {
-    return;
-  }
-  state.viewMode = nextView;
-  if (nextView === 'table') {
-    state.table.offset = 0;
-  }
-  try {
-    localStorage.setItem(VIEW_MODE_KEY, nextView);
-  } catch (err) {
-    // Ignore storage errors (private mode, etc).
-  }
-  viewToggle.querySelectorAll('button[data-view]').forEach((el) => {
-    el.classList.toggle('active', el.dataset.view === nextView);
-  });
-  await loadActiveApplications();
-});
-
 dashboardView?.addEventListener('click', async (event) => {
   const actionTarget = event.target.closest('[data-action]');
   if (!actionTarget) {
@@ -4348,21 +4247,10 @@ filterRoleClear?.addEventListener('click', async () => {
   await applyFilters();
 });
 
-tablePrev?.addEventListener('click', async () => {
-  if (state.table.offset <= 0) {
-    return;
-  }
-  state.table.offset = Math.max(state.table.offset - PAGE_SIZE, 0);
-  await refreshTable();
-});
-
-tableNext?.addEventListener('click', async () => {
-  if (state.table.offset + PAGE_SIZE >= state.table.total) {
-    return;
-  }
-  state.table.offset += PAGE_SIZE;
-  await refreshTable();
-});
+tablePrev?.addEventListener('click', goPrevPage);
+tableNext?.addEventListener('click', goNextPage);
+tablePrevTop?.addEventListener('click', goPrevPage);
+tableNextTop?.addEventListener('click', goNextPage);
 
 archivedPrev?.addEventListener('click', async () => {
   if (state.archived.offset <= 0) {
@@ -4400,17 +4288,6 @@ applicationsTable?.addEventListener('click', (event) => {
     return;
   }
   const applicationId = row.dataset.id;
-  if (applicationId) {
-    openDetail(applicationId);
-  }
-});
-
-pipelineView?.addEventListener('click', (event) => {
-  const card = event.target.closest('.pipeline-card');
-  if (!card) {
-    return;
-  }
-  const applicationId = card.dataset.id;
   if (applicationId) {
     openDetail(applicationId);
   }

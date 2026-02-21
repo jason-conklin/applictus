@@ -164,3 +164,15 @@ test('extractJobTitle handles received information opening pattern', () => {
 
   assert.equal(role?.jobTitle, 'Software Engineer-I');
 });
+
+test('extractJobTitle strips role-of prefix in workday-style body text', () => {
+  const result = extractJobTitle({
+    subject: 'Thank you for your application',
+    snippet: '',
+    bodyText: 'Thank you for applying for the role of Software Developer .',
+    sender: 'Workday <noreply@myworkday.com>',
+    companyName: 'Azenta Department'
+  });
+
+  assert.equal(result.jobTitle, 'Software Developer');
+});

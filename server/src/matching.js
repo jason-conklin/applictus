@@ -7,6 +7,8 @@ const {
   normalizeExternalReqId,
   normalizeJobIdentity,
   sanitizeJobTitle,
+  normalizeRole,
+  normalizeCompany,
   normalizeRoleTokens,
   roleStrength,
   extractRoleTail,
@@ -35,6 +37,17 @@ const MIN_ROLE_CONFIDENCE = 0.8;
 const DEDUPE_RECENCY_DAYS = 7;
 const FUZZY_CONFIRMATION_WINDOW_HOURS = 6;
 const LINKEDIN_MATCH_WINDOW_DAYS = 21;
+const APPLICATION_METADATA_WINDOW_DAYS = 180;
+const SYSTEM_INBOX_COMPANY_TERMS = new Set([
+  'talentacquisition',
+  'recruiting',
+  'recruitment',
+  'careers',
+  'jobs',
+  'noreply',
+  'donotreply',
+  'notifications'
+]);
 
 async function awaitMaybe(value) {
   return value && typeof value.then === 'function' ? await value : value;
@@ -113,6 +126,54 @@ function extractSenderEmail(sender) {
   const raw = angle && angle[1] ? angle[1] : text;
   const email = String(raw).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
   return email ? email[0].toLowerCase() : null;
+}
+
+function looksLikeEmailOrDomain(text) {
+  const normalized = String(text || '').trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  if (normalized.includes('@')) {
+    return true;
+  }
+  if (/\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/i.test(normalized)) {
+    return true;
+  }
+  if (/^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i.test(normalized)) {
+    return true;
+  }
+  return false;
+}
+
+function isLowQualityCompanyCandidate(value) {
+  const text = normalizeCompany(value) || String(value || '').trim();
+  if (!text) {
+    return true;
+  }
+  if (looksLikeEmailOrDomain(text)) {
+    return true;
+  }
+  const compact = text.toLowerCase().replace(/[^a-z]/g, '');
+  if (SYSTEM_INBOX_COMPANY_TERMS.has(compact)) {
+    return true;
+  }
+  return isInvalidCompanyCandidate(text);
+}
+
+function isLowQualityRoleCandidate(value) {
+  const text = normalizeRole(value) || String(value || '').trim();
+  if (!text) {
+    return true;
+  }
+  if (text.length > 80 && /\b(thank you|time and effort|we regret|after careful consideration)\b/i.test(text)) {
+    return true;
+  }
+  if (
+    /^(thank you for|we regret to inform|after careful consideration|unfortunately)\b/i.test(text)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function buildEventText(event = {}) {
@@ -459,19 +520,46 @@ function getRoleFromEvent(event) {
   };
 }
 
+function normalizeRoleForApplication(value) {
+  if (!value) {
+    return null;
+  }
+  let candidate = normalizeRole(value) || sanitizeJobTitle(value);
+  if (!candidate) {
+    return null;
+  }
+  candidate = String(candidate)
+    .replace(/\s*\|\s*-\s*#?\d{2,}\s*$/i, '')
+    .replace(/\s+(?:-|–|—|\|)\s*(?:req(?:uisition)?\s*(?:id)?\s*)?#?\d{2,}\s*$/i, '')
+    .trim();
+  candidate = normalizeRole(candidate) || candidate;
+  if (!candidate || isLowQualityRoleCandidate(candidate)) {
+    return null;
+  }
+  return candidate;
+}
+
 function selectRoleCandidate(identity, event) {
   const eventRole = getRoleFromEvent(event);
   if (eventRole?.title && (eventRole.confidence ?? 0) >= MIN_ROLE_CONFIDENCE) {
+    const normalizedTitle = normalizeRoleForApplication(eventRole.title);
+    if (!normalizedTitle) {
+      return null;
+    }
     return {
-      title: eventRole.title,
+      title: normalizedTitle,
       confidence: eventRole.confidence,
       source: eventRole.source || 'snippet',
       explanation: eventRole.explanation || 'Derived role from email.'
     };
   }
   if (identity?.jobTitle) {
+    const normalizedTitle = normalizeRoleForApplication(identity.jobTitleRaw || identity.jobTitle);
+    if (!normalizedTitle) {
+      return null;
+    }
     return {
-      title: identity.jobTitleRaw || identity.jobTitle,
+      title: normalizedTitle,
       confidence: getRoleConfidence(identity.roleConfidence),
       source: 'subject',
       explanation: 'Derived role from subject pattern.'
@@ -484,8 +572,12 @@ function selectCompanyCandidate(identity) {
   if (!identity?.companyName) {
     return null;
   }
+  const normalizedName = normalizeCompany(identity.companyName) || identity.companyName;
+  if (!normalizedName || isLowQualityCompanyCandidate(normalizedName)) {
+    return null;
+  }
   return {
-    name: identity.companyName,
+    name: normalizedName,
     confidence: Number.isFinite(identity.companyConfidence) ? identity.companyConfidence : null,
     source: 'email',
     explanation: identity.explanation || 'Derived company from email.'
@@ -496,6 +588,9 @@ function shouldUpdateCompany(application, candidate) {
   if (!candidate?.name) {
     return false;
   }
+  if (isLowQualityCompanyCandidate(candidate.name)) {
+    return false;
+  }
   if (application.company_source === 'manual') {
     return false;
   }
@@ -504,8 +599,7 @@ function shouldUpdateCompany(application, candidate) {
     ? application.company_confidence
     : 0;
   const nextConfidence = Number.isFinite(candidate.confidence) ? candidate.confidence : 0;
-  const currentInvalid =
-    !currentName || isProviderName(currentName) || isInvalidCompanyCandidate(currentName);
+  const currentInvalid = !currentName || isProviderName(currentName) || isLowQualityCompanyCandidate(currentName);
 
   if (currentInvalid) {
     return true;
@@ -547,6 +641,9 @@ function shouldUpdateRole(application, candidate) {
   if (!candidate?.title) {
     return false;
   }
+  if (isLowQualityRoleCandidate(candidate.title)) {
+    return false;
+  }
   if (application.role_source === 'manual') {
     return false;
   }
@@ -557,7 +654,7 @@ function shouldUpdateRole(application, candidate) {
     ? application.role_confidence
     : 0;
   const nextConfidence = Number.isFinite(candidate.confidence) ? candidate.confidence : 0;
-  if (!currentTitle || currentTitle === UNKNOWN_ROLE) {
+  if (!currentTitle || currentTitle === UNKNOWN_ROLE || isLowQualityRoleCandidate(currentTitle)) {
     return true;
   }
   if (incomingDisplay === currentDisplay) {
@@ -616,6 +713,156 @@ function applyExternalReqId(db, application, externalReqId) {
     ...normalizeBindParams([normalized, new Date().toISOString(), application.id], dialect)
   );
   return true;
+}
+
+function parseEventTimestampMs(row) {
+  if (!row) {
+    return Date.now();
+  }
+  const internalRaw = row.internal_date;
+  if (internalRaw !== null && internalRaw !== undefined && internalRaw !== '') {
+    const numeric = Number(internalRaw);
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return numeric;
+    }
+    const internalMs = new Date(internalRaw).getTime();
+    if (Number.isFinite(internalMs) && internalMs > 0) {
+      return internalMs;
+    }
+  }
+  const createdMs = row.created_at ? new Date(row.created_at).getTime() : null;
+  if (Number.isFinite(createdMs) && createdMs > 0) {
+    return createdMs;
+  }
+  return Date.now();
+}
+
+function metadataCandidateScore(row, confidence, { type } = {}) {
+  const base = Number.isFinite(confidence) ? confidence : 0;
+  const detectedType = String(row?.detected_type || '').toLowerCase();
+  const subject = String(row?.subject || '');
+  let score = base;
+  const isSubmittedSignal =
+    /application submitted/i.test(subject) ||
+    /your recent job application for/i.test(subject) ||
+    /thank you for (?:your )?application/i.test(subject);
+  if (detectedType === 'confirmation') {
+    score += 0.12;
+  } else if (detectedType === 'rejection') {
+    score -= 0.08;
+  }
+  if (isSubmittedSignal) {
+    score += 0.08;
+  }
+  if (type === 'role' && /your recent job application for/i.test(subject)) {
+    score += 0.06;
+  }
+  return score;
+}
+
+function pickBestTimelineCandidate(candidates) {
+  if (!Array.isArray(candidates) || !candidates.length) {
+    return null;
+  }
+  return [...candidates].sort((a, b) => {
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
+    if (a.isConfirmation !== b.isConfirmation) {
+      return a.isConfirmation ? -1 : 1;
+    }
+    return a.eventMs - b.eventMs;
+  })[0];
+}
+
+async function refreshApplicationMetadataFromTimeline(db, applicationId) {
+  if (!applicationId) {
+    return;
+  }
+  const application = await awaitMaybe(
+    db.prepare('SELECT * FROM job_applications WHERE id = ?').get(applicationId)
+  );
+  if (!application) {
+    return;
+  }
+
+  const sinceIso = new Date(Date.now() - APPLICATION_METADATA_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const events = normalizeRowList(
+    await awaitMaybe(
+      db
+        .prepare(
+          `SELECT id, detected_type, subject, snippet, internal_date, created_at,
+                  identity_company_name, identity_company_confidence,
+                  identity_job_title, role_title, role_confidence
+           FROM email_events
+           WHERE application_id = ?
+             AND created_at >= ?
+           ORDER BY created_at ASC`
+        )
+        .all(applicationId, sinceIso)
+    )
+  );
+  if (!events.length) {
+    return;
+  }
+
+  const companyCandidates = [];
+  const roleCandidates = [];
+  for (const row of events) {
+    const eventMs = parseEventTimestampMs(row);
+    const isConfirmation = String(row.detected_type || '').toLowerCase() === 'confirmation';
+    const companyName = normalizeCompany(row.identity_company_name || null);
+    if (companyName && !isLowQualityCompanyCandidate(companyName)) {
+      const confidence = Number.isFinite(row.identity_company_confidence)
+        ? row.identity_company_confidence
+        : isConfirmation
+        ? 0.88
+        : 0.8;
+      companyCandidates.push({
+        name: companyName,
+        confidence,
+        score: metadataCandidateScore(row, confidence, { type: 'company' }),
+        source: 'timeline',
+        explanation: `Best company selected from matched event ${row.id}.`,
+        isConfirmation,
+        eventMs
+      });
+    }
+
+    const roleText = normalizeRoleForApplication(row.role_title || row.identity_job_title || null);
+    if (roleText && !isLowQualityRoleCandidate(roleText)) {
+      const confidence = Number.isFinite(row.role_confidence)
+        ? row.role_confidence
+        : isConfirmation
+        ? 0.9
+        : 0.82;
+      roleCandidates.push({
+        title: roleText,
+        confidence,
+        score: metadataCandidateScore(row, confidence, { type: 'role' }),
+        source: 'timeline',
+        explanation: `Best role selected from matched event ${row.id}.`,
+        isConfirmation,
+        eventMs
+      });
+    }
+  }
+
+  const bestCompany = pickBestTimelineCandidate(companyCandidates);
+  if (bestCompany) {
+    applyCompanyCandidate(db, application, bestCompany);
+  }
+  const bestRole = pickBestTimelineCandidate(roleCandidates);
+  if (bestRole) {
+    applyRoleCandidate(db, application, bestRole);
+  }
+}
+
+async function applyBestMetadataForMatchedApplication(db, application, identity, event, externalReqId) {
+  applyCompanyCandidate(db, application, selectCompanyCandidate(identity));
+  applyRoleCandidate(db, application, selectRoleCandidate(identity, event));
+  applyExternalReqId(db, application, externalReqId);
+  await refreshApplicationMetadataFromTimeline(db, application.id);
 }
 
 function toIsoFromInternalDate(internalDate, fallback = new Date()) {
@@ -1301,8 +1548,7 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
       if (recentRoleMatch) {
         await attachEventToApplication(db, event.id, recentRoleMatch.id);
         await updateApplicationActivity(db, recentRoleMatch, event);
-        applyRoleCandidate(db, recentRoleMatch, selectRoleCandidate(identity, event));
-        applyExternalReqId(db, recentRoleMatch, externalReqId);
+        await applyBestMetadataForMatchedApplication(db, recentRoleMatch, identity, event, externalReqId);
         logDebug('matching.dedupe_matched_recent_confirmation', {
           eventId: event.id,
           applicationId: recentRoleMatch.id,
@@ -1371,9 +1617,7 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
     if (reqMatch) {
       await attachEventToApplication(db, event.id, reqMatch.id);
       await updateApplicationActivity(db, reqMatch, event);
-      applyCompanyCandidate(db, reqMatch, selectCompanyCandidate(identity));
-      applyRoleCandidate(db, reqMatch, selectRoleCandidate(identity, event));
-      applyExternalReqId(db, reqMatch, externalReqId);
+      await applyBestMetadataForMatchedApplication(db, reqMatch, identity, event, externalReqId);
       logDebug('matching.confirmation_path', { path: 'req_id_match', eventId: event.id, applicationId: reqMatch.id });
       return { action: 'matched_existing', applicationId: reqMatch.id, identity };
     }
@@ -1560,9 +1804,7 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
   if (existing) {
     await attachEventToApplication(db, event.id, existing.id);
     await updateApplicationActivity(db, existing, event);
-    applyCompanyCandidate(db, existing, selectCompanyCandidate(identity));
-    applyRoleCandidate(db, existing, selectRoleCandidate(identity, event));
-    applyExternalReqId(db, existing, externalReqId);
+    await applyBestMetadataForMatchedApplication(db, existing, identity, event, externalReqId);
     if (isRejection && getClassificationConfidence(event) >= 0.9) {
       const blocked = shouldBlockAutoStatus(
         existing,
@@ -1703,9 +1945,7 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
       if (candidate) {
         await attachEventToApplication(db, event.id, candidate.id);
         await updateApplicationActivity(db, candidate, event);
-        applyCompanyCandidate(db, candidate, selectCompanyCandidate(identity));
-        applyRoleCandidate(db, candidate, selectRoleCandidate(identity, event));
-        applyExternalReqId(db, candidate, externalReqId);
+        await applyBestMetadataForMatchedApplication(db, candidate, identity, event, externalReqId);
         logDebug('matching.dedupe_matched_recent_confirmation', {
           eventId: event.id,
           applicationId: candidate.id,
@@ -1747,9 +1987,7 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
         } else {
           await attachEventToApplication(db, event.id, candidate.id);
           await updateApplicationActivity(db, candidate, event);
-          applyCompanyCandidate(db, candidate, selectCompanyCandidate(identity));
-          applyRoleCandidate(db, candidate, selectRoleCandidate(identity, event));
-          applyExternalReqId(db, candidate, externalReqId);
+          await applyBestMetadataForMatchedApplication(db, candidate, identity, event, externalReqId);
           return { action: 'matched_existing', applicationId: candidate.id, identity };
         }
       }
@@ -1798,6 +2036,7 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
             applyRoleCandidate(db, candidate, roleCandidate);
           }
           applyExternalReqId(db, candidate, externalReqId);
+          await refreshApplicationMetadataFromTimeline(db, candidate.id);
           return { action: 'matched_existing', applicationId: candidate.id, identity };
         }
       }
@@ -2043,6 +2282,7 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
               applyRoleCandidate(db, app, roleCandidate);
             }
             applyExternalReqId(db, app, externalReqId);
+            await refreshApplicationMetadataFromTimeline(db, app.id);
             logDebug('matching.dedupe_fuzzy_confirmation', {
               company: canonicalCompany,
               roleIncoming: roleBase,
@@ -2124,6 +2364,7 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
           applyRoleCandidate(db, app, roleCandidate);
         }
         applyExternalReqId(db, app, externalReqId);
+        await refreshApplicationMetadataFromTimeline(db, app.id);
         logDebug('matching.confirmation_weak_role_dedupe', {
           eventId: event.id,
           applicationId: app.id,

@@ -51,15 +51,21 @@ function insertEmailEvent(db, {
   confidenceScore,
   classificationConfidence,
   snippet,
-  externalReqId
+  externalReqId,
+  identityCompanyName,
+  identityCompanyConfidence,
+  identityJobTitle,
+  roleTitle,
+  roleConfidence
 }) {
   const id = crypto.randomUUID();
   const timestamp = new Date().toISOString();
   db.prepare(
     `INSERT INTO email_events
      (id, user_id, application_id, provider, message_id, provider_message_id, sender, subject, snippet,
-      detected_type, confidence_score, classification_confidence, external_req_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      detected_type, confidence_score, classification_confidence, external_req_id,
+      identity_company_name, identity_company_confidence, identity_job_title, role_title, role_confidence, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     userId,
@@ -74,6 +80,11 @@ function insertEmailEvent(db, {
     confidenceScore,
     classificationConfidence,
     externalReqId || null,
+    identityCompanyName || null,
+    Number.isFinite(identityCompanyConfidence) ? identityCompanyConfidence : null,
+    identityJobTitle || null,
+    roleTitle || null,
+    Number.isFinite(roleConfidence) ? roleConfidence : null,
     timestamp
   );
   return id;
@@ -700,4 +711,133 @@ test('Prudential Workday rejection attaches and extracts role from subject', asy
 
   const eventRow = db.prepare('SELECT application_id FROM email_events WHERE id = ?').get(eventId);
   assert.equal(eventRow.application_id, appId);
+});
+
+test('Oracle Cloud follow-up keeps best application metadata from timeline', async () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+
+  const sender = 'Talent Acquisition <TalentAcquisition@oraclecloud.verisk.com>';
+  const confirmationSubject = 'Your recent job application for Software Engineer | - 2708';
+  const confirmationBody = 'Thanks for your interest in joining Verisk for Software Engineer | - 2708.';
+  const confirmationIdentity = extractThreadIdentity({
+    subject: confirmationSubject,
+    sender,
+    bodyText: confirmationBody
+  });
+  assert.equal(confirmationIdentity.companyName, 'Verisk');
+  assert.equal(confirmationIdentity.jobTitle, 'Software Engineer');
+
+  const confirmationEventId = insertEmailEvent(db, {
+    userId,
+    messageId: 'oracle-confirmation',
+    sender,
+    subject: confirmationSubject,
+    detectedType: 'confirmation',
+    confidenceScore: 0.95,
+    classificationConfidence: 0.95,
+    snippet: confirmationBody,
+    identityCompanyName: confirmationIdentity.companyName,
+    identityCompanyConfidence: confirmationIdentity.companyConfidence,
+    identityJobTitle: confirmationIdentity.jobTitle,
+    roleTitle: confirmationIdentity.jobTitle,
+    roleConfidence: confirmationIdentity.roleConfidence
+  });
+
+  const confirmationMatch = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: confirmationEventId,
+      sender,
+      subject: confirmationSubject,
+      snippet: confirmationBody,
+      detected_type: 'confirmation',
+      confidence_score: 0.95,
+      classification_confidence: 0.95,
+      role_title: confirmationIdentity.jobTitle,
+      role_confidence: confirmationIdentity.roleConfidence,
+      role_source: 'identity',
+      created_at: new Date().toISOString()
+    },
+    identity: confirmationIdentity
+  });
+  assert.equal(confirmationMatch.action, 'created_application');
+
+  const appId = confirmationMatch.applicationId;
+  db.prepare(
+    `UPDATE job_applications
+       SET company_name = ?, company = ?, company_confidence = ?, job_title = ?, role = ?, role_confidence = ?, updated_at = ?
+     WHERE id = ?`
+  ).run(
+    'TalentAcquisition@oraclecloud.verisk.com',
+    'TalentAcquisition@oraclecloud.verisk.com',
+    0.99,
+    'time and effort you put into applying for this role',
+    'time and effort you put into applying for this role',
+    0.99,
+    new Date().toISOString(),
+    appId
+  );
+
+  const rejectionSubject = 'Application Follow Up';
+  const rejectionBody = `Thank you for applying for the Software Engineer | position to Verisk.
+Verisk Careers | Verisk Recruiting Team`;
+  const rejectionIdentity = {
+    companyName: 'Verisk',
+    companyConfidence: 0.9,
+    jobTitle: 'time and effort you put into applying for this role',
+    roleConfidence: 0.95,
+    matchConfidence: 0.9,
+    domainConfidence: 0.95,
+    senderDomain: 'oraclecloud.verisk.com',
+    isAtsDomain: true,
+    isPlatformEmail: true,
+    bodyTextAvailable: true,
+    explanation: 'Synthetic low-quality follow-up role'
+  };
+
+  const rejectionEventId = insertEmailEvent(db, {
+    userId,
+    messageId: 'oracle-rejection',
+    sender,
+    subject: rejectionSubject,
+    detectedType: 'rejection',
+    confidenceScore: 0.94,
+    classificationConfidence: 0.94,
+    snippet: rejectionBody,
+    identityCompanyName: rejectionIdentity.companyName,
+    identityCompanyConfidence: rejectionIdentity.companyConfidence,
+    identityJobTitle: rejectionIdentity.jobTitle,
+    roleTitle: rejectionIdentity.jobTitle,
+    roleConfidence: rejectionIdentity.roleConfidence
+  });
+
+  const rejectionMatch = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: rejectionEventId,
+      sender,
+      subject: rejectionSubject,
+      snippet: rejectionBody,
+      detected_type: 'rejection',
+      confidence_score: 0.94,
+      classification_confidence: 0.94,
+      role_title: rejectionIdentity.jobTitle,
+      role_confidence: rejectionIdentity.roleConfidence,
+      role_source: 'identity',
+      created_at: new Date().toISOString()
+    },
+    identity: rejectionIdentity
+  });
+  assert.equal(rejectionMatch.action, 'matched_existing');
+
+  const application = db
+    .prepare('SELECT company_name, job_title, current_status FROM job_applications WHERE id = ?')
+    .get(appId);
+  assert.equal(application.company_name, 'Verisk');
+  assert.equal(application.job_title, 'Software Engineer');
+  assert.equal(application.current_status, ApplicationStatus.REJECTED);
 });

@@ -229,6 +229,58 @@ function setupHeroBanner(reducedMotion) {
   });
 }
 
+function setupHowStepperConnector() {
+  const steppers = Array.from(document.querySelectorAll('.how-stepper'));
+  if (!steppers.length) {
+    return;
+  }
+
+  let rafId = 0;
+
+  const measure = () => {
+    steppers.forEach((stepper) => {
+      const nodes = stepper.querySelectorAll('.info-step__node');
+      if (nodes.length < 2) {
+        stepper.style.removeProperty('--connector-top');
+        stepper.style.removeProperty('--connector-bottom-offset');
+        return;
+      }
+
+      const wrapperRect = stepper.getBoundingClientRect();
+      const firstRect = nodes[0].getBoundingClientRect();
+      const lastRect = nodes[nodes.length - 1].getBoundingClientRect();
+      const top = firstRect.top + firstRect.height / 2 - wrapperRect.top;
+      const bottomOffset = wrapperRect.bottom - (lastRect.top + lastRect.height / 2);
+
+      stepper.style.setProperty('--connector-top', `${Math.max(0, top).toFixed(2)}px`);
+      stepper.style.setProperty('--connector-bottom-offset', `${Math.max(0, bottomOffset).toFixed(2)}px`);
+    });
+  };
+
+  const scheduleMeasure = () => {
+    if (rafId) {
+      return;
+    }
+    rafId = window.requestAnimationFrame(() => {
+      rafId = 0;
+      measure();
+    });
+  };
+
+  scheduleMeasure();
+  window.addEventListener('resize', scheduleMeasure, { passive: true });
+  window.addEventListener('orientationchange', scheduleMeasure);
+  window.addEventListener('load', scheduleMeasure);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      scheduleMeasure();
+    }
+  });
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(scheduleMeasure).catch(() => {});
+  }
+}
+
 function revealAllSections() {
   const revealNodes = getRevealNodes();
   revealNodes.forEach((node) => node.classList.add('is-visible'));
@@ -279,6 +331,7 @@ function bootHomepage() {
 
   setupHomeIntroPlayback(reducedMotion);
   setupHeroBanner(reducedMotion);
+  setupHowStepperConnector();
   setupScrollCtas(reducedMotion);
   setupScrollReveal(reducedMotion);
 

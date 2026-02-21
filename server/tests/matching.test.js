@@ -89,6 +89,110 @@ test('extractThreadIdentity handles Indeed rejection subject pattern', () => {
   assert.equal(identity.jobTitle, 'Outreach Coordinator/Marketer');
 });
 
+test('extractThreadIdentity splits application-to subject into company and role', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Thank you for your application to Daiichi Sankyo- Intern Hourly (Job Requisition ID: 623)',
+    sender: 'Careers <jobs@daiichisankyo.com>'
+  });
+
+  assert.equal(identity.companyName, 'Daiichi Sankyo');
+  assert.equal(identity.jobTitle, 'Intern Hourly');
+  assert.equal(identity.providerHint, 'application_to_subject');
+});
+
+test('extractThreadIdentity parses Indeed Apply application submitted with subject role and body company', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Indeed Application: Full Stack Developer - Node.JS, Typescript, React',
+    sender: 'Indeed Apply <indeedapply@indeed.com>',
+    bodyText: `Application submitted
+
+Full Stack Developer - Node.JS, Typescript, React
+CubX Inc. - Lakewood, New Jersey, United States
+
+The following items were sent to CubX Inc.. Good luck!`
+  });
+
+  assert.equal(identity.providerHint, 'indeed_apply');
+  assert.equal(identity.companyName, 'CubX Inc');
+  assert.equal(identity.jobTitle, 'Full Stack Developer - Node.JS, Typescript, React');
+  assert.notEqual((identity.companyName || '').toLowerCase(), 'indeed');
+});
+
+test('extractThreadIdentity parses Indeed Apply mobile developer sample', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Indeed Application: Mobile Developer',
+    sender: 'Indeed Apply <indeedapply@indeed.com>',
+    bodyText: `Application submitted
+
+Mobile Developer
+Visual Computer Solutions - United States`
+  });
+
+  assert.equal(identity.providerHint, 'indeed_apply');
+  assert.equal(identity.companyName, 'Visual Computer Solutions');
+  assert.equal(identity.jobTitle, 'Mobile Developer');
+});
+
+test('extractThreadIdentity parses Indeed Apply company from sent-to sentence fallback', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Indeed Application: Mobile Developer',
+    sender: 'Indeed Apply <indeedapply@indeed.com>',
+    bodyText: `Application submitted
+
+Mobile Developer
+Next steps
+
+The following items were sent to Visual Computer Solutions. Good luck!`
+  });
+
+  assert.equal(identity.providerHint, 'indeed_apply');
+  assert.equal(identity.companyName, 'Visual Computer Solutions');
+  assert.equal(identity.jobTitle, 'Mobile Developer');
+});
+
+test('extractThreadIdentity does not default Indeed Apply company to sender brand when missing', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Indeed Application: Mobile Developer',
+    sender: 'Indeed Apply <indeedapply@indeed.com>',
+    bodyText: `Application submitted
+
+Mobile Developer
+Next steps`
+  });
+
+  assert.equal(identity.providerHint, 'indeed_apply');
+  assert.equal(identity.companyName, null);
+  assert.equal(identity.jobTitle, 'Mobile Developer');
+});
+
+test('extractThreadIdentity parses Oracle Cloud confirmation with company and normalized role', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Your recent job application for Software Engineer | - 2708',
+    sender: 'Talent Acquisition <TalentAcquisition@oraclecloud.verisk.com>',
+    bodyText: 'Thanks for your interest in joining Verisk for Software Engineer | - 2708.'
+  });
+
+  assert.equal(identity.providerHint, 'oracle_cloud');
+  assert.equal(identity.companyName, 'Verisk');
+  assert.equal(identity.jobTitle, 'Software Engineer');
+  assert.ok(!/@/.test(identity.companyName));
+});
+
+test('extractThreadIdentity parses Oracle Cloud follow-up without sender-email company leak', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Application Follow Up',
+    sender: 'Talent Acquisition <TalentAcquisition@oraclecloud.verisk.com>',
+    bodyText: `Thank you for applying for the Software Engineer | position to Verisk.
+Verisk Careers | Verisk Recruiting Team`
+  });
+
+  assert.equal(identity.providerHint, 'oracle_cloud');
+  assert.equal(identity.companyName, 'Verisk');
+  assert.equal(identity.jobTitle, 'Software Engineer');
+  assert.ok(!/@/.test(identity.companyName));
+  assert.ok(!/thank you for|time and effort|we regret/i.test(identity.jobTitle));
+});
+
 test('extractThreadIdentity handles Breezy rejection without greeting pollution', () => {
   const identity = extractThreadIdentity({
     subject: '[Job Title] Application Update',
