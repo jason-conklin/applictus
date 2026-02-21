@@ -4820,16 +4820,81 @@ body.home-page .hero-banner {
   display: grid;
   place-items: center;
   width: clamp(320px, 62vw, 980px);
-  transform-origin: 50% 60%;
-  animation: heroFloat 8s ease-in-out infinite;
-  will-change: transform;
+  position: relative;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-  --hero-parallax-x: 0px;
-  --hero-parallax-y: 0px;
-  --hero-tilt-x: 0deg;
-  --hero-tilt-y: 0deg;
+}
+
+body.home-page .hero-banner__intro {
+  position: relative;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  isolation: isolate;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  clip-path: inset(0 0 0 0);
+}
+
+body.home-page .hero-banner__intro::before,
+body.home-page .hero-banner__intro::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+
+body.home-page .hero-banner__intro::before {
+  background: linear-gradient(
+    108deg,
+    rgba(255, 255, 255, 0) 8%,
+    rgba(255, 255, 255, 0.7) 44%,
+    rgba(236, 245, 255, 0.92) 52%,
+    rgba(255, 255, 255, 0) 84%
+  );
+  transform: translateX(-135%);
+  z-index: 2;
+}
+
+body.home-page .hero-banner__intro::after {
+  inset: 8% -12%;
+  background: linear-gradient(
+    110deg,
+    rgba(255, 255, 255, 0) 38%,
+    rgba(255, 255, 255, 0.24) 47%,
+    rgba(255, 255, 255, 0.08) 53%,
+    rgba(255, 255, 255, 0) 64%
+  );
+  transform: translateX(-130%);
+  z-index: 3;
+}
+
+body.home-page .hero-banner.is-intro .hero-banner__intro {
+  animation: heroIn 980ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+body.home-page .hero-banner.is-intro .hero-banner__intro::before {
+  animation: heroReveal 1050ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+body.home-page .hero-banner.is-intro .hero-banner__intro::after {
+  animation: heroSweep 900ms cubic-bezier(0.2, 0.9, 0.2, 1) 300ms both;
+}
+
+body.home-page .hero-banner__float {
+  width: 100%;
+  transform-origin: 50% 60%;
+  animation: heroFloat 8s ease-in-out infinite;
+  will-change: transform;
+}
+
+body.home-page .hero-banner__tilt {
+  width: 100%;
+  will-change: transform;
+  transform: translate3d(0, 0, 0) rotateX(0deg) rotateY(0deg);
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 body.home-page .hero-banner__img {
@@ -5058,16 +5123,57 @@ body.home-page.animate-ready.home-loaded .home-hero-trust {
 
 @keyframes heroFloat {
   0% {
-    transform: translate3d(var(--hero-parallax-x), var(--hero-parallax-y), 0) rotateX(var(--hero-tilt-x)) rotateY(var(--hero-tilt-y))
-      rotateZ(-0.35deg) scale(1);
+    transform: translateY(0px) rotateZ(-0.35deg) scale(1);
   }
   50% {
-    transform: translate3d(var(--hero-parallax-x), calc(var(--hero-parallax-y) - 8px), 0) rotateX(var(--hero-tilt-x)) rotateY(var(--hero-tilt-y))
-      rotateZ(0.35deg) scale(1.01);
+    transform: translateY(-8px) rotateZ(0.35deg) scale(1.01);
   }
   100% {
-    transform: translate3d(var(--hero-parallax-x), var(--hero-parallax-y), 0) rotateX(var(--hero-tilt-x)) rotateY(var(--hero-tilt-y))
-      rotateZ(-0.35deg) scale(1);
+    transform: translateY(0px) rotateZ(-0.35deg) scale(1);
+  }
+}
+
+@keyframes heroIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+    clip-path: inset(12% 9% 10% 9% round 16px);
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    clip-path: inset(0 0 0 0 round 0);
+  }
+}
+
+@keyframes heroReveal {
+  0% {
+    opacity: 0;
+    transform: translateX(-135%);
+  }
+  15% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(135%);
+  }
+}
+
+@keyframes heroSweep {
+  0% {
+    opacity: 0;
+    transform: translateX(-130%);
+  }
+  24% {
+    opacity: 0.34;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(130%);
   }
 }
 
@@ -5153,10 +5259,6 @@ body.home-page.animate-ready.home-loaded .home-hero-trust {
 
   body.home-page .hero-banner {
     width: min(900px, 92vw);
-    --hero-parallax-x: 0px;
-    --hero-parallax-y: 0px;
-    --hero-tilt-x: 0deg;
-    --hero-tilt-y: 0deg;
   }
 
   body.home-page .home-hero-trust {
@@ -5274,8 +5376,22 @@ body.home-page.animate-ready.home-loaded .home-hero-trust {
     animation: none;
   }
 
-  body.home-page .hero-banner {
+  body.home-page .hero-banner__float {
     animation: none !important;
+    transform: none !important;
+  }
+
+  body.home-page .hero-banner__intro,
+  body.home-page .hero-banner__intro::before,
+  body.home-page .hero-banner__intro::after {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: inset(0 0 0 0) !important;
+  }
+
+  body.home-page .hero-banner__tilt {
+    transition: none !important;
     transform: none !important;
   }
 
