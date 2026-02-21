@@ -125,6 +125,8 @@ const CONTACT_MESSAGE_MAX = 4000;
 const GOOGLE_STATE_COOKIE = 'jt_google_state';
 const GOOGLE_STATE_TTL_MS = 10 * 60 * 1000;
 const GMAIL_AUTO_CONNECT_STATE = 'auto_connect';
+const GMAIL_SYNC_ACTION_TYPE = 'GMAIL_SYNC';
+const FIRST_SYNC_DAYS = 30;
 const VALID_STATUSES = new Set(Object.values(ApplicationStatus));
 const CSRF_HEADER = 'x-csrf-token';
 const CSRF_TTL_MS = 2 * 60 * 60 * 1000;
@@ -489,6 +491,117 @@ async function hasStoredGmailConnection(userId) {
       row.access_token ||
       row.refresh_token
   );
+}
+
+function parseIsoDate(value) {
+  if (!value) {
+    return null;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date;
+}
+
+function clampSyncDays(value, fallback = FIRST_SYNC_DAYS) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.max(1, Math.min(365, Math.floor(parsed)));
+}
+
+function computeApplicationsUpdated(result = {}) {
+  const explicit = Number(result.applications_updated);
+  if (Number.isFinite(explicit)) {
+    return explicit;
+  }
+  const updatedRejected = Number(result.updated_status_to_rejected_total || 0);
+  const updatedApplied = Number(result.updated_status_to_applied_total || 0);
+  const createdApps = Number(
+    result.createdApplications || result.created_apps_total || result.created_apps_confirmation_total || 0
+  );
+  return createdApps || updatedRejected + updatedApplied;
+}
+
+function normalizeSyncMeta(raw, fallbackCreatedAt = null) {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const lastSyncedAt =
+    raw.last_synced_at ||
+    raw.synced_at ||
+    raw.time_window_end ||
+    fallbackCreatedAt ||
+    null;
+  const parsedLastSynced = parseIsoDate(lastSyncedAt);
+  if (!parsedLastSynced) {
+    return null;
+  }
+  const parsedWindowStart = parseIsoDate(raw.time_window_start);
+  const parsedWindowEnd = parseIsoDate(raw.time_window_end);
+  const scanned = Number(raw.message_count_scanned);
+  const updated = Number(raw.applications_updated);
+  const days = Number(raw.days);
+  return {
+    mode: raw.mode === 'days' ? 'days' : 'since_last',
+    days: Number.isFinite(days) ? days : null,
+    last_synced_at: parsedLastSynced.toISOString(),
+    time_window_start: parsedWindowStart ? parsedWindowStart.toISOString() : null,
+    time_window_end: parsedWindowEnd ? parsedWindowEnd.toISOString() : null,
+    message_count_scanned: Number.isFinite(scanned) ? scanned : null,
+    applications_updated: Number.isFinite(updated) ? updated : null
+  };
+}
+
+async function getLatestGmailSyncMeta(userId) {
+  const rowOrPromise = db
+    .prepare(
+      `SELECT action_payload, created_at
+       FROM user_actions
+       WHERE user_id = ? AND action_type = ?
+       ORDER BY created_at DESC
+       LIMIT 1`
+    )
+    .get(userId, GMAIL_SYNC_ACTION_TYPE);
+  const row = rowOrPromise && typeof rowOrPromise.then === 'function' ? await rowOrPromise : rowOrPromise;
+  if (!row?.action_payload) {
+    return null;
+  }
+  let parsed = null;
+  try {
+    parsed = JSON.parse(row.action_payload);
+  } catch (_) {
+    parsed = null;
+  }
+  return normalizeSyncMeta(parsed, row.created_at);
+}
+
+async function storeGmailSyncMeta(userId, payload) {
+  if (!userId || !payload) {
+    return;
+  }
+  const normalized = normalizeSyncMeta(payload);
+  if (!normalized) {
+    return;
+  }
+  const resultOrPromise = db
+    .prepare(
+      `INSERT INTO user_actions (id, user_id, application_id, action_type, action_payload, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      crypto.randomUUID(),
+      userId,
+      null,
+      GMAIL_SYNC_ACTION_TYPE,
+      JSON.stringify(normalized),
+      nowIso()
+    );
+  if (resultOrPromise && typeof resultOrPromise.then === 'function') {
+    await resultOrPromise;
+  }
 }
 
 function isGoogleInvalidGrantError(err) {
@@ -1270,6 +1383,7 @@ app.get('/api/email/status', requireAuth, async (req, res) => {
   const configured = Boolean(getOAuthClient());
   const encryptionReady = isEncryptionReady();
   let tokens = null;
+  let lastSync = null;
   if (encryptionReady) {
     try {
       tokens = await getStoredTokens(db, req.user.id);
@@ -1283,11 +1397,18 @@ app.get('/api/email/status', requireAuth, async (req, res) => {
       });
     }
   }
+  try {
+    lastSync = await getLatestGmailSyncMeta(req.user.id);
+  } catch (err) {
+    lastSync = null;
+  }
   return res.json({
     configured,
     encryptionReady,
     connected: Boolean(tokens),
-    email: tokens?.connected_email || null
+    email: tokens?.connected_email || null,
+    last_synced_at: lastSync?.last_synced_at || null,
+    last_sync: lastSync
   });
 });
 
@@ -1489,22 +1610,71 @@ app.get('/api/email/callback', requireAuth, async (req, res) => {
 });
 
 app.post('/api/email/sync', requireAuth, async (req, res) => {
-  const days = Number(req.body.days) || 30;
+  const mode = req.body.mode === 'days' ? 'days' : 'since_last';
+  const requestedDays = clampSyncDays(req.body.days, FIRST_SYNC_DAYS);
   const maxResults = Number(req.body.maxResults) || 500;
   const syncId = req.body.sync_id || crypto.randomUUID();
   if (!isEncryptionReady()) {
     return res.status(400).json({ error: 'TOKEN_ENC_KEY_REQUIRED' });
   }
   try {
+    const syncEnd = new Date();
+    let syncStart = null;
+    let effectiveDays = requestedDays;
+    if (mode === 'since_last') {
+      const lastSync = await getLatestGmailSyncMeta(req.user.id);
+      const lastSyncedDate = parseIsoDate(lastSync?.last_synced_at);
+      if (lastSyncedDate && lastSyncedDate.getTime() < syncEnd.getTime()) {
+        syncStart = lastSyncedDate;
+      } else {
+        syncStart = new Date(syncEnd.getTime() - FIRST_SYNC_DAYS * 24 * 60 * 60 * 1000);
+      }
+      effectiveDays = Math.max(
+        1,
+        Math.round((syncEnd.getTime() - syncStart.getTime()) / (24 * 60 * 60 * 1000))
+      );
+    } else {
+      syncStart = new Date(syncEnd.getTime() - requestedDays * 24 * 60 * 60 * 1000);
+      effectiveDays = requestedDays;
+    }
+
     migrate(db);
     const result = await syncGmailMessages({
       db,
       userId: req.user.id,
-      days,
+      days: effectiveDays,
       maxResults,
-      syncId
+      syncId,
+      mode,
+      timeWindowStart: syncStart,
+      timeWindowEnd: syncEnd
     });
-    return res.json({ ...result, sync_id: syncId });
+    if ((result?.status || 'ok') !== 'not_connected') {
+      const syncMeta = normalizeSyncMeta({
+        mode,
+        days: effectiveDays,
+        last_synced_at: syncEnd.toISOString(),
+        time_window_start: result.time_window_start || syncStart.toISOString(),
+        time_window_end: result.time_window_end || syncEnd.toISOString(),
+        message_count_scanned:
+          result.total_messages_listed ?? result.fetched_total ?? result.fetched ?? 0,
+        applications_updated: computeApplicationsUpdated(result)
+      });
+      if (syncMeta) {
+        await storeGmailSyncMeta(req.user.id, syncMeta);
+      }
+      return res.json({
+        ...result,
+        sync_id: syncId,
+        mode,
+        days: effectiveDays,
+        last_synced_at: syncMeta?.last_synced_at || syncEnd.toISOString(),
+        message_count_scanned: syncMeta?.message_count_scanned ?? null,
+        applications_updated: syncMeta?.applications_updated ?? null,
+        last_sync: syncMeta || null
+      });
+    }
+    return res.json({ ...result, sync_id: syncId, mode, days: effectiveDays });
   } catch (err) {
     if (isGoogleInvalidGrantError(err)) {
       let providerEmail = null;

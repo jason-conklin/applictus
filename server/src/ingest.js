@@ -716,13 +716,20 @@ async function repairLinkedInSplitApplications(db, userId, { syncStart, syncEnd 
   };
 }
 
-async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, syncId = null }) {
+async function syncGmailMessages({
+  db,
+  userId,
+  days = 30,
+  maxResults = 100,
+  syncId = null,
+  mode = 'days',
+  timeWindowStart = null,
+  timeWindowEnd = null
+}) {
   const authClient = await getAuthorizedClient(db, userId);
   if (!authClient) {
     return { status: 'not_connected' };
   }
-
-  logInfo('ingest.start', { userId, days, maxResults, syncId });
 
   const gmail = google.gmail({ version: 'v1', auth: authClient });
   let pageToken;
@@ -770,7 +777,34 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
   const messageSourceCounts = {};
   const reasons = initReasonCounters();
 
-  const queryDays = Math.max(1, Math.min(days, 365));
+  const requestedDays = Math.max(1, Math.min(days, 365));
+  const parsedWindowEnd = new Date(timeWindowEnd || new Date());
+  const safeWindowEnd = Number.isNaN(parsedWindowEnd.getTime()) ? new Date() : parsedWindowEnd;
+  const parsedWindowStart = new Date(
+    timeWindowStart || new Date(safeWindowEnd.getTime() - requestedDays * 24 * 60 * 60 * 1000)
+  );
+  let safeWindowStart = Number.isNaN(parsedWindowStart.getTime())
+    ? new Date(safeWindowEnd.getTime() - requestedDays * 24 * 60 * 60 * 1000)
+    : parsedWindowStart;
+  if (safeWindowStart.getTime() >= safeWindowEnd.getTime()) {
+    safeWindowStart = new Date(safeWindowEnd.getTime() - 60 * 1000);
+  }
+  const queryDays = Math.max(
+    1,
+    Math.round((safeWindowEnd.getTime() - safeWindowStart.getTime()) / (24 * 60 * 60 * 1000))
+  );
+  const afterSeconds = Math.floor(safeWindowStart.getTime() / 1000);
+  const beforeSeconds = Math.max(afterSeconds + 1, Math.ceil(safeWindowEnd.getTime() / 1000));
+  const gmailQuery = `after:${afterSeconds} before:${beforeSeconds}`;
+  logInfo('ingest.start', {
+    userId,
+    mode,
+    days: queryDays,
+    maxResults,
+    syncId,
+    timeWindowStart: safeWindowStart.toISOString(),
+    timeWindowEnd: safeWindowEnd.toISOString()
+  });
   const limit = Math.max(1, Math.min(maxResults, 500));
 
   setSyncProgress(syncId, {
@@ -781,15 +815,13 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
     pagesFetched: 0
   });
 
-  const timeWindowEnd = new Date();
-  const timeWindowStart = new Date(timeWindowEnd.getTime() - queryDays * 24 * 60 * 60 * 1000);
   do {
     if (fetched >= limit) {
       break;
     }
     const list = await gmail.users.messages.list({
       userId: 'me',
-      q: `newer_than:${queryDays}d`,
+      q: gmailQuery,
       maxResults: Math.min(100, limit - fetched),
       pageToken
     });
@@ -1419,8 +1451,8 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
 
   try {
     const repair = await repairLinkedInSplitApplications(db, userId, {
-      syncStart: timeWindowStart,
-      syncEnd: new Date()
+      syncStart: safeWindowStart,
+      syncEnd: safeWindowEnd
     });
     linkedInRepairMergedPairs = Number(repair?.mergedPairs || 0);
     linkedInRepairMovedEvents = Number(repair?.movedEvents || 0);
@@ -1488,11 +1520,12 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
     linkedInRepairMergedPairs,
     linkedInRepairMovedEvents,
     linkedInRepairArchivedApps,
-    timeWindowStart: timeWindowStart.toISOString(),
-    timeWindowEnd: timeWindowEnd.toISOString(),
+    timeWindowStart: safeWindowStart.toISOString(),
+    timeWindowEnd: safeWindowEnd.toISOString(),
     stoppedReason,
     reasons,
-    days: queryDays
+    days: queryDays,
+    mode
   });
 
   return {
@@ -1545,10 +1578,11 @@ async function syncGmailMessages({ db, userId, days = 30, maxResults = 100, sync
     linkedin_repair_merged_pairs: linkedInRepairMergedPairs,
     linkedin_repair_moved_events: linkedInRepairMovedEvents,
     linkedin_repair_archived_apps: linkedInRepairArchivedApps,
-    time_window_start: timeWindowStart.toISOString(),
-    time_window_end: timeWindowEnd.toISOString(),
+    time_window_start: safeWindowStart.toISOString(),
+    time_window_end: safeWindowEnd.toISOString(),
     stopped_reason: stoppedReason,
-    days: queryDays
+    days: queryDays,
+    mode
   };
 }
 

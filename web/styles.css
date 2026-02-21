@@ -2166,24 +2166,103 @@ textarea:focus-visible {
   margin-right: auto;
 }
 
-.sync-strip-range {
+.sync-inline-controls {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.sync-quick-controls {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.sync-action-group {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.sync-menu-button {
+  min-height: 38px;
+  min-width: 36px;
+  width: 36px;
+  padding: 0;
+  border-radius: 12px;
+}
+
+.sync-menu-button svg {
+  display: block;
+  stroke-width: 2.2;
+}
+
+.sync-helper-text {
+  text-align: right;
   font-size: 12px;
-  color: var(--color-muted);
+  white-space: nowrap;
 }
 
-.sync-strip-range input {
-  width: 88px;
-  padding: 6px 8px;
+.sync-range-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 206px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 58, 119, 0.15);
+  background: linear-gradient(180deg, #ffffff, #f5f9ff);
+  box-shadow: 0 18px 34px rgba(10, 30, 70, 0.18), 0 4px 12px rgba(10, 30, 70, 0.12);
+  display: grid;
+  gap: 2px;
+  z-index: 16;
 }
 
-.sync-inline-controls {
+.sync-range-menu-item {
+  border: 1px solid transparent;
+  background: transparent;
+  color: #183867;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  border-radius: 9px;
+  padding: 7px 8px;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.sync-range-menu-item:hover {
+  background: rgba(18, 74, 152, 0.08);
+  border-color: rgba(18, 74, 152, 0.12);
+}
+
+.sync-range-menu-item:focus-visible {
+  outline: 2px solid rgba(31, 79, 150, 0.45);
+  outline-offset: 1px;
+}
+
+.sync-range-menu-item.is-selected {
+  background: rgba(18, 74, 152, 0.12);
+  border-color: rgba(18, 74, 152, 0.16);
+}
+
+.sync-range-check {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  margin-left: auto;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  color: #1d5ac2;
 }
 
 .sync-connect-cta {
@@ -2801,11 +2880,17 @@ textarea:focus-visible {
 .pager-btn svg {
   width: 16px;
   height: 16px;
+  display: block;
+  flex-shrink: 0;
+}
+
+.pager-btn path {
   stroke: currentColor;
   fill: none;
-  stroke-width: 2;
+  stroke-width: 2.25;
   stroke-linecap: round;
   stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .pager-btn:hover {
@@ -3851,6 +3936,24 @@ details summary {
 
   .sync-panel {
     grid-template-columns: 1fr;
+  }
+
+  .sync-inline-controls,
+  .sync-quick-controls {
+    width: 100%;
+    align-items: flex-start;
+    margin-left: 0;
+  }
+
+  .sync-helper-text {
+    text-align: left;
+    white-space: normal;
+  }
+
+  .sync-range-menu {
+    right: auto;
+    left: 0;
+    min-width: min(220px, calc(100vw - 56px));
   }
 }
 
