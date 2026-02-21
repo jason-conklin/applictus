@@ -2983,7 +2983,7 @@ textarea:focus-visible {
 
 #applications-table .table-header,
 #applications-table .table-row {
-  grid-template-columns: 1.4fr 1.2fr 0.9fr 1fr 56px;
+  grid-template-columns: 1.4fr 1.2fr 0.9fr 1fr 112px;
 }
 
 #unsorted-table .table-header,
@@ -3095,8 +3095,25 @@ textarea:focus-visible {
 .table-select-header,
 .table-select-cell {
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   align-items: center;
+}
+
+.table-select-header-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.table-select-all-text {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: rgba(15, 23, 42, 0.58);
+  white-space: nowrap;
 }
 
 .table-select-control {
@@ -3113,6 +3130,10 @@ textarea:focus-visible {
 
 .table-select-control:hover {
   background: rgba(31, 64, 117, 0.08);
+}
+
+.table-select-header-label:hover .table-select-all-text {
+  color: rgba(15, 23, 42, 0.75);
 }
 
 .table-select-control:focus-within {

@@ -3186,11 +3186,14 @@ function renderApplicationsTable(applications) {
         <span>Last activity</span>${sortKey === 'lastActivity' ? `<span class="arrow">${arrow}</span>` : ''}
       </button>
       <div class="table-select-header">
-        <label class="table-select-control" aria-label="Select all applications on this page">
-          <input class="table-select-input table-select-all" type="checkbox" ${allSelected ? 'checked' : ''} ${
-            someSelected ? 'data-indeterminate="true"' : ''
-          } />
-          <span class="table-select-mark" aria-hidden="true"></span>
+        <label class="table-select-header-label" aria-label="Select all applications on this page">
+          <span class="table-select-control">
+            <input class="table-select-input table-select-all" type="checkbox" ${allSelected ? 'checked' : ''} ${
+              someSelected ? 'data-indeterminate="true"' : ''
+            } />
+            <span class="table-select-mark" aria-hidden="true"></span>
+          </span>
+          <span class="table-select-all-text">SELECT ALL</span>
         </label>
       </div>
     </div>
