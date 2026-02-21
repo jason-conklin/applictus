@@ -4813,13 +4813,35 @@ body.home-page .home-billboard-inner {
   justify-items: center;
   gap: clamp(20px, 3.2vh, 36px);
   text-align: center;
+  perspective: 1200px;
 }
 
-body.home-page .home-billboard-banner {
-  display: block;
+body.home-page .hero-banner {
+  display: grid;
+  place-items: center;
   width: clamp(320px, 62vw, 980px);
+  transform-origin: 50% 60%;
+  animation: heroFloat 8s ease-in-out infinite;
+  will-change: transform;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  --hero-parallax-x: 0px;
+  --hero-parallax-y: 0px;
+  --hero-tilt-x: 0deg;
+  --hero-tilt-y: 0deg;
+}
+
+body.home-page .hero-banner__img {
+  display: block;
+  width: 100%;
   height: auto;
   filter: drop-shadow(0 24px 46px rgba(17, 43, 89, 0.18));
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
 }
 
 body.home-page .home-billboard-cta {
@@ -5034,6 +5056,21 @@ body.home-page.animate-ready.home-loaded .home-hero-trust {
   }
 }
 
+@keyframes heroFloat {
+  0% {
+    transform: translate3d(var(--hero-parallax-x), var(--hero-parallax-y), 0) rotateX(var(--hero-tilt-x)) rotateY(var(--hero-tilt-y))
+      rotateZ(-0.35deg) scale(1);
+  }
+  50% {
+    transform: translate3d(var(--hero-parallax-x), calc(var(--hero-parallax-y) - 8px), 0) rotateX(var(--hero-tilt-x)) rotateY(var(--hero-tilt-y))
+      rotateZ(0.35deg) scale(1.01);
+  }
+  100% {
+    transform: translate3d(var(--hero-parallax-x), var(--hero-parallax-y), 0) rotateX(var(--hero-tilt-x)) rotateY(var(--hero-tilt-y))
+      rotateZ(-0.35deg) scale(1);
+  }
+}
+
 @media (max-width: 1280px) and (min-width: 981px) {
   body.home-page .home-billboard {
     --home-cap-width: 158vw;
@@ -5048,7 +5085,7 @@ body.home-page.animate-ready.home-loaded .home-hero-trust {
     gap: clamp(16px, 2.6vh, 28px);
   }
 
-  body.home-page .home-billboard-banner {
+  body.home-page .hero-banner {
     width: clamp(320px, 58vw, 860px);
   }
 
@@ -5077,7 +5114,7 @@ body.home-page.animate-ready.home-loaded .home-hero-trust {
     padding-bottom: clamp(42px, 6vh, 66px);
   }
 
-  body.home-page .home-billboard-banner {
+  body.home-page .hero-banner {
     width: clamp(320px, 54vw, 760px);
   }
 
@@ -5112,6 +5149,14 @@ body.home-page.animate-ready.home-loaded .home-hero-trust {
 
   body.home-page .btn-bevel {
     width: 100%;
+  }
+
+  body.home-page .hero-banner {
+    width: min(900px, 92vw);
+    --hero-parallax-x: 0px;
+    --hero-parallax-y: 0px;
+    --hero-tilt-x: 0deg;
+    --hero-tilt-y: 0deg;
   }
 
   body.home-page .home-hero-trust {
@@ -5227,6 +5272,11 @@ body.home-page.animate-ready.home-loaded .home-hero-trust {
 
   body.home-page .home-cap::after {
     animation: none;
+  }
+
+  body.home-page .hero-banner {
+    animation: none !important;
+    transform: none !important;
   }
 
   body.home-page .feature-tile,
