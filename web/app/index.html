@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Applictus helps you track job applications and sync Gmail updates so you always know your application status."
+      content="Applictus helps you track job applications and scan Gmail updates so you always know your application status."
     />
     <meta name="app-api-base-url" content="" />
     <title>Applictus</title>
@@ -567,13 +567,13 @@
               </div>
             </div>
           <div class="sync-error hidden" id="sync-error-banner">
-            <div class="sync-error-message" id="sync-error-message">Sync failed.</div>
+            <div class="sync-error-message" id="sync-error-message">Scan failed.</div>
             <button class="btn btn--ghost btn--sm icon" type="button" id="sync-error-toggle">Show details</button>
             <pre class="sync-error-detail hidden" id="sync-error-detail"></pre>
           </div>
           <div class="sync-progress hidden" id="sync-progress">
             <div class="sync-progress-meta">
-              <span id="sync-progress-label">Syncing emails…</span>
+              <span id="sync-progress-label">Scanning emails…</span>
               <span id="sync-progress-value">0%</span>
             </div>
             <div class="progress-track" aria-hidden="true">
@@ -589,7 +589,7 @@
               aria-controls="sync-details-wrapper"
               id="sync-summary-main"
             >
-              <span class="sync-summary-status" id="sync-summary-status">Last sync not run</span>
+              <span class="sync-summary-status" id="sync-summary-status">Last scan not run</span>
               <span class="sync-summary-metrics muted" id="sync-summary-metrics"></span>
               <span class="chevron" aria-hidden="true">▾</span>
             </div>
@@ -1225,7 +1225,7 @@
 		            <h3>Privacy-first by design</h3>
 		            <ul class="about-list">
 		              <li>We focus on the email metadata needed to track job updates.</li>
-		              <li>You control Gmail sync windows and can disconnect anytime.</li>
+		              <li>You control Gmail scan windows and can disconnect anytime.</li>
 		              <li>Access stays tied to your authenticated session.</li>
 		            </ul>
 		          </section>

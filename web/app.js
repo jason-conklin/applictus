@@ -154,6 +154,11 @@ const tablePageInfo = document.getElementById('table-page-info');
 const tablePrevTop = document.getElementById('table-prev-top');
 const tableNextTop = document.getElementById('table-next-top');
 const tablePageInfoTop = document.getElementById('table-page-info-top');
+const tableBulkBar = document.getElementById('table-bulk-bar');
+const tableBulkCount = document.getElementById('table-bulk-count');
+const bulkArchiveBtn = document.getElementById('bulk-archive-btn');
+const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
+const bulkClearBtn = document.getElementById('bulk-clear-btn');
 const archivedPrev = document.getElementById('archived-prev');
 const archivedNext = document.getElementById('archived-next');
 const archivedPageInfo = document.getElementById('archived-page-info');
@@ -219,6 +224,7 @@ let lastDetailEvents = [];
 let deleteConfirmForId = null;
 let deleteBusy = false;
 let deleteError = null;
+let bulkActionBusy = false;
 const detailActions = document.getElementById('detail-actions');
 const modalRoot = document.getElementById('modal-root');
 const modalTitle = document.getElementById('modal-title');
@@ -330,7 +336,8 @@ const state = {
   table: {
     offset: 0,
     total: 0,
-    data: []
+    data: [],
+    selectedIds: new Set()
   },
   archived: {
     offset: 0,
@@ -675,20 +682,20 @@ function updateSyncHelperText() {
     return;
   }
   if (!emailState.lastSyncedAt) {
-    syncHelperText.textContent = 'First sync scans the last 30 days';
+    syncHelperText.textContent = 'First scan checks the last 30 days';
     return;
   }
   const label = formatSyncDateTime(emailState.lastSyncedAt);
-  syncHelperText.textContent = label ? `Syncs new emails since ${label}` : 'Syncs new emails since last sync';
+  syncHelperText.textContent = label ? `Scans new emails since ${label}` : 'Scans new emails since last scan';
 }
 
 function getDashboardEmptyStateHtml() {
   return `
     <div class="empty-state">
       <h3>No applications yet</h3>
-      <p class="muted">Sync Gmail to import applications automatically, or add one manually.</p>
+      <p class="muted">Scan Gmail to import applications automatically, or add one manually.</p>
       <div class="empty-state-actions">
-        <button class="btn btn--primary btn--md" type="button" data-action="sync-gmail">Sync Gmail</button>
+        <button class="btn btn--primary btn--md" type="button" data-action="sync-gmail">Scan Gmail</button>
         <button class="btn btn--ghost btn--sm" type="button" data-action="add-application">Add application</button>
       </div>
     </div>
@@ -860,6 +867,29 @@ function showNotice(message, title = 'Something went wrong') {
     footer,
     allowBackdropClose: true
   });
+}
+
+function showToast(message, { tone = 'info' } = {}) {
+  if (!message || typeof document === 'undefined') {
+    return;
+  }
+  let root = document.getElementById('app-toast-root');
+  if (!root) {
+    root = document.createElement('div');
+    root.id = 'app-toast-root';
+    root.className = 'app-toast-root';
+    document.body.appendChild(root);
+  }
+  const toast = document.createElement('div');
+  toast.className = `app-toast ${tone ? `app-toast-${tone}` : ''}`;
+  toast.textContent = message;
+  root.appendChild(toast);
+  window.requestAnimationFrame(() => toast.classList.add('is-visible'));
+  const close = () => {
+    toast.classList.remove('is-visible');
+    window.setTimeout(() => toast.remove(), 200);
+  };
+  window.setTimeout(close, 2200);
 }
 
 function isDbUnavailableClientError(err) {
@@ -1134,7 +1164,7 @@ function mapPhaseLabel(phase) {
     case 'finalizing':
       return 'Finalizing…';
     default:
-      return 'Syncing…';
+      return 'Scanning…';
   }
 }
 
@@ -1146,7 +1176,7 @@ function animateToHundredThenHide() {
   function step(ts) {
     const t = Math.min(1, (ts - startTime) / duration);
     const eased = start + (end - start) * t;
-    setSyncProgressState({ visible: true, progress: eased, label: 'Sync complete', error: false });
+    setSyncProgressState({ visible: true, progress: eased, label: 'Scan complete', error: false });
     if (t < 1) {
       requestAnimationFrame(step);
     } else {
@@ -1160,7 +1190,7 @@ function enterFinishing() {
   if (syncUiState.state === 'finishing') return;
   syncUiState.state = 'finishing';
   syncUiState.backendTarget = 1;
-  syncUiState.backendPhaseLabel = 'Sync complete';
+  syncUiState.backendPhaseLabel = 'Scan complete';
   animateToHundredThenHide();
   if (syncUiState.finishGuard) {
     clearTimeout(syncUiState.finishGuard);
@@ -1168,7 +1198,7 @@ function enterFinishing() {
   // Safety guard: if finishing hangs, force completion
   syncUiState.finishGuard = setTimeout(() => {
     if (syncUiState.state === 'finishing') {
-      setSyncProgressState({ visible: true, progress: 1, label: 'Sync complete', error: false });
+      setSyncProgressState({ visible: true, progress: 1, label: 'Scan complete', error: false });
       hideSyncProgress();
     }
   }, 2000);
@@ -1201,7 +1231,7 @@ function startSyncPolling(syncId) {
     const label =
       syncUiState.backendPhaseLabel ||
       (elapsedSec < 3
-        ? 'Starting sync…'
+        ? 'Starting scan…'
         : elapsedSec < 12
         ? 'Fetching emails…'
         : elapsedSec < 30
@@ -1271,12 +1301,12 @@ function startSyncPolling(syncId) {
       if (transient) {
         setSyncProgressState({
           visible: true,
-          label: 'Syncing…',
+          label: 'Scanning…',
           error: false
         });
         return;
       }
-      setSyncProgressState({ visible: true, label: 'Sync failed', error: true });
+      setSyncProgressState({ visible: true, label: 'Scan failed', error: true });
       hideSyncProgress();
       if (syncStatus) syncStatus.textContent = 'Failed';
       if (syncUiState.pollTimer) {
@@ -1468,9 +1498,9 @@ function setPageMeta(view) {
   };
 
   const descriptions = {
-    auth: 'Sign in to Applictus to track job applications and sync Gmail updates.',
+    auth: 'Sign in to Applictus to track job applications and scan Gmail updates.',
     dashboard:
-      'Applictus helps you track job applications and sync Gmail updates so you always know your application status.',
+      'Applictus helps you track job applications and scan Gmail updates so you always know your application status.',
     account: 'Manage your Applictus account and Gmail connection.',
     archive: 'Browse archived job applications in Applictus.',
     privacy: 'Read the Applictus Privacy Policy.',
@@ -2337,7 +2367,7 @@ function buildMetricsLine(metrics) {
   const applications = Number.isFinite(metrics.appsUpdated)
     ? `${metrics.appsUpdated} updated`
     : '— updated';
-  return `Last sync • ${when} • ${messages} • ${applications}`;
+  return `Last scan • ${when} • ${messages} • ${applications}`;
 }
 
 function getStoredSyncDetailsOpen() {
@@ -2380,30 +2410,30 @@ function renderSyncSummary({ status = 'idle', result = null, rawDetails = '', la
   if (syncResult) {
     syncResult.textContent = hasDetails ? rawDetails : '';
   }
-  let statusText = 'Last sync not run';
+  let statusText = 'Last scan not run';
   let metricsText = '';
   switch (status) {
     case 'running':
-      statusText = '⏳ Syncing…';
+      statusText = '⏳ Scanning…';
       metricsText = label || 'In progress';
       break;
     case 'success': {
-      statusText = '✅ Last sync complete';
+      statusText = '✅ Last scan complete';
       const metrics = deriveSyncMetrics(result, rawDetails);
-      metricsText = buildMetricsLine(metrics) || 'Sync complete';
+      metricsText = buildMetricsLine(metrics) || 'Scan complete';
       break;
     }
     case 'failed':
-      statusText = '⚠️ Last sync failed';
+      statusText = '⚠️ Last scan failed';
       metricsText = label || 'See details for more info';
       break;
     case 'not_connected':
       statusText = 'Not connected';
-      metricsText = 'Connect Gmail to start syncing';
+      metricsText = 'Connect Gmail to start scanning';
       break;
     default:
-      statusText = 'Last sync not run';
-      metricsText = 'Run a sync to see metrics';
+      statusText = 'Last scan not run';
+      metricsText = 'Run a scan to see metrics';
       break;
   }
   syncSummaryStatus.textContent = statusText;
@@ -2470,9 +2500,9 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
     syncErrorToggle.dataset.mode = 'details';
     syncErrorToggle.textContent = 'Show details';
   }
-  renderSyncSummary({ status: 'running', rawDetails: 'Sync in progress…' });
+  renderSyncSummary({ status: 'running', rawDetails: 'Scan in progress…' });
   if (statusEl) {
-    statusEl.textContent = 'Syncing...';
+    statusEl.textContent = 'Scanning...';
   }
   if (resultEl) {
     resultEl.textContent = '';
@@ -2481,7 +2511,7 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
     buttonEl.disabled = true;
     buttonEl.setAttribute('aria-busy', 'true');
     buttonEl.dataset.originalLabel = buttonEl.textContent;
-    buttonEl.textContent = 'Syncing…';
+    buttonEl.textContent = 'Scanning…';
     buttonEl.classList.add('loading');
   }
   const syncId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
@@ -2492,7 +2522,7 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
   if (normalizedMode === 'days') {
     syncBody.days = normalizedDays;
   }
-  setSyncProgressState({ visible: true, progress: 0, label: 'Starting sync…', error: false });
+  setSyncProgressState({ visible: true, progress: 0, label: 'Starting scan…', error: false });
   startSyncPolling(syncId);
   try {
     const result = await api('/api/email/sync', {
@@ -2537,7 +2567,7 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
       }
       if (syncErrorBanner && syncErrorMessage && syncErrorDetail) {
         syncErrorMessage.textContent = reconnectMessage;
-        syncErrorDetail.textContent = 'Google no longer accepts the saved Gmail token. Reconnect to continue syncing.';
+        syncErrorDetail.textContent = 'Google no longer accepts the saved Gmail token. Reconnect to continue scanning.';
         syncErrorBanner.classList.remove('hidden');
         syncErrorDetail.classList.add('hidden');
       }
@@ -2558,7 +2588,7 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
       statusEl.textContent = 'Failed';
     }
     if (syncErrorBanner && syncErrorMessage && syncErrorDetail) {
-      syncErrorMessage.textContent = 'Sync failed';
+      syncErrorMessage.textContent = 'Scan failed';
       syncErrorDetail.textContent = `${err?.message || 'Unexpected error'}${err?.detail ? `\n${err.detail}` : ''}`;
       syncErrorBanner.classList.remove('hidden');
       syncErrorDetail.classList.add('hidden');
@@ -2567,11 +2597,11 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
     const rawDetails = `${err?.message || 'Unexpected error'}${code}${
       err?.detail ? `\n${err.detail}` : ''
     }`;
-    renderSyncSummary({ status: 'failed', rawDetails, label: 'Sync failed' });
+    renderSyncSummary({ status: 'failed', rawDetails, label: 'Scan failed' });
     if (resultEl) {
       resultEl.textContent = rawDetails;
     }
-    setSyncProgressState({ visible: true, progress: syncUiState.progress, label: 'Sync failed', error: true });
+    setSyncProgressState({ visible: true, progress: syncUiState.progress, label: 'Scan failed', error: true });
     hideSyncProgress();
   } finally {
     if (buttonEl) {
@@ -2619,13 +2649,13 @@ async function runDashboardSyncOption(option) {
 async function runQuickSync() {
   const statusEl = document.getElementById('empty-sync-status');
   if (statusEl) {
-    statusEl.textContent = 'Syncing...';
+    statusEl.textContent = 'Scanning...';
   }
   if (syncErrorToggle) {
     syncErrorToggle.dataset.mode = 'details';
     syncErrorToggle.textContent = 'Show details';
   }
-  renderSyncSummary({ status: 'running', rawDetails: 'Sync in progress…' });
+  renderSyncSummary({ status: 'running', rawDetails: 'Scan in progress…' });
   const syncId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
   startSyncPolling(syncId);
   try {
@@ -2659,11 +2689,11 @@ async function runQuickSync() {
   } catch (err) {
     if (isGmailReconnectRequiredError(err)) {
       if (statusEl) {
-        statusEl.textContent = 'Reconnect Gmail to continue syncing.';
+        statusEl.textContent = 'Reconnect Gmail to continue scanning.';
       }
       if (syncErrorBanner && syncErrorMessage && syncErrorDetail) {
         syncErrorMessage.textContent = 'Your Gmail connection expired. Please reconnect.';
-        syncErrorDetail.textContent = 'Google no longer accepts the saved Gmail token. Reconnect to continue syncing.';
+        syncErrorDetail.textContent = 'Google no longer accepts the saved Gmail token. Reconnect to continue scanning.';
         syncErrorBanner.classList.remove('hidden');
         syncErrorDetail.classList.add('hidden');
       }
@@ -2681,7 +2711,7 @@ async function runQuickSync() {
     }
     if (statusEl) {
       const code = err?.code ? ` (${err.code})` : '';
-      statusEl.textContent = `Sync failed: ${err?.message || 'Unexpected error'}${code}`;
+      statusEl.textContent = `Scan failed: ${err?.message || 'Unexpected error'}${code}`;
       if (err?.detail) {
         statusEl.textContent += ` — ${err.detail}`;
       }
@@ -2690,7 +2720,7 @@ async function runQuickSync() {
     const rawDetails = `${err?.message || 'Unexpected error'}${code}${
       err?.detail ? `\n${err.detail}` : ''
     }`;
-    renderSyncSummary({ status: 'failed', rawDetails, label: 'Sync failed' });
+    renderSyncSummary({ status: 'failed', rawDetails, label: 'Scan failed' });
   }
 }
 
@@ -3063,12 +3093,81 @@ async function openCreateModal(eventId, defaults = {}) {
   });
 }
 
+function getSelectedApplicationIds() {
+  return Array.from(state.table.selectedIds || []);
+}
+
+function clearTableSelection({ rerender = true } = {}) {
+  if (!state.table.selectedIds || !state.table.selectedIds.size) {
+    updateTableBulkBar();
+    return;
+  }
+  state.table.selectedIds.clear();
+  if (rerender && state.table.data.length) {
+    renderApplicationsTable(sortApplications(state.table.data));
+    return;
+  }
+  updateTableBulkBar();
+}
+
+function setTableSelectionBusy(isBusy) {
+  bulkActionBusy = Boolean(isBusy);
+  const disabled = bulkActionBusy || !state.table.selectedIds?.size;
+  if (bulkArchiveBtn) {
+    bulkArchiveBtn.disabled = disabled;
+  }
+  if (bulkDeleteBtn) {
+    bulkDeleteBtn.disabled = disabled;
+  }
+  if (bulkClearBtn) {
+    bulkClearBtn.disabled = bulkActionBusy;
+  }
+}
+
+function updateTableBulkBar() {
+  if (!tableBulkBar || !tableBulkCount) {
+    return;
+  }
+  const count = state.table.selectedIds?.size || 0;
+  tableBulkBar.classList.toggle('hidden', count === 0);
+  tableBulkCount.textContent = `${count} selected`;
+  setTableSelectionBusy(bulkActionBusy);
+}
+
+function setApplicationSelected(applicationId, selected, { rerender = true } = {}) {
+  if (!applicationId) {
+    return;
+  }
+  if (!state.table.selectedIds) {
+    state.table.selectedIds = new Set();
+  }
+  if (selected) {
+    state.table.selectedIds.add(applicationId);
+  } else {
+    state.table.selectedIds.delete(applicationId);
+  }
+  if (rerender && state.table.data.length) {
+    renderApplicationsTable(sortApplications(state.table.data));
+    return;
+  }
+  updateTableBulkBar();
+}
+
 function renderApplicationsTable(applications) {
+  const visibleIdSet = new Set(applications.map((app) => app.id));
+  state.table.selectedIds = new Set(
+    Array.from(state.table.selectedIds || []).filter((id) => visibleIdSet.has(id))
+  );
+
   if (!applications.length) {
     applicationsTable.innerHTML = getDashboardEmptyStateHtml();
+    updateTableBulkBar();
     return;
   }
 
+  const selectedCount = applications.filter((app) => state.table.selectedIds.has(app.id)).length;
+  const allSelected = selectedCount > 0 && selectedCount === applications.length;
+  const someSelected = selectedCount > 0 && !allSelected;
   const sortKey = state.sort.key;
   const sortDir = state.sort.dir;
   const arrow = sortDir === 'asc' ? '▲' : '▼';
@@ -3086,6 +3185,14 @@ function renderApplicationsTable(applications) {
       <button type="button" class="sort-btn${sortKey === 'lastActivity' ? ' active' : ''}" data-sort="lastActivity" aria-label="Sort by last activity">
         <span>Last activity</span>${sortKey === 'lastActivity' ? `<span class="arrow">${arrow}</span>` : ''}
       </button>
+      <div class="table-select-header">
+        <label class="table-select-control" aria-label="Select all applications on this page">
+          <input class="table-select-input table-select-all" type="checkbox" ${allSelected ? 'checked' : ''} ${
+            someSelected ? 'data-indeterminate="true"' : ''
+          } />
+          <span class="table-select-mark" aria-hidden="true"></span>
+        </label>
+      </div>
     </div>
   `;
 
@@ -3097,8 +3204,9 @@ function renderApplicationsTable(applications) {
       const suggestionLabel = app.suggested_status
         ? STATUS_LABELS[app.suggested_status] || app.suggested_status
         : null;
+      const isSelected = state.table.selectedIds.has(app.id);
       return `
-        <div class="table-row" style="--stagger: ${index}" data-id="${app.id}">
+        <div class="table-row${isSelected ? ' table-row-selected' : ''}" style="--stagger: ${index}" data-id="${app.id}">
           <div class="cell-company"><strong>${app.company_name || '—'}</strong></div>
           <div class="cell-role" title="${app.job_title || '—'}">${app.job_title || '—'}</div>
           <div>
@@ -3106,12 +3214,110 @@ function renderApplicationsTable(applications) {
             ${suggestionLabel ? `<div class="explanation">Suggestion: ${suggestionLabel}</div>` : ''}
           </div>
           <div>${activity}</div>
+          <div class="table-select-cell">
+            <label class="table-select-control" aria-label="Select application">
+              <input class="table-select-input table-row-select" type="checkbox" data-id="${app.id}" ${
+                isSelected ? 'checked' : ''
+              } />
+              <span class="table-select-mark" aria-hidden="true"></span>
+            </label>
+          </div>
         </div>
       `;
     })
     .join('');
 
   applicationsTable.innerHTML = header + rows;
+  const selectAll = applicationsTable.querySelector('.table-select-all');
+  if (selectAll) {
+    selectAll.indeterminate = someSelected;
+  }
+  updateTableBulkBar();
+}
+
+async function runBulkArchive() {
+  const ids = getSelectedApplicationIds();
+  if (!ids.length || bulkActionBusy) {
+    return;
+  }
+  setTableSelectionBusy(true);
+  try {
+    const result = await api('/api/applications/bulk-archive', {
+      method: 'POST',
+      body: JSON.stringify({ ids })
+    });
+    clearTableSelection({ rerender: false });
+    await loadActiveApplications();
+    await refreshArchivedApplications();
+    const archivedCount = Number(result?.archivedCount || result?.updatedCount || ids.length || 0);
+    showToast(`Archived ${archivedCount} application${archivedCount === 1 ? '' : 's'}.`, {
+      tone: 'success'
+    });
+  } catch (err) {
+    showNotice(err.message || 'Unable to archive selected applications.', 'Bulk archive failed');
+  } finally {
+    setTableSelectionBusy(false);
+    updateTableBulkBar();
+  }
+}
+
+function openBulkDeleteConfirm(ids) {
+  const count = ids.length;
+  if (!count || bulkActionBusy) {
+    return;
+  }
+
+  const body = document.createElement('div');
+  body.className = 'stack';
+  const text = document.createElement('p');
+  text.textContent = `This will remove ${count} application${count === 1 ? '' : 's'} from your dashboard.`;
+  body.appendChild(text);
+  const errorEl = document.createElement('div');
+  errorEl.className = 'form-error hidden';
+  body.appendChild(errorEl);
+
+  const footer = buildModalFooter({
+    confirmText: 'Delete',
+    cancelText: 'Cancel'
+  });
+  const confirmButton = footer.querySelector('[data-role="confirm"]');
+  if (confirmButton) {
+    confirmButton.classList.remove('btn--primary');
+    confirmButton.classList.add('btn--danger');
+  }
+  confirmButton?.addEventListener('click', async () => {
+    setFormError(errorEl, '');
+    setTableSelectionBusy(true);
+    disableModalFooter(footer, true);
+    try {
+      const result = await api('/api/applications/bulk-delete', {
+        method: 'POST',
+        body: JSON.stringify({ ids })
+      });
+      closeModal('success');
+      clearTableSelection({ rerender: false });
+      await loadActiveApplications();
+      await refreshArchivedApplications();
+      const deletedCount = Number(result?.deletedCount || result?.updatedCount || ids.length || 0);
+      showToast(`Deleted ${deletedCount} application${deletedCount === 1 ? '' : 's'}.`, {
+        tone: 'danger'
+      });
+    } catch (err) {
+      setFormError(errorEl, err.message || 'Unable to delete selected applications.');
+      disableModalFooter(footer, false);
+    } finally {
+      setTableSelectionBusy(false);
+      updateTableBulkBar();
+    }
+  });
+
+  openModal({
+    title: `Delete ${count} application${count === 1 ? '' : 's'}?`,
+    description: 'This will remove them from your dashboard.',
+    body,
+    footer,
+    allowBackdropClose: true
+  });
 }
 
 function renderArchivedApplications(applications) {
@@ -3207,6 +3413,10 @@ async function goPrevPage() {
   if (state.table.offset <= 0) {
     return;
   }
+  if (state.table.selectedIds?.size) {
+    clearTableSelection({ rerender: false });
+    showToast('Selection cleared on page change.');
+  }
   state.table.offset = Math.max(state.table.offset - PAGE_SIZE, 0);
   await refreshTable();
 }
@@ -3214,6 +3424,10 @@ async function goPrevPage() {
 async function goNextPage() {
   if (state.table.offset + PAGE_SIZE >= state.table.total) {
     return;
+  }
+  if (state.table.selectedIds?.size) {
+    clearTableSelection({ rerender: false });
+    showToast('Selection cleared on page change.');
   }
   state.table.offset += PAGE_SIZE;
   await refreshTable();
@@ -4348,6 +4562,9 @@ dashboardView?.addEventListener('click', async (event) => {
 let filterCompanyTimer = null;
 let filterRoleTimer = null;
 const applyFilters = async () => {
+  if (state.table.selectedIds?.size) {
+    clearTableSelection({ rerender: false });
+  }
   state.table.offset = 0;
   updateFilterSummary();
   await loadActiveApplications();
@@ -4432,6 +4649,9 @@ applicationsTable?.addEventListener('click', (event) => {
     }
     return;
   }
+  if (event.target.closest('.table-select-control')) {
+    return;
+  }
   const row = event.target.closest('.table-row');
   if (!row) {
     return;
@@ -4440,6 +4660,28 @@ applicationsTable?.addEventListener('click', (event) => {
   if (applicationId) {
     openDetail(applicationId);
   }
+});
+
+applicationsTable?.addEventListener('change', (event) => {
+  const selectAll = event.target.closest('.table-select-all');
+  if (selectAll) {
+    const shouldSelect = Boolean(selectAll.checked);
+    (state.table.data || []).forEach((application) => {
+      setApplicationSelected(application.id, shouldSelect, { rerender: false });
+    });
+    renderApplicationsTable(sortApplications(state.table.data));
+    return;
+  }
+
+  const rowSelect = event.target.closest('.table-row-select');
+  if (!rowSelect) {
+    return;
+  }
+  const applicationId = rowSelect.dataset.id;
+  if (!applicationId) {
+    return;
+  }
+  setApplicationSelected(applicationId, Boolean(rowSelect.checked));
 });
 
 archivedTable?.addEventListener('click', (event) => {
@@ -4451,6 +4693,22 @@ archivedTable?.addEventListener('click', (event) => {
   if (applicationId) {
     openDetail(applicationId);
   }
+});
+
+bulkClearBtn?.addEventListener('click', () => {
+  clearTableSelection();
+});
+
+bulkArchiveBtn?.addEventListener('click', async () => {
+  await runBulkArchive();
+});
+
+bulkDeleteBtn?.addEventListener('click', () => {
+  const ids = getSelectedApplicationIds();
+  if (!ids.length) {
+    return;
+  }
+  openBulkDeleteConfirm(ids);
 });
 
 emailConnect?.addEventListener('click', async () => {

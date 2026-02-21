@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Applictus helps you track job applications and sync Gmail updates so you always know your application status."
+      content="Applictus helps you track job applications and scan Gmail updates so you always know your application status."
     />
     <meta name="app-api-base-url" content="" />
     <title>Applictus</title>
@@ -562,7 +562,7 @@
                   <div class="sync-action-group" id="sync-action-group">
                     <button class="btn btn--primary btn--md" type="button" id="email-sync">
                       <span class="btn-icon-left" aria-hidden="true">⟳</span>
-                      <span class="btn-label">Sync inbox</span>
+                      <span class="btn-label">Scan inbox</span>
                     </button>
                     <button
                       class="btn btn--secondary btn--sm sync-menu-button"
@@ -571,16 +571,16 @@
                       aria-haspopup="menu"
                       aria-expanded="false"
                       aria-controls="sync-range-menu"
-                      aria-label="Choose sync range"
+                      aria-label="Choose scan range"
                     >
                       <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M5 7l5 6 5-6"></path>
                       </svg>
                     </button>
-                    <div class="sync-range-menu hidden" id="sync-range-menu" role="menu" aria-label="Sync range options">
+                    <div class="sync-range-menu hidden" id="sync-range-menu" role="menu" aria-label="Scan range options">
                       <button type="button" class="sync-range-menu-item is-selected" role="menuitemradio" aria-checked="true" data-sync-option="since_last">
                         <span class="sync-range-check" aria-hidden="true">✓</span>
-                        <span class="sync-range-label">Sync since last</span>
+                        <span class="sync-range-label">Scan since last</span>
                       </button>
                       <button type="button" class="sync-range-menu-item" role="menuitemradio" aria-checked="false" data-sync-option="7">
                         <span class="sync-range-check" aria-hidden="true"></span>
@@ -601,7 +601,7 @@
                     </div>
                   </div>
                   <div class="muted small sync-helper-text" id="sync-helper-text">
-                    First sync scans the last 30 days
+                    First scan checks the last 30 days
                   </div>
                 </div>
               </div>
@@ -610,13 +610,13 @@
               </div>
             </div>
           <div class="sync-error hidden" id="sync-error-banner">
-            <div class="sync-error-message" id="sync-error-message">Sync failed.</div>
+            <div class="sync-error-message" id="sync-error-message">Scan failed.</div>
             <button class="btn btn--ghost btn--sm icon" type="button" id="sync-error-toggle">Show details</button>
             <pre class="sync-error-detail hidden" id="sync-error-detail"></pre>
           </div>
           <div class="sync-progress hidden" id="sync-progress">
             <div class="sync-progress-meta">
-              <span id="sync-progress-label">Syncing emails…</span>
+              <span id="sync-progress-label">Scanning emails…</span>
               <span id="sync-progress-value">0%</span>
             </div>
             <div class="progress-track" aria-hidden="true">
@@ -632,7 +632,7 @@
               aria-controls="sync-details-wrapper"
               id="sync-summary-main"
             >
-              <span class="sync-summary-status" id="sync-summary-status">Last sync not run</span>
+              <span class="sync-summary-status" id="sync-summary-status">Last scan not run</span>
               <span class="sync-summary-metrics muted" id="sync-summary-metrics"></span>
               <span class="chevron" aria-hidden="true">▾</span>
             </div>
@@ -755,6 +755,42 @@
             </div>
           </div>
           <div class="table" id="applications-table"></div>
+          <div class="table-bulk-bar hidden" id="table-bulk-bar" aria-live="polite">
+            <div class="table-bulk-count" id="table-bulk-count">0 selected</div>
+            <div class="table-bulk-actions">
+              <button class="btn btn--secondary btn--sm" type="button" id="bulk-archive-btn">
+                <span class="btn-icon-left" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 8v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8" />
+                    <path d="M1 3h22v5H1z" />
+                    <path d="M10 12h4" />
+                  </svg>
+                </span>
+                <span class="btn-label">Archive selected</span>
+              </button>
+              <button class="btn btn--danger btn--sm" type="button" id="bulk-delete-btn">
+                <span class="btn-icon-left" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18" />
+                    <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+                    <path d="M19 6v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6" />
+                    <path d="M10 11v6" />
+                    <path d="M14 11v6" />
+                  </svg>
+                </span>
+                <span class="btn-label">Delete selected</span>
+              </button>
+              <button class="btn btn--ghost btn--sm" type="button" id="bulk-clear-btn">
+                <span class="btn-icon-left" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </span>
+                <span class="btn-label">Clear</span>
+              </button>
+            </div>
+          </div>
           <div class="pagination" id="table-pagination">
             <button class="btn btn--ghost btn--sm" type="button" id="table-prev">Prev</button>
             <div class="muted" id="table-page-info">Page 1</div>
@@ -1268,7 +1304,7 @@
 		            <h3>Privacy-first by design</h3>
 		            <ul class="about-list">
 		              <li>We focus on the email metadata needed to track job updates.</li>
-		              <li>You control Gmail sync windows and can disconnect anytime.</li>
+		              <li>You control Gmail scan windows and can disconnect anytime.</li>
 		              <li>Access stays tied to your authenticated session.</li>
 		            </ul>
 		          </section>

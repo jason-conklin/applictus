@@ -829,6 +829,28 @@ function parseListQuery(query) {
   };
 }
 
+function parseBulkApplicationIds(body) {
+  const rawIds = Array.isArray(body?.ids) ? body.ids : [];
+  const ids = Array.from(
+    new Set(
+      rawIds
+        .map((id) => String(id || '').trim())
+        .filter(Boolean)
+    )
+  );
+  if (!ids.length) {
+    return { ok: false, error: 'IDS_REQUIRED' };
+  }
+  if (ids.length > 250) {
+    return { ok: false, error: 'TOO_MANY_IDS' };
+  }
+  return { ok: true, ids };
+}
+
+function sqlInPlaceholders(count) {
+  return new Array(Math.max(0, count)).fill('?').join(', ');
+}
+
 function buildApplicationFilters({ userId, archived, status, company, role, recencyDays, minConfidence, suggestionsOnly }) {
   const clauses = ['user_id = ?'];
   const params = [userId];
@@ -2319,6 +2341,155 @@ app.patch('/api/applications/:id', requireAuth, (req, res) => {
   }
 
   return res.json({ application: updated });
+});
+
+app.post('/api/applications/bulk-archive', requireAuth, async (req, res) => {
+  const parsed = parseBulkApplicationIds(req.body);
+  if (!parsed.ok) {
+    return res.status(400).json({ error: parsed.error });
+  }
+
+  const ids = parsed.ids;
+  const placeholders = sqlInPlaceholders(ids.length);
+  const archivedTrue = db && db.isAsync ? true : 1;
+
+  try {
+    const existingRes = db
+      .prepare(`SELECT id, archived FROM job_applications WHERE user_id = ? AND id IN (${placeholders})`)
+      .all(req.user.id, ...ids);
+    const existing =
+      existingRes && typeof existingRes.then === 'function' ? await existingRes : existingRes || [];
+
+    if (!existing.length) {
+      return res.status(404).json({ error: 'NOT_FOUND' });
+    }
+
+    const archiveIds = existing.filter((row) => !Boolean(row.archived)).map((row) => row.id);
+    if (!archiveIds.length) {
+      return res.json({
+        ok: true,
+        requestedCount: ids.length,
+        matchedCount: existing.length,
+        archivedCount: 0
+      });
+    }
+
+    const archivePlaceholders = sqlInPlaceholders(archiveIds.length);
+    const timestamp = nowIso();
+    const updateRes = db
+      .prepare(
+        `UPDATE job_applications
+         SET archived = ?, updated_at = ?
+         WHERE user_id = ? AND id IN (${archivePlaceholders})`
+      )
+      .run(archivedTrue, timestamp, req.user.id, ...archiveIds);
+    if (updateRes && typeof updateRes.then === 'function') {
+      await updateRes;
+    }
+
+    for (const applicationId of archiveIds) {
+      createUserAction(db, {
+        userId: req.user.id,
+        applicationId,
+        actionType: 'ARCHIVE',
+        payload: { previous_value: false, new_value: true }
+      });
+    }
+
+    return res.json({
+      ok: true,
+      requestedCount: ids.length,
+      matchedCount: existing.length,
+      archivedCount: archiveIds.length
+    });
+  } catch (err) {
+    logError('bulk archive failed', {
+      userId: req.user?.id || null,
+      requestedCount: ids.length,
+      code: err?.code || null,
+      detail: err?.detail || null,
+      message: err?.message || String(err)
+    });
+    return res.status(500).json({
+      ok: false,
+      error: err?.code || 'BULK_ARCHIVE_FAILED'
+    });
+  }
+});
+
+app.post('/api/applications/bulk-delete', requireAuth, async (req, res) => {
+  const parsed = parseBulkApplicationIds(req.body);
+  if (!parsed.ok) {
+    return res.status(400).json({ error: parsed.error });
+  }
+
+  const ids = parsed.ids;
+  const placeholders = sqlInPlaceholders(ids.length);
+
+  try {
+    const existingRes = db
+      .prepare(`SELECT id FROM job_applications WHERE user_id = ? AND id IN (${placeholders})`)
+      .all(req.user.id, ...ids);
+    const existing =
+      existingRes && typeof existingRes.then === 'function' ? await existingRes : existingRes || [];
+
+    if (!existing.length) {
+      return res.status(404).json({ error: 'NOT_FOUND' });
+    }
+
+    const deleteIds = existing.map((row) => row.id);
+    const deletePlaceholders = sqlInPlaceholders(deleteIds.length);
+
+    if (db.isAsync) {
+      await db.transaction(async (tx) => {
+        await tx
+          .prepare(`DELETE FROM email_events WHERE user_id = ? AND application_id IN (${deletePlaceholders})`)
+          .run(req.user.id, ...deleteIds);
+        await tx
+          .prepare(`DELETE FROM user_actions WHERE user_id = ? AND application_id IN (${deletePlaceholders})`)
+          .run(req.user.id, ...deleteIds);
+        await tx
+          .prepare(`DELETE FROM job_applications WHERE user_id = ? AND id IN (${deletePlaceholders})`)
+          .run(req.user.id, ...deleteIds);
+      });
+    } else {
+      const deleteBulk = db.transaction((userId, targetIds) => {
+        const ph = sqlInPlaceholders(targetIds.length);
+        db.prepare(`DELETE FROM email_events WHERE user_id = ? AND application_id IN (${ph})`).run(
+          userId,
+          ...targetIds
+        );
+        db.prepare(`DELETE FROM user_actions WHERE user_id = ? AND application_id IN (${ph})`).run(
+          userId,
+          ...targetIds
+        );
+        db.prepare(`DELETE FROM job_applications WHERE user_id = ? AND id IN (${ph})`).run(
+          userId,
+          ...targetIds
+        );
+      });
+      deleteBulk(req.user.id, deleteIds);
+    }
+
+    return res.json({
+      ok: true,
+      requestedCount: ids.length,
+      matchedCount: existing.length,
+      deletedCount: deleteIds.length
+    });
+  } catch (err) {
+    logError('bulk delete failed', {
+      userId: req.user?.id || null,
+      requestedCount: ids.length,
+      code: err?.code || null,
+      detail: err?.detail || null,
+      message: err?.message || String(err)
+    });
+    return res.status(500).json({
+      ok: false,
+      error: err?.code || 'BULK_DELETE_FAILED'
+    });
+  }
 });
 
 app.post('/api/applications/:id/merge', requireAuth, (req, res) => {
