@@ -2163,6 +2163,13 @@ textarea:focus-visible {
   overflow: hidden;
 }
 
+/* Allow scan range dropdown to render outside the sync card bounds. */
+.sync-band.surface-raised,
+.sync-band .sync-strip,
+.sync-band .sync-action-group {
+  overflow: visible;
+}
+
 .surface-raised::before {
   content: '';
   position: absolute;
