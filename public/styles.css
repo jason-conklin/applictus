@@ -7069,11 +7069,11 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #applications-table .table-row.application-row:nth-child(odd) {
-  background: #f9fbfe;
+  background: #f7f8fa;
 }
 
 #applications-table .table-row.application-row:nth-child(even) {
-  background: #eff3f8;
+  background: #eef1f4;
 }
 
 #applications-table .table-row.application-row:hover {
