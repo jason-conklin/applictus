@@ -2454,11 +2454,12 @@ textarea:focus-visible {
 
 .btn-scan .scan-dots {
   display: inline-block;
-  width: 2.2ch;
-  min-width: 2.2ch;
+  width: 0;
+  min-width: 0;
   overflow: hidden;
   opacity: 0;
   vertical-align: baseline;
+  transition: width 160ms ease, min-width 160ms ease, opacity 120ms ease;
 }
 
 .btn-scan .scan-dots::before {
@@ -2474,6 +2475,8 @@ textarea:focus-visible {
 }
 
 .btn-scan.is-scanning .scan-dots {
+  width: 2.2ch;
+  min-width: 2.2ch;
   opacity: 1;
 }
 
