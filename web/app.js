@@ -347,6 +347,14 @@ const modalDescription = document.getElementById('modal-description');
 const modalBody = document.getElementById('modal-body');
 const modalFooter = document.getElementById('modal-footer');
 
+const ACCOUNT_COPY_ICON_MARKUP = `
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <rect x="9" y="9" width="10" height="10" rx="2"></rect>
+    <path d="M5 15V7a2 2 0 0 1 2-2h8"></path>
+  </svg>
+  <span class="sr-only">Copy email</span>
+`;
+
 // Resume Curator DOM refs
 const rcStatusEl = document.getElementById('rc-status');
 const rcResumeSelect = document.getElementById('rc-resume-select');
@@ -2684,6 +2692,9 @@ function renderAccountPanel(user = sessionUser) {
     accountEmail.textContent = user.email || '—';
   }
   if (accountEmailCopy) {
+    if (!accountEmailCopy.querySelector('svg')) {
+      accountEmailCopy.innerHTML = ACCOUNT_COPY_ICON_MARKUP;
+    }
     accountEmailCopy.disabled = !user.email;
     delete accountEmailCopy.dataset.copied;
   }

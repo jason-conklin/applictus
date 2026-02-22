@@ -5553,7 +5553,9 @@ details summary {
 .account-copy-btn svg {
   width: 16px;
   height: 16px;
-  stroke: #111827;
+  display: block;
+  stroke: #111827 !important;
+  fill: none !important;
 }
 
 .account-copy-btn {
@@ -5565,7 +5567,13 @@ details summary {
 }
 
 .account-copy-btn:hover:not(:disabled) svg {
-  stroke: #0f172a;
+  stroke: #0f172a !important;
+}
+
+.account-copy-btn svg *,
+.account-copy-btn:hover:not(:disabled) svg * {
+  stroke: inherit !important;
+  fill: none !important;
 }
 
 .icon-btn:hover:not(:disabled) {
