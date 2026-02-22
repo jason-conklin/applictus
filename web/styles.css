@@ -3672,9 +3672,9 @@ details summary {
 }
 
 .appl-status-interview_requested {
-  background: #ecfccb;
-  border-color: #a3e635;
-  color: #3f6212;
+  background: #dcfce7;
+  border-color: #22c55e;
+  color: #166534;
 }
 
 .appl-status-rejected {
@@ -3944,9 +3944,9 @@ details summary {
   border: 1px solid #34d399;
 }
 .pill-interview_requested {
-  background: #ecfccb;
-  color: #3f6212;
-  border: 1px solid #a3e635;
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #22c55e;
 }
 .pill-rejected {
   background: #fee2e2;
