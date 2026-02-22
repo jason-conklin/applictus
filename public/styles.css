@@ -3245,12 +3245,31 @@ textarea:focus-visible {
   gap: 9px;
   padding: 0 12px 0 4px;
   cursor: pointer;
-  border-radius: inherit;
+  border-radius: 999px;
   font: inherit;
+  transition: background 140ms ease, color 140ms ease;
+  transform: none;
+  box-shadow: none;
+}
+
+.status-select__trigger:hover {
+  background: rgba(60, 120, 255, 0.08);
+  color: #183763;
+  transform: none;
+  box-shadow: none;
+}
+
+.status-select__trigger:active {
+  background: rgba(60, 120, 255, 0.12);
+  transform: none;
+  box-shadow: none;
 }
 
 .status-select__trigger:focus-visible {
   outline: none;
+  background: rgba(60, 120, 255, 0.1);
+  transform: none;
+  box-shadow: none;
 }
 
 .status-select__dot,
@@ -3284,6 +3303,10 @@ textarea:focus-visible {
 
 .status-select.is-open .status-select__trigger .status-select__chevron {
   transform: rotate(180deg);
+}
+
+.status-select.is-open .status-select__trigger {
+  background: rgba(60, 120, 255, 0.1);
 }
 
 .status-menu {
