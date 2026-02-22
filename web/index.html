@@ -758,33 +758,65 @@
                 <div class="muted" id="app-count">0 tracked</div>
               </div>
               <div class="header-actions">
-                <div class="filter-inline" id="filters-inline">
-                  <label>
-                    Status
-                    <select id="filter-status">
-                      <option value="">Any status</option>
-                      <option value="APPLIED">Applied</option>
-                      <option value="UNDER_REVIEW">Under review</option>
-                      <option value="INTERVIEW_REQUESTED">Interview requested</option>
-                      <option value="INTERVIEW_COMPLETED">Interview completed</option>
-                      <option value="OFFER_RECEIVED">Offer received</option>
-                      <option value="REJECTED">Rejected</option>
-                      <option value="GHOSTED">Ghosted</option>
-                      <option value="UNKNOWN">Unknown</option>
-                    </select>
-                  </label>
-                  <label class="filter-company-inline">
-                    Company
-                    <div class="input-with-clear">
-                      <input type="text" id="filter-company" placeholder="Filter by company…" />
-                      <button type="button" class="clear-input hidden" id="filter-company-clear" aria-label="Clear company filter">×</button>
+                <div class="filters-bar filter-inline" id="filters-inline">
+                  <label class="filter-field filter-field--status">
+                    <span class="filter-field__label">Status</span>
+                    <div class="filter-field__control">
+                      <span class="filter-field__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M3 5h18"></path>
+                          <path d="M6 12h12"></path>
+                          <path d="M10 19h4"></path>
+                        </svg>
+                      </span>
+                      <select id="filter-status">
+                        <option value="">Any status</option>
+                        <option value="APPLIED">Applied</option>
+                        <option value="UNDER_REVIEW">Under review</option>
+                        <option value="INTERVIEW_REQUESTED">Interview requested</option>
+                        <option value="INTERVIEW_COMPLETED">Interview completed</option>
+                        <option value="OFFER_RECEIVED">Offer received</option>
+                        <option value="REJECTED">Rejected</option>
+                        <option value="GHOSTED">Ghosted</option>
+                        <option value="UNKNOWN">Unknown</option>
+                      </select>
+                      <span class="filter-field__chevron" aria-hidden="true">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="m6 8 4 4 4-4"></path>
+                        </svg>
+                      </span>
                     </div>
                   </label>
-                  <label class="filter-role-inline">
-                    Role
-                    <div class="input-with-clear">
-                      <input type="text" id="filter-role" placeholder="Filter by role…" />
-                      <button type="button" class="clear-input hidden" id="filter-role-clear" aria-label="Clear role filter">×</button>
+                  <label class="filter-field filter-field--company filter-company-inline">
+                    <span class="filter-field__label">Company</span>
+                    <div class="filter-field__control">
+                      <span class="filter-field__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M4 21h16"></path>
+                          <path d="M7 21V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v15"></path>
+                          <path d="M10 10h4"></path>
+                          <path d="M10 14h4"></path>
+                        </svg>
+                      </span>
+                      <div class="input-with-clear">
+                        <input type="text" id="filter-company" placeholder="Filter by company…" />
+                        <button type="button" class="clear-input hidden" id="filter-company-clear" aria-label="Clear company filter">×</button>
+                      </div>
+                    </div>
+                  </label>
+                  <label class="filter-field filter-field--role filter-role-inline">
+                    <span class="filter-field__label">Role</span>
+                    <div class="filter-field__control">
+                      <span class="filter-field__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="3" y="7" width="18" height="13" rx="2"></rect>
+                          <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </span>
+                      <div class="input-with-clear">
+                        <input type="text" id="filter-role" placeholder="Filter by role…" />
+                        <button type="button" class="clear-input hidden" id="filter-role-clear" aria-label="Clear role filter">×</button>
+                      </div>
                     </div>
                   </label>
                 </div>
