@@ -6580,7 +6580,7 @@ body.app-page-bg .layout {
 
 /* Dashboard-only wide layout: reduce side gutters while keeping premium margins. */
 body.app-page-bg .layout:has(#dashboard-view:not([hidden])) {
-  max-width: 1520px;
+  max-width: 1780px;
   padding-left: clamp(16px, 3vw, 40px);
   padding-right: clamp(16px, 3vw, 40px);
 }
@@ -6628,14 +6628,12 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #dashboard-view {
-  width: 100%;
   gap: 12px;
 }
 
 #dashboard-view .dashboard-header,
 #dashboard-view .dashboard {
-  width: 100%;
-  max-width: 1400px;
+  width: min(1600px, 100%);
   margin-inline: auto;
 }
 
@@ -6655,11 +6653,6 @@ body.app-page-bg .topbar .nav-link.active {
 #dashboard-view .sync-band,
 #dashboard-view .kpi-row,
 #dashboard-view .card.surface-raised.surface-rim {
-  width: 100%;
-  max-width: none;
-}
-
-#dashboard-view .sync-strip.scan-card {
   width: 100%;
   max-width: none;
 }
@@ -7147,29 +7140,22 @@ body.app-page-bg .topbar .nav-link.active {
   background: #dde8f8;
 }
 
-@media (min-width: 1200px) {
-  body.app-page-bg .layout:has(#dashboard-view:not([hidden])) {
-    max-width: 1520px;
-    padding-left: clamp(24px, 2.8vw, 40px);
-    padding-right: clamp(24px, 2.8vw, 40px);
+@media (min-width: 1280px) {
+  body.app-page-bg .layout {
+    padding-left: clamp(28px, 2.3vw, 40px);
+    padding-right: clamp(28px, 2.3vw, 40px);
   }
 
   #dashboard-view .dashboard-header,
   #dashboard-view .dashboard {
-    max-width: 1400px;
+    width: min(1660px, 100%);
   }
 }
 
 @media (min-width: 900px) and (max-width: 1199px) {
-  body.app-page-bg .layout:has(#dashboard-view:not([hidden])) {
-    max-width: 1280px;
-    padding-left: clamp(18px, 2.4vw, 32px);
-    padding-right: clamp(18px, 2.4vw, 32px);
-  }
-
   #dashboard-view .dashboard-header,
   #dashboard-view .dashboard {
-    max-width: 1160px;
+    width: min(1160px, 100%);
   }
 }
 
@@ -7183,18 +7169,7 @@ body.app-page-bg .topbar .nav-link.active {
   }
 }
 
-@media (max-width: 899px) {
-  body.app-page-bg .layout:has(#dashboard-view:not([hidden])) {
-    max-width: 100%;
-    padding-left: clamp(14px, 4vw, 18px);
-    padding-right: clamp(14px, 4vw, 18px);
-  }
-
-  #dashboard-view .dashboard-header,
-  #dashboard-view .dashboard {
-    max-width: none;
-  }
-
+@media (max-width: 900px) {
   #dashboard-view .sync-strip.scan-card {
     grid-template-columns: 1fr;
     row-gap: 14px;
