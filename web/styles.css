@@ -7732,7 +7732,7 @@ body.app-page-bg .layout {
 
 /* Dashboard-only wide layout: reduce side gutters while keeping premium margins. */
 body.app-page-bg .layout:has(#dashboard-view:not([hidden])) {
-  max-width: 1780px;
+  max-width: 1700px;
   padding-left: clamp(16px, 3vw, 40px);
   padding-right: clamp(16px, 3vw, 40px);
 }
@@ -7785,7 +7785,7 @@ body.app-page-bg .topbar .nav-link.active {
 
 #dashboard-view .dashboard-header,
 #dashboard-view .dashboard {
-  width: min(1600px, 100%);
+  width: min(1540px, 100%);
   margin-inline: auto;
 }
 
@@ -8276,7 +8276,7 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #applications-table {
-  --applications-grid-template: minmax(0, 1.9fr) minmax(0, 2fr) minmax(190px, 1.75fr) minmax(156px, 1.23fr) 76px;
+  --applications-grid-template: minmax(0, 1.92fr) minmax(0, 1.72fr) minmax(190px, 1.9fr) minmax(156px, 1.28fr) 76px;
 }
 
 #applications-table .applications-header,
@@ -8550,14 +8550,14 @@ body.app-page-bg .topbar .nav-link.active {
 
   #dashboard-view .dashboard-header,
   #dashboard-view .dashboard {
-    width: min(1660px, 100%);
+    width: min(1600px, 100%);
   }
 }
 
 @media (min-width: 900px) and (max-width: 1199px) {
   #dashboard-view .dashboard-header,
   #dashboard-view .dashboard {
-    width: min(1160px, 100%);
+    width: min(1120px, 100%);
   }
 }
 
@@ -8567,7 +8567,7 @@ body.app-page-bg .topbar .nav-link.active {
   }
 
   #applications-table {
-    --applications-grid-template: minmax(0, 1.62fr) minmax(0, 1.62fr) minmax(162px, 1.5fr) minmax(138px, 1.08fr) 72px;
+    --applications-grid-template: minmax(0, 1.66fr) minmax(0, 1.4fr) minmax(162px, 1.64fr) minmax(138px, 1.14fr) 72px;
   }
 }
 
