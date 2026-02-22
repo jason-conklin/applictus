@@ -3290,7 +3290,7 @@ textarea:focus-visible {
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
-  z-index: 140;
+  z-index: 320;
   min-width: 100%;
   padding: 6px;
   border-radius: 14px;
@@ -7332,6 +7332,15 @@ body.app-page-bg .topbar .nav-link.active {
 #dashboard-view .sync-band > *,
 #dashboard-view .card.surface-raised.surface-rim > :not(.table-bulk-bar) {
   position: relative;
+  z-index: 1;
+}
+
+#dashboard-view .card.surface-raised.surface-rim > .card-header {
+  z-index: 6;
+  overflow: visible;
+}
+
+#dashboard-view .card.surface-raised.surface-rim > .table {
   z-index: 1;
 }
 
