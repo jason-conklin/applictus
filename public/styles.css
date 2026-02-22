@@ -3065,8 +3065,8 @@ textarea:focus-visible {
 
 #applications-table .table-header,
 #applications-table .table-row {
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.7fr) 122px 98px 92px;
-  gap: 4px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.7fr) 104px 102px 102px;
+  gap: 8px;
 }
 
 #applications-table .table-header > *,
@@ -3074,18 +3074,27 @@ textarea:focus-visible {
   min-width: 0;
 }
 
-#applications-table .table-header > div:nth-child(3),
-#applications-table .table-row > div:nth-child(3) {
-  justify-self: end;
-}
-
 #applications-table .table-header > div:nth-child(4),
 #applications-table .table-row > div:nth-child(4) {
-  padding-right: 6px;
+  padding-right: 0;
 }
 
 #applications-table .table-header > div:nth-child(5) {
-  padding-left: 16px;
+  padding-left: 10px;
+}
+
+#applications-table .table-header > button:nth-child(3),
+#applications-table .table-header > button:nth-child(4),
+#applications-table .table-row > div:nth-child(3),
+#applications-table .table-row > div:nth-child(4) {
+  justify-self: start;
+  text-align: left;
+}
+
+#applications-table .table-header > button:nth-child(3),
+#applications-table .table-header > button:nth-child(4) {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 #unsorted-table .table-header,
