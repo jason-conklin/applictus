@@ -3590,6 +3590,83 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 
+#dashboard-view .add-app-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 9999px;
+  border: 1px solid rgba(40, 80, 160, 0.18);
+  background:
+    radial-gradient(140% 140% at 26% 10%, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0) 56%),
+    linear-gradient(180deg, rgba(248, 252, 255, 0.98), rgba(232, 242, 255, 0.92));
+  color: rgba(22, 58, 118, 0.92);
+  box-shadow:
+    0 10px 24px rgba(20, 40, 80, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -1px 0 rgba(40, 80, 160, 0.1);
+  transform: translateY(0);
+  transition:
+    transform 140ms ease,
+    box-shadow 170ms ease,
+    border-color 170ms ease,
+    background 170ms ease,
+    color 170ms ease;
+}
+
+#dashboard-view .add-app-btn__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+#dashboard-view .add-app-btn__icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+#dashboard-view .add-app-btn:hover {
+  transform: translateY(-1px);
+  color: rgba(20, 55, 112, 0.98);
+  border-color: rgba(40, 80, 160, 0.24);
+  background:
+    radial-gradient(140% 140% at 26% 10%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 56%),
+    linear-gradient(180deg, rgba(252, 254, 255, 0.99), rgba(236, 246, 255, 0.94));
+  box-shadow:
+    0 14px 26px rgba(20, 40, 80, 0.18),
+    0 0 0 4px rgba(60, 120, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    inset 0 -1px 0 rgba(40, 80, 160, 0.12);
+}
+
+#dashboard-view .add-app-btn:active {
+  transform: translateY(0);
+  box-shadow:
+    0 6px 14px rgba(20, 40, 80, 0.1),
+    inset 0 1px 2px rgba(16, 44, 92, 0.2),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.34);
+}
+
+#dashboard-view .add-app-btn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 10px 24px rgba(20, 40, 80, 0.16),
+    0 0 0 3px rgba(60, 120, 255, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    inset 0 -1px 0 rgba(40, 80, 160, 0.12);
+}
+
+#dashboard-view .add-app-btn:disabled {
+  color: rgba(84, 105, 136, 0.58);
+  border-color: rgba(40, 80, 160, 0.12);
+  background: linear-gradient(180deg, rgba(247, 250, 255, 0.9), rgba(236, 243, 252, 0.85));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -1px 0 rgba(40, 80, 160, 0.08);
+  transform: none;
+}
+
 #filter-toggle {
   display: inline-flex;
   align-items: center;
@@ -3774,7 +3851,7 @@ textarea:focus-visible {
   #dashboard-view #add-toggle {
     flex: 0 0 auto;
     align-self: flex-end;
-    margin-bottom: 1px;
+    margin-bottom: 0;
   }
 }
 
