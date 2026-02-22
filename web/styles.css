@@ -3016,7 +3016,7 @@ textarea:focus-visible {
 
   #dashboard-view #filters-inline {
     width: auto;
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     flex-wrap: nowrap;
   }
 
