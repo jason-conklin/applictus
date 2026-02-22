@@ -6671,7 +6671,7 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #dashboard-view .sync-band > *,
-#dashboard-view .card.surface-raised.surface-rim > * {
+#dashboard-view .card.surface-raised.surface-rim > :not(.table-bulk-bar) {
   position: relative;
   z-index: 1;
 }
