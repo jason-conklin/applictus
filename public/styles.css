@@ -7015,6 +7015,34 @@ body.app-page-bg .topbar .nav-link.active {
   color: var(--dash-text-muted);
 }
 
+#applications-table .applications-header.sortable > button.sort-btn {
+  background: transparent;
+}
+
+#applications-table .applications-header.sortable > button.sort-btn > span {
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+#applications-table .applications-header.sortable > button.sort-btn > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 7px;
+  padding: 3px 6px;
+}
+
+#applications-table .applications-header.sortable > button.sort-btn:hover,
+#applications-table .applications-header.sortable > button.sort-btn:focus-visible {
+  background: transparent;
+  color: var(--dash-text);
+  outline: none;
+}
+
+#applications-table .applications-header.sortable > button.sort-btn:hover > span:first-child,
+#applications-table .applications-header.sortable > button.sort-btn:focus-visible > span:first-child,
+#applications-table .applications-header.sortable > button.sort-btn.active > span:first-child {
+  background: rgba(31, 79, 150, 0.1);
+}
+
 #applications-table .applications-header > button.header-status {
   padding-left: 14px;
   padding-right: 14px;
