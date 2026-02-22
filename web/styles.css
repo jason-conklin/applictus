@@ -3082,58 +3082,71 @@ textarea:focus-visible {
   align-items: center;
 }
 
-#applications-table .table-header,
-#applications-table .table-row {
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.7fr) 104px 102px 102px;
-  gap: 8px;
+#applications-table {
+  --applications-columns: minmax(0, 2fr) minmax(0, 3fr) minmax(0, 1.2fr) minmax(0, 1fr) 92px;
 }
 
-#applications-table .table-header > *,
-#applications-table .table-row > * {
+#applications-table .applications-header,
+#applications-table .application-row {
+  grid-template-columns: var(--applications-columns);
+  align-items: center;
+  gap: 0;
+}
+
+#applications-table .applications-header {
+  padding: 8px 0;
+}
+
+#applications-table .application-row {
+  padding: 12px 0;
+}
+
+#applications-table .applications-header > *,
+#applications-table .application-row > * {
   min-width: 0;
 }
 
-#applications-table .table-header .table-col-status,
-#applications-table .table-header .table-col-activity {
+#applications-table .applications-header > button.sort-btn {
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
-  align-self: center;
-  text-align: left;
-  line-height: 1.05;
-  min-height: 28px;
-  padding-left: 0;
-  padding-right: 0;
+  width: 100%;
+  min-height: 32px;
+  line-height: 1.1;
+  padding: 0 16px;
 }
 
-#applications-table .table-row .table-col-status {
+#applications-table .application-row > div {
+  padding: 0 16px;
+}
+
+#applications-table .applications-header .table-col-status,
+#applications-table .application-row .table-col-status,
+#applications-table .applications-header .table-col-activity,
+#applications-table .application-row .table-col-activity {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  align-content: center;
   justify-content: flex-start;
   text-align: left;
-  line-height: 1.1;
-  min-height: 28px;
 }
 
-#applications-table .table-row .table-col-status .explanation {
+#applications-table .application-row .table-col-status {
+  flex-wrap: wrap;
+  align-content: center;
+  line-height: 1.1;
+}
+
+#applications-table .application-row .table-col-status .explanation {
   flex: 0 0 100%;
   margin-top: 2px;
 }
 
-#applications-table .table-row .table-col-activity {
+#applications-table .applications-header .table-col-select,
+#applications-table .application-row .table-col-select {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  align-self: center;
-  text-align: left;
-  line-height: 1.1;
-  min-height: 28px;
-}
-
-#applications-table .table-header .table-col-select {
-  padding-left: 10px;
+  justify-content: flex-end;
+  padding: 0 16px;
 }
 
 #unsorted-table .table-header,

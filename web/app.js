@@ -3172,17 +3172,17 @@ function renderApplicationsTable(applications) {
   const sortDir = state.sort.dir;
   const arrow = sortDir === 'asc' ? '▲' : '▼';
   const header = `
-    <div class="table-header sortable">
-      <button type="button" class="sort-btn${sortKey === 'company' ? ' active' : ''}" data-sort="company" aria-label="Sort by company">
+    <div class="table-header sortable applications-header">
+      <button type="button" class="sort-btn table-col-company${sortKey === 'company' ? ' active' : ''}" data-sort="company" aria-label="Sort by company">
         <span>Company</span>${sortKey === 'company' ? `<span class="arrow">${arrow}</span>` : ''}
       </button>
-      <button type="button" class="sort-btn${sortKey === 'role' ? ' active' : ''}" data-sort="role" aria-label="Sort by role">
+      <button type="button" class="sort-btn table-col-role${sortKey === 'role' ? ' active' : ''}" data-sort="role" aria-label="Sort by role">
         <span>Role</span>${sortKey === 'role' ? `<span class="arrow">${arrow}</span>` : ''}
       </button>
-      <button type="button" class="sort-btn table-col-status${sortKey === 'status' ? ' active' : ''}" data-sort="status" aria-label="Sort by status">
+      <button type="button" class="sort-btn header-status table-col-status${sortKey === 'status' ? ' active' : ''}" data-sort="status" aria-label="Sort by status">
         <span>Status</span>${sortKey === 'status' ? `<span class="arrow">${arrow}</span>` : ''}
       </button>
-      <button type="button" class="sort-btn table-col-activity${sortKey === 'lastActivity' ? ' active' : ''}" data-sort="lastActivity" aria-label="Sort by last activity">
+      <button type="button" class="sort-btn header-activity table-col-activity${sortKey === 'lastActivity' ? ' active' : ''}" data-sort="lastActivity" aria-label="Sort by last activity">
         <span>Last activity</span>${sortKey === 'lastActivity' ? `<span class="arrow">${arrow}</span>` : ''}
       </button>
       <div class="table-select-header table-col-select">
@@ -3209,10 +3209,10 @@ function renderApplicationsTable(applications) {
         : null;
       const isSelected = state.table.selectedIds.has(app.id);
       return `
-        <div class="table-row${isSelected ? ' table-row-selected' : ''}" style="--stagger: ${index}" data-id="${app.id}">
-          <div class="cell-company"><strong>${app.company_name || '—'}</strong></div>
-          <div class="cell-role" title="${app.job_title || '—'}">${app.job_title || '—'}</div>
-          <div class="table-col-status">
+        <div class="table-row application-row${isSelected ? ' table-row-selected' : ''}" style="--stagger: ${index}" data-id="${app.id}">
+          <div class="cell-company table-col-company"><strong>${app.company_name || '—'}</strong></div>
+          <div class="cell-role table-col-role" title="${app.job_title || '—'}">${app.job_title || '—'}</div>
+          <div class="table-col-status status-col">
             <div class="status-cell">${statusPill}</div>
             ${suggestionLabel ? `<div class="explanation">Suggestion: ${suggestionLabel}</div>` : ''}
           </div>
