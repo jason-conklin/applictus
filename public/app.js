@@ -97,6 +97,20 @@ function getStatusPresentation(status) {
   return { normalized, label, className };
 }
 
+function getStatusBandTone(status) {
+  const normalized = normalizeStatusValue(status);
+  if (normalized === 'REJECTED') {
+    return 'rejected';
+  }
+  if (normalized === 'OFFER_RECEIVED' || normalized === 'INTERVIEW_REQUESTED' || normalized === 'INTERVIEW_COMPLETED') {
+    return 'interview';
+  }
+  if (normalized === 'APPLIED' || normalized === 'UNDER_REVIEW') {
+    return 'applied';
+  }
+  return 'unknown';
+}
+
 function renderStatusPill(status) {
   const { normalized, label, className } = getStatusPresentation(status);
   return `<span class="appl-statusPill ${className}" data-status="${normalized}"><span class="dot"></span>${label}</span>`;
@@ -3208,8 +3222,10 @@ function renderApplicationsTable(applications) {
         ? STATUS_LABELS[app.suggested_status] || app.suggested_status
         : null;
       const isSelected = state.table.selectedIds.has(app.id);
+      const statusBandTone = getStatusBandTone(statusValue);
       return `
-        <div class="table-row application-row${isSelected ? ' table-row-selected' : ''}" style="--stagger: ${index}" data-id="${app.id}">
+        <div class="table-row application-row${isSelected ? ' table-row-selected' : ''}" style="--stagger: ${index}" data-id="${app.id}" data-status-tone="${statusBandTone}">
+          <div class="status-band" aria-hidden="true"></div>
           <div class="cell-company table-col-company"><strong>${app.company_name || '—'}</strong></div>
           <div class="cell-role table-col-role" title="${app.job_title || '—'}">${app.job_title || '—'}</div>
           <div class="table-col-status status-col">

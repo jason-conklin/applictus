@@ -3640,6 +3640,27 @@ details summary {
   align-items: center;
 }
 
+:root {
+  --status-pill-applied-bg: #fef3c7;
+  --status-pill-applied-border: #fcd34d;
+  --status-pill-applied-text: #92400e;
+  --status-pill-offer-bg: #d1fae5;
+  --status-pill-offer-border: #34d399;
+  --status-pill-offer-text: #065f46;
+  --status-pill-interview-bg: #dcfce7;
+  --status-pill-interview-border: #22c55e;
+  --status-pill-interview-text: #166534;
+  --status-pill-rejected-bg: #fee2e2;
+  --status-pill-rejected-border: #fca5a5;
+  --status-pill-rejected-text: #991b1b;
+  --status-pill-under-review-bg: #e0f2fe;
+  --status-pill-under-review-border: #7dd3fc;
+  --status-pill-under-review-text: #075985;
+  --status-pill-unknown-bg: #e5e7eb;
+  --status-pill-unknown-border: #d1d5db;
+  --status-pill-unknown-text: #374151;
+}
+
 .appl-statusPill {
   display: inline-flex;
   align-items: center;
@@ -3668,33 +3689,45 @@ details summary {
 }
 
 .appl-status-applied {
-  background: #fef3c7;
-  border-color: #fcd34d;
-  color: #92400e;
+  background: var(--status-pill-applied-bg);
+  border-color: var(--status-pill-applied-border);
+  color: var(--status-pill-applied-text);
 }
 
 .appl-status-offer_received {
-  background: #d1fae5;
-  border-color: #34d399;
-  color: #065f46;
+  background: var(--status-pill-offer-bg);
+  border-color: var(--status-pill-offer-border);
+  color: var(--status-pill-offer-text);
 }
 
 .appl-status-interview_requested {
-  background: #dcfce7;
-  border-color: #22c55e;
-  color: #166534;
+  background: var(--status-pill-interview-bg);
+  border-color: var(--status-pill-interview-border);
+  color: var(--status-pill-interview-text);
+}
+
+.appl-status-interview_completed {
+  background: var(--status-pill-interview-bg);
+  border-color: var(--status-pill-interview-border);
+  color: var(--status-pill-interview-text);
 }
 
 .appl-status-rejected {
-  background: #fee2e2;
-  border-color: #fca5a5;
-  color: #991b1b;
+  background: var(--status-pill-rejected-bg);
+  border-color: var(--status-pill-rejected-border);
+  color: var(--status-pill-rejected-text);
+}
+
+.appl-status-under_review {
+  background: var(--status-pill-under-review-bg);
+  border-color: var(--status-pill-under-review-border);
+  color: var(--status-pill-under-review-text);
 }
 
 .appl-status-unknown {
-  background: #e5e7eb;
-  border-color: #d1d5db;
-  color: #374151;
+  background: var(--status-pill-unknown-bg);
+  border-color: var(--status-pill-unknown-border);
+  color: var(--status-pill-unknown-text);
 }
 
 .action-group {
@@ -4401,27 +4434,27 @@ details summary {
     display: none;
   }
 
-  #applications-table .table-row > div:nth-child(1),
+  #applications-table .table-row .table-col-company,
   #archived-table .table-row > div:nth-child(1) {
     grid-area: company;
   }
 
-  #applications-table .table-row > div:nth-child(2),
+  #applications-table .table-row .table-col-role,
   #archived-table .table-row > div:nth-child(2) {
     grid-area: role;
   }
 
-  #applications-table .table-row > div:nth-child(3),
+  #applications-table .table-row .table-col-status,
   #archived-table .table-row > div:nth-child(3) {
     grid-area: status;
   }
 
-  #applications-table .table-row > div:nth-child(4),
+  #applications-table .table-row .table-col-activity,
   #archived-table .table-row > div:nth-child(4) {
     grid-area: activity;
   }
 
-  #applications-table .table-row > div:nth-child(5) {
+  #applications-table .table-row .table-col-select {
     grid-area: select;
     align-self: stretch;
     justify-content: flex-end;
@@ -7012,18 +7045,60 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #applications-table .table-row.application-row {
+  position: relative;
+  isolation: isolate;
   min-height: 56px;
   border-radius: 11px;
   border: 1px solid rgba(133, 150, 173, 0.2);
   padding: 9px 0;
+  overflow: hidden;
   box-shadow: 0 4px 10px rgba(10, 30, 66, 0.045);
   transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, background 0.18s ease;
 }
 
 #applications-table .applications-header > *,
-#applications-table .table-row.application-row > * {
+#applications-table .table-row.application-row > :not(.status-band) {
   min-width: 0;
   padding: 0 14px;
+}
+
+#applications-table .table-row.application-row .status-band {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  border-top-left-radius: 11px;
+  border-bottom-left-radius: 11px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  padding: 0;
+  pointer-events: none;
+  background: var(--status-band-color, var(--status-pill-unknown-border));
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.3);
+  opacity: 0.9;
+  z-index: 2;
+}
+
+#applications-table .table-row.application-row[data-status-tone='rejected'] .status-band {
+  --status-band-color: var(--status-pill-rejected-border);
+}
+
+#applications-table .table-row.application-row[data-status-tone='interview'] .status-band {
+  --status-band-color: var(--status-pill-interview-border);
+}
+
+#applications-table .table-row.application-row[data-status-tone='applied'] .status-band {
+  --status-band-color: var(--status-pill-under-review-border);
+}
+
+#applications-table .table-row.application-row[data-status-tone='unknown'] .status-band {
+  --status-band-color: var(--status-pill-unknown-border);
+}
+
+#applications-table .table-row.application-row:hover .status-band,
+#applications-table .table-row.application-row.table-row-selected .status-band {
+  opacity: 1;
 }
 
 #applications-table .applications-header > button.sort-btn {
