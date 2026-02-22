@@ -7008,6 +7008,13 @@ body.app-page-bg .topbar .nav-link.active {
   padding: 0 14px;
 }
 
+#applications-table .applications-header > button.header-status {
+  padding-left: 14px;
+  padding-right: 14px;
+  justify-content: center;
+  text-align: center;
+}
+
 #applications-table .applications-header .table-col-status,
 #applications-table .table-row.application-row .table-col-status {
   display: flex;
