@@ -3085,10 +3085,15 @@ textarea:focus-visible {
 
 #applications-table .table-header > button:nth-child(3),
 #applications-table .table-header > button:nth-child(4),
-#applications-table .table-row > div:nth-child(3),
 #applications-table .table-row > div:nth-child(4) {
   justify-self: start;
   text-align: left;
+}
+
+#applications-table .table-row > div:nth-child(3) {
+  justify-self: start;
+  text-align: left;
+  margin-left: -4px;
 }
 
 #applications-table .table-header > button:nth-child(3),
@@ -3235,7 +3240,7 @@ textarea:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 4px;
   cursor: pointer;
   user-select: none;
 }
