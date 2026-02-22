@@ -632,8 +632,27 @@ async function loadCsrfToken() {
   }
 }
 
-function getAvatarInitials(email) {
-  return 'A';
+function getAvatarInitials(user) {
+  const rawName = typeof user?.name === 'string' ? user.name.trim() : '';
+  if (!rawName) {
+    return '';
+  }
+  const parts = rawName.split(/\s+/).filter(Boolean);
+  const initials = parts
+    .slice(0, 2)
+    .map((part) => (part.match(/[A-Za-z0-9]/)?.[0] || ''))
+    .join('')
+    .toUpperCase();
+  return initials || '';
+}
+
+function syncAccountAvatarIdentity(user) {
+  if (avatarInitials) {
+    avatarInitials.textContent = getAvatarInitials(user);
+  }
+  if (accountAvatar) {
+    accountAvatar.title = user?.email || 'Account';
+  }
 }
 
 function setupLogoFallback() {
@@ -2272,9 +2291,7 @@ function openAccountPasswordModal() {
       if (data && data.user) {
         sessionUser = data.user;
         renderAccountPanel(sessionUser);
-        if (avatarInitials) {
-          avatarInitials.textContent = getAvatarInitials(sessionUser.email);
-        }
+        syncAccountAvatarIdentity(sessionUser);
       }
       closeModal('success');
       flashAccountPasswordHint('Password updated.', { success: true });
@@ -2320,12 +2337,7 @@ async function loadSession() {
 
   sessionUser = data.user;
   renderAccountPanel(sessionUser);
-  if (avatarInitials) {
-    avatarInitials.textContent = getAvatarInitials(sessionUser.email);
-  }
-  if (accountAvatar) {
-    accountAvatar.title = sessionUser.email || 'Account';
-  }
+  syncAccountAvatarIdentity(sessionUser);
   updateFilterSummary();
   addToggle?.setAttribute('aria-expanded', 'false');
 

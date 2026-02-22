@@ -294,10 +294,14 @@ body.app-page-bg::before {
 }
 
 body.app-page-bg .layout,
-body.app-page-bg .topbar,
 body.app-page-bg .app-footer {
   position: relative;
   z-index: 3;
+}
+
+body.app-page-bg .topbar {
+  position: relative;
+  z-index: 80;
 }
 
 body.app-page-bg .noise {
@@ -1385,7 +1389,7 @@ body.auth-bg-debug-flash .animated-bg-icon {
   padding: 8px;
   display: grid;
   gap: 4px;
-  z-index: 30;
+  z-index: 120;
   transform-origin: top right;
   opacity: 0;
   transform: translateY(6px) scale(0.98);
