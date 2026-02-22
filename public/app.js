@@ -258,6 +258,16 @@ const filterCompany = document.getElementById('filter-company');
 const filterCompanyClear = document.getElementById('filter-company-clear');
 const filterRole = document.getElementById('filter-role');
 const filterRoleClear = document.getElementById('filter-role-clear');
+const archivedFilterStatus = document.getElementById('archived-filter-status');
+const archivedFilterStatusSelect = document.getElementById('archived-filter-status-select');
+const archivedFilterStatusTrigger = document.getElementById('archived-filter-status-trigger');
+const archivedFilterStatusMenu = document.getElementById('archived-filter-status-menu');
+const archivedFilterStatusLabel = document.getElementById('archived-filter-status-label');
+const archivedFilterStatusDot = document.getElementById('archived-filter-status-dot');
+const archivedFilterCompany = document.getElementById('archived-filter-company');
+const archivedFilterCompanyClear = document.getElementById('archived-filter-company-clear');
+const archivedFilterRole = document.getElementById('archived-filter-role');
+const archivedFilterRoleClear = document.getElementById('archived-filter-role-clear');
 const tablePrev = document.getElementById('table-prev');
 const tableNext = document.getElementById('table-next');
 const tablePageInfo = document.getElementById('table-page-info');
@@ -480,7 +490,12 @@ const state = {
   },
   archived: {
     offset: 0,
-    total: 0
+    total: 0,
+    filters: {
+      status: '',
+      company: '',
+      role: ''
+    }
   }
 };
 
@@ -2250,6 +2265,106 @@ function applyStatusFilterValue(uiValue) {
   }
 }
 
+function getArchivedStatusMenuItems() {
+  if (!archivedFilterStatusMenu) return [];
+  return Array.from(archivedFilterStatusMenu.querySelectorAll('.status-menu__item[data-value]'));
+}
+
+let archiveStatusMenuOpen = false;
+let archiveStatusMenuHighlightIndex = -1;
+
+function setArchivedStatusMenuHighlight(index, { focus = false } = {}) {
+  const items = getArchivedStatusMenuItems();
+  if (!items.length) {
+    archiveStatusMenuHighlightIndex = -1;
+    return;
+  }
+  const safeIndex = ((index % items.length) + items.length) % items.length;
+  archiveStatusMenuHighlightIndex = safeIndex;
+  items.forEach((item, itemIndex) => {
+    item.classList.toggle('is-highlighted', itemIndex === safeIndex);
+    item.tabIndex = itemIndex === safeIndex ? 0 : -1;
+  });
+  if (focus) {
+    items[safeIndex].focus();
+  }
+}
+
+function syncArchivedStatusFilterMenuUi() {
+  const selectedOption = getStatusFilterOptionFromValue(
+    archivedFilterStatus?.value || state.archived.filters.status
+  );
+  if (archivedFilterStatus) {
+    archivedFilterStatus.value = selectedOption.api;
+  }
+  if (archivedFilterStatusLabel) {
+    archivedFilterStatusLabel.textContent = selectedOption.label;
+  }
+  if (archivedFilterStatusDot) {
+    archivedFilterStatusDot.dataset.tone = selectedOption.tone;
+  }
+  const items = getArchivedStatusMenuItems();
+  items.forEach((item, index) => {
+    const isSelected = item.dataset.value === selectedOption.value;
+    item.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+    item.classList.toggle('is-selected', isSelected);
+    item.tabIndex = isSelected ? 0 : -1;
+    if (isSelected) {
+      archiveStatusMenuHighlightIndex = index;
+    }
+  });
+}
+
+function setArchivedStatusMenuOpen(nextOpen, { focusSelected = false } = {}) {
+  const open = Boolean(nextOpen);
+  archiveStatusMenuOpen = open;
+  if (archivedFilterStatusSelect) {
+    archivedFilterStatusSelect.classList.toggle('is-open', open);
+  }
+  if (archivedFilterStatusMenu) {
+    archivedFilterStatusMenu.classList.toggle('hidden', !open);
+  }
+  if (archivedFilterStatusTrigger) {
+    archivedFilterStatusTrigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  if (!open) {
+    archiveStatusMenuHighlightIndex = -1;
+    return;
+  }
+  syncArchivedStatusFilterMenuUi();
+  const items = getArchivedStatusMenuItems();
+  if (!items.length) {
+    return;
+  }
+  const selectedIndex = items.findIndex((item) => item.getAttribute('aria-selected') === 'true');
+  const startIndex = selectedIndex >= 0 ? selectedIndex : 0;
+  setArchivedStatusMenuHighlight(startIndex, { focus: focusSelected });
+}
+
+function closeArchivedStatusMenu({ focusTrigger = false } = {}) {
+  if (!archiveStatusMenuOpen) {
+    return;
+  }
+  setArchivedStatusMenuOpen(false);
+  if (focusTrigger) {
+    archivedFilterStatusTrigger?.focus();
+  }
+}
+
+function applyArchivedStatusFilterValue(uiValue) {
+  const option = STATUS_FILTER_BY_UI.get(String(uiValue ?? '').toLowerCase()) || STATUS_FILTER_OPTIONS[0];
+  const nextApiValue = option.api;
+  if (!archivedFilterStatus) {
+    return;
+  }
+  if (archivedFilterStatus.value !== nextApiValue) {
+    archivedFilterStatus.value = nextApiValue;
+    archivedFilterStatus.dispatchEvent(new Event('change', { bubbles: true }));
+  } else {
+    syncArchivedStatusFilterMenuUi();
+  }
+}
+
 function updateDashboardMeta(total) {
   if (appCount) {
     appCount.textContent = `${total} tracked`;
@@ -3019,11 +3134,44 @@ async function refreshArchivedApplications() {
   if (!archivedTable) {
     return;
   }
-  const params = buildListParams();
-  params.set('archived', '1');
-  params.set('limit', String(PAGE_SIZE));
-  params.set('offset', String(state.archived.offset));
-  const data = await api(`/api/applications?${params.toString()}`);
+  const fetchPage = async (offset) => {
+    const params = buildListParams({
+      status: state.archived.filters.status,
+      company: state.archived.filters.company,
+      role: state.archived.filters.role
+    });
+    params.set('archived', '1');
+    params.set('limit', String(PAGE_SIZE));
+    params.set('offset', String(offset));
+    const data = await api(`/api/applications?${params.toString()}`);
+    const apps = normalizeApplicationsList(data);
+    return {
+      data,
+      apps,
+      total: Number(data?.total ?? apps.length ?? 0)
+    };
+  };
+  const getLastPageOffset = (total) => {
+    if (!total || total <= 0) {
+      return 0;
+    }
+    return Math.floor((total - 1) / PAGE_SIZE) * PAGE_SIZE;
+  };
+  let page = await fetchPage(state.archived.offset);
+  let total = page.total;
+  let apps = page.apps;
+  const lastValidOffset = getLastPageOffset(total);
+
+  if (state.archived.offset > lastValidOffset) {
+    state.archived.offset = lastValidOffset;
+    page = await fetchPage(state.archived.offset);
+    total = page.total;
+    apps = page.apps;
+  } else if (!total && state.archived.offset !== 0) {
+    state.archived.offset = 0;
+  }
+
+  const data = page.data;
   if (DEBUG_AUTH) {
     // eslint-disable-next-line no-console
     console.debug('[apps] archived response', {
@@ -3032,8 +3180,7 @@ async function refreshArchivedApplications() {
       isArray: Array.isArray(data)
     });
   }
-  const apps = normalizeApplicationsList(data);
-  state.archived.total = data.total || apps.length || 0;
+  state.archived.total = total;
   if (archivedCount) {
     archivedCount.textContent = `${state.archived.total} archived`;
   }
@@ -5658,6 +5805,11 @@ document.addEventListener('click', (event) => {
       closeStatusMenu();
     }
   }
+  if (archiveStatusMenuOpen && archivedFilterStatusSelect) {
+    if (!archivedFilterStatusSelect.contains(event.target)) {
+      closeArchivedStatusMenu();
+    }
+  }
   if (modalStatusSelectControllers.size) {
     modalStatusSelectControllers.forEach((controller) => {
       if (controller.isOpen() && !controller.root.contains(event.target)) {
@@ -5681,6 +5833,9 @@ document.addEventListener('keydown', (event) => {
   }
   if (event.key === 'Escape' && statusMenuOpen) {
     closeStatusMenu({ focusTrigger: true });
+  }
+  if (event.key === 'Escape' && archiveStatusMenuOpen) {
+    closeArchivedStatusMenu({ focusTrigger: true });
   }
 });
 
@@ -5726,6 +5881,8 @@ dashboardView?.addEventListener('click', async (event) => {
 
 let filterCompanyTimer = null;
 let filterRoleTimer = null;
+let archivedFilterCompanyTimer = null;
+let archivedFilterRoleTimer = null;
 const applyFilters = async () => {
   if (state.table.selectedIds?.size) {
     clearTableSelection({ rerender: false });
@@ -5734,10 +5891,17 @@ const applyFilters = async () => {
   updateFilterSummary();
   await loadActiveApplications();
 };
+const applyArchivedFilters = async () => {
+  state.archived.offset = 0;
+  await refreshArchivedApplications();
+};
 
 filterStatusTrigger?.addEventListener('click', (event) => {
   event.preventDefault();
   event.stopPropagation();
+  if (!statusMenuOpen && archiveStatusMenuOpen) {
+    closeArchivedStatusMenu();
+  }
   setStatusMenuOpen(!statusMenuOpen, { focusSelected: statusMenuOpen ? false : true });
 });
 
@@ -5754,6 +5918,9 @@ filterStatusTrigger?.addEventListener('keydown', (event) => {
   }
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault();
+    if (!statusMenuOpen && archiveStatusMenuOpen) {
+      closeArchivedStatusMenu();
+    }
     setStatusMenuOpen(!statusMenuOpen, { focusSelected: !statusMenuOpen });
     return;
   }
@@ -5868,6 +6035,164 @@ filterRoleClear?.addEventListener('click', async () => {
   filterRoleClear.classList.add('hidden');
   state.filters.role = '';
   await applyFilters();
+});
+
+archivedFilterStatusTrigger?.addEventListener('click', (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  if (!archiveStatusMenuOpen && statusMenuOpen) {
+    closeStatusMenu();
+  }
+  setArchivedStatusMenuOpen(!archiveStatusMenuOpen, {
+    focusSelected: archiveStatusMenuOpen ? false : true
+  });
+});
+
+archivedFilterStatusTrigger?.addEventListener('keydown', (event) => {
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    if (!archiveStatusMenuOpen) {
+      if (statusMenuOpen) {
+        closeStatusMenu();
+      }
+      setArchivedStatusMenuOpen(true, { focusSelected: true });
+      return;
+    }
+    const delta = event.key === 'ArrowDown' ? 1 : -1;
+    setArchivedStatusMenuHighlight(archiveStatusMenuHighlightIndex + delta, { focus: true });
+    return;
+  }
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    if (!archiveStatusMenuOpen && statusMenuOpen) {
+      closeStatusMenu();
+    }
+    setArchivedStatusMenuOpen(!archiveStatusMenuOpen, { focusSelected: !archiveStatusMenuOpen });
+    return;
+  }
+  if (event.key === 'Escape' && archiveStatusMenuOpen) {
+    event.preventDefault();
+    closeArchivedStatusMenu();
+  }
+});
+
+archivedFilterStatusMenu?.addEventListener('click', (event) => {
+  const item = event.target.closest('.status-menu__item[data-value]');
+  if (!item) {
+    return;
+  }
+  event.preventDefault();
+  applyArchivedStatusFilterValue(item.dataset.value || '');
+  closeArchivedStatusMenu({ focusTrigger: true });
+});
+
+archivedFilterStatusMenu?.addEventListener('keydown', (event) => {
+  const items = getArchivedStatusMenuItems();
+  if (!items.length) {
+    return;
+  }
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    const nextIndex = archiveStatusMenuHighlightIndex >= 0 ? archiveStatusMenuHighlightIndex + 1 : 0;
+    setArchivedStatusMenuHighlight(nextIndex, { focus: true });
+    return;
+  }
+  if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    const nextIndex = archiveStatusMenuHighlightIndex >= 0 ? archiveStatusMenuHighlightIndex - 1 : items.length - 1;
+    setArchivedStatusMenuHighlight(nextIndex, { focus: true });
+    return;
+  }
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    const activeItem =
+      items[archiveStatusMenuHighlightIndex] ||
+      event.target.closest('.status-menu__item[data-value]') ||
+      items[0];
+    if (activeItem) {
+      applyArchivedStatusFilterValue(activeItem.dataset.value || '');
+      closeArchivedStatusMenu({ focusTrigger: true });
+    }
+    return;
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeArchivedStatusMenu({ focusTrigger: true });
+    return;
+  }
+  if (event.key === 'Tab') {
+    closeArchivedStatusMenu();
+  }
+});
+
+archivedFilterStatusMenu?.addEventListener('mousemove', (event) => {
+  const item = event.target.closest('.status-menu__item[data-value]');
+  if (!item) {
+    return;
+  }
+  const items = getArchivedStatusMenuItems();
+  const index = items.indexOf(item);
+  if (index >= 0 && index !== archiveStatusMenuHighlightIndex) {
+    setArchivedStatusMenuHighlight(index);
+  }
+});
+
+archivedFilterStatus?.addEventListener('change', async () => {
+  const normalizedStatus = normalizeStatusFilterValue(archivedFilterStatus.value);
+  state.archived.filters.status = normalizedStatus;
+  archivedFilterStatus.value = normalizedStatus;
+  syncArchivedStatusFilterMenuUi();
+  await applyArchivedFilters();
+});
+
+syncArchivedStatusFilterMenuUi();
+
+if (archivedFilterCompany) {
+  archivedFilterCompany.value = state.archived.filters.company || '';
+}
+archivedFilterCompanyClear?.classList.toggle('hidden', !archivedFilterCompany?.value);
+
+archivedFilterCompany?.addEventListener('input', () => {
+  if (archivedFilterCompanyClear) {
+    archivedFilterCompanyClear.classList.toggle('hidden', !archivedFilterCompany.value);
+  }
+  clearTimeout(archivedFilterCompanyTimer);
+  archivedFilterCompanyTimer = setTimeout(async () => {
+    state.archived.filters.company = archivedFilterCompany.value.trim();
+    await applyArchivedFilters();
+  }, 180);
+});
+
+archivedFilterCompanyClear?.addEventListener('click', async () => {
+  if (!archivedFilterCompany) return;
+  archivedFilterCompany.value = '';
+  archivedFilterCompanyClear.classList.add('hidden');
+  state.archived.filters.company = '';
+  await applyArchivedFilters();
+});
+
+if (archivedFilterRole) {
+  archivedFilterRole.value = state.archived.filters.role || '';
+}
+archivedFilterRoleClear?.classList.toggle('hidden', !archivedFilterRole?.value);
+
+archivedFilterRole?.addEventListener('input', () => {
+  if (archivedFilterRoleClear) {
+    archivedFilterRoleClear.classList.toggle('hidden', !archivedFilterRole.value);
+  }
+  clearTimeout(archivedFilterRoleTimer);
+  archivedFilterRoleTimer = setTimeout(async () => {
+    state.archived.filters.role = archivedFilterRole.value.trim();
+    await applyArchivedFilters();
+  }, 180);
+});
+
+archivedFilterRoleClear?.addEventListener('click', async () => {
+  if (!archivedFilterRole) return;
+  archivedFilterRole.value = '';
+  archivedFilterRoleClear.classList.add('hidden');
+  state.archived.filters.role = '';
+  await applyArchivedFilters();
 });
 
 tablePrev?.addEventListener('click', goPrevPage);
