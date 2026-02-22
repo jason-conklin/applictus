@@ -7,6 +7,75 @@ const DENYLIST = [
   /marketing/i
 ];
 
+const NEWSLETTER_SUBJECT_PATTERNS = [
+  /\bnewsletter\b/i,
+  /\bdigest\b/i,
+  /\bcommunity update\b/i,
+  /\btech buzz\b/i,
+  /\btop posts?\b/i,
+  /\bjobs you may like\b/i,
+  /\bdiscover your next job\b/i
+];
+
+const NEWSLETTER_FEED_PATTERNS = [
+  /\bview more posts?\b/i,
+  /\bread more\b/i,
+  /\bcomments?\b/i,
+  /\bdiscover your next job\b/i,
+  /\bjobs you may like\b/i,
+  /\btop posts?\b/i,
+  /\btech buzz\b/i,
+  /\bcommunity digest\b/i,
+  /\bmanage settings\b/i,
+  /\bprivacy policy\b/i,
+  /\bthis message was sent to\b/i
+];
+
+const NEWSLETTER_INTERVIEW_BLOCK_PATTERNS = [
+  /\bcommunity\b/i,
+  /\bnewsletter\b/i,
+  /\bdigest\b/i,
+  /\bweekly\b/i,
+  /\btop posts?\b/i,
+  /\bread more\b/i,
+  /\bcomments?\b/i,
+  /\bdiscover your next job\b/i,
+  /\bjobs you may like\b/i,
+  /\bview more posts?\b/i,
+  /\btech buzz\b/i,
+  /\bmanage settings\b/i
+];
+
+const INTERVIEW_DIRECT_INTENT_PATTERNS = [
+  /\bi would like to speak with you\b/i,
+  /\bwe would like to speak with you\b/i,
+  /\bcan speak with you\b/i,
+  /\binvite you to (?:an )?interview\b/i,
+  /\blet(?:'|’)s schedule\b/i,
+  /\bare you available\b/i,
+  /\bhere are some times?\b/i,
+  /\bwhat time works\b/i,
+  /\bzoom (?:invitation|invite)\b/i,
+  /\bcalendar invite\b/i,
+  /\bphone screen\b|\bscreening call\b/i,
+  /\bplease select (?:a|your) time\b/i,
+  /\bschedule (?:an?|your)\s+(?:interview|call|phone screen)\b/i,
+  /\bsend (?:a )?(?:zoom|calendar) (?:invitation|invite)\b/i
+];
+
+const INTERVIEW_SUBJECT_SIGNAL_PATTERN =
+  /\b(interview(?:\s+(?:request|invitation|invite|availability|schedule|scheduled|scheduling))?|phone screen|screening call|next steps|invitation)\b/i;
+
+const CANDIDATE_PERSONALIZATION_PATTERNS = [
+  /(?:^|\n)\s*(?:hi|hello|dear)\s+[a-z][a-z' -]{1,40}[,!\s]/i,
+  /\byour application\b/i,
+  /\byour resume\b/i,
+  /\byour candidacy\b/i,
+  /\bposition you applied(?: for)?\b/i,
+  /\byou applied\b/i,
+  /\bfor your application\b/i
+];
+
 const LINKEDIN_CONFIRMATION_RULE = {
   name: 'linkedin_application_sent_confirmation',
   detectedType: 'confirmation',
@@ -288,6 +357,110 @@ function normalize(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
+function extractSenderEmail(sender) {
+  const raw = String(sender || '');
+  const bracket = raw.match(/<([^>]+)>/);
+  if (bracket && bracket[1]) {
+    return String(bracket[1]).trim().toLowerCase();
+  }
+  const direct = raw.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return direct ? String(direct[0]).trim().toLowerCase() : raw.toLowerCase();
+}
+
+function countMatches(pattern, text) {
+  const sourceText = String(text || '');
+  if (!sourceText) {
+    return 0;
+  }
+  const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`;
+  const globalPattern = new RegExp(pattern.source, flags);
+  const matches = sourceText.match(globalPattern);
+  return matches ? matches.length : 0;
+}
+
+function hasNewsletterHeaderSignal(headers) {
+  if (!headers) {
+    return false;
+  }
+  const haystack = [];
+  if (Array.isArray(headers)) {
+    for (const header of headers) {
+      if (!header) continue;
+      if (typeof header === 'string') {
+        haystack.push(header.toLowerCase());
+        continue;
+      }
+      const name = String(header.name || '').toLowerCase();
+      const value = String(header.value || '').toLowerCase();
+      haystack.push(`${name}:${value}`);
+    }
+  } else if (typeof headers === 'object') {
+    for (const [key, value] of Object.entries(headers)) {
+      haystack.push(`${String(key).toLowerCase()}:${String(value || '').toLowerCase()}`);
+    }
+  } else {
+    haystack.push(String(headers).toLowerCase());
+  }
+  return haystack.some((entry) => {
+    return (
+      entry.includes('list-unsubscribe') ||
+      /precedence:\s*bulk/.test(entry) ||
+      /auto-submitted:\s*auto-generated/.test(entry)
+    );
+  });
+}
+
+function isNewsletterOrDigestEmail({ subject, snippet, sender, body, headers, linkedInJobsUpdate }) {
+  if (linkedInJobsUpdate) {
+    return false;
+  }
+
+  const senderEmail = extractSenderEmail(sender);
+  const senderParts = senderEmail.split('@');
+  const senderLocalPart = senderParts[0] || '';
+  const senderDomain = senderParts[1] || '';
+  const textSource = `${String(subject || '')}\n${String(snippet || '')}\n${String(body || '')}`;
+  const loweredText = textSource.toLowerCase();
+  const loweredSubject = String(subject || '').toLowerCase();
+
+  const hasSubjectMarker = NEWSLETTER_SUBJECT_PATTERNS.some((pattern) => pattern.test(loweredSubject));
+  const hasFeedMarkers = NEWSLETTER_FEED_PATTERNS.filter((pattern) => pattern.test(loweredText)).length;
+  const readMoreCount = countMatches(/\bread more\b/i, loweredText);
+  const commentsCount = countMatches(/\bcomments?\b/i, loweredText);
+  const unsubscribeCount = countMatches(/\bunsubscribe\b/i, loweredText);
+  const hasDigestSenderHint =
+    /(glassdoor\.com|linkedin\.com|indeed\.com)$/.test(senderDomain) &&
+    /(notification|notifications|alert|alerts|digest|newsletter|community|updates?|notify)/.test(
+      senderLocalPart
+    );
+  const headerSignal = hasNewsletterHeaderSignal(headers);
+
+  if (headerSignal) {
+    return true;
+  }
+  if (hasSubjectMarker && (hasFeedMarkers >= 1 || hasDigestSenderHint || unsubscribeCount >= 1)) {
+    return true;
+  }
+  if (hasDigestSenderHint && (hasFeedMarkers >= 1 || readMoreCount >= 2 || commentsCount >= 2)) {
+    return true;
+  }
+  if (hasFeedMarkers >= 3) {
+    return true;
+  }
+  if (readMoreCount >= 2 && commentsCount >= 1) {
+    return true;
+  }
+  if (
+    unsubscribeCount >= 1 &&
+    /\b(view more posts?|discover your next job|jobs you may like|top posts?|community|tech buzz)\b/i.test(
+      loweredText
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function isLinkedInJobsSender(sender) {
   return /jobs-noreply@linkedin\.com/i.test(String(sender || ''));
 }
@@ -388,7 +561,33 @@ function detectSchedulingInterview({ subject, snippet, sender, body }) {
     (allDateMatches.length >= 2 && /\b(available|times?|slots?)\b/i.test(textSource));
   const hasAnyTimeEvidence = hasStrongTimeEvidence || dayLineCount >= 1 || allDateMatches.length >= 1;
 
-  if (!hasAnyTimeEvidence && !explicitScheduled) {
+  const hasDirectIntent = INTERVIEW_DIRECT_INTENT_PATTERNS.some((pattern) => pattern.test(textSource));
+  const hasPersonalizationSignal = CANDIDATE_PERSONALIZATION_PATTERNS.some((pattern) =>
+    pattern.test(textSource)
+  );
+  const hasSubjectInterviewSignal = INTERVIEW_SUBJECT_SIGNAL_PATTERN.test(rawSubject);
+  const hasExplicitDirectRequest =
+    /\b(?:we|i)\s+(?:would like|want)\s+to\s+(?:speak|interview)\s+with\s+you\b/i.test(textSource) ||
+    /\binvite you to (?:an )?interview\b/i.test(textSource);
+  const hasSecondPersonSignal =
+    /\b(?:you|your)\b/i.test(textSource) &&
+    /\b(?:availability|schedule|time works|calendar invite|zoom|phone screen|interview)\b/i.test(textSource);
+
+  const passesCandidateDirectGate =
+    (hasDirectIntent || hasExplicitDirectRequest || hasSubjectInterviewSignal) &&
+    (hasPersonalizationSignal || hasSecondPersonSignal || hasExplicitDirectRequest || hasAnyTimeEvidence);
+  if (!passesCandidateDirectGate) {
+    return null;
+  }
+
+  const hasDigestNegativeMarker = NEWSLETTER_INTERVIEW_BLOCK_PATTERNS.some((pattern) =>
+    pattern.test(textSource)
+  );
+  if (hasDigestNegativeMarker) {
+    return null;
+  }
+
+  if (!hasAnyTimeEvidence && !explicitScheduled && !hasDirectIntent && !hasExplicitDirectRequest) {
     return null;
   }
 
@@ -460,7 +659,7 @@ function findRuleMatch(rules, text, minConfidence, jobContext) {
   return null;
 }
 
-function classifyEmail({ subject, snippet, sender, body }) {
+function classifyEmail({ subject, snippet, sender, body, headers }) {
   const normalizedSnippet = normalize(snippet);
   const normalizedBody = normalize(body || '');
   const textSource = `${normalize(body || '')} ${normalize(snippet)} ${normalize(subject)} ${normalize(
@@ -513,6 +712,22 @@ function classifyEmail({ subject, snippet, sender, body }) {
         reason: LINKEDIN_CONFIRMATION_RULE.name
       };
     }
+  }
+
+  const newsletterDigest = isNewsletterOrDigestEmail({
+    subject,
+    snippet,
+    sender,
+    body,
+    headers,
+    linkedInJobsUpdate
+  });
+  if (newsletterDigest) {
+    return {
+      isJobRelated: false,
+      explanation: 'Newsletter/digest content suppressed.',
+      reason: 'newsletter_digest'
+    };
   }
 
   const schedulingSignal = detectSchedulingInterview({ subject, snippet, sender, body });
@@ -641,6 +856,7 @@ module.exports = {
   classifyEmail,
   isLinkedInJobsUpdateEmail,
   isLinkedInJobsApplicationSentEmail,
+  isNewsletterOrDigestEmail,
   RULES,
   DENYLIST
 };

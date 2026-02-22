@@ -92,6 +92,25 @@ Tue 3/3 5-6 pm`
   assert.equal(result.detectedType, 'meeting_requested');
 });
 
+test('classifyEmail suppresses Glassdoor-style community digest interview snippets', () => {
+  const result = classifyEmail({
+    subject: 'General strike concerns in QA hiring | Tech Buzz',
+    snippet: 'I have an interview for the role of Lead QA and need advice.',
+    sender: 'community@glassdoor.com',
+    body: `Tech Buzz
+View more posts
+I have an interview for the role of Lead QA and need advice.
+Read more
+23 comments
+Discover your next job
+Manage Settings
+Unsubscribe`
+  });
+  assert.equal(result.isJobRelated, false);
+  assert.equal(result.reason, 'newsletter_digest');
+  assert.notEqual(result.detectedType, 'interview_requested');
+});
+
 test('classifyEmail detects under review updates', () => {
   const result = classifyEmail({
     subject: 'Application status: Under review',
@@ -445,4 +464,17 @@ test('classifyEmail detects profile submitted confirmation', () => {
   });
   assert.equal(result.detectedType, 'confirmation');
   assert.ok(result.confidenceScore >= 0.85);
+});
+
+test('classifyEmail keeps Indeed application submitted confirmation actionable', () => {
+  const result = classifyEmail({
+    subject: 'Indeed Application: Mobile Developer',
+    sender: 'Indeed Apply <indeedapply@indeed.com>',
+    snippet: 'Application submitted',
+    body: `Application submitted
+Mobile Developer
+Visual Computer Solutions`
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'confirmation');
 });

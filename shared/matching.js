@@ -516,6 +516,24 @@ function normalize(text) {
     .trim();
 }
 
+function stripDigestSections(text) {
+  const raw = String(text || '');
+  if (!raw.trim()) {
+    return '';
+  }
+  const lines = raw.replace(/\r\n/g, '\n').split('\n');
+  const stopPattern =
+    /^\s*(?:view more posts?|discover your next job|jobs you may like|top posts?|tech buzz|community digest|read more)$/i;
+  let cutoff = lines.length;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (stopPattern.test(lines[i])) {
+      cutoff = i;
+      break;
+    }
+  }
+  return lines.slice(0, cutoff).join('\n').trim();
+}
+
 function normalizeJobIdentity(value) {
   let text = normalize(value);
   if (!text) {
@@ -2367,6 +2385,8 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   const subjectText = normalize(subject);
   const snippetText = normalize(snippet);
   const bodyTextRaw = String(bodyText || '');
+  const snippetTextFiltered = normalize(stripDigestSections(snippet));
+  const bodyTextFiltered = stripDigestSections(bodyTextRaw) || bodyTextRaw;
   const indeedApplyIdentity = extractIndeedApplyIdentity({
     subject: subjectText,
     snippet: snippetText,
@@ -2408,8 +2428,8 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   const senderName = extractSenderName(sender);
   const roleMatch =
     extractCompanyRole(subjectText) ||
-    extractCompanyRole(snippetText) ||
-    extractCompanyRole(bodyTextRaw) || {
+    extractCompanyRole(snippetTextFiltered || snippetText) ||
+    extractCompanyRole(bodyTextFiltered) || {
       companyName: null,
       jobTitle: null,
       companyConfidence: 0,
@@ -2418,24 +2438,24 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
     };
   const subjectCompany =
     sanitizeCompanyCandidate(extractCompanyFromSubject(subjectText)) ||
-    sanitizeCompanyCandidate(extractCompanyFromSubject(snippetText));
+    sanitizeCompanyCandidate(extractCompanyFromSubject(snippetTextFiltered || snippetText));
   const senderCompany = sanitizeCompanyCandidate(extractCompanyFromSender(sender));
   const senderDomain = extractSenderDomain(sender);
   const providerSender = senderName ? isProviderName(senderName) : false;
   const atsSender = isAtsDomain(senderDomain);
-  const signatureCompany = sanitizeCompanyCandidate(extractCompanyFromSignatureLines(bodyTextRaw));
-  const websiteSignatureCompany = sanitizeCompanyCandidate(extractCompanyFromWebsiteSignature(bodyTextRaw));
+  const signatureCompany = sanitizeCompanyCandidate(extractCompanyFromSignatureLines(bodyTextFiltered));
+  const websiteSignatureCompany = sanitizeCompanyCandidate(extractCompanyFromWebsiteSignature(bodyTextFiltered));
   const bodySignatureCompany =
-    bodyTextRaw && (atsSender || providerSender)
-      ? sanitizeCompanyCandidate(extractCompanyFromBodyText(bodyTextRaw))
+    bodyTextFiltered && (atsSender || providerSender)
+      ? sanitizeCompanyCandidate(extractCompanyFromBodyText(bodyTextFiltered))
       : null;
   const bodyPatternCompany =
-    bodyTextRaw && (atsSender || providerSender)
-      ? sanitizeCompanyCandidate(extractCompanyFromBodyPatterns(bodyTextRaw))
+    bodyTextFiltered && (atsSender || providerSender)
+      ? sanitizeCompanyCandidate(extractCompanyFromBodyPatterns(bodyTextFiltered))
       : null;
   const localPartCompany =
     atsSender || providerSender
-      ? sanitizeCompanyCandidate(extractCompanyFromSenderLocalPart(sender, bodyTextRaw))
+      ? sanitizeCompanyCandidate(extractCompanyFromSenderLocalPart(sender, bodyTextFiltered))
       : null;
   const bodyCompany = bodySignatureCompany || bodyPatternCompany;
   const domainCompany = companyFromDomain(senderDomain)
@@ -2493,8 +2513,8 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   if (!jobTitle && companyName) {
     const roleOnly = extractJobTitle({
       subject: subjectText,
-      snippet: snippetText,
-      bodyText: bodyTextRaw,
+      snippet: snippetTextFiltered || snippetText,
+      bodyText: bodyTextFiltered,
       senderName,
       sender,
       companyName

@@ -1166,6 +1166,8 @@ async function syncGmailMessages({
         if (classification.reason === 'denylisted') {
           reasonCode = 'denylisted';
           filteredOutDenylist += 1;
+        } else if (classification.reason === 'newsletter_digest') {
+          reasonCode = 'newsletter_digest';
         } else if (classification.reason === 'below_threshold') {
           reasonCode = 'below_threshold';
         }
