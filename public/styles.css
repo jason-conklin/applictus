@@ -3093,7 +3093,7 @@ textarea:focus-visible {
 #applications-table .table-row > div:nth-child(3) {
   justify-self: start;
   text-align: left;
-  margin-left: -4px;
+  margin-left: -7px;
 }
 
 #applications-table .table-header > button:nth-child(3),
@@ -3240,9 +3240,14 @@ textarea:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 2px;
   cursor: pointer;
   user-select: none;
+}
+
+#applications-table .table-select-header .table-select-control {
+  width: 32px;
+  height: 32px;
 }
 
 .table-select-all-text {
