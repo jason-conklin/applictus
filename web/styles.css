@@ -6738,7 +6738,7 @@ body.app-page-bg .topbar .nav-link.active {
 #dashboard-view .sync-strip.scan-card {
   position: relative;
   isolation: isolate;
-  overflow: hidden;
+  overflow: visible;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: stretch;
