@@ -654,15 +654,25 @@
             <button class="btn btn--ghost btn--sm icon" type="button" id="sync-error-toggle">Show details</button>
             <pre class="sync-error-detail hidden" id="sync-error-detail"></pre>
           </div>
-          <div class="sync-progress hidden" id="sync-progress">
-            <div class="sync-progress-meta">
-              <span id="sync-progress-label">Scanning emails…</span>
-              <span id="sync-progress-value">0%</span>
+          <div class="scan-progress hidden" id="sync-progress">
+            <div class="scan-progress__meta">
+              <div class="scan-progress__label">
+                <span class="scan-progress__title" id="sync-progress-label">Classifying emails</span>
+                <span class="scan-progress__subtle">This may take a minute</span>
+              </div>
+              <div class="scan-progress__pct" id="sync-progress-value" aria-live="polite">0%</div>
             </div>
-                  <div class="progress-track" aria-hidden="true">
-                    <div class="progress-fill" id="sync-progress-fill"></div>
-                  </div>
-                </div>
+            <div
+              class="scan-progress__track"
+              id="sync-progress-track"
+              role="progressbar"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+            >
+              <div class="scan-progress__fill" id="sync-progress-fill" style="width: 0%"></div>
+            </div>
+          </div>
 	          </div>
         <section class="kpi-row" aria-label="Application stats">
           <div class="kpi-card status-total">

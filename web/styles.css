@@ -2454,8 +2454,8 @@ textarea:focus-visible {
 
 .btn-scan .scan-dots {
   display: inline-block;
-  width: 3ch;
-  min-width: 3ch;
+  width: 2.2ch;
+  min-width: 2.2ch;
   overflow: hidden;
   opacity: 0;
   vertical-align: baseline;
@@ -2666,34 +2666,74 @@ textarea:focus-visible {
   gap: 10px;
 }
 
-.sync-progress {
-  margin-top: 6px;
+.scan-progress {
+  margin-top: 8px;
   display: grid;
-  gap: 6px;
+  gap: 10px;
+  min-height: 70px;
+  padding: 2px 0;
+  transition: opacity 180ms ease;
 }
 
-.sync-progress.hidden {
-  display: none;
+.scan-progress.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
-.sync-progress-meta {
+.scan-progress__meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
-  color: var(--color-muted);
+  gap: 12px;
 }
 
-.progress-track {
+.scan-progress__label {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.scan-progress__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dash-text, #1f2f48);
+  line-height: 1.2;
+}
+
+.scan-progress__subtle {
+  font-size: 11px;
+  color: var(--dash-text-muted, #627894);
+  line-height: 1.2;
+}
+
+.scan-progress__pct {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(40, 80, 160, 0.12);
+  background: rgba(240, 245, 255, 0.9);
+  box-shadow: 0 6px 18px rgba(20, 40, 80, 0.08);
+  color: rgba(27, 54, 96, 0.9);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-progress__track {
   position: relative;
   width: 100%;
-  height: 10px;
-  border-radius: 10px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(240, 245, 255, 0.8));
-  border: 1px solid rgba(78, 114, 172, 0.14);
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(240, 245, 255, 0.9), rgba(226, 235, 250, 0.95));
+  border: 1px solid rgba(40, 80, 160, 0.12);
   box-shadow:
-    inset 0 1px 2px rgba(0, 0, 0, 0.08),
-    0 2px 8px rgba(16, 42, 92, 0.08);
+    inset 0 2px 3px rgba(0, 0, 0, 0.08),
+    0 10px 25px rgba(20, 40, 80, 0.1);
   overflow: hidden;
 }
 
@@ -2798,57 +2838,97 @@ textarea:focus-visible {
   white-space: pre-wrap;
 }
 
-.progress-fill {
+.scan-progress__fill {
   position: absolute;
-  inset: 0;
+  inset: 0 auto 0 0;
   width: 0%;
+  height: 100%;
   border-radius: inherit;
-  background: linear-gradient(180deg, rgba(80, 130, 255, 0.95), rgba(60, 110, 230, 1));
+  background: linear-gradient(180deg, #4f8cff, #2f66e6);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.4),
-    0 1px 4px rgba(31, 75, 156, 0.24);
-  transition: width 300ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 180ms ease;
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.2),
+    0 6px 16px rgba(60, 120, 255, 0.25);
+  transition: width 380ms cubic-bezier(0.2, 0.9, 0.2, 1), background-color 180ms ease;
   overflow: hidden;
 }
 
-.progress-fill::after {
+.scan-progress__fill::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.15) 48%,
-    transparent 100%
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.1) 0 10px,
+    rgba(255, 255, 255, 0) 10px 20px
   );
+  background-size: 180px 100%;
   opacity: 0;
-  transform: translateX(-130%);
   pointer-events: none;
 }
 
-.progress-fill.error {
-  background: linear-gradient(90deg, #f97316, #ef4444);
+.scan-progress__fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 35%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  filter: blur(0.2px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.scan-progress__fill.error {
+  background: linear-gradient(180deg, #f97316, #ef4444);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    0 1px 4px rgba(185, 28, 28, 0.2);
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.2),
+    0 6px 14px rgba(239, 68, 68, 0.22);
 }
 
-.sync-progress.is-scanning .progress-fill.is-scanning::after {
-  opacity: 0.4;
-  animation: progressFillShimmer 10s linear infinite;
+.scan-progress.is-scanning .scan-progress__fill.is-scanning::before {
+  opacity: 0.18;
+  animation: scanProgressStripes 10s linear infinite;
 }
 
-@keyframes progressFillShimmer {
-  0% {
-    transform: translateX(-130%);
+.scan-progress.is-scanning .scan-progress__fill.is-scanning::after {
+  opacity: 0.85;
+  animation: scanSheen 2.6s linear infinite;
+}
+
+@keyframes scanSheen {
+  from {
+    left: -40%;
   }
-  100% {
-    transform: translateX(130%);
+  to {
+    left: 110%;
+  }
+}
+
+@keyframes scanProgressStripes {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 180px 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .scan-progress__track {
+    height: 10px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sync-progress.is-scanning .progress-fill.is-scanning::after {
+  .scan-progress__fill {
+    transition: width 220ms linear, background-color 180ms ease;
+  }
+
+  .scan-progress.is-scanning .scan-progress__fill.is-scanning::before,
+  .scan-progress.is-scanning .scan-progress__fill.is-scanning::after {
     animation: none;
     opacity: 0;
   }
@@ -7109,7 +7189,7 @@ body.app-page-bg .topbar .nav-link.active {
 #dashboard-view .btn-scan {
   min-height: 54px;
   height: 54px;
-  padding: 0 24px;
+  padding: 0 22px;
   font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.01em;

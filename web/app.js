@@ -230,6 +230,7 @@ const syncControls = document.getElementById('sync-controls');
 const syncConnectCta = document.getElementById('sync-connect-cta');
 const syncProgress = document.getElementById('sync-progress');
 const syncProgressFill = document.getElementById('sync-progress-fill');
+const syncProgressTrack = document.getElementById('sync-progress-track');
 const syncProgressLabel = document.getElementById('sync-progress-label');
 const syncProgressValue = document.getElementById('sync-progress-value');
 const syncSummary = document.getElementById('sync-summary');
@@ -1168,7 +1169,7 @@ function parseDate(value) {
 }
 
 function setSyncProgressState({ visible, progress, label, error = false }) {
-  if (!syncProgress || !syncProgressFill || !syncProgressLabel || !syncProgressValue) {
+  if (!syncProgress || !syncProgressFill || !syncProgressTrack || !syncProgressLabel || !syncProgressValue) {
     return;
   }
   syncUiState.visible = visible;
@@ -1195,6 +1196,7 @@ function setSyncProgressState({ visible, progress, label, error = false }) {
       ? 1
       : Math.min(99.5, rawPct);
   syncProgressValue.textContent = `${Math.round(displayPct)}%`;
+  syncProgressTrack.setAttribute('aria-valuenow', String(Math.round(displayPct)));
   syncProgressFill.style.width = `${displayPct}%`;
   syncProgressFill.classList.toggle('error', !!error);
   syncProgressFill.classList.toggle('is-scanning', scanningActive && !error);
