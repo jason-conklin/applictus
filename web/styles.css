@@ -2715,6 +2715,10 @@ textarea:focus-visible {
   background: var(--color-success);
   box-shadow: 0 0 0 4px var(--color-success-tint);
 }
+.kpi-dot.info {
+  background: #3b82f6;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
+}
 .kpi-dot.danger {
   background: var(--color-danger);
   box-shadow: 0 0 0 4px var(--color-danger-tint);
@@ -2752,6 +2756,17 @@ textarea:focus-visible {
 .kpi-card.status-offer .kpi-label,
 .kpi-card.status-offer .kpi-value {
   color: #166534;
+}
+
+.kpi-card.status-interview {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.14), #fff);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #1d4ed8;
+}
+
+.kpi-card.status-interview .kpi-label,
+.kpi-card.status-interview .kpi-value {
+  color: #1d4ed8;
 }
 
 .kpi-card.status-rejected {
@@ -3647,9 +3662,9 @@ details summary {
   --status-pill-offer-bg: #d1fae5;
   --status-pill-offer-border: #34d399;
   --status-pill-offer-text: #065f46;
-  --status-pill-interview-bg: #dcfce7;
-  --status-pill-interview-border: #22c55e;
-  --status-pill-interview-text: #166534;
+  --status-pill-interview-bg: #dbeafe;
+  --status-pill-interview-border: #60a5fa;
+  --status-pill-interview-text: #1d4ed8;
   --status-pill-rejected-bg: #fee2e2;
   --status-pill-rejected-border: #fca5a5;
   --status-pill-rejected-text: #991b1b;
@@ -3707,6 +3722,14 @@ details summary {
 }
 
 .appl-status-interview_completed {
+  background: var(--status-pill-interview-bg);
+  border-color: var(--status-pill-interview-border);
+  color: var(--status-pill-interview-text);
+}
+
+.appl-status-interview_scheduled,
+.appl-status-phone_screen,
+.appl-status-onsite {
   background: var(--status-pill-interview-bg);
   border-color: var(--status-pill-interview-border);
   color: var(--status-pill-interview-text);
@@ -3985,9 +4008,17 @@ details summary {
   border: 1px solid #34d399;
 }
 .pill-interview_requested {
-  background: #dcfce7;
-  color: #166534;
-  border: 1px solid #22c55e;
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #60a5fa;
+}
+.pill-interview_scheduled,
+.pill-interview_completed,
+.pill-phone_screen,
+.pill-onsite {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #60a5fa;
 }
 .pill-rejected {
   background: #fee2e2;
@@ -6892,7 +6923,7 @@ body.app-page-bg .topbar .nav-link.active {
 
 #dashboard-view .kpi-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
   width: 100%;
 }
@@ -6910,6 +6941,60 @@ body.app-page-bg .topbar .nav-link.active {
     inset 0 -1px 0 rgba(12, 33, 66, 0.06);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+#dashboard-view .kpi-new-tag {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 16px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1;
+  border: 1px solid transparent;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+#dashboard-view .kpi-new-tag.kpi-new-tag--applied {
+  color: #9a5a05;
+  background: rgba(217, 119, 6, 0.1);
+  border-color: rgba(217, 119, 6, 0.2);
+}
+
+#dashboard-view .kpi-new-tag.kpi-new-tag--offer {
+  color: #166534;
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+#dashboard-view .kpi-new-tag.kpi-new-tag--interview {
+  color: #1d4ed8;
+  background: rgba(59, 130, 246, 0.11);
+  border-color: rgba(59, 130, 246, 0.22);
+}
+
+#dashboard-view .kpi-new-tag:not(.hidden) {
+  animation: kpiNewTagFadeIn 200ms ease-out 1;
+}
+
+@keyframes kpiNewTagFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 0.85;
+    transform: translateY(0);
+  }
 }
 
 #dashboard-view .kpi-card::before {
@@ -6947,6 +7032,69 @@ body.app-page-bg .topbar .nav-link.active {
   font-variant-numeric: tabular-nums;
 }
 
+#dashboard-view .kpi-value-wrap {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 10px;
+  min-height: 36px;
+}
+
+#dashboard-view .kpi-value-wrap .kpi-value {
+  margin-left: 0;
+}
+
+#dashboard-view .kpi-delta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  transform: translateY(-2px);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+#dashboard-view .kpi-delta.kpi-delta--applied {
+  color: #9a5a05;
+  background: rgba(217, 119, 6, 0.12);
+  border-color: rgba(217, 119, 6, 0.26);
+}
+
+#dashboard-view .kpi-delta.kpi-delta--offer {
+  color: #166534;
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.24);
+}
+
+#dashboard-view .kpi-delta.kpi-delta--interview {
+  color: #1d4ed8;
+  background: rgba(59, 130, 246, 0.13);
+  border-color: rgba(59, 130, 246, 0.25);
+}
+
+#dashboard-view .kpi-delta:not(.hidden) {
+  animation: kpiDeltaFadeIn 200ms cubic-bezier(0.2, 0.8, 0.2, 1) 1;
+}
+
+@keyframes kpiDeltaFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(1px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
 #dashboard-view .kpi-card.status-total {
   --kpi-accent: rgba(71, 85, 105, 0.66);
   color: #1e293b;
@@ -6966,6 +7114,13 @@ body.app-page-bg .topbar .nav-link.active {
   color: #166534;
 }
 
+#dashboard-view .kpi-card.status-interview {
+  --kpi-accent: rgba(37, 99, 235, 0.76);
+  background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
+  border-color: rgba(37, 99, 235, 0.24);
+  color: #1d4ed8;
+}
+
 #dashboard-view .kpi-card.status-rejected {
   --kpi-accent: rgba(220, 38, 38, 0.74);
   background: linear-gradient(180deg, #ffffff 0%, #fff1f1 100%);
@@ -6977,6 +7132,8 @@ body.app-page-bg .topbar .nav-link.active {
 #dashboard-view .kpi-card.status-applied .kpi-value,
 #dashboard-view .kpi-card.status-offer .kpi-label,
 #dashboard-view .kpi-card.status-offer .kpi-value,
+#dashboard-view .kpi-card.status-interview .kpi-label,
+#dashboard-view .kpi-card.status-interview .kpi-value,
 #dashboard-view .kpi-card.status-rejected .kpi-label,
 #dashboard-view .kpi-card.status-rejected .kpi-value {
   color: inherit;
@@ -7086,6 +7243,10 @@ body.app-page-bg .topbar .nav-link.active {
 
 #applications-table .table-row.application-row[data-status-tone='interview'] .status-band {
   --status-band-color: var(--status-pill-interview-border);
+}
+
+#applications-table .table-row.application-row[data-status-tone='offer'] .status-band {
+  --status-band-color: var(--status-pill-offer-border);
 }
 
 #applications-table .table-row.application-row[data-status-tone='applied'] .status-band {
@@ -7205,6 +7366,60 @@ body.app-page-bg .topbar .nav-link.active {
   background: #f5f7fa;
 }
 
+#applications-table .table-row.application-row.is-offer {
+  background: #f2faf5;
+}
+
+#applications-table .table-row.application-row.is-interview {
+  background: #f1f6ff;
+}
+
+#applications-table .table-row.application-row.is-new-signal .status-band {
+  opacity: 1;
+}
+
+#applications-table .table-row.application-row.is-new-signal.is-offer {
+  animation: signalPulseOffer 960ms cubic-bezier(0.2, 0.75, 0.2, 1) 1;
+}
+
+#applications-table .table-row.application-row.is-new-signal.is-interview {
+  animation: signalPulseInterview 960ms cubic-bezier(0.2, 0.75, 0.2, 1) 1;
+}
+
+@keyframes signalPulseOffer {
+  0% {
+    box-shadow: 0 4px 10px rgba(10, 30, 66, 0.045);
+    background: #f2faf5;
+  }
+  48% {
+    box-shadow:
+      0 0 0 1px rgba(22, 163, 74, 0.28),
+      0 18px 32px rgba(22, 163, 74, 0.16);
+    background: #e9f8ef;
+  }
+  100% {
+    box-shadow: 0 4px 10px rgba(10, 30, 66, 0.045);
+    background: #f2faf5;
+  }
+}
+
+@keyframes signalPulseInterview {
+  0% {
+    box-shadow: 0 4px 10px rgba(10, 30, 66, 0.045);
+    background: #f1f6ff;
+  }
+  48% {
+    box-shadow:
+      0 0 0 1px rgba(37, 99, 235, 0.28),
+      0 18px 32px rgba(37, 99, 235, 0.16);
+    background: #eaf2ff;
+  }
+  100% {
+    box-shadow: 0 4px 10px rgba(10, 30, 66, 0.045);
+    background: #f1f6ff;
+  }
+}
+
 #applications-table .table-row.application-row:hover {
   border-color: rgba(46, 90, 172, 0.32);
   box-shadow: 0 10px 22px rgba(15, 35, 80, 0.11);
@@ -7217,6 +7432,18 @@ body.app-page-bg .topbar .nav-link.active {
   border-color: rgba(33, 85, 177, 0.36);
   box-shadow: 0 10px 24px rgba(24, 55, 110, 0.15);
   background: #dde8f8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #dashboard-view .kpi-new-tag:not(.hidden),
+  #dashboard-view .kpi-delta:not(.hidden) {
+    animation: none;
+  }
+
+  #applications-table .table-row.application-row.is-new-signal.is-offer,
+  #applications-table .table-row.application-row.is-new-signal.is-interview {
+    animation: none;
+  }
 }
 
 @media (min-width: 1280px) {
@@ -7240,7 +7467,7 @@ body.app-page-bg .topbar .nav-link.active {
 
 @media (max-width: 1200px) {
   #dashboard-view .kpi-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   #applications-table {
@@ -7249,6 +7476,10 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 @media (max-width: 900px) {
+  #dashboard-view .kpi-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   #dashboard-view .sync-strip.scan-card {
     grid-template-columns: 1fr;
     row-gap: 14px;

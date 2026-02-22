@@ -662,6 +662,7 @@
             <div class="kpi-value" id="kpi-total">0</div>
           </div>
           <div class="kpi-card status-applied">
+            <span class="kpi-new-tag kpi-new-tag--applied hidden" id="kpi-new-applied" aria-hidden="true">NEW</span>
             <div class="kpi-meta">
               <span class="kpi-dot warning"></span>
               <span class="kpi-icon" aria-hidden="true">
@@ -672,9 +673,18 @@
               </span>
               <div class="kpi-label">Applied</div>
             </div>
-            <div class="kpi-value" id="kpi-applied">0</div>
+            <div class="kpi-value-wrap">
+              <div class="kpi-value" id="kpi-applied">0</div>
+              <span
+                class="kpi-delta kpi-delta--applied hidden"
+                id="kpi-delta-applied"
+                aria-label="Applied increased by 0 since last scan"
+                aria-live="polite"
+              ></span>
+            </div>
           </div>
           <div class="kpi-card status-offer">
+            <span class="kpi-new-tag kpi-new-tag--offer hidden" id="kpi-new-offers" aria-hidden="true">NEW</span>
             <div class="kpi-meta">
               <span class="kpi-dot success"></span>
               <span class="kpi-icon" aria-hidden="true">
@@ -682,9 +692,41 @@
                   <polygon points="12 2 15 8.5 22 9 17 13.8 18.5 20.8 12 17.4 5.5 20.8 7 13.8 2 9 9 8.5 12 2"></polygon>
                 </svg>
               </span>
-              <div class="kpi-label">Offers / Interviews</div>
+              <div class="kpi-label" title="Offer received / offer extended">Offers</div>
             </div>
-            <div class="kpi-value" id="kpi-offer">0</div>
+            <div class="kpi-value-wrap">
+              <div class="kpi-value" id="kpi-offers">0</div>
+              <span
+                class="kpi-delta kpi-delta--offer hidden"
+                id="kpi-delta-offers"
+                aria-label="Offers increased by 0 since last scan"
+                aria-live="polite"
+              ></span>
+            </div>
+          </div>
+          <div class="kpi-card status-interview">
+            <span class="kpi-new-tag kpi-new-tag--interview hidden" id="kpi-new-interviews" aria-hidden="true">NEW</span>
+            <div class="kpi-meta">
+              <span class="kpi-dot info"></span>
+              <span class="kpi-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="5" width="18" height="16" rx="2"></rect>
+                  <path d="M16 3v4"></path>
+                  <path d="M8 3v4"></path>
+                  <path d="M3 11h18"></path>
+                </svg>
+              </span>
+              <div class="kpi-label" title="Interview requested / interview scheduled">Interviews</div>
+            </div>
+            <div class="kpi-value-wrap">
+              <div class="kpi-value" id="kpi-interviews">0</div>
+              <span
+                class="kpi-delta kpi-delta--interview hidden"
+                id="kpi-delta-interviews"
+                aria-label="Interviews increased by 0 since last scan"
+                aria-live="polite"
+              ></span>
+            </div>
           </div>
           <div class="kpi-card status-rejected">
             <div class="kpi-meta">

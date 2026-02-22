@@ -5,12 +5,25 @@ const STATUS_LABELS = {
   APPLIED: 'Applied',
   UNDER_REVIEW: 'Under review',
   INTERVIEW_REQUESTED: 'Interview requested',
+  INTERVIEW_SCHEDULED: 'Interview scheduled',
   INTERVIEW_COMPLETED: 'Interview completed',
+  PHONE_SCREEN: 'Phone screen',
+  ONSITE: 'Onsite interview',
   OFFER_RECEIVED: 'Offer received',
+  OFFER_EXTENDED: 'Offer extended',
   REJECTED: 'Rejected',
   GHOSTED: 'Ghosted',
   UNKNOWN: 'Unknown'
 };
+
+const OFFER_KPI_STATUSES = new Set(['OFFER_RECEIVED', 'OFFER', 'OFFER_EXTENDED']);
+const INTERVIEW_KPI_STATUSES = new Set([
+  'INTERVIEW_REQUESTED',
+  'INTERVIEW_SCHEDULED',
+  'INTERVIEW_COMPLETED',
+  'PHONE_SCREEN',
+  'ONSITE'
+]);
 
 const STATUS_DEBUG_ENABLED = typeof location !== 'undefined' && location.hostname === 'localhost';
 let statusDebugLogged = false;
@@ -79,11 +92,27 @@ function normalizeStatusValue(status) {
   if (!status) return 'UNKNOWN';
   const upper = String(status).toUpperCase().replace(/\s+/g, '_');
   if (upper.includes('OFFER')) return 'OFFER_RECEIVED';
+  if (upper.includes('INTERVIEW_COMPLETED')) return 'INTERVIEW_COMPLETED';
+  if (upper.includes('INTERVIEW_SCHEDULED')) return 'INTERVIEW_SCHEDULED';
+  if (upper.includes('INTERVIEW_REQUESTED')) return 'INTERVIEW_REQUESTED';
+  if (upper.includes('PHONE_SCREEN')) return 'PHONE_SCREEN';
+  if (upper.includes('ONSITE')) return 'ONSITE';
+  if (upper.includes('INTERVIEW')) return 'INTERVIEW_REQUESTED';
   if (upper.includes('APPLIED')) return 'APPLIED';
   if (upper.includes('REJECT')) return 'REJECTED';
   if (upper.includes('REVIEW')) return 'UNDER_REVIEW';
   if (upper.includes('GHOST')) return 'GHOSTED';
   return STATUS_LABELS[upper] ? upper : 'UNKNOWN';
+}
+
+function isOfferStatus(status) {
+  const normalized = normalizeStatusValue(status);
+  return OFFER_KPI_STATUSES.has(normalized) || normalized.includes('OFFER');
+}
+
+function isInterviewStatus(status) {
+  const normalized = normalizeStatusValue(status);
+  return INTERVIEW_KPI_STATUSES.has(normalized) || normalized.includes('INTERVIEW');
 }
 
 function getStatusPresentation(status) {
@@ -102,7 +131,10 @@ function getStatusBandTone(status) {
   if (normalized === 'REJECTED') {
     return 'rejected';
   }
-  if (normalized === 'OFFER_RECEIVED' || normalized === 'INTERVIEW_REQUESTED' || normalized === 'INTERVIEW_COMPLETED') {
+  if (isOfferStatus(normalized)) {
+    return 'offer';
+  }
+  if (isInterviewStatus(normalized)) {
     return 'interview';
   }
   if (normalized === 'APPLIED') {
@@ -208,8 +240,15 @@ const syncDetailsToggle = document.getElementById('sync-details-toggle');
 const syncDetailsWrapper = document.getElementById('sync-details-wrapper');
 const kpiTotal = document.getElementById('kpi-total');
 const kpiApplied = document.getElementById('kpi-applied');
-const kpiOffer = document.getElementById('kpi-offer');
+const kpiDeltaApplied = document.getElementById('kpi-delta-applied');
+const kpiOffers = document.getElementById('kpi-offers');
+const kpiDeltaOffers = document.getElementById('kpi-delta-offers');
+const kpiInterviews = document.getElementById('kpi-interviews');
+const kpiDeltaInterviews = document.getElementById('kpi-delta-interviews');
 const kpiRejected = document.getElementById('kpi-rejected');
+const kpiNewApplied = document.getElementById('kpi-new-applied');
+const kpiNewOffers = document.getElementById('kpi-new-offers');
+const kpiNewInterviews = document.getElementById('kpi-new-interviews');
 const accountEmailSync = document.getElementById('account-email-sync');
 const accountSyncDays = document.getElementById('account-sync-days');
 const accountSyncStatus = document.getElementById('account-sync-status');
@@ -281,6 +320,12 @@ let csrfToken = null;
 const STATUS_OPTIONS = Object.keys(STATUS_LABELS);
 const PAGE_SIZE = 25;
 const SYNC_DETAILS_KEY = 'applictus:syncDetailsOpen';
+const SESSION_NEW_APPLIED_KEY = 'applictus_new_applied';
+const SESSION_NEW_OFFERS_KEY = 'applictus_new_offers';
+const SESSION_NEW_INTERVIEWS_KEY = 'applictus_new_interviews';
+const SESSION_KPI_DELTA_APPLIED_KEY = 'applictus_kpi_delta_applied';
+const SESSION_KPI_DELTA_OFFERS_KEY = 'applictus_kpi_delta_offers';
+const SESSION_KPI_DELTA_INTERVIEWS_KEY = 'applictus_kpi_delta_interviews';
 let rcInitialized = false;
 let rcSessionId = null;
 let rcVersionId = null;
@@ -356,6 +401,17 @@ const state = {
     data: [],
     selectedIds: new Set()
   },
+  signals: {
+    pulseOfferIds: new Set(),
+    pulseInterviewIds: new Set(),
+    pulseTimer: null,
+    showAppliedNew: false,
+    showOffersNew: false,
+    showInterviewsNew: false,
+    appliedDelta: 0,
+    offersDelta: 0,
+    interviewsDelta: 0
+  },
   archived: {
     offset: 0,
     total: 0
@@ -390,6 +446,8 @@ renderSyncSummary({ status: 'idle', rawDetails: '' });
 let syncRangeMenuOpen = false;
 let lastSyncOption = 'since_last';
 updateSyncOptionSelection(lastSyncOption);
+clearKpiNewSignals();
+clearKpiDeltaSignals();
 
 let profileMenuOpen = false;
 let modalState = {
@@ -1628,32 +1686,311 @@ function updateDashboardMeta(total) {
   }
 }
 
-function updateKpiCounts({ total = 0, applied = 0, offer = 0, rejected = 0 } = {}) {
+function setKpiNewBadgeVisible(el, visible) {
+  if (!el) {
+    return;
+  }
+  el.classList.toggle('hidden', !visible);
+  el.setAttribute('aria-hidden', 'true');
+}
+
+function renderKpiNewBadges() {
+  setKpiNewBadgeVisible(kpiNewApplied, state.signals.showAppliedNew);
+  setKpiNewBadgeVisible(kpiNewOffers, state.signals.showOffersNew);
+  setKpiNewBadgeVisible(kpiNewInterviews, state.signals.showInterviewsNew);
+}
+
+function markKpiNewSignals({ applied = false, offers = false, interviews = false } = {}) {
+  state.signals.showAppliedNew = Boolean(applied);
+  state.signals.showOffersNew = Boolean(offers);
+  state.signals.showInterviewsNew = Boolean(interviews);
+  if (offers) {
+    try {
+      window.sessionStorage?.setItem(SESSION_NEW_OFFERS_KEY, 'true');
+    } catch (_) {
+      // Ignore storage failures silently.
+    }
+  } else {
+    try {
+      window.sessionStorage?.removeItem(SESSION_NEW_OFFERS_KEY);
+    } catch (_) {
+      // Ignore storage failures silently.
+    }
+  }
+  if (interviews) {
+    try {
+      window.sessionStorage?.setItem(SESSION_NEW_INTERVIEWS_KEY, 'true');
+    } catch (_) {
+      // Ignore storage failures silently.
+    }
+  } else {
+    try {
+      window.sessionStorage?.removeItem(SESSION_NEW_INTERVIEWS_KEY);
+    } catch (_) {
+      // Ignore storage failures silently.
+    }
+  }
+  if (applied) {
+    try {
+      window.sessionStorage?.setItem(SESSION_NEW_APPLIED_KEY, 'true');
+    } catch (_) {
+      // Ignore storage failures silently.
+    }
+  } else {
+    try {
+      window.sessionStorage?.removeItem(SESSION_NEW_APPLIED_KEY);
+    } catch (_) {
+      // Ignore storage failures silently.
+    }
+  }
+  renderKpiNewBadges();
+}
+
+function clearKpiNewSignals() {
+  state.signals.showAppliedNew = false;
+  state.signals.showOffersNew = false;
+  state.signals.showInterviewsNew = false;
+  try {
+    window.sessionStorage?.removeItem(SESSION_NEW_APPLIED_KEY);
+    window.sessionStorage?.removeItem(SESSION_NEW_OFFERS_KEY);
+    window.sessionStorage?.removeItem(SESSION_NEW_INTERVIEWS_KEY);
+  } catch (_) {
+    // Ignore storage failures silently.
+  }
+  renderKpiNewBadges();
+}
+
+function renderKpiDeltaBadge(el, delta, ariaLabel) {
+  if (!el) {
+    return;
+  }
+  const value = Math.max(0, Number(delta) || 0);
+  if (!value) {
+    el.textContent = '';
+    el.classList.add('hidden');
+    el.setAttribute('aria-hidden', 'true');
+    return;
+  }
+  el.textContent = `+${value}`;
+  el.classList.remove('hidden');
+  el.setAttribute('aria-hidden', 'false');
+  el.setAttribute('aria-label', ariaLabel(value));
+}
+
+function renderKpiDeltaBadges() {
+  renderKpiDeltaBadge(
+    kpiDeltaApplied,
+    state.signals.appliedDelta,
+    (value) => `Applied increased by ${value} since last scan`
+  );
+  renderKpiDeltaBadge(
+    kpiDeltaOffers,
+    state.signals.offersDelta,
+    (value) => `Offers increased by ${value} since last scan`
+  );
+  renderKpiDeltaBadge(
+    kpiDeltaInterviews,
+    state.signals.interviewsDelta,
+    (value) => `Interviews increased by ${value} since last scan`
+  );
+}
+
+function markKpiDeltaSignals({ applied = 0, offers = 0, interviews = 0 } = {}) {
+  const appliedDelta = Math.max(0, Number(applied) || 0);
+  const offersDelta = Math.max(0, Number(offers) || 0);
+  const interviewsDelta = Math.max(0, Number(interviews) || 0);
+  state.signals.appliedDelta = appliedDelta;
+  state.signals.offersDelta = offersDelta;
+  state.signals.interviewsDelta = interviewsDelta;
+  try {
+    if (appliedDelta > 0) {
+      window.sessionStorage?.setItem(SESSION_KPI_DELTA_APPLIED_KEY, String(appliedDelta));
+    } else {
+      window.sessionStorage?.removeItem(SESSION_KPI_DELTA_APPLIED_KEY);
+    }
+    if (offersDelta > 0) {
+      window.sessionStorage?.setItem(SESSION_KPI_DELTA_OFFERS_KEY, String(offersDelta));
+    } else {
+      window.sessionStorage?.removeItem(SESSION_KPI_DELTA_OFFERS_KEY);
+    }
+    if (interviewsDelta > 0) {
+      window.sessionStorage?.setItem(SESSION_KPI_DELTA_INTERVIEWS_KEY, String(interviewsDelta));
+    } else {
+      window.sessionStorage?.removeItem(SESSION_KPI_DELTA_INTERVIEWS_KEY);
+    }
+  } catch (_) {
+    // Ignore storage failures silently.
+  }
+  renderKpiDeltaBadges();
+}
+
+function clearKpiDeltaSignals() {
+  state.signals.appliedDelta = 0;
+  state.signals.offersDelta = 0;
+  state.signals.interviewsDelta = 0;
+  try {
+    window.sessionStorage?.removeItem(SESSION_KPI_DELTA_APPLIED_KEY);
+    window.sessionStorage?.removeItem(SESSION_KPI_DELTA_OFFERS_KEY);
+    window.sessionStorage?.removeItem(SESSION_KPI_DELTA_INTERVIEWS_KEY);
+  } catch (_) {
+    // Ignore storage failures silently.
+  }
+  renderKpiDeltaBadges();
+}
+
+function readNumericDelta(source, key) {
+  if (!source || typeof source !== 'object') {
+    return null;
+  }
+  const direct = source?.deltas?.[key];
+  if (direct != null) {
+    const parsed = Number(direct);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return parsed;
+    }
+  }
+  const nested =
+    source?.last_sync?.deltas?.[key] ??
+    source?.lastSync?.deltas?.[key] ??
+    source?.summary?.deltas?.[key];
+  if (nested != null) {
+    const parsed = Number(nested);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+function getApplicationSignalSnapshot(applications = []) {
+  const snapshot = new Map();
+  for (const app of applications || []) {
+    if (!app?.id) continue;
+    const normalizedStatus = normalizeStatusValue(app.current_status || 'UNKNOWN');
+    snapshot.set(String(app.id), {
+      status: normalizedStatus,
+      offer: isOfferStatus(normalizedStatus),
+      interview: isInterviewStatus(normalizedStatus)
+    });
+  }
+  return snapshot;
+}
+
+async function captureSignalSnapshot() {
+  try {
+    const applications = await fetchApplications({ includeArchived: false, limit: 5000 });
+    return getApplicationSignalSnapshot(applications);
+  } catch (_) {
+    return new Map();
+  }
+}
+
+function applyRowSignalPulse({ offerIds = [], interviewIds = [] } = {}) {
+  if (state.signals.pulseTimer) {
+    window.clearTimeout(state.signals.pulseTimer);
+    state.signals.pulseTimer = null;
+  }
+  state.signals.pulseOfferIds = new Set((offerIds || []).map((id) => String(id)));
+  state.signals.pulseInterviewIds = new Set((interviewIds || []).map((id) => String(id)));
+  if (state.table.data.length) {
+    renderApplicationsTable(sortApplications(state.table.data));
+  }
+  if (!state.signals.pulseOfferIds.size && !state.signals.pulseInterviewIds.size) {
+    return;
+  }
+  state.signals.pulseTimer = window.setTimeout(() => {
+    state.signals.pulseOfferIds.clear();
+    state.signals.pulseInterviewIds.clear();
+    state.signals.pulseTimer = null;
+    if (state.table.data.length) {
+      renderApplicationsTable(sortApplications(state.table.data));
+    }
+  }, 1200);
+}
+
+async function applyPostScanSignals(previousSnapshot, scanResult = null) {
+  const before = previousSnapshot instanceof Map ? previousSnapshot : new Map();
+  const applications = await fetchApplications({ includeArchived: false, limit: 5000 });
+  const offerIds = [];
+  const interviewIds = [];
+  const appliedIds = [];
+
+  for (const app of applications || []) {
+    if (!app?.id) continue;
+    const id = String(app.id);
+    const prior = before.get(id) || { status: null, offer: false, interview: false };
+    const normalizedStatus = normalizeStatusValue(app.current_status || 'UNKNOWN');
+    const nowOffer = isOfferStatus(normalizedStatus);
+    const nowInterview = isInterviewStatus(normalizedStatus);
+    const nowApplied = normalizedStatus === 'APPLIED';
+    if (nowOffer && !prior.offer) {
+      offerIds.push(id);
+    }
+    if (nowInterview && !prior.interview) {
+      interviewIds.push(id);
+    }
+    if (nowApplied && prior.status !== 'APPLIED') {
+      appliedIds.push(id);
+    }
+  }
+
+  const serverAppliedDelta = readNumericDelta(scanResult, 'applied');
+  const serverOffersDelta = readNumericDelta(scanResult, 'offers') ?? readNumericDelta(scanResult, 'offer');
+  const serverInterviewsDelta =
+    readNumericDelta(scanResult, 'interviews') ?? readNumericDelta(scanResult, 'interview');
+  const appliedDelta = serverAppliedDelta ?? appliedIds.length;
+  const offersDelta = serverOffersDelta ?? offerIds.length;
+  const interviewsDelta = serverInterviewsDelta ?? interviewIds.length;
+
+  markKpiDeltaSignals({ applied: appliedDelta, offers: offersDelta, interviews: interviewsDelta });
+  markKpiNewSignals({
+    applied: appliedDelta > 0,
+    offers: offersDelta > 0,
+    interviews: interviewsDelta > 0
+  });
+
+  if (offerIds.length || interviewIds.length) {
+    applyRowSignalPulse({ offerIds, interviewIds });
+  } else {
+    applyRowSignalPulse({ offerIds: [], interviewIds: [] });
+  }
+}
+
+function updateKpiCounts({ total = 0, applied = 0, offers = 0, interviews = 0, rejected = 0 } = {}) {
   if (kpiTotal) {
     kpiTotal.textContent = String(total);
   }
   if (kpiApplied) {
     kpiApplied.textContent = String(applied);
   }
-  if (kpiOffer) {
-    kpiOffer.textContent = String(offer);
+  if (kpiOffers) {
+    kpiOffers.textContent = String(offers);
+  }
+  if (kpiInterviews) {
+    kpiInterviews.textContent = String(interviews);
   }
   if (kpiRejected) {
     kpiRejected.textContent = String(rejected);
   }
+  renderKpiDeltaBadges();
 }
 
 function getKpiCountsFromColumns(columns) {
-  const counts = { total: 0, applied: 0, offer: 0, rejected: 0 };
+  const counts = { total: 0, applied: 0, offers: 0, interviews: 0, rejected: 0 };
   (columns || []).forEach((column) => {
     const count = column.count || 0;
+    const status = String(column.status || '')
+      .toUpperCase()
+      .replace(/\s+/g, '_');
     counts.total += count;
-    if (column.status === 'APPLIED') {
+    if (status === 'APPLIED') {
       counts.applied += count;
-    } else if (column.status === 'OFFER_RECEIVED' || column.status === 'INTERVIEW_REQUESTED') {
-      counts.offer += count;
-    } else if (column.status === 'REJECTED') {
+    } else if (status === 'REJECTED') {
       counts.rejected += count;
+    } else if (OFFER_KPI_STATUSES.has(status) || status.includes('OFFER')) {
+      counts.offers += count;
+    } else if (INTERVIEW_KPI_STATUSES.has(status) || status.includes('INTERVIEW')) {
+      counts.interviews += count;
     }
   });
   return counts;
@@ -2560,6 +2897,7 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
     buttonEl.textContent = 'Scanning…';
     buttonEl.classList.add('loading');
   }
+  const preScanSnapshot = await captureSignalSnapshot();
   const syncId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
   const syncBody = {
     mode: normalizedMode,
@@ -2602,6 +2940,7 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
       resultEl.textContent = rawDetails;
     }
     await loadActiveApplications();
+    await applyPostScanSignals(preScanSnapshot, result);
     await refreshEmailEvents();
     await refreshUnsortedEvents();
     enterFinishing();
@@ -2702,6 +3041,7 @@ async function runQuickSync() {
     syncErrorToggle.textContent = 'Show details';
   }
   renderSyncSummary({ status: 'running', rawDetails: 'Scan in progress…' });
+  const preScanSnapshot = await captureSignalSnapshot();
   const syncId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
   startSyncPolling(syncId);
   try {
@@ -2729,6 +3069,7 @@ async function runQuickSync() {
       rawDetails
     });
     await loadActiveApplications();
+    await applyPostScanSignals(preScanSnapshot, result);
     await refreshEmailEvents();
     await refreshUnsortedEvents();
     enterFinishing();
@@ -3255,8 +3596,13 @@ function renderApplicationsTable(applications) {
         : null;
       const isSelected = state.table.selectedIds.has(app.id);
       const statusBandTone = getStatusBandTone(statusValue);
+      const rowId = String(app.id);
+      const isOffer = isOfferStatus(statusValue);
+      const isInterview = isInterviewStatus(statusValue);
+      const isNewSignal =
+        state.signals.pulseOfferIds.has(rowId) || state.signals.pulseInterviewIds.has(rowId);
       return `
-        <div class="table-row application-row${isSelected ? ' table-row-selected' : ''}" style="--stagger: ${index}" data-id="${app.id}" data-status-tone="${statusBandTone}">
+        <div class="table-row application-row${isSelected ? ' table-row-selected' : ''}${isOffer ? ' is-offer' : ''}${isInterview ? ' is-interview' : ''}${isNewSignal ? ' is-new-signal' : ''}" style="--stagger: ${index}" data-id="${app.id}" data-status-tone="${statusBandTone}">
           <div class="status-band" aria-hidden="true"></div>
           <div class="cell-company table-col-company"><strong>${app.company_name || '—'}</strong></div>
           <div class="cell-role table-col-role" title="${app.job_title || '—'}">${app.job_title || '—'}</div>
@@ -4221,6 +4567,8 @@ function route() {
     setView('resume-curator');
     initResumeCurator();
   } else {
+    clearKpiNewSignals();
+    clearKpiDeltaSignals();
     setView('dashboard');
     void loadActiveApplications().catch((err) => {
       const authFailure = err?.status === 401 || err?.message === 'AUTH_REQUIRED';
