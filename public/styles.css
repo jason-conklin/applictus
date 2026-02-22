@@ -1448,6 +1448,10 @@ body.auth-bg-debug-flash .animated-bg-icon {
   padding: 10px 12px;
 }
 
+.acct-menu-item--password {
+  column-gap: 8px;
+}
+
 .acct-menu-icon {
   width: 18px;
   height: 18px;
