@@ -549,17 +549,37 @@
           <div class="sync-band">
             <div class="sync-strip scan-card" id="sync-strip">
               <div class="scan-card__left">
-                <button class="btn btn--secondary btn--md" type="button" data-action="manage-gmail">
-                  <span class="btn-icon-left" aria-hidden="true">✉</span>
-                  <span class="btn-label">Manage Gmail</span>
-                </button>
-                <div class="sync-strip-status">
-                  <div class="pill" id="dashboard-gmail-status">Not connected</div>
-                  <div class="muted small" id="dashboard-gmail-email">—</div>
-                  <span class="muted" id="sync-status">Ready</span>
+                <div class="scan-top">
+                  <button class="btn btn--secondary btn--md" type="button" data-action="manage-gmail">
+                    <span class="btn-icon-left" aria-hidden="true">✉</span>
+                    <span class="btn-label">Manage Gmail</span>
+                  </button>
+                  <div class="sync-strip-status">
+                    <div class="pill" id="dashboard-gmail-status">Not connected</div>
+                    <div class="muted small" id="dashboard-gmail-email">—</div>
+                    <span class="muted" id="sync-status">Ready</span>
+                  </div>
+                </div>
+                <div class="scan-bottom">
+                  <div class="sync-summary" id="sync-summary">
+                    <div
+                      class="sync-summary-main clickable"
+                      role="button"
+                      tabindex="0"
+                      aria-expanded="false"
+                      aria-controls="sync-details-wrapper"
+                      id="sync-summary-main"
+                    >
+                      <span class="sync-summary-status" id="sync-summary-status">Last scan not run</span>
+                      <span class="sync-summary-metrics muted" id="sync-summary-metrics"></span>
+                      <span class="chevron" aria-hidden="true">▾</span>
+                    </div>
+                  </div>
+                  <div class="sync-details hidden" id="sync-details-wrapper">
+                    <pre class="sync-details-block" id="sync-result"></pre>
+                  </div>
                 </div>
               </div>
-              <div class="scan-card__spacer" aria-hidden="true"></div>
               <div class="scan-card__right">
                 <div class="sync-inline-controls">
                   <div class="sync-quick-controls" id="sync-controls">
@@ -627,23 +647,6 @@
             <div class="progress-track" aria-hidden="true">
               <div class="progress-fill" id="sync-progress-fill"></div>
             </div>
-          </div>
-          <div class="sync-summary" id="sync-summary">
-            <div
-              class="sync-summary-main clickable"
-              role="button"
-              tabindex="0"
-              aria-expanded="false"
-              aria-controls="sync-details-wrapper"
-              id="sync-summary-main"
-            >
-              <span class="sync-summary-status" id="sync-summary-status">Last scan not run</span>
-              <span class="sync-summary-metrics muted" id="sync-summary-metrics"></span>
-              <span class="chevron" aria-hidden="true">▾</span>
-            </div>
-          </div>
-          <div class="sync-details hidden" id="sync-details-wrapper">
-            <pre class="sync-details-block" id="sync-result"></pre>
           </div>
           </div>
         </div>

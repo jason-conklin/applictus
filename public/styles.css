@@ -2160,13 +2160,20 @@ textarea:focus-visible {
 
 .scan-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
   column-gap: 24px;
-  row-gap: 10px;
+  row-gap: 0;
 }
 
 .scan-card__left {
+  display: grid;
+  grid-template-rows: auto auto;
+  row-gap: 14px;
+  min-width: 0;
+}
+
+.scan-top {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -2174,8 +2181,9 @@ textarea:focus-visible {
   min-width: 0;
 }
 
-.scan-card__spacer {
-  min-height: 1px;
+.scan-bottom {
+  display: grid;
+  gap: 6px;
 }
 
 .scan-card__right {
@@ -2184,7 +2192,7 @@ textarea:focus-visible {
   align-items: flex-end;
   justify-content: center;
   gap: 8px;
-  min-height: 72px;
+  min-width: 260px;
 }
 
 .sync-strip [data-action='manage-gmail'].btn--secondary {
@@ -2286,6 +2294,11 @@ textarea:focus-visible {
   font-size: 12px;
   max-width: 260px;
   white-space: normal;
+}
+
+.scan-bottom .sync-summary {
+  margin-top: 0;
+  justify-content: flex-start;
 }
 
 .sync-range-menu {
@@ -4405,13 +4418,9 @@ details summary {
     row-gap: 14px;
   }
 
-  .scan-card__spacer {
-    display: none;
-  }
-
   .scan-card__right {
     align-items: flex-start;
-    min-height: 0;
+    min-width: 0;
   }
 
   .sync-inline-controls,
