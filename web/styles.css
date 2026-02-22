@@ -2138,6 +2138,8 @@ textarea:focus-visible {
 }
 
 .sync-band {
+  position: relative;
+  z-index: 32;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -2372,7 +2374,7 @@ textarea:focus-visible {
   box-shadow: 0 18px 34px rgba(10, 30, 70, 0.18), 0 4px 12px rgba(10, 30, 70, 0.12);
   display: grid;
   gap: 2px;
-  z-index: 16;
+  z-index: 120;
 }
 
 .sync-range-menu-item {
