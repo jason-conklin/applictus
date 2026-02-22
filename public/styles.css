@@ -1253,7 +1253,12 @@ body.auth-bg-debug-flash .animated-bg-icon {
 }
 
 .brand-sub {
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  line-height: 1.2;
+  white-space: nowrap;
   color: var(--color-muted);
 }
 
