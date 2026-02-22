@@ -3065,8 +3065,8 @@ textarea:focus-visible {
 
 #applications-table .table-header,
 #applications-table .table-row {
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.6fr) minmax(108px, 0.7fr) 98px 92px;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.7fr) 122px 98px 92px;
+  gap: 4px;
 }
 
 #applications-table .table-header > *,
@@ -3074,9 +3074,14 @@ textarea:focus-visible {
   min-width: 0;
 }
 
+#applications-table .table-header > div:nth-child(3),
+#applications-table .table-row > div:nth-child(3) {
+  justify-self: end;
+}
+
 #applications-table .table-header > div:nth-child(4),
 #applications-table .table-row > div:nth-child(4) {
-  padding-right: 10px;
+  padding-right: 6px;
 }
 
 #applications-table .table-header > div:nth-child(5) {
