@@ -6578,6 +6578,13 @@ body.app-page-bg .layout {
   padding-right: clamp(20px, 2.25vw, 34px);
 }
 
+/* Dashboard-only wide layout: reduce side gutters while keeping premium margins. */
+body.app-page-bg .layout:has(#dashboard-view:not([hidden])) {
+  max-width: 1520px;
+  padding-left: clamp(16px, 3vw, 40px);
+  padding-right: clamp(16px, 3vw, 40px);
+}
+
 body.app-page-bg .topbar {
   position: relative;
   background:
@@ -6621,12 +6628,14 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #dashboard-view {
+  width: 100%;
   gap: 12px;
 }
 
 #dashboard-view .dashboard-header,
 #dashboard-view .dashboard {
-  width: min(1500px, 100%);
+  width: 100%;
+  max-width: 1400px;
   margin-inline: auto;
 }
 
@@ -6641,6 +6650,18 @@ body.app-page-bg .topbar .nav-link.active {
   position: relative;
   isolation: isolate;
   gap: 26px;
+}
+
+#dashboard-view .sync-band,
+#dashboard-view .kpi-row,
+#dashboard-view .card.surface-raised.surface-rim {
+  width: 100%;
+  max-width: none;
+}
+
+#dashboard-view .sync-strip.scan-card {
+  width: 100%;
+  max-width: none;
 }
 
 #dashboard-view .dashboard::before {
@@ -7126,15 +7147,29 @@ body.app-page-bg .topbar .nav-link.active {
   background: #dde8f8;
 }
 
-@media (min-width: 1280px) {
-  body.app-page-bg .layout {
-    padding-left: clamp(28px, 2.3vw, 40px);
-    padding-right: clamp(28px, 2.3vw, 40px);
+@media (min-width: 1200px) {
+  body.app-page-bg .layout:has(#dashboard-view:not([hidden])) {
+    max-width: 1520px;
+    padding-left: clamp(24px, 2.8vw, 40px);
+    padding-right: clamp(24px, 2.8vw, 40px);
   }
 
   #dashboard-view .dashboard-header,
   #dashboard-view .dashboard {
-    width: min(1540px, 100%);
+    max-width: 1400px;
+  }
+}
+
+@media (min-width: 900px) and (max-width: 1199px) {
+  body.app-page-bg .layout:has(#dashboard-view:not([hidden])) {
+    max-width: 1280px;
+    padding-left: clamp(18px, 2.4vw, 32px);
+    padding-right: clamp(18px, 2.4vw, 32px);
+  }
+
+  #dashboard-view .dashboard-header,
+  #dashboard-view .dashboard {
+    max-width: 1160px;
   }
 }
 
@@ -7148,7 +7183,18 @@ body.app-page-bg .topbar .nav-link.active {
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 899px) {
+  body.app-page-bg .layout:has(#dashboard-view:not([hidden])) {
+    max-width: 100%;
+    padding-left: clamp(14px, 4vw, 18px);
+    padding-right: clamp(14px, 4vw, 18px);
+  }
+
+  #dashboard-view .dashboard-header,
+  #dashboard-view .dashboard {
+    max-width: none;
+  }
+
   #dashboard-view .sync-strip.scan-card {
     grid-template-columns: 1fr;
     row-gap: 14px;
