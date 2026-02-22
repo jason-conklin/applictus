@@ -2158,6 +2158,35 @@ textarea:focus-visible {
   line-height: 1.4;
 }
 
+.scan-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 24px;
+  row-gap: 10px;
+}
+
+.scan-card__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.scan-card__spacer {
+  min-height: 1px;
+}
+
+.scan-card__right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 8px;
+  min-height: 72px;
+}
+
 .sync-strip [data-action='manage-gmail'].btn--secondary {
   background:
     radial-gradient(120% 140% at 20% 10%, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0) 56%),
@@ -2179,29 +2208,44 @@ textarea:focus-visible {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin-right: auto;
 }
 
 .sync-inline-controls {
   display: inline-flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 6px;
-  margin-left: auto;
+  justify-content: center;
+  gap: 8px;
+  margin-left: 0;
 }
 
 .sync-quick-controls {
   display: inline-flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 6px;
+  justify-content: center;
+  gap: 8px;
 }
 
 .sync-action-group {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+}
+
+.btn-scan {
+  min-height: 50px;
+  padding: 0 24px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  border-radius: 999px;
+}
+
+.btn-scan .btn-icon-left {
+  font-size: 17px;
+  line-height: 1;
 }
 
 .sync-menu-button {
@@ -2217,10 +2261,31 @@ textarea:focus-visible {
   stroke-width: 2.2;
 }
 
+.btn-scan-menu {
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0;
+  border-radius: 14px;
+}
+
+.btn-scan-menu svg {
+  width: 18px;
+  height: 18px;
+}
+
+.scan-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .sync-helper-text {
   text-align: right;
   font-size: 12px;
-  white-space: nowrap;
+  max-width: 260px;
+  white-space: normal;
 }
 
 .sync-range-menu {
@@ -3114,6 +3179,10 @@ textarea:focus-visible {
   min-height: 32px;
   line-height: 1.1;
   padding: 0 16px;
+}
+
+#applications-table .applications-header > button.header-status {
+  padding-left: 20px;
 }
 
 #applications-table .application-row > div {
@@ -4331,6 +4400,20 @@ details summary {
     grid-template-columns: 1fr;
   }
 
+  .scan-card {
+    grid-template-columns: 1fr;
+    row-gap: 14px;
+  }
+
+  .scan-card__spacer {
+    display: none;
+  }
+
+  .scan-card__right {
+    align-items: flex-start;
+    min-height: 0;
+  }
+
   .sync-inline-controls,
   .sync-quick-controls {
     width: 100%;
@@ -4340,7 +4423,7 @@ details summary {
 
   .sync-helper-text {
     text-align: left;
-    white-space: normal;
+    max-width: none;
   }
 
   .sync-range-menu {
