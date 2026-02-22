@@ -3065,7 +3065,7 @@ textarea:focus-visible {
 
 #applications-table .table-header,
 #applications-table .table-row {
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.25fr) minmax(0, 0.95fr) 116px 88px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.6fr) minmax(108px, 0.68fr) 108px 82px;
   gap: 6px;
 }
 
@@ -3179,15 +3179,15 @@ textarea:focus-visible {
 }
 
 #applications-table .table-row:nth-child(odd) {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.97));
+  background: linear-gradient(180deg, rgba(250, 252, 254, 0.99), rgba(241, 245, 249, 0.97));
 }
 
 #applications-table .table-row:nth-child(even) {
-  background: linear-gradient(180deg, rgba(242, 245, 248, 0.96), rgba(236, 240, 245, 0.94));
+  background: linear-gradient(180deg, rgba(234, 239, 245, 0.96), rgba(226, 232, 240, 0.94));
 }
 
 #applications-table .table-row:hover {
-  background: linear-gradient(180deg, rgba(233, 238, 244, 0.98), rgba(227, 233, 240, 0.96));
+  background: linear-gradient(180deg, rgba(223, 230, 238, 0.98), rgba(216, 224, 234, 0.96));
 }
 
 #applications-table .table-row.table-row-selected,
