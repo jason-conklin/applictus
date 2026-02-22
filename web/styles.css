@@ -6968,7 +6968,7 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #applications-table {
-  --applications-grid-template: minmax(0, 2.15fr) minmax(0, 3.08fr) minmax(138px, 1fr) minmax(112px, 0.74fr) 76px;
+  --applications-grid-template: minmax(0, 2.15fr) minmax(0, 3fr) minmax(138px, 1fr) minmax(138px, 0.98fr) 76px;
 }
 
 #applications-table .applications-header,
@@ -7107,7 +7107,7 @@ body.app-page-bg .topbar .nav-link.active {
   }
 
   #applications-table {
-    --applications-grid-template: minmax(0, 1.8fr) minmax(0, 2.48fr) minmax(126px, 0.96fr) minmax(112px, 0.8fr) 72px;
+    --applications-grid-template: minmax(0, 1.8fr) minmax(0, 2.4fr) minmax(128px, 0.97fr) minmax(126px, 0.93fr) 72px;
   }
 }
 
@@ -7144,6 +7144,6 @@ body.app-page-bg .topbar .nav-link.active {
   }
 
   #applications-table {
-    --applications-grid-template: minmax(0, 1.45fr) minmax(0, 1.78fr) minmax(108px, 0.96fr) minmax(102px, 0.8fr) 64px;
+    --applications-grid-template: minmax(0, 1.45fr) minmax(0, 1.75fr) minmax(110px, 0.97fr) minmax(112px, 0.93fr) 64px;
   }
 }
