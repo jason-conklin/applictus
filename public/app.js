@@ -1179,6 +1179,13 @@ function setSyncProgressState({ visible, progress, label, error = false }) {
   syncUiState.error = error;
 
   syncProgress.classList.toggle('hidden', !visible);
+  const scanningActive =
+    Boolean(visible) &&
+    !error &&
+    (syncUiState.state === 'running' ||
+      syncUiState.state === 'finishing' ||
+      /scan/i.test(String(syncUiState.label || '')));
+  syncProgress.classList.toggle('is-scanning', scanningActive);
   syncProgressLabel.textContent = syncUiState.label || '';
   const rawPct = Math.max(0, Math.min(100, (syncUiState.progress || 0) * 100));
   const displayPct =
@@ -1190,6 +1197,7 @@ function setSyncProgressState({ visible, progress, label, error = false }) {
   syncProgressValue.textContent = `${Math.round(displayPct)}%`;
   syncProgressFill.style.width = `${displayPct}%`;
   syncProgressFill.classList.toggle('error', !!error);
+  syncProgressFill.classList.toggle('is-scanning', scanningActive && !error);
   if (window.__SYNC_DEBUG__) {
     console.debug('sync ui', {
       visible,
@@ -2887,6 +2895,8 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
   if (buttonEl?.disabled) {
     return;
   }
+  const isDashboardScanButton = buttonEl === emailSync;
+  const scanTextEl = isDashboardScanButton ? buttonEl?.querySelector('.scan-text') : null;
   closeSyncRangeMenu();
   if (buttonEl === emailSync && syncMenuButton) {
     syncMenuButton.disabled = true;
@@ -2913,8 +2923,16 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
   if (buttonEl) {
     buttonEl.disabled = true;
     buttonEl.setAttribute('aria-busy', 'true');
-    buttonEl.dataset.originalLabel = buttonEl.textContent;
-    buttonEl.textContent = 'Scanning…';
+    if (isDashboardScanButton) {
+      buttonEl.classList.add('is-scanning');
+      buttonEl.dataset.originalScanText = scanTextEl?.textContent || 'Scan inbox';
+      if (scanTextEl) {
+        scanTextEl.textContent = 'Scanning';
+      }
+    } else {
+      buttonEl.dataset.originalLabel = buttonEl.textContent;
+      buttonEl.textContent = 'Scanning…';
+    }
     buttonEl.classList.add('loading');
   }
   const preScanSnapshot = await captureSignalSnapshot();
@@ -3012,7 +3030,13 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
     if (buttonEl) {
       buttonEl.disabled = false;
       buttonEl.setAttribute('aria-busy', 'false');
-      if (buttonEl.dataset.originalLabel) {
+      if (isDashboardScanButton) {
+        buttonEl.classList.remove('is-scanning');
+        if (scanTextEl) {
+          scanTextEl.textContent = buttonEl.dataset.originalScanText || 'Scan inbox';
+        }
+        delete buttonEl.dataset.originalScanText;
+      } else if (buttonEl.dataset.originalLabel) {
         buttonEl.textContent = buttonEl.dataset.originalLabel;
         delete buttonEl.dataset.originalLabel;
       }

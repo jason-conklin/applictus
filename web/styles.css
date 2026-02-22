@@ -2446,6 +2446,63 @@ textarea:focus-visible {
   line-height: 1;
 }
 
+.btn-scan .scan-label {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-start;
+}
+
+.btn-scan .scan-dots {
+  display: inline-block;
+  width: 3ch;
+  min-width: 3ch;
+  overflow: hidden;
+  opacity: 0;
+  vertical-align: baseline;
+}
+
+.btn-scan .scan-dots::before {
+  content: '...';
+  display: inline-block;
+  width: 0ch;
+  overflow: hidden;
+}
+
+.btn--primary.btn-scan.loading::before {
+  content: none;
+  display: none;
+}
+
+.btn-scan.is-scanning .scan-dots {
+  opacity: 1;
+}
+
+.btn-scan.is-scanning .scan-dots::before {
+  animation: scanButtonDots 1s steps(3, end) infinite;
+}
+
+@keyframes scanButtonDots {
+  0% {
+    width: 1ch;
+  }
+  33% {
+    width: 2ch;
+  }
+  66% {
+    width: 3ch;
+  }
+  100% {
+    width: 1ch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-scan.is-scanning .scan-dots::before {
+    animation: none;
+    width: 3ch;
+  }
+}
+
 .sync-menu-button {
   min-height: 38px;
   min-width: 36px;
@@ -2631,8 +2688,12 @@ textarea:focus-visible {
   position: relative;
   width: 100%;
   height: 10px;
-  border-radius: 999px;
-  background: var(--surface-muted);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(240, 245, 255, 0.8));
+  border: 1px solid rgba(78, 114, 172, 0.14);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.08),
+    0 2px 8px rgba(16, 42, 92, 0.08);
   overflow: hidden;
 }
 
@@ -2741,12 +2802,56 @@ textarea:focus-visible {
   position: absolute;
   inset: 0;
   width: 0%;
-  background: linear-gradient(90deg, var(--blue, #2563eb), #4f46e5);
-  transition: width 200ms ease, background-color 180ms ease;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(80, 130, 255, 0.95), rgba(60, 110, 230, 1));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 1px 4px rgba(31, 75, 156, 0.24);
+  transition: width 300ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 180ms ease;
+  overflow: hidden;
+}
+
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.15) 48%,
+    transparent 100%
+  );
+  opacity: 0;
+  transform: translateX(-130%);
+  pointer-events: none;
 }
 
 .progress-fill.error {
   background: linear-gradient(90deg, #f97316, #ef4444);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 1px 4px rgba(185, 28, 28, 0.2);
+}
+
+.sync-progress.is-scanning .progress-fill.is-scanning::after {
+  opacity: 0.4;
+  animation: progressFillShimmer 10s linear infinite;
+}
+
+@keyframes progressFillShimmer {
+  0% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(130%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-progress.is-scanning .progress-fill.is-scanning::after {
+    animation: none;
+    opacity: 0;
+  }
 }
 
 .sync-error-detail {
