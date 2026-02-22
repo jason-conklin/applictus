@@ -105,8 +105,11 @@ function getStatusBandTone(status) {
   if (normalized === 'OFFER_RECEIVED' || normalized === 'INTERVIEW_REQUESTED' || normalized === 'INTERVIEW_COMPLETED') {
     return 'interview';
   }
-  if (normalized === 'APPLIED' || normalized === 'UNDER_REVIEW') {
+  if (normalized === 'APPLIED') {
     return 'applied';
+  }
+  if (normalized === 'UNDER_REVIEW') {
+    return 'under_review';
   }
   return 'unknown';
 }

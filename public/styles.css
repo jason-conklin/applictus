@@ -7089,6 +7089,10 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #applications-table .table-row.application-row[data-status-tone='applied'] .status-band {
+  --status-band-color: var(--status-pill-applied-border);
+}
+
+#applications-table .table-row.application-row[data-status-tone='under_review'] .status-band {
   --status-band-color: var(--status-pill-under-review-border);
 }
 
