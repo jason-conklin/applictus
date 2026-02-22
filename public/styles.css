@@ -6982,7 +6982,7 @@ body.app-page-bg .topbar .nav-link.active {
   border-color: rgba(59, 130, 246, 0.22);
 }
 
-#dashboard-view .kpi-new-tag:not(.hidden) {
+#dashboard-view .kpi-new-tag[data-kpi-signal='true'] {
   animation: kpiNewTagFadeIn 200ms ease-out 1;
 }
 
@@ -7080,7 +7080,7 @@ body.app-page-bg .topbar .nav-link.active {
   border-color: rgba(59, 130, 246, 0.25);
 }
 
-#dashboard-view .kpi-delta:not(.hidden) {
+#dashboard-view .kpi-delta[data-kpi-signal='true'] {
   animation: kpiDeltaFadeIn 200ms cubic-bezier(0.2, 0.8, 0.2, 1) 1;
 }
 
@@ -7435,8 +7435,8 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #dashboard-view .kpi-new-tag:not(.hidden),
-  #dashboard-view .kpi-delta:not(.hidden) {
+  #dashboard-view .kpi-new-tag[data-kpi-signal='true'],
+  #dashboard-view .kpi-delta[data-kpi-signal='true'] {
     animation: none;
   }
 

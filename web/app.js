@@ -240,15 +240,9 @@ const syncDetailsToggle = document.getElementById('sync-details-toggle');
 const syncDetailsWrapper = document.getElementById('sync-details-wrapper');
 const kpiTotal = document.getElementById('kpi-total');
 const kpiApplied = document.getElementById('kpi-applied');
-const kpiDeltaApplied = document.getElementById('kpi-delta-applied');
 const kpiOffers = document.getElementById('kpi-offers');
-const kpiDeltaOffers = document.getElementById('kpi-delta-offers');
 const kpiInterviews = document.getElementById('kpi-interviews');
-const kpiDeltaInterviews = document.getElementById('kpi-delta-interviews');
 const kpiRejected = document.getElementById('kpi-rejected');
-const kpiNewApplied = document.getElementById('kpi-new-applied');
-const kpiNewOffers = document.getElementById('kpi-new-offers');
-const kpiNewInterviews = document.getElementById('kpi-new-interviews');
 const accountEmailSync = document.getElementById('account-email-sync');
 const accountSyncDays = document.getElementById('account-sync-days');
 const accountSyncStatus = document.getElementById('account-sync-status');
@@ -1686,18 +1680,67 @@ function updateDashboardMeta(total) {
   }
 }
 
-function setKpiNewBadgeVisible(el, visible) {
-  if (!el) {
-    return;
-  }
-  el.classList.toggle('hidden', !visible);
-  el.setAttribute('aria-hidden', 'true');
+function getKpiSignalDescriptors() {
+  return [
+    {
+      key: 'applied',
+      card: document.querySelector('#dashboard-view .kpi-card.status-applied'),
+      valueWrap: document.querySelector('#dashboard-view .kpi-card.status-applied .kpi-value-wrap'),
+      showNew: state.signals.showAppliedNew,
+      delta: state.signals.appliedDelta,
+      deltaAriaLabel: (value) => `Applied increased by ${value} since last scan`
+    },
+    {
+      key: 'offer',
+      card: document.querySelector('#dashboard-view .kpi-card.status-offer'),
+      valueWrap: document.querySelector('#dashboard-view .kpi-card.status-offer .kpi-value-wrap'),
+      showNew: state.signals.showOffersNew,
+      delta: state.signals.offersDelta,
+      deltaAriaLabel: (value) => `Offers increased by ${value} since last scan`
+    },
+    {
+      key: 'interview',
+      card: document.querySelector('#dashboard-view .kpi-card.status-interview'),
+      valueWrap: document.querySelector('#dashboard-view .kpi-card.status-interview .kpi-value-wrap'),
+      showNew: state.signals.showInterviewsNew,
+      delta: state.signals.interviewsDelta,
+      deltaAriaLabel: (value) => `Interviews increased by ${value} since last scan`
+    }
+  ];
 }
 
-function renderKpiNewBadges() {
-  setKpiNewBadgeVisible(kpiNewApplied, state.signals.showAppliedNew);
-  setKpiNewBadgeVisible(kpiNewOffers, state.signals.showOffersNew);
-  setKpiNewBadgeVisible(kpiNewInterviews, state.signals.showInterviewsNew);
+function clearKpiSignalNodes(card, valueWrap) {
+  card?.querySelector('.kpi-new-tag[data-kpi-signal="true"]')?.remove();
+  valueWrap?.querySelector('.kpi-delta[data-kpi-signal="true"]')?.remove();
+}
+
+function renderKpiSignalBadges() {
+  const descriptors = getKpiSignalDescriptors();
+  descriptors.forEach(({ key, card, valueWrap, showNew, delta, deltaAriaLabel }) => {
+    if (!card || !valueWrap) {
+      return;
+    }
+    clearKpiSignalNodes(card, valueWrap);
+    const numericDelta = Math.max(0, Number(delta) || 0);
+    if (!showNew || numericDelta <= 0) {
+      return;
+    }
+
+    const newTag = document.createElement('span');
+    newTag.className = `kpi-new-tag kpi-new-tag--${key}`;
+    newTag.textContent = 'NEW';
+    newTag.setAttribute('aria-hidden', 'true');
+    newTag.dataset.kpiSignal = 'true';
+    card.appendChild(newTag);
+
+    const deltaBadge = document.createElement('span');
+    deltaBadge.className = `kpi-delta kpi-delta--${key}`;
+    deltaBadge.textContent = `+${numericDelta}`;
+    deltaBadge.setAttribute('aria-label', deltaAriaLabel(numericDelta));
+    deltaBadge.setAttribute('aria-live', 'polite');
+    deltaBadge.dataset.kpiSignal = 'true';
+    valueWrap.appendChild(deltaBadge);
+  });
 }
 
 function markKpiNewSignals({ applied = false, offers = false, interviews = false } = {}) {
@@ -1743,7 +1786,7 @@ function markKpiNewSignals({ applied = false, offers = false, interviews = false
       // Ignore storage failures silently.
     }
   }
-  renderKpiNewBadges();
+  renderKpiSignalBadges();
 }
 
 function clearKpiNewSignals() {
@@ -1757,42 +1800,7 @@ function clearKpiNewSignals() {
   } catch (_) {
     // Ignore storage failures silently.
   }
-  renderKpiNewBadges();
-}
-
-function renderKpiDeltaBadge(el, delta, ariaLabel) {
-  if (!el) {
-    return;
-  }
-  const value = Math.max(0, Number(delta) || 0);
-  if (!value) {
-    el.textContent = '';
-    el.classList.add('hidden');
-    el.setAttribute('aria-hidden', 'true');
-    return;
-  }
-  el.textContent = `+${value}`;
-  el.classList.remove('hidden');
-  el.setAttribute('aria-hidden', 'false');
-  el.setAttribute('aria-label', ariaLabel(value));
-}
-
-function renderKpiDeltaBadges() {
-  renderKpiDeltaBadge(
-    kpiDeltaApplied,
-    state.signals.appliedDelta,
-    (value) => `Applied increased by ${value} since last scan`
-  );
-  renderKpiDeltaBadge(
-    kpiDeltaOffers,
-    state.signals.offersDelta,
-    (value) => `Offers increased by ${value} since last scan`
-  );
-  renderKpiDeltaBadge(
-    kpiDeltaInterviews,
-    state.signals.interviewsDelta,
-    (value) => `Interviews increased by ${value} since last scan`
-  );
+  renderKpiSignalBadges();
 }
 
 function markKpiDeltaSignals({ applied = 0, offers = 0, interviews = 0 } = {}) {
@@ -1821,7 +1829,7 @@ function markKpiDeltaSignals({ applied = 0, offers = 0, interviews = 0 } = {}) {
   } catch (_) {
     // Ignore storage failures silently.
   }
-  renderKpiDeltaBadges();
+  renderKpiSignalBadges();
 }
 
 function clearKpiDeltaSignals() {
@@ -1835,7 +1843,7 @@ function clearKpiDeltaSignals() {
   } catch (_) {
     // Ignore storage failures silently.
   }
-  renderKpiDeltaBadges();
+  renderKpiSignalBadges();
 }
 
 function readNumericDelta(source, key) {
@@ -1972,7 +1980,7 @@ function updateKpiCounts({ total = 0, applied = 0, offers = 0, interviews = 0, r
   if (kpiRejected) {
     kpiRejected.textContent = String(rejected);
   }
-  renderKpiDeltaBadges();
+  renderKpiSignalBadges();
 }
 
 function getKpiCountsFromColumns(columns) {
