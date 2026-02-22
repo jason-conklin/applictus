@@ -769,22 +769,57 @@
                           <path d="M10 19h4"></path>
                         </svg>
                       </span>
-                      <select id="filter-status">
-                        <option value="">Any status</option>
-                        <option value="APPLIED">Applied</option>
-                        <option value="UNDER_REVIEW">Under review</option>
-                        <option value="INTERVIEW_REQUESTED">Interview requested</option>
-                        <option value="INTERVIEW_COMPLETED">Interview completed</option>
-                        <option value="OFFER_RECEIVED">Offer received</option>
-                        <option value="REJECTED">Rejected</option>
-                        <option value="GHOSTED">Ghosted</option>
-                        <option value="UNKNOWN">Unknown</option>
-                      </select>
-                      <span class="filter-field__chevron" aria-hidden="true">
-                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="m6 8 4 4 4-4"></path>
-                        </svg>
-                      </span>
+                      <div class="status-select" id="filter-status-select">
+                        <button
+                          type="button"
+                          class="status-select__trigger"
+                          id="filter-status-trigger"
+                          aria-haspopup="listbox"
+                          aria-expanded="false"
+                          aria-controls="filter-status-menu"
+                        >
+                          <span class="status-select__dot" id="filter-status-dot" data-tone="any" aria-hidden="true"></span>
+                          <span class="status-select__label" id="filter-status-label">Any status</span>
+                          <span class="filter-field__chevron status-select__chevron" aria-hidden="true">
+                            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                              <path d="m6 8 4 4 4-4"></path>
+                            </svg>
+                          </span>
+                        </button>
+                        <div class="status-menu hidden" id="filter-status-menu" role="listbox" aria-labelledby="filter-status-trigger">
+                          <button type="button" id="status-option-any" class="status-menu__item is-selected" data-value="" role="option" aria-selected="true">
+                            <span class="status-menu__dot" data-tone="any" aria-hidden="true"></span>
+                            <span class="status-menu__label">Any status</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                          <button type="button" id="status-option-applied" class="status-menu__item" data-value="applied" role="option" aria-selected="false">
+                            <span class="status-menu__dot" data-tone="applied" aria-hidden="true"></span>
+                            <span class="status-menu__label">Applied</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                          <button type="button" id="status-option-interview-requested" class="status-menu__item" data-value="interview_requested" role="option" aria-selected="false">
+                            <span class="status-menu__dot" data-tone="interview_requested" aria-hidden="true"></span>
+                            <span class="status-menu__label">Interview requested</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                          <button type="button" id="status-option-offer-received" class="status-menu__item" data-value="offer_received" role="option" aria-selected="false">
+                            <span class="status-menu__dot" data-tone="offer_received" aria-hidden="true"></span>
+                            <span class="status-menu__label">Offer received</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                          <button type="button" id="status-option-rejected" class="status-menu__item" data-value="rejected" role="option" aria-selected="false">
+                            <span class="status-menu__dot" data-tone="rejected" aria-hidden="true"></span>
+                            <span class="status-menu__label">Rejected</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                          <button type="button" id="status-option-ghosted" class="status-menu__item" data-value="ghosted" role="option" aria-selected="false">
+                            <span class="status-menu__dot" data-tone="ghosted" aria-hidden="true"></span>
+                            <span class="status-menu__label">Ghosted</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                        </div>
+                        <input type="hidden" id="filter-status" value="" />
+                      </div>
                     </div>
                   </label>
                   <label class="filter-field filter-field--company filter-company-inline">
