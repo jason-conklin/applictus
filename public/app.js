@@ -3179,13 +3179,13 @@ function renderApplicationsTable(applications) {
       <button type="button" class="sort-btn${sortKey === 'role' ? ' active' : ''}" data-sort="role" aria-label="Sort by role">
         <span>Role</span>${sortKey === 'role' ? `<span class="arrow">${arrow}</span>` : ''}
       </button>
-      <button type="button" class="sort-btn${sortKey === 'status' ? ' active' : ''}" data-sort="status" aria-label="Sort by status">
+      <button type="button" class="sort-btn table-col-status${sortKey === 'status' ? ' active' : ''}" data-sort="status" aria-label="Sort by status">
         <span>Status</span>${sortKey === 'status' ? `<span class="arrow">${arrow}</span>` : ''}
       </button>
-      <button type="button" class="sort-btn${sortKey === 'lastActivity' ? ' active' : ''}" data-sort="lastActivity" aria-label="Sort by last activity">
+      <button type="button" class="sort-btn table-col-activity${sortKey === 'lastActivity' ? ' active' : ''}" data-sort="lastActivity" aria-label="Sort by last activity">
         <span>Last activity</span>${sortKey === 'lastActivity' ? `<span class="arrow">${arrow}</span>` : ''}
       </button>
-      <div class="table-select-header">
+      <div class="table-select-header table-col-select">
         <label class="table-select-header-label" aria-label="Select all applications on this page">
           <span class="table-select-all-text">SELECT ALL</span>
           <span class="table-select-control">
@@ -3212,12 +3212,12 @@ function renderApplicationsTable(applications) {
         <div class="table-row${isSelected ? ' table-row-selected' : ''}" style="--stagger: ${index}" data-id="${app.id}">
           <div class="cell-company"><strong>${app.company_name || '—'}</strong></div>
           <div class="cell-role" title="${app.job_title || '—'}">${app.job_title || '—'}</div>
-          <div>
+          <div class="table-col-status">
             <div class="status-cell">${statusPill}</div>
             ${suggestionLabel ? `<div class="explanation">Suggestion: ${suggestionLabel}</div>` : ''}
           </div>
-          <div>${activity}</div>
-          <div class="table-select-cell">
+          <div class="table-col-activity">${activity}</div>
+          <div class="table-select-cell table-col-select">
             <label class="table-select-control" aria-label="Select application">
               <input class="table-select-input table-row-select" type="checkbox" data-id="${app.id}" ${
                 isSelected ? 'checked' : ''

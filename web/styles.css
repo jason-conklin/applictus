@@ -2990,13 +2990,13 @@ textarea:focus-visible {
 }
 
 #dashboard-view #filters-inline .filter-company-inline {
-  flex: 1.25 1 300px;
-  max-width: 420px;
+  flex: 0 1 260px;
+  max-width: 300px;
 }
 
 #dashboard-view #filters-inline .filter-role-inline {
-  flex: 1 1 260px;
-  max-width: 360px;
+  flex: 0 1 240px;
+  max-width: 280px;
 }
 
 #dashboard-view #filters-inline select,
@@ -3074,32 +3074,47 @@ textarea:focus-visible {
   min-width: 0;
 }
 
-#applications-table .table-header > div:nth-child(4),
-#applications-table .table-row > div:nth-child(4) {
-  padding-right: 0;
-}
-
-#applications-table .table-header > div:nth-child(5) {
-  padding-left: 10px;
-}
-
-#applications-table .table-header > button:nth-child(3),
-#applications-table .table-header > button:nth-child(4),
-#applications-table .table-row > div:nth-child(4) {
-  justify-self: start;
+#applications-table .table-header .table-col-status,
+#applications-table .table-header .table-col-activity {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  align-self: center;
   text-align: left;
-}
-
-#applications-table .table-row > div:nth-child(3) {
-  justify-self: start;
-  text-align: left;
-  margin-left: -7px;
-}
-
-#applications-table .table-header > button:nth-child(3),
-#applications-table .table-header > button:nth-child(4) {
+  line-height: 1.05;
+  min-height: 28px;
   padding-left: 0;
   padding-right: 0;
+}
+
+#applications-table .table-row .table-col-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  justify-content: flex-start;
+  text-align: left;
+  line-height: 1.1;
+  min-height: 28px;
+}
+
+#applications-table .table-row .table-col-status .explanation {
+  flex: 0 0 100%;
+  margin-top: 2px;
+}
+
+#applications-table .table-row .table-col-activity {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  align-self: center;
+  text-align: left;
+  line-height: 1.1;
+  min-height: 28px;
+}
+
+#applications-table .table-header .table-col-select {
+  padding-left: 10px;
 }
 
 #unsorted-table .table-header,
