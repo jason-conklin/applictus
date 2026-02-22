@@ -2014,6 +2014,24 @@ async function refreshTable() {
   if (!applicationsTable) {
     return;
   }
+  const fetchPage = async (offset) => {
+    const params = buildListParams();
+    params.set('limit', String(PAGE_SIZE));
+    params.set('offset', String(offset));
+    const data = await api(`/api/applications?${params.toString()}`);
+    const apps = normalizeApplicationsList(data);
+    return {
+      data,
+      apps,
+      total: Number(data?.total ?? apps.length ?? 0)
+    };
+  };
+  const getLastPageOffset = (total) => {
+    if (!total || total <= 0) {
+      return 0;
+    }
+    return Math.floor((total - 1) / PAGE_SIZE) * PAGE_SIZE;
+  };
   setTablePaginationLoading(true);
   try {
     applicationsTable.classList.remove('hidden');
@@ -2021,10 +2039,22 @@ async function refreshTable() {
     if (pagination) {
       pagination.classList.remove('hidden');
     }
-    const params = buildListParams();
-    params.set('limit', String(PAGE_SIZE));
-    params.set('offset', String(state.table.offset));
-    const data = await api(`/api/applications?${params.toString()}`);
+    let page = await fetchPage(state.table.offset);
+    let total = page.total;
+    let apps = page.apps;
+    const lastValidOffset = getLastPageOffset(total);
+
+    // Deletions can shrink total pages; clamp to the last valid page and refetch.
+    if (state.table.offset > lastValidOffset) {
+      state.table.offset = lastValidOffset;
+      page = await fetchPage(state.table.offset);
+      total = page.total;
+      apps = page.apps;
+    } else if (!total && state.table.offset !== 0) {
+      state.table.offset = 0;
+    }
+
+    const data = page.data;
     if (DEBUG_AUTH) {
       // eslint-disable-next-line no-console
       console.debug('[apps] table response', {
@@ -2033,8 +2063,7 @@ async function refreshTable() {
         isArray: Array.isArray(data)
       });
     }
-    const apps = normalizeApplicationsList(data);
-    state.table.total = data.total || apps.length || 0;
+    state.table.total = total;
     state.table.data = apps;
     updateDashboardMeta(state.table.total);
     state.lastTotal = state.table.total;
