@@ -6477,7 +6477,7 @@ body.home-page .info-step:hover .how-step-card__icon {
 }
 
 /* ========================= DASHBOARD: PREMIUM THEME ========================= */
-#dashboard-view.dashboard,
+#dashboard-view,
 #dashboard-view .dashboard {
   --dash-bg0: #f7f9fe;
   --dash-bg1: #edf2fb;
@@ -6620,28 +6620,31 @@ body.app-page-bg .topbar .nav-link.active {
   background: rgba(15, 23, 42, 0.08);
 }
 
-#dashboard-view.dashboard {
-  position: relative;
-  isolation: isolate;
+#dashboard-view {
+  gap: 12px;
+}
+
+#dashboard-view .dashboard-header,
+#dashboard-view .dashboard {
   width: min(1500px, 100%);
   margin-inline: auto;
+}
+
+#dashboard-view .dashboard-header {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+#dashboard-view .dashboard {
+  position: relative;
+  isolation: isolate;
   gap: 26px;
 }
 
-#dashboard-view.dashboard::before {
-  content: '';
-  position: absolute;
-  inset: -18px -14px -28px;
-  z-index: -1;
-  pointer-events: none;
-  border-radius: 28px;
-  background:
-    radial-gradient(120% 65% at 50% 0%, rgba(213, 226, 250, 0.4), rgba(213, 226, 250, 0) 70%),
-    linear-gradient(180deg, var(--dash-bg0), var(--dash-bg1));
-}
-
-#dashboard-view .dash-top {
-  gap: 14px;
+#dashboard-view .dashboard::before {
+  content: none;
 }
 
 #dashboard-view .sync-band,
@@ -7129,7 +7132,8 @@ body.app-page-bg .topbar .nav-link.active {
     padding-right: clamp(28px, 2.3vw, 40px);
   }
 
-  #dashboard-view.dashboard {
+  #dashboard-view .dashboard-header,
+  #dashboard-view .dashboard {
     width: min(1540px, 100%);
   }
 }

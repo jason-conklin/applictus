@@ -537,8 +537,8 @@
         </div>
       </section>
 
-      <section class="dashboard" id="dashboard-view" hidden>
-        <div class="dash-top">
+      <section class="view" id="dashboard-view" hidden>
+        <div class="dashboard-header">
           <div class="dash-header-row">
             <div class="dash-title">
               <h2>Dashboard</h2>
@@ -546,6 +546,8 @@
             </div>
             <div class="dash-actions"></div>
           </div>
+        </div>
+        <div class="dashboard">
           <div class="sync-band surface-raised">
             <div class="sync-strip scan-card" id="sync-strip">
               <div class="scan-card__left">
@@ -644,12 +646,11 @@
               <span id="sync-progress-label">Scanning emails…</span>
               <span id="sync-progress-value">0%</span>
             </div>
-            <div class="progress-track" aria-hidden="true">
-              <div class="progress-fill" id="sync-progress-fill"></div>
-            </div>
-          </div>
-          </div>
-        </div>
+                  <div class="progress-track" aria-hidden="true">
+                    <div class="progress-fill" id="sync-progress-fill"></div>
+                  </div>
+                </div>
+	          </div>
         <section class="kpi-row" aria-label="Application stats">
           <div class="kpi-card status-total">
             <div class="kpi-meta">
@@ -805,6 +806,7 @@
             <button class="btn btn--ghost btn--sm" type="button" id="table-next">Next</button>
           </div>
         </section>
+        </div>
       </section>
 
       <section class="view" id="archive-view" hidden>
