@@ -4469,68 +4469,184 @@ details summary {
   display: grid;
   place-items: center;
   padding: 24px;
-  z-index: 40;
+  z-index: 1200;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 180ms ease-out, visibility 0s linear 0s;
 }
 
 .modal.hidden {
-  display: none;
+  display: grid;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 160ms ease-in, visibility 0s linear 160ms;
 }
 
 .modal-backdrop {
   position: absolute;
   inset: 0;
-  background: var(--color-overlay);
+  background: rgba(20, 40, 80, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 1;
+  transition: opacity 180ms ease-out;
+}
+
+.modal.hidden .modal-backdrop {
+  opacity: 0;
 }
 
 .modal-dialog {
   width: min(640px, 92vw);
-  background: var(--color-card);
+  background: linear-gradient(to bottom, #ffffff, #f8fafc);
   border-radius: 20px;
-  border: 1px solid var(--color-border);
-  box-shadow: var(--shadow-card);
-  padding: 24px;
+  border: 1px solid rgba(40, 80, 160, 0.12);
+  box-shadow:
+    0 30px 80px rgba(20, 40, 80, 0.25),
+    0 10px 30px rgba(20, 40, 80, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  padding: 24px 24px 0;
   position: relative;
   display: grid;
-  gap: 16px;
+  gap: 0;
   max-height: 90vh;
   overflow: auto;
   z-index: 1;
+  transform: translateY(0);
+  opacity: 1;
+  transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease-out;
+}
+
+.modal.hidden .modal-dialog {
+  transform: translateY(8px);
+  opacity: 0;
+}
+
+.modal-dialog::before {
+  content: '';
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  top: 1px;
+  height: 34px;
+  border-radius: 19px 19px 14px 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.64), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+.modal-header {
+  position: relative;
+  padding: 0 4px 18px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid rgba(40, 80, 160, 0.08);
+  display: grid;
+  gap: 6px;
 }
 
 .modal-header h3 {
-  margin: 0 0 6px;
+  margin: 0;
+  font-size: 1.28rem;
+  line-height: 1.15;
+  font-weight: 700;
+  color: #102f59;
 }
 
 .modal-header p {
   margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #5b6f8e;
 }
 
 .modal-body {
   display: grid;
-  gap: 12px;
+  gap: 16px;
+  padding: 0 4px;
 }
 
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 4px 20px;
+  margin-top: 16px;
+  border-top: 1px solid rgba(40, 80, 160, 0.08);
 }
 
 .modal-close {
   position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 36px;
-  height: 36px;
+  top: 14px;
+  right: 14px;
+  width: 38px;
+  height: 38px;
   border-radius: 999px;
   padding: 0;
-  font-size: 18px;
-  line-height: 1;
+  border: 1px solid rgba(40, 80, 160, 0.16);
+  background:
+    radial-gradient(130% 130% at 25% 12%, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0) 58%),
+    linear-gradient(180deg, rgba(252, 254, 255, 0.98), rgba(235, 244, 255, 0.95));
+  color: rgba(23, 58, 114, 0.92);
+  box-shadow:
+    0 10px 22px rgba(20, 40, 80, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    inset 0 -1px 0 rgba(40, 80, 160, 0.1);
+  transition:
+    transform 140ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease;
+}
+
+.modal-close:hover {
+  transform: translateY(-1px);
+  border-color: rgba(40, 80, 160, 0.24);
+  box-shadow:
+    0 14px 26px rgba(20, 40, 80, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    inset 0 -1px 0 rgba(40, 80, 160, 0.12);
+}
+
+.modal-close:active {
+  transform: translateY(0);
+  box-shadow:
+    0 6px 14px rgba(20, 40, 80, 0.1),
+    inset 0 1px 2px rgba(17, 45, 93, 0.2);
+}
+
+.modal-close:focus-visible {
+  outline: none;
+  box-shadow:
+    0 10px 22px rgba(20, 40, 80, 0.14),
+    0 0 0 3px rgba(60, 120, 255, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.modal-close__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+
+.modal-close__icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 
 .modal-form {
   display: grid;
-  gap: 12px;
+  gap: 14px;
+}
+
+.modal-row-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .form-error {
@@ -4560,6 +4676,214 @@ details summary {
   font-size: 12px;
   color: var(--color-muted);
   margin: 0;
+}
+
+.modal--application-form .modal-dialog,
+.modal--add-application .modal-dialog {
+  width: min(660px, 92vw);
+}
+
+.modal--application-form .modal-form--app-entry,
+.modal--add-application .modal-form--add-app {
+  gap: 18px;
+}
+
+.modal--application-form .modal-form--app-entry .modal-field,
+.modal--add-application .modal-form--add-app .modal-field {
+  display: grid;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #5e7394;
+}
+
+.modal--application-form .modal-form--app-entry .modal-field input,
+.modal--application-form .modal-form--app-entry .modal-field select,
+.modal--application-form .modal-form--app-entry .modal-field textarea,
+.modal--add-application .modal-form--add-app .modal-field input,
+.modal--add-application .modal-form--add-app .modal-field select {
+  min-height: 46px;
+  border-radius: 12px;
+  border: 1px solid rgba(40, 80, 160, 0.14);
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.96), rgba(241, 246, 252, 0.95));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 2px 4px rgba(20, 40, 80, 0.05);
+  color: #1e304d;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 0 13px;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    background 150ms ease,
+    color 150ms ease;
+}
+
+.modal--application-form .modal-form--app-entry .modal-field textarea {
+  min-height: 108px;
+  padding: 11px 13px;
+  line-height: 1.45;
+}
+
+.modal--application-form .modal-form--app-entry .modal-field input::placeholder,
+.modal--application-form .modal-form--app-entry .modal-field textarea::placeholder,
+.modal--add-application .modal-form--add-app .modal-field input::placeholder {
+  color: #62789a;
+}
+
+.modal--application-form .modal-form--app-entry .modal-field input:focus-visible,
+.modal--application-form .modal-form--app-entry .modal-field select:focus-visible,
+.modal--application-form .modal-form--app-entry .modal-field textarea:focus-visible,
+.modal--add-application .modal-form--add-app .modal-field input:focus-visible,
+.modal--add-application .modal-form--add-app .modal-field select:focus-visible {
+  outline: none;
+  border-color: rgba(60, 120, 255, 0.58);
+  background: linear-gradient(180deg, rgba(252, 254, 255, 0.98), rgba(245, 249, 255, 0.96));
+  box-shadow:
+    0 0 0 3px rgba(60, 120, 255, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84),
+    inset 0 2px 4px rgba(20, 40, 80, 0.05);
+}
+
+.modal--application-form .modal-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(40, 80, 160, 0.14);
+  background: linear-gradient(180deg, rgba(249, 252, 255, 0.95), rgba(241, 247, 255, 0.95));
+  color: #2b466f;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.modal--application-form .modal-checkbox-row input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #2f66d6;
+}
+
+.modal--application-form .modal-checkbox-row span {
+  letter-spacing: 0.02em;
+}
+
+.modal--application-form .modal-edit-status {
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(40, 80, 160, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(244, 249, 255, 0.9));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 10px 22px rgba(20, 40, 80, 0.08);
+}
+
+.modal--application-form .modal-edit-status .form-help {
+  margin: 0;
+  color: #5f7190;
+}
+
+.modal--application-form .modal-footer .btn[data-role='cancel'],
+.modal--add-application .modal-footer .btn[data-role='cancel'] {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(40, 80, 160, 0.14);
+  background: linear-gradient(180deg, #ffffff 0%, #f2f6fc 100%);
+  color: #2b4467;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 6px 14px rgba(20, 40, 80, 0.08);
+}
+
+.modal--application-form .modal-footer .btn[data-role='cancel']:hover,
+.modal--add-application .modal-footer .btn[data-role='cancel']:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(180deg, #ffffff 0%, #eaf1fb 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 10px 20px rgba(20, 40, 80, 0.11);
+}
+
+.modal--application-form .modal-footer .btn[data-role='confirm'],
+.modal--add-application .modal-footer .btn[data-role='confirm'] {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background:
+    radial-gradient(135% 150% at 22% 10%, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0) 52%),
+    linear-gradient(180deg, #2d67cf 0%, #1f52b2 58%, #184495 100%);
+  color: #ffffff;
+  box-shadow:
+    0 16px 30px rgba(17, 56, 116, 0.3),
+    0 5px 14px rgba(17, 56, 116, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 -3px 8px rgba(10, 32, 70, 0.28);
+}
+
+.modal--application-form .modal-footer .btn[data-role='confirm']:hover,
+.modal--add-application .modal-footer .btn[data-role='confirm']:hover {
+  transform: translateY(-1px);
+  background:
+    radial-gradient(135% 150% at 22% 10%, rgba(255, 255, 255, 0.44), rgba(255, 255, 255, 0) 52%),
+    linear-gradient(180deg, #3773dc 0%, #285cc2 58%, #1b4ca4 100%);
+  box-shadow:
+    0 20px 34px rgba(17, 56, 116, 0.34),
+    0 7px 16px rgba(17, 56, 116, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    inset 0 -3px 8px rgba(10, 32, 70, 0.32);
+}
+
+.modal--application-form .modal-footer .btn[data-role='confirm']:active,
+.modal--add-application .modal-footer .btn[data-role='confirm']:active {
+  transform: translateY(0);
+  box-shadow:
+    0 8px 18px rgba(17, 56, 116, 0.22),
+    inset 0 2px 4px rgba(10, 32, 70, 0.3);
+}
+
+@media (max-width: 720px) {
+  .modal {
+    padding: 16px;
+  }
+
+  .modal-dialog {
+    width: min(100%, 96vw);
+    max-height: 92vh;
+    border-radius: 18px;
+    padding: 18px 16px 0;
+  }
+
+  .modal-row-two {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .modal--application-form .modal-footer,
+  .modal--add-application .modal-footer {
+    gap: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal,
+  .modal-backdrop,
+  .modal-dialog,
+  .modal-close,
+  .modal--application-form .modal-footer .btn[data-role='cancel'],
+  .modal--application-form .modal-footer .btn[data-role='confirm'],
+  .modal--add-application .modal-footer .btn[data-role='cancel'],
+  .modal--add-application .modal-footer .btn[data-role='confirm'] {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 
 .checkbox-row {

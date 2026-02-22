@@ -472,12 +472,14 @@ let modalState = {
   allowBackdropClose: false,
   focusable: [],
   lastFocused: null,
-  keyHandler: null
+  keyHandler: null,
+  variantClass: null
 };
+const APPLICATION_MODAL_VARIANT_CLASS = 'modal--application-form';
 
 function openAddModal() {
   const form = document.createElement('form');
-  form.className = 'modal-form form-grid';
+  form.className = 'modal-form form-grid modal-form--app-entry modal-form--add-app';
 
   const companyField = createTextField({
     label: 'Company name',
@@ -511,7 +513,16 @@ function openAddModal() {
   const errorEl = document.createElement('div');
   errorEl.className = 'form-error hidden';
 
-  form.append(companyField.wrapper, roleField.wrapper, statusField.wrapper, dateField.wrapper, errorEl);
+  companyField.wrapper.classList.add('modal-field', 'modal-field--company');
+  roleField.wrapper.classList.add('modal-field', 'modal-field--role');
+  statusField.wrapper.classList.add('modal-field', 'modal-field--status');
+  dateField.wrapper.classList.add('modal-field', 'modal-field--date');
+
+  const statusDateRow = document.createElement('div');
+  statusDateRow.className = 'modal-row-two modal-row-two--add-app';
+  statusDateRow.append(statusField.wrapper, dateField.wrapper);
+
+  form.append(companyField.wrapper, roleField.wrapper, statusDateRow, errorEl);
 
   const footer = buildModalFooter({ confirmText: 'Add application', formId: 'add-app-form' });
   form.id = 'add-app-form';
@@ -521,7 +532,8 @@ function openAddModal() {
     body: form,
     footer,
     allowBackdropClose: true,
-    initialFocus: companyField.input
+    initialFocus: companyField.input,
+    variantClass: APPLICATION_MODAL_VARIANT_CLASS
   });
 
   const confirmBtn = footer.querySelector('[data-role="confirm"]');
@@ -862,9 +874,25 @@ function setModalContent(target, content) {
   }
 }
 
-function openModal({ title, description, body, footer, onClose, allowBackdropClose = false, initialFocus }) {
+function openModal({
+  title,
+  description,
+  body,
+  footer,
+  onClose,
+  allowBackdropClose = false,
+  initialFocus,
+  variantClass = ''
+}) {
   if (!modalRoot) {
     return;
+  }
+  if (modalState.variantClass) {
+    modalRoot.classList.remove(modalState.variantClass);
+  }
+  const normalizedVariantClass = typeof variantClass === 'string' ? variantClass.trim() : '';
+  if (normalizedVariantClass) {
+    modalRoot.classList.add(normalizedVariantClass);
   }
   if (modalTitle) {
     modalTitle.textContent = title || 'Notice';
@@ -884,7 +912,8 @@ function openModal({ title, description, body, footer, onClose, allowBackdropClo
     allowBackdropClose,
     focusable: [],
     lastFocused: document.activeElement,
-    keyHandler: handleModalKeydown
+    keyHandler: handleModalKeydown,
+    variantClass: normalizedVariantClass || null
   };
   document.addEventListener('keydown', modalState.keyHandler);
   updateModalFocusables();
@@ -904,6 +933,9 @@ function closeModal(reason) {
   if (!modalRoot || modalRoot.classList.contains('hidden')) {
     return;
   }
+  if (modalState.variantClass) {
+    modalRoot.classList.remove(modalState.variantClass);
+  }
   modalRoot.classList.add('hidden');
   modalRoot.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('modal-open');
@@ -922,7 +954,8 @@ function closeModal(reason) {
     allowBackdropClose: false,
     focusable: [],
     lastFocused: null,
-    keyHandler: null
+    keyHandler: null,
+    variantClass: null
   };
 }
 
@@ -3324,7 +3357,7 @@ async function openEditModal(application) {
     return;
   }
   const form = document.createElement('form');
-  form.className = 'modal-form form-grid';
+  form.className = 'modal-form form-grid modal-form--app-entry modal-form--edit-app';
   form.id = `edit-form-${application.id}`;
 
   const companyField = createTextField({
@@ -3359,7 +3392,7 @@ async function openEditModal(application) {
     label: STATUS_LABELS[status] || status
   }));
   const manualToggleRow = document.createElement('label');
-  manualToggleRow.className = 'checkbox-row';
+  manualToggleRow.className = 'checkbox-row modal-checkbox-row';
   const manualToggle = document.createElement('input');
   manualToggle.type = 'checkbox';
   manualToggle.checked = isManualStatus;
@@ -3368,7 +3401,7 @@ async function openEditModal(application) {
   manualToggleRow.append(manualToggle, manualLabel);
 
   const statusFields = document.createElement('div');
-  statusFields.className = `stack ${isManualStatus ? '' : 'hidden'}`;
+  statusFields.className = `stack modal-edit-status ${isManualStatus ? '' : 'hidden'}`;
   const statusField = createSelectField({
     label: 'Status',
     name: 'current_status',
@@ -3394,24 +3427,35 @@ async function openEditModal(application) {
   const errorEl = document.createElement('div');
   errorEl.className = 'form-error hidden';
 
+  companyField.wrapper.classList.add('modal-field', 'modal-field--company');
+  titleField.wrapper.classList.add('modal-field', 'modal-field--role');
+  locationField.wrapper.classList.add('modal-field', 'modal-field--location');
+  sourceField.wrapper.classList.add('modal-field', 'modal-field--source');
+  statusField.wrapper.classList.add('modal-field', 'modal-field--status');
+  noteField.wrapper.classList.add('modal-field', 'modal-field--note');
+
+  const detailsRow = document.createElement('div');
+  detailsRow.className = 'modal-row-two modal-row-two--edit-meta';
+  detailsRow.append(locationField.wrapper, sourceField.wrapper);
+
   form.append(
     companyField.wrapper,
     titleField.wrapper,
-    locationField.wrapper,
-    sourceField.wrapper,
+    detailsRow,
     manualToggleRow,
     statusFields,
     errorEl
   );
 
-  const footer = buildModalFooter({ confirmText: 'Save', formId: form.id });
+  const footer = buildModalFooter({ confirmText: 'Save changes', formId: form.id });
   openModal({
     title: 'Edit application',
     description: 'Update the core details for this application.',
     body: form,
     footer,
     allowBackdropClose: false,
-    initialFocus: companyField.input
+    initialFocus: companyField.input,
+    variantClass: APPLICATION_MODAL_VARIANT_CLASS
   });
 
   form.addEventListener('submit', async (event) => {
