@@ -54,6 +54,23 @@ test('extractThreadIdentity handles generic thanks subject with sender name', ()
   assert.ok(identity.companyConfidence >= 0.9);
 });
 
+test('extractThreadIdentity infers company from website signature for gmail outreach', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Can we schedule a call this week?',
+    sender: 'Hiring Manager <manager@gmail.com>',
+    bodyText: `Hi Jason,
+I would like to speak with you for an hour.
+
+Best regards,
+Recruiting Team
+www.multimixit.com`
+  });
+
+  assert.ok(identity.companyName);
+  assert.ok((identity.companyName || '').toLowerCase().includes('multimix'));
+  assert.ok(!String(identity.companyName || '').includes('@'));
+});
+
 test('extractThreadIdentity handles greenhouse sender and subject company', () => {
   const identity = extractThreadIdentity({
     subject: 'Thank you for applying to Natera',
@@ -387,6 +404,59 @@ test('matchAndAssignEvent returns reason detail for ambiguous sender', async () 
   assert.equal(result.action, 'unassigned');
   assert.equal(result.reason, 'ambiguous_sender');
   assert.ok(result.reasonDetail);
+});
+
+test('matchAndAssignEvent force-creates thread for high-signal interview_requested with partial identity', async () => {
+  let insertedArgs = null;
+  const db = {
+    lastId: null,
+    prepare(sql) {
+      return {
+        all() {
+          return [];
+        },
+        get(id) {
+          if (String(sql).startsWith('SELECT * FROM job_applications WHERE id')) {
+            return id === db.lastId ? { id } : null;
+          }
+          return null;
+        },
+        run(...args) {
+          if (String(sql).startsWith('INSERT INTO job_applications')) {
+            db.lastId = args[0];
+            insertedArgs = args;
+          }
+          return null;
+        }
+      };
+    }
+  };
+
+  const event = {
+    id: 'evt-high-signal',
+    detected_type: 'interview_requested',
+    classification_confidence: 0.93,
+    created_at: new Date().toISOString(),
+    sender: 'manager@gmail.com',
+    subject: 'Let’s schedule time',
+    snippet: 'Mon 3/2 3-5 pm, Tue 3/3 5-6 pm'
+  };
+  const identity = {
+    companyName: null,
+    jobTitle: null,
+    companyConfidence: 0,
+    roleConfidence: 0,
+    matchConfidence: 0,
+    domainConfidence: 0,
+    isAtsDomain: false
+  };
+
+  const result = await matchAndAssignEvent({ db, userId: 'user-1', event, identity });
+  assert.equal(result.action, 'created_application');
+  assert.ok(result.applicationId);
+  assert.ok(insertedArgs);
+  assert.equal(insertedArgs[2], 'Direct Outreach');
+  assert.equal(insertedArgs[3], 'Intro call');
 });
 
 test('matchAndAssignEvent auto-creates for Workday confirmation with body company', async () => {

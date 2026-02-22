@@ -59,11 +59,167 @@ const REASON_KEYS = [
   'unsorted_created'
 ];
 
+const HIGH_SIGNAL_TYPES = new Set([
+  'offer',
+  'interview',
+  'interview_requested',
+  'interview_scheduled',
+  'meeting_requested'
+]);
+
+const GENERIC_MAIL_BASES = new Set([
+  'gmail',
+  'yahoo',
+  'outlook',
+  'hotmail',
+  'protonmail',
+  'icloud'
+]);
+
 function initReasonCounters() {
   return REASON_KEYS.reduce((acc, key) => {
     acc[key] = 0;
     return acc;
   }, {});
+}
+
+function isHighSignalClassification(classification) {
+  const type = String(classification?.detectedType || '').toLowerCase();
+  const reason = String(classification?.reason || '').toLowerCase();
+  const confidence = Number.isFinite(classification?.confidenceScore) ? classification.confidenceScore : 0;
+  if (HIGH_SIGNAL_TYPES.has(type)) {
+    return true;
+  }
+  if (type === 'rejection' && (confidence >= 0.95 || reason === 'rejection_override' || reason === 'rejection_strong')) {
+    return true;
+  }
+  return false;
+}
+
+function extractSenderEmail(sender) {
+  const text = String(sender || '').trim();
+  if (!text) {
+    return null;
+  }
+  const angled = text.match(/<([^>]+)>/);
+  const candidate = angled && angled[1] ? angled[1] : text;
+  const direct = String(candidate).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return direct ? direct[0].toLowerCase() : null;
+}
+
+function inferCompanyFromSenderDomain(sender) {
+  const senderEmail = extractSenderEmail(sender);
+  if (!senderEmail) {
+    return null;
+  }
+  const parts = senderEmail.split('@');
+  if (parts.length !== 2) {
+    return null;
+  }
+  const domain = String(parts[1] || '').toLowerCase();
+  if (!domain) {
+    return null;
+  }
+  const domainParts = domain.split('.').filter(Boolean);
+  if (domainParts.length < 2) {
+    return null;
+  }
+  const base = domainParts[domainParts.length - 2];
+  if (!base || GENERIC_MAIL_BASES.has(base)) {
+    return null;
+  }
+  const words = base
+    .split(/[-_]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1));
+  if (!words.length) {
+    return null;
+  }
+  return words.join(' ');
+}
+
+function inferFallbackRole(subject, snippet, bodyText) {
+  const text = `${String(subject || '')}\n${String(snippet || '')}\n${String(bodyText || '')}`;
+  if (/\b(technical|software|engineer|developer|coding|projects?|resume|transcript)\b/i.test(text)) {
+    return 'Technical opportunity';
+  }
+  return 'Intro call';
+}
+
+function applyHighSignalFallbackIdentity({
+  classification,
+  identity,
+  rolePayload,
+  sender,
+  subject,
+  snippet,
+  bodyText
+}) {
+  if (!isHighSignalClassification(classification)) {
+    return {
+      identity,
+      rolePayload,
+      fallbackApplied: false
+    };
+  }
+
+  const nextIdentity = { ...(identity || {}) };
+  let nextRolePayload = rolePayload;
+  let fallbackApplied = false;
+
+  if (String(nextIdentity.companyName || '').includes('@')) {
+    nextIdentity.companyName = null;
+  }
+
+  if (!nextIdentity.companyName) {
+    const inferredFromDomain = inferCompanyFromSenderDomain(sender);
+    if (inferredFromDomain) {
+      nextIdentity.companyName = inferredFromDomain;
+      nextIdentity.companyConfidence = Math.max(nextIdentity.companyConfidence || 0, 0.78);
+      nextIdentity.explanation = `${nextIdentity.explanation || 'No identity match.'} Derived company from sender domain for high-signal event.`;
+      fallbackApplied = true;
+    }
+  }
+
+  if (!nextIdentity.companyName) {
+    nextIdentity.companyName = 'Direct Outreach';
+    nextIdentity.companyConfidence = Math.max(nextIdentity.companyConfidence || 0, 0.72);
+    nextIdentity.explanation = `${nextIdentity.explanation || 'No identity match.'} Applied Direct Outreach fallback for high-signal event.`;
+    fallbackApplied = true;
+  }
+
+  if (!nextRolePayload?.jobTitle) {
+    const roleFallback = inferFallbackRole(subject, snippet, bodyText);
+    nextRolePayload = {
+      jobTitle: roleFallback,
+      confidence: 0.66,
+      source: 'fallback',
+      explanation: 'High-signal scheduling fallback role.'
+    };
+    fallbackApplied = true;
+  }
+
+  if (!nextIdentity.jobTitle && nextRolePayload?.jobTitle) {
+    nextIdentity.jobTitle = nextRolePayload.jobTitle;
+  }
+  if (!Number.isFinite(nextIdentity.roleConfidence) && Number.isFinite(nextRolePayload?.confidence)) {
+    nextIdentity.roleConfidence = nextRolePayload.confidence;
+  }
+  if (!Number.isFinite(nextIdentity.domainConfidence)) {
+    nextIdentity.domainConfidence = 0.35;
+  }
+  if (!Number.isFinite(nextIdentity.matchConfidence)) {
+    const companyConf = Number.isFinite(nextIdentity.companyConfidence) ? nextIdentity.companyConfidence : 0;
+    const roleConf = Number.isFinite(nextRolePayload?.confidence) ? nextRolePayload.confidence : companyConf;
+    nextIdentity.matchConfidence = Math.min(companyConf || 0.72, roleConf || 0.66);
+  }
+
+  return {
+    identity: nextIdentity,
+    rolePayload: nextRolePayload,
+    fallbackApplied
+  };
 }
 
 // Simple in-memory sync progress tracker keyed by sync_id
@@ -1176,6 +1332,32 @@ async function syncGmailMessages({
         }
       }
 
+      const highSignalFallback = applyHighSignalFallbackIdentity({
+        classification: effectiveClassification,
+        identity: effectiveIdentity,
+        rolePayload: effectiveRole,
+        sender,
+        subject,
+        snippet,
+        bodyText
+      });
+      effectiveIdentity = highSignalFallback.identity;
+      effectiveRole = highSignalFallback.rolePayload;
+
+      if (process.env.JOBTRACK_LOG_LEVEL === 'debug' && isHighSignalClassification(effectiveClassification)) {
+        logDebug('ingest.high_signal_classification', {
+          providerMessageId: message.id,
+          sender: sender || null,
+          subject: subject || null,
+          detectedType: effectiveClassification.detectedType || null,
+          confidenceScore: effectiveClassification.confidenceScore || null,
+          reason: effectiveClassification.reason || null,
+          extractedCompany: effectiveIdentity.companyName || null,
+          extractedRole: effectiveRole?.jobTitle || effectiveIdentity.jobTitle || null,
+          fallbackApplied: highSignalFallback.fallbackApplied
+        });
+      }
+
       const nowIso = new Date().toISOString();
       const eventId = shouldReprocessLinkedInDuplicate && existingProvider?.id
         ? existingProvider.id
@@ -1188,10 +1370,7 @@ async function syncGmailMessages({
         Number.isFinite(existingCreatedAtMs)
           ? new Date(existingCreatedAtMs).toISOString()
           : nowIso;
-      const classificationConfidence = Number.isFinite(classification.confidenceScore)
-        ? classification.confidenceScore
-        : 0;
-      const identityConfidence = identity.matchConfidence || 0;
+      const identityConfidence = effectiveIdentity.matchConfidence || 0;
       const eventPayload = {
         id: eventId,
         userId,
@@ -1258,6 +1437,7 @@ async function syncGmailMessages({
           detected_type: effectiveClassification.detectedType,
           confidence_score: effectiveClassification.confidenceScore,
           classification_confidence: effectiveClassification.confidenceScore,
+          classification_reason: effectiveClassification.reason || null,
           bodyText,
           role_title: effectiveRole?.jobTitle || null,
           role_confidence: Number.isFinite(effectiveRole?.confidence) ? effectiveRole.confidence : null,

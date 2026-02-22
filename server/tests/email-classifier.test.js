@@ -40,7 +40,56 @@ test('classifyEmail detects interview request', () => {
     snippet: 'Please select a time for an interview'
   });
   assert.equal(result.isJobRelated, true);
-  assert.equal(result.detectedType, 'interview');
+  assert.ok(['interview', 'interview_requested'].includes(result.detectedType));
+});
+
+test('classifyEmail detects high-signal human scheduling outreach', () => {
+  const result = classifyEmail({
+    subject: 'Can we schedule time this week?',
+    snippet: 'I would like to speak with you for an hour about a technical opportunity.',
+    sender: 'recruiter@gmail.com',
+    body: `Hi Jason,
+
+I would like to speak with you for an hour and can send a Zoom invitation.
+Please let me know what time works for you.
+
+Mon 3/2 3-5 pm
+Tue 3/3 5-6 pm
+Wed 3/4 4:00 pm
+
+Please share your resume and transcript before the call.
+Thanks`
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'interview_requested');
+  assert.ok(result.confidenceScore >= 0.9);
+});
+
+test('classifyEmail detects interview_scheduled when invite confirmation is explicit', () => {
+  const result = classifyEmail({
+    subject: 'Interview scheduled confirmation',
+    snippet: 'Calendar invite has been sent.',
+    sender: 'hiring@startup.com',
+    body: `Great speaking with you.
+Your interview is scheduled for 3/8 at 4:00 pm and a calendar invite has been sent.`
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'interview_scheduled');
+  assert.ok(result.confidenceScore >= 0.9);
+});
+
+test('classifyEmail falls back to meeting_requested when scheduling context lacks job terms', () => {
+  const result = classifyEmail({
+    subject: 'Let’s schedule a call',
+    snippet: 'Here are some times.',
+    sender: 'founder@gmail.com',
+    body: `Let's schedule.
+What time works for you?
+Mon 3/2 3-4 pm
+Tue 3/3 5-6 pm`
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'meeting_requested');
 });
 
 test('classifyEmail detects under review updates', () => {
@@ -174,7 +223,7 @@ test('Phone screen invite with scheduling context stays interview', () => {
     sender: 'recruiter@company.com',
     body: 'We would like to schedule a phone screen. Please share your availability or use Calendly.'
   });
-  assert.equal(result.detectedType, 'interview');
+  assert.ok(['interview', 'interview_requested'].includes(result.detectedType));
 });
 
 test('classifyEmail denylist overrides allowlist', () => {

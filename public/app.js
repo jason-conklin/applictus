@@ -3724,13 +3724,39 @@ function renderDetail(application, events) {
     if (!safeEvents.length) {
       detailTimeline.innerHTML = '<div class="muted">No events yet.</div>';
     } else {
+      const applicationNeedsDetails =
+        String(application.company_name || '').toLowerCase() === 'direct outreach' ||
+        ['intro call', 'technical opportunity'].includes(
+          String(application.job_title || '').toLowerCase()
+        );
+      const formatTypeLabel = (type) => {
+        const lower = String(type || '').toLowerCase();
+        if (lower === 'interview_requested' || lower === 'interview_request') return 'Interview requested';
+        if (lower === 'interview_scheduled') return 'Interview scheduled';
+        if (lower === 'meeting_requested') return 'Meeting requested';
+        if (lower === 'under_review') return 'Under review';
+        return String(type || 'other')
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (char) => char.toUpperCase());
+      };
       const typeIcon = (type) => {
         const t = (type || '').toLowerCase();
-        if (t === 'confirmation') return '✅';
-        if (t === 'rejection') return '⛔';
-        if (t.includes('interview')) return '📅';
-        if (t.includes('offer')) return '🎉';
-        return '•';
+        if (t === 'confirmation') {
+          return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7 9 18l-5-5"/></svg>';
+        }
+        if (t === 'rejection') {
+          return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg>';
+        }
+        if (t === 'interview_scheduled') {
+          return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="m9 14 2 2 4-4"/></svg>';
+        }
+        if (t.includes('interview') || t === 'meeting_requested') {
+          return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><circle cx="12" cy="14" r="3"/><path d="M12 12v2l1 1"/></svg>';
+        }
+        if (t.includes('offer')) {
+          return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.8 1-6.1-4.4-4.3 6.1-.9z"/></svg>';
+        }
+        return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/></svg>';
       };
       detailTimeline.innerHTML = safeEvents
         .map((eventItem) => {
@@ -3741,12 +3767,13 @@ function renderDetail(application, events) {
             classificationConfidence !== null && classificationConfidence !== undefined
               ? `${Math.round(classificationConfidence * 100)}%`
               : '—';
-          const typeLabel = eventItem.detected_type || 'other';
+          const typeLabel = formatTypeLabel(eventItem.detected_type || 'other');
           return `
             <div class="timeline-card">
               <div class="timeline-card-top">
-                <span class="timeline-icon">${typeIcon(typeLabel)}</span>
+                <span class="timeline-icon">${typeIcon(eventItem.detected_type)}</span>
                 <span class="timeline-type">${typeLabel}</span>
+                <span class="timeline-needs-details${applicationNeedsDetails ? '' : ' hidden'}">Needs details</span>
                 <span class="timeline-confidence">${confidence}</span>
                 <span class="timeline-date">${formatDateTime(eventDate)}</span>
               </div>

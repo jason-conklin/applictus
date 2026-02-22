@@ -74,6 +74,18 @@ test('inferStatus handles under review updates', () => {
   assert.equal(result.suggested_only, false);
 });
 
+test('inferStatus maps interview_requested type to interview requested status', () => {
+  const result = inferStatus(baseApplication(), [
+    event({
+      detected_type: 'interview_requested',
+      confidence_score: 0.93,
+      subject: 'Interview requested'
+    })
+  ]);
+  assert.equal(result.inferred_status, ApplicationStatus.INTERVIEW_REQUESTED);
+  assert.equal(result.suggested_only, false);
+});
+
 test('inferStatus prefers terminal statuses over lower priority', () => {
   const result = inferStatus(baseApplication(), [
     event({

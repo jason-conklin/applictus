@@ -24,9 +24,20 @@ const { coalesceTimestamps } = require('./sqlHelpers');
 const AUTO_CREATE_TYPES = new Set([
   'confirmation',
   'interview',
+  'interview_requested',
+  'interview_scheduled',
+  'meeting_requested',
   'offer',
   'rejection',
   'under_review'
+]);
+
+const HIGH_SIGNAL_EVENT_TYPES = new Set([
+  'offer',
+  'interview',
+  'interview_requested',
+  'interview_scheduled',
+  'meeting_requested'
 ]);
 const UNKNOWN_ROLE = 'Unknown role';
 const MIN_COMPANY_CONFIDENCE = 0.85;
@@ -460,6 +471,19 @@ function getClassificationConfidence(event) {
     event.confidenceScore ??
     event.confidence;
   return Number.isFinite(value) ? value : 0;
+}
+
+function isHighSignalEvent(event) {
+  const type = String(event?.detected_type || '').toLowerCase();
+  const confidence = getClassificationConfidence(event);
+  const reason = String(event?.classification_reason || event?.reason || '').toLowerCase();
+  if (HIGH_SIGNAL_EVENT_TYPES.has(type)) {
+    return true;
+  }
+  if (type === 'rejection' && (confidence >= 0.95 || reason === 'rejection_override' || reason === 'rejection_strong')) {
+    return true;
+  }
+  return false;
 }
 
 function formatConfidence(value) {
@@ -896,6 +920,11 @@ function inferInitialStatus(event, eventTimestamp) {
   const classificationConfidence = getClassificationConfidence(event);
   const isApplied = event.detected_type === 'confirmation' && classificationConfidence >= 0.9;
   const isRejected = event.detected_type === 'rejection' && classificationConfidence >= 0.9;
+  const isInterviewRequested =
+    ['interview', 'interview_requested', 'interview_scheduled', 'meeting_requested'].includes(
+      String(event.detected_type || '').toLowerCase()
+    ) && classificationConfidence >= 0.85;
+  const isOffer = event.detected_type === 'offer' && classificationConfidence >= 0.85;
   if (isRejected) {
     return {
       status: ApplicationStatus.REJECTED,
@@ -908,6 +937,20 @@ function inferInitialStatus(event, eventTimestamp) {
       status: ApplicationStatus.APPLIED,
       statusConfidence: classificationConfidence,
       appliedAt: timestamp
+    };
+  }
+  if (isOffer) {
+    return {
+      status: ApplicationStatus.OFFER_RECEIVED,
+      statusConfidence: classificationConfidence,
+      appliedAt: null
+    };
+  }
+  if (isInterviewRequested) {
+    return {
+      status: ApplicationStatus.INTERVIEW_REQUESTED,
+      statusConfidence: classificationConfidence,
+      appliedAt: null
     };
   }
   return {
@@ -1468,9 +1511,10 @@ function buildUnassignedReason(event, identity) {
 }
 
 async function matchAndAssignEvent({ db, userId, event, identity: providedIdentity }) {
-  const identity =
+  let identity =
     providedIdentity ||
     extractThreadIdentity({ subject: event.subject, sender: event.sender, snippet: event.snippet });
+  const highSignalEvent = isHighSignalEvent(event);
   const STRONG_REJECTION_LIST = Array.isArray(STRONG_REJECTION_PATTERNS) ? STRONG_REJECTION_PATTERNS : [];
   const eventText = buildEventText(event);
   const externalReqId = getExternalReqId(event);
@@ -1529,6 +1573,34 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
     senderDomain: identity.senderDomain,
     explanation: identity.explanation
   });
+  if (!identity.companyName && highSignalEvent) {
+    const highSignalFallbackRole = /\b(technical|engineer|developer|coding|projects?)\b/i.test(
+      buildEventText(event)
+    )
+      ? 'Technical opportunity'
+      : 'Intro call';
+    const fallbackRoleText = normalizeRoleForApplication(
+      event.role_title ||
+        identity.jobTitle ||
+        highSignalFallbackRole
+    );
+    identity = {
+      ...identity,
+      companyName: 'Direct Outreach',
+      companyConfidence: Math.max(identity.companyConfidence || 0, 0.74),
+      roleConfidence:
+        Number.isFinite(identity.roleConfidence) && identity.roleConfidence > 0
+          ? identity.roleConfidence
+          : fallbackRoleText
+          ? 0.68
+          : null,
+      domainConfidence: Math.max(identity.domainConfidence || 0, 0.35),
+      matchConfidence: Math.max(identity.matchConfidence || 0, 0.74),
+      explanation: `${identity.explanation || 'No identity match.'} High-signal fallback identity applied.`,
+      jobTitle: identity.jobTitle || fallbackRoleText || null
+    };
+  }
+
   if (!identity.companyName) {
     if (isConfirmation && roleForMatch) {
       const recentWindowStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -1837,6 +1909,30 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
   }
 
   if (!shouldAutoCreate(event, identity)) {
+    if (highSignalEvent && identity.companyName) {
+      const highSignalFallbackRole = /\b(technical|engineer|developer|coding|projects?)\b/i.test(
+        buildEventText(event)
+      )
+        ? 'Technical opportunity'
+        : 'Intro call';
+      const fallbackRole = normalizeRoleForApplication(
+        event.role_title ||
+          identity.jobTitle ||
+          highSignalFallbackRole
+      );
+      const highSignalEventPayload = fallbackRole
+        ? {
+            ...event,
+            role_title: fallbackRole,
+            role_confidence: Number.isFinite(event.role_confidence) ? event.role_confidence : 0.68,
+            role_source: event.role_source || 'fallback',
+            role_explanation: event.role_explanation || 'High-signal scheduling fallback role.'
+          }
+        : event;
+      const application = await createApplicationFromEvent(db, userId, identity, highSignalEventPayload);
+      await attachEventToApplication(db, event.id, application.id);
+      return { action: 'created_application', applicationId: application.id, identity };
+    }
     const unassigned = buildUnassignedReason(event, identity);
     return { action: 'unassigned', reason: unassigned.reason, reasonDetail: unassigned.detail, identity };
   }

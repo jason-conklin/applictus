@@ -42,6 +42,46 @@ const STRONG_REJECTION_PATTERNS = [
   /unfortunately[, ]+(?:we )?(?:are )?(?:not|unable|declined|declining|will not|can(?:not|'t) move forward|pursue other candidates)/i
 ];
 
+const SCHEDULING_INTENT_PATTERNS = [
+  { pattern: /i would like to speak with you/i, score: 18 },
+  { pattern: /can speak with you/i, score: 14 },
+  { pattern: /let(?:'|’)s schedule/i, score: 16 },
+  { pattern: /\bavailable\b/i, score: 10 },
+  { pattern: /here are some times?/i, score: 16 },
+  { pattern: /what time works/i, score: 16 },
+  { pattern: /zoom (?:invitation|invite)/i, score: 15 },
+  { pattern: /calendar invite/i, score: 15 },
+  { pattern: /phone screen|screening call/i, score: 16 },
+  { pattern: /\binterview\b/i, score: 12 },
+  { pattern: /\b(schedule|scheduling)\b/i, score: 10 }
+];
+
+const SCHEDULING_JOB_CONTEXT_PATTERNS = [
+  /\bresume\b/i,
+  /\btranscript\b/i,
+  /\btechnical\b/i,
+  /\bposition\b/i,
+  /\brole\b/i,
+  /\bopportunity\b/i,
+  /\bprojects?\b/i,
+  /\bclasses?\b/i
+];
+
+const DAY_ABBR_PATTERN =
+  /\b(?:mon|monday|tue|tues|tuesday|wed|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday|sun|sunday)\b/i;
+const TIME_SLOT_PATTERN =
+  /\b(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\d{1,2}\s*(?:-|–|to)\s*\d{1,2}\s*(?:am|pm)\b|\d{1,2}:\d{2}\b)/i;
+const DATE_SLOT_PATTERN = /\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/;
+const TIME_SLOT_PATTERN_GLOBAL =
+  /\b(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\d{1,2}\s*(?:-|–|to)\s*\d{1,2}\s*(?:am|pm)\b|\d{1,2}:\d{2}\b)/gi;
+const DATE_SLOT_PATTERN_GLOBAL = /\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/gi;
+const EXPLICIT_SCHEDULED_PATTERNS = [
+  /calendar invite (?:has been|was) sent/i,
+  /invite has been sent/i,
+  /scheduled for\b/i,
+  /confirmed for\b/i
+];
+
 const PROFILE_SUBMITTED_RULE = {
   name: 'profile_submitted_confirmation',
   detectedType: 'confirmation',
@@ -309,6 +349,98 @@ function hasSubjectRolePattern(subject) {
   );
 }
 
+function detectSchedulingInterview({ subject, snippet, sender, body }) {
+  const rawSubject = String(subject || '');
+  const rawSnippet = String(snippet || '');
+  const rawBody = String(body || '');
+  const textSource = `${rawSubject}\n${rawSnippet}\n${rawBody}`.trim();
+  if (!textSource) {
+    return null;
+  }
+
+  const intentHits = [];
+  let schedulingScore = 0;
+  for (const rule of SCHEDULING_INTENT_PATTERNS) {
+    if (rule.pattern.test(textSource)) {
+      intentHits.push(rule.pattern.source);
+      schedulingScore += rule.score;
+    }
+  }
+  if (!intentHits.length) {
+    return null;
+  }
+
+  const lines = textSource
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const dayLineCount = lines.filter((line) => DAY_ABBR_PATTERN.test(line)).length;
+  const timeLineCount = lines.filter((line) => TIME_SLOT_PATTERN.test(line)).length;
+
+  const allDateMatches = textSource.match(DATE_SLOT_PATTERN_GLOBAL) || [];
+  const allTimeMatches = textSource.match(TIME_SLOT_PATTERN_GLOBAL) || [];
+  const explicitScheduled = EXPLICIT_SCHEDULED_PATTERNS.some((pattern) => pattern.test(textSource));
+
+  const hasStrongTimeEvidence =
+    dayLineCount >= 2 ||
+    timeLineCount >= 2 ||
+    allTimeMatches.length >= 2 ||
+    (allDateMatches.length >= 2 && /\b(available|times?|slots?)\b/i.test(textSource));
+  const hasAnyTimeEvidence = hasStrongTimeEvidence || dayLineCount >= 1 || allDateMatches.length >= 1;
+
+  if (!hasAnyTimeEvidence && !explicitScheduled) {
+    return null;
+  }
+
+  const jobContextHits = SCHEDULING_JOB_CONTEXT_PATTERNS.filter((pattern) => pattern.test(textSource));
+  const hasInterviewContext = /\b(interview|phone screen|screening|recruit(?:er|ing)|hiring)\b/i.test(textSource);
+
+  schedulingScore += hasStrongTimeEvidence ? 28 : 14;
+  schedulingScore += Math.min(jobContextHits.length * 5, 15);
+  if (explicitScheduled) {
+    schedulingScore += 10;
+  }
+  if (hasInterviewContext) {
+    schedulingScore += 8;
+  }
+
+  const threshold = 58;
+  if (schedulingScore < threshold) {
+    return null;
+  }
+
+  let detectedType = 'interview_requested';
+  if (explicitScheduled && (hasInterviewContext || hasStrongTimeEvidence)) {
+    detectedType = 'interview_scheduled';
+  } else if (!hasInterviewContext && jobContextHits.length === 0) {
+    detectedType = 'meeting_requested';
+  }
+
+  const confidenceBase = 0.74 + Math.min(schedulingScore, 100) * 0.0022;
+  const confidenceScore = Math.max(
+    detectedType === 'meeting_requested' ? 0.78 : 0.9,
+    Math.min(
+      detectedType === 'meeting_requested' ? 0.89 : detectedType === 'interview_scheduled' ? 0.97 : 0.96,
+      confidenceBase + (detectedType === 'interview_scheduled' ? 0.02 : 0)
+    )
+  );
+
+  const details = [
+    `scheduling score ${Math.round(schedulingScore)}`,
+    `${intentHits.length} intent phrase${intentHits.length === 1 ? '' : 's'}`,
+    hasStrongTimeEvidence ? 'strong time-slot evidence' : 'time-slot evidence',
+    jobContextHits.length ? `${jobContextHits.length} job-context signal${jobContextHits.length === 1 ? '' : 's'}` : 'no strong job-context signals'
+  ];
+
+  return {
+    isJobRelated: true,
+    detectedType,
+    confidenceScore,
+    explanation: `Detected recruiting scheduling request (${details.join(', ')}).`,
+    reason: 'human_recruiting_scheduling'
+  };
+}
+
 function findRuleMatch(rules, text, minConfidence, jobContext) {
   for (const rule of rules) {
     if (rule.confidence < minConfidence) {
@@ -381,6 +513,11 @@ function classifyEmail({ subject, snippet, sender, body }) {
         reason: LINKEDIN_CONFIRMATION_RULE.name
       };
     }
+  }
+
+  const schedulingSignal = detectSchedulingInterview({ subject, snippet, sender, body });
+  if (schedulingSignal) {
+    return schedulingSignal;
   }
 
   const minConfidence = 0.6;

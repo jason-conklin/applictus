@@ -137,6 +137,28 @@ const SYSTEM_INBOX_COMPANY_TERMS = new Set([
   'support'
 ]);
 
+const WEBSITE_DOMAIN_DENY_BASES = new Set([
+  'gmail',
+  'google',
+  'yahoo',
+  'outlook',
+  'hotmail',
+  'protonmail',
+  'icloud',
+  'linkedin',
+  'indeed',
+  'zoom',
+  'calendly',
+  'youtube',
+  'facebook',
+  'instagram',
+  'twitter',
+  'x',
+  'tiktok'
+]);
+
+const ACRONYM_TOKENS = new Set(['ai', 'it', 'hr', 'qa', 'ml', 'ui', 'ux']);
+
 const ROLE_COMPANY_PATTERNS = [
   {
     name: 'profile_submitted_subject',
@@ -882,6 +904,50 @@ function companyFromDomain(senderDomain) {
   return candidate || null;
 }
 
+function titleCaseToken(token) {
+  const lower = String(token || '').toLowerCase();
+  if (!lower) {
+    return '';
+  }
+  if (ACRONYM_TOKENS.has(lower)) {
+    return lower.toUpperCase();
+  }
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
+function extractCompanyFromWebsiteDomain(domain) {
+  const normalizedDomain = normalize(domain).toLowerCase().replace(/^www\./i, '');
+  if (!normalizedDomain) {
+    return null;
+  }
+  const parts = normalizedDomain.split('.').filter(Boolean);
+  if (parts.length < 2) {
+    return null;
+  }
+  const base = parts[parts.length - 2];
+  if (!base || WEBSITE_DOMAIN_DENY_BASES.has(base) || ATS_BASE_DOMAINS.has(base)) {
+    return null;
+  }
+
+  let baseCandidate = base;
+  if (baseCandidate.endsWith('it') && baseCandidate.length > 4 && !baseCandidate.includes('-')) {
+    baseCandidate = `${baseCandidate.slice(0, -2)}-it`;
+  }
+  const tokens = baseCandidate
+    .split(/[-_]+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .map(titleCaseToken);
+  if (!tokens.length) {
+    return null;
+  }
+  const candidate = cleanCompanyCandidate(tokens.join(' '));
+  if (!candidate || isInvalidCompanyCandidate(candidate)) {
+    return null;
+  }
+  return candidate;
+}
+
 function cleanCompanyCandidate(value) {
   if (!value) {
     return null;
@@ -1005,6 +1071,47 @@ function extractCompanyFromBodyText(bodyText) {
       companyConfidence: 0.88,
       explanation: 'Derived company from email signature.'
     };
+  }
+  return null;
+}
+
+function extractCompanyFromWebsiteSignature(bodyText) {
+  const text = String(bodyText || '');
+  if (!text.trim()) {
+    return null;
+  }
+
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(-25);
+
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i];
+    const domainMatches = line.match(
+      /(?:https?:\/\/)?(?:www\.)?([a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)+)/gi
+    );
+    if (!domainMatches || !domainMatches.length) {
+      continue;
+    }
+    for (const rawDomain of domainMatches) {
+      const normalized = String(rawDomain)
+        .toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .replace(/^www\./, '')
+        .replace(/\/.*$/, '')
+        .trim();
+      const candidate = extractCompanyFromWebsiteDomain(normalized);
+      if (!candidate) {
+        continue;
+      }
+      return {
+        companyName: candidate,
+        companyConfidence: 0.82,
+        explanation: 'Derived company from signature website domain.'
+      };
+    }
   }
   return null;
 }
@@ -2317,6 +2424,7 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   const providerSender = senderName ? isProviderName(senderName) : false;
   const atsSender = isAtsDomain(senderDomain);
   const signatureCompany = sanitizeCompanyCandidate(extractCompanyFromSignatureLines(bodyTextRaw));
+  const websiteSignatureCompany = sanitizeCompanyCandidate(extractCompanyFromWebsiteSignature(bodyTextRaw));
   const bodySignatureCompany =
     bodyTextRaw && (atsSender || providerSender)
       ? sanitizeCompanyCandidate(extractCompanyFromBodyText(bodyTextRaw))
@@ -2339,6 +2447,7 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
     : null;
   const companyMatch = pickBestCompany([
     signatureCompany,
+    websiteSignatureCompany,
     subjectCompany,
     senderCompany,
     bodyCompany,

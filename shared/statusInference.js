@@ -85,7 +85,13 @@ function buildCandidateFromEvent(event) {
     };
   }
 
-  if (event.detected_type === 'interview') {
+  if (
+    event.detected_type === 'interview' ||
+    event.detected_type === 'interview_requested' ||
+    event.detected_type === 'interview_request' ||
+    event.detected_type === 'interview_scheduled' ||
+    event.detected_type === 'meeting_requested'
+  ) {
     const completed = detectInterviewCompleted(event);
     if (completed.matched) {
       const confidence = Math.min(getEventConfidence(event), completed.confidence);
