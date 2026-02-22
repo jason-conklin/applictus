@@ -6990,7 +6990,7 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #applications-table {
-  --applications-grid-template: minmax(0, 1.9fr) minmax(0, 2.25fr) minmax(190px, 1.75fr) minmax(138px, 0.98fr) 76px;
+  --applications-grid-template: minmax(0, 1.9fr) minmax(0, 2fr) minmax(190px, 1.75fr) minmax(156px, 1.23fr) 76px;
 }
 
 #applications-table .applications-header,
@@ -7119,11 +7119,11 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #applications-table .table-row.application-row:nth-child(odd) {
-  background: #f7f8fa;
+  background: #fafbfd;
 }
 
 #applications-table .table-row.application-row:nth-child(even) {
-  background: #eef1f4;
+  background: #f5f7fa;
 }
 
 #applications-table .table-row.application-row:hover {
@@ -7165,7 +7165,7 @@ body.app-page-bg .topbar .nav-link.active {
   }
 
   #applications-table {
-    --applications-grid-template: minmax(0, 1.62fr) minmax(0, 1.8fr) minmax(162px, 1.5fr) minmax(126px, 0.93fr) 72px;
+    --applications-grid-template: minmax(0, 1.62fr) minmax(0, 1.62fr) minmax(162px, 1.5fr) minmax(138px, 1.08fr) 72px;
   }
 }
 
@@ -7202,6 +7202,6 @@ body.app-page-bg .topbar .nav-link.active {
   }
 
   #applications-table {
-    --applications-grid-template: minmax(0, 1.45fr) minmax(0, 1.75fr) minmax(110px, 0.97fr) minmax(112px, 0.93fr) 64px;
+    --applications-grid-template: minmax(0, 1.45fr) minmax(0, 1.62fr) minmax(110px, 0.97fr) minmax(120px, 1.06fr) 64px;
   }
 }
