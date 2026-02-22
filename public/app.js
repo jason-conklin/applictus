@@ -32,6 +32,12 @@ const STATUS_FILTER_OPTIONS = [
 
 const STATUS_FILTER_BY_UI = new Map(STATUS_FILTER_OPTIONS.map((option) => [option.value, option]));
 const STATUS_FILTER_BY_API = new Map(STATUS_FILTER_OPTIONS.map((option) => [option.api, option]));
+const MODAL_STATUS_OPTIONS = STATUS_FILTER_OPTIONS.filter((option) => option.api).map((option) => ({
+  value: option.api,
+  label: option.label,
+  tone: option.tone
+}));
+const MODAL_STATUS_BY_VALUE = new Map(MODAL_STATUS_OPTIONS.map((option) => [option.value, option]));
 
 const OFFER_KPI_STATUSES = new Set(['OFFER_RECEIVED', 'OFFER', 'OFFER_EXTENDED']);
 const INTERVIEW_KPI_STATUSES = new Set([
@@ -161,6 +167,37 @@ function getStatusBandTone(status) {
     return 'under_review';
   }
   return 'unknown';
+}
+
+function normalizeModalStatusValue(status) {
+  const normalized = normalizeStatusValue(status);
+  // Keep modal statuses intentionally compact and stable:
+  // offer variants -> offer_received, interview variants -> interview_requested,
+  // and legacy/ambiguous values -> applied.
+  if (normalized === 'OFFER_RECEIVED' || normalized === 'OFFER_EXTENDED') {
+    return 'OFFER_RECEIVED';
+  }
+  if (
+    normalized === 'INTERVIEW_REQUESTED' ||
+    normalized === 'INTERVIEW_SCHEDULED' ||
+    normalized === 'INTERVIEW_COMPLETED' ||
+    normalized === 'PHONE_SCREEN' ||
+    normalized === 'ONSITE'
+  ) {
+    return 'INTERVIEW_REQUESTED';
+  }
+  if (normalized === 'REJECTED') {
+    return 'REJECTED';
+  }
+  if (normalized === 'GHOSTED') {
+    return 'GHOSTED';
+  }
+  return 'APPLIED';
+}
+
+function getModalStatusOption(value) {
+  const normalized = normalizeModalStatusValue(value);
+  return MODAL_STATUS_BY_VALUE.get(normalized) || MODAL_STATUS_OPTIONS[0];
 }
 
 function renderStatusPill(status) {
@@ -334,7 +371,6 @@ const rcPreviewText = document.getElementById('rc-preview-text');
 let sessionUser = null;
 let currentDetail = null;
 let csrfToken = null;
-const STATUS_OPTIONS = Object.keys(STATUS_LABELS);
 const PAGE_SIZE = 25;
 const SYNC_DETAILS_KEY = 'applictus:syncDetailsOpen';
 const SESSION_NEW_APPLIED_KEY = 'applictus_new_applied';
@@ -493,14 +529,10 @@ function openAddModal() {
     placeholder: 'Role title',
     required: true
   });
-  const statusField = createSelectField({
+  const statusField = createModalStatusSelectField({
     label: 'Status',
     name: 'current_status',
-    value: 'APPLIED',
-    options: STATUS_OPTIONS.map((status) => ({
-      value: status,
-      label: STATUS_LABELS[status] || status
-    }))
+    value: 'APPLIED'
   });
   const dateField = createTextField({
     label: 'Date',
@@ -533,6 +565,7 @@ function openAddModal() {
     footer,
     allowBackdropClose: true,
     initialFocus: companyField.input,
+    onClose: () => statusField.destroy(),
     variantClass: APPLICATION_MODAL_VARIANT_CLASS
   });
 
@@ -1192,6 +1225,280 @@ function createSelectField({ label, name, value = '', options = [] }) {
   return { wrapper, select };
 }
 
+let modalStatusSelectId = 0;
+function createModalStatusSelectField({ label, name, value = 'APPLIED' }) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'modal-field modal-field--status';
+
+  const labelEl = document.createElement('span');
+  labelEl.textContent = label;
+  wrapper.appendChild(labelEl);
+
+  const hiddenInput = document.createElement('input');
+  hiddenInput.type = 'hidden';
+  hiddenInput.name = name;
+  wrapper.appendChild(hiddenInput);
+
+  const selectRoot = document.createElement('div');
+  selectRoot.className = 'status-select modal-status-select';
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'status-select__trigger modal-status-select__trigger';
+  trigger.setAttribute('aria-haspopup', 'listbox');
+  trigger.setAttribute('aria-expanded', 'false');
+
+  const triggerDot = document.createElement('span');
+  triggerDot.className = 'status-select__dot';
+  triggerDot.dataset.tone = 'applied';
+  triggerDot.setAttribute('aria-hidden', 'true');
+
+  const triggerLabel = document.createElement('span');
+  triggerLabel.className = 'status-select__label';
+  triggerLabel.textContent = 'Applied';
+
+  const triggerChevron = document.createElement('span');
+  triggerChevron.className = 'status-select__chevron';
+  triggerChevron.setAttribute('aria-hidden', 'true');
+  triggerChevron.innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>';
+
+  trigger.append(triggerDot, triggerLabel, triggerChevron);
+
+  const menu = document.createElement('div');
+  menu.className = 'status-menu modal-status-menu hidden';
+  menu.role = 'listbox';
+  const menuId = `modal-status-menu-${++modalStatusSelectId}`;
+  menu.id = menuId;
+  trigger.setAttribute('aria-controls', menuId);
+
+  const items = MODAL_STATUS_OPTIONS.map((option) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'status-menu__item modal-status-menu__item';
+    item.dataset.value = option.value;
+    item.dataset.tone = option.tone;
+    item.setAttribute('role', 'option');
+    item.setAttribute('aria-selected', 'false');
+    item.tabIndex = -1;
+
+    const dot = document.createElement('span');
+    dot.className = 'status-menu__dot';
+    dot.dataset.tone = option.tone;
+    dot.setAttribute('aria-hidden', 'true');
+
+    const labelNode = document.createElement('span');
+    labelNode.className = 'status-menu__label';
+    labelNode.textContent = option.label;
+
+    const check = document.createElement('span');
+    check.className = 'status-menu__check';
+    check.setAttribute('aria-hidden', 'true');
+    check.textContent = '✓';
+
+    item.append(dot, labelNode, check);
+    return item;
+  });
+  menu.append(...items);
+
+  selectRoot.append(trigger, menu);
+  wrapper.appendChild(selectRoot);
+
+  let isOpen = false;
+  let highlightIndex = -1;
+
+  const setHighlight = (index, { focus = false } = {}) => {
+    if (!items.length) {
+      highlightIndex = -1;
+      return;
+    }
+    const safeIndex = ((index % items.length) + items.length) % items.length;
+    highlightIndex = safeIndex;
+    items.forEach((item, itemIndex) => {
+      item.classList.toggle('is-highlighted', itemIndex === safeIndex);
+      item.tabIndex = itemIndex === safeIndex ? 0 : -1;
+    });
+    if (focus) {
+      items[safeIndex].focus();
+    }
+  };
+
+  const syncUi = () => {
+    const selectedOption = getModalStatusOption(hiddenInput.value);
+    hiddenInput.value = selectedOption.value;
+    triggerLabel.textContent = selectedOption.label;
+    triggerDot.dataset.tone = selectedOption.tone;
+    items.forEach((item, index) => {
+      const selected = item.dataset.value === selectedOption.value;
+      item.setAttribute('aria-selected', selected ? 'true' : 'false');
+      item.classList.toggle('is-selected', selected);
+      item.tabIndex = selected ? 0 : -1;
+      if (selected) {
+        highlightIndex = index;
+      }
+    });
+  };
+
+  const setValue = (nextValue, { emit = true } = {}) => {
+    const nextOption = getModalStatusOption(nextValue);
+    const changed = hiddenInput.value !== nextOption.value;
+    hiddenInput.value = nextOption.value;
+    syncUi();
+    if (emit && changed) {
+      hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+      hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  };
+
+  const close = ({ focusTrigger = false } = {}) => {
+    if (!isOpen) {
+      return;
+    }
+    isOpen = false;
+    highlightIndex = -1;
+    selectRoot.classList.remove('is-open');
+    menu.classList.add('hidden');
+    trigger.setAttribute('aria-expanded', 'false');
+    if (focusTrigger) {
+      trigger.focus();
+    }
+  };
+
+  const controller = {
+    root: selectRoot,
+    close,
+    isOpen: () => isOpen
+  };
+
+  const setOpen = (nextOpen, { focusSelected = false } = {}) => {
+    const open = Boolean(nextOpen);
+    if (!open) {
+      close();
+      return;
+    }
+    modalStatusSelectControllers.forEach((instance) => {
+      if (instance !== controller) {
+        instance.close();
+      }
+    });
+    isOpen = true;
+    selectRoot.classList.add('is-open');
+    menu.classList.remove('hidden');
+    trigger.setAttribute('aria-expanded', 'true');
+    syncUi();
+    const selectedIndex = items.findIndex((item) => item.getAttribute('aria-selected') === 'true');
+    setHighlight(selectedIndex >= 0 ? selectedIndex : 0, { focus: focusSelected });
+  };
+
+  trigger.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setOpen(!isOpen, { focusSelected: !isOpen });
+  });
+
+  trigger.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!isOpen) {
+        setOpen(true, { focusSelected: true });
+        return;
+      }
+      const delta = event.key === 'ArrowDown' ? 1 : -1;
+      setHighlight(highlightIndex + delta, { focus: true });
+      return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(!isOpen, { focusSelected: !isOpen });
+      return;
+    }
+    if (event.key === 'Escape' && isOpen) {
+      event.preventDefault();
+      event.stopPropagation();
+      close({ focusTrigger: true });
+    }
+  });
+
+  menu.addEventListener('click', (event) => {
+    const item = event.target.closest('.status-menu__item[data-value]');
+    if (!item) {
+      return;
+    }
+    event.preventDefault();
+    setValue(item.dataset.value || 'APPLIED');
+    close({ focusTrigger: true });
+  });
+
+  menu.addEventListener('keydown', (event) => {
+    if (!items.length) {
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      event.stopPropagation();
+      const nextIndex = highlightIndex >= 0 ? highlightIndex + 1 : 0;
+      setHighlight(nextIndex, { focus: true });
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      event.stopPropagation();
+      const nextIndex = highlightIndex >= 0 ? highlightIndex - 1 : items.length - 1;
+      setHighlight(nextIndex, { focus: true });
+      return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      event.stopPropagation();
+      const activeItem = items[highlightIndex] || event.target.closest('.status-menu__item[data-value]') || items[0];
+      setValue(activeItem.dataset.value || 'APPLIED');
+      close({ focusTrigger: true });
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      close({ focusTrigger: true });
+      return;
+    }
+    if (event.key === 'Tab') {
+      close();
+    }
+  });
+
+  menu.addEventListener('mousemove', (event) => {
+    const item = event.target.closest('.status-menu__item[data-value]');
+    if (!item) {
+      return;
+    }
+    const itemIndex = items.indexOf(item);
+    if (itemIndex >= 0 && itemIndex !== highlightIndex) {
+      setHighlight(itemIndex);
+    }
+  });
+
+  modalStatusSelectControllers.add(controller);
+  setValue(value, { emit: false });
+
+  return {
+    wrapper,
+    input: hiddenInput,
+    select: {
+      get value() {
+        return hiddenInput.value;
+      },
+      set value(nextValue) {
+        setValue(nextValue, { emit: false });
+      }
+    },
+    destroy() {
+      modalStatusSelectControllers.delete(controller);
+    }
+  };
+}
+
 function formatDate(value) {
   const date = parseDate(value);
   return date ? date.toLocaleDateString() : '—';
@@ -1781,6 +2088,7 @@ function getStatusMenuItems() {
 
 let statusMenuOpen = false;
 let statusMenuHighlightIndex = -1;
+const modalStatusSelectControllers = new Set();
 
 function setStatusMenuHighlight(index, { focus = false } = {}) {
   const items = getStatusMenuItems();
@@ -3387,10 +3695,6 @@ async function openEditModal(application) {
     placeholder: 'Referral, LinkedIn, etc.'
   });
   const isManualStatus = application.status_source === 'user' || application.user_override;
-  const statusOptions = STATUS_OPTIONS.map((status) => ({
-    value: status,
-    label: STATUS_LABELS[status] || status
-  }));
   const manualToggleRow = document.createElement('label');
   manualToggleRow.className = 'checkbox-row modal-checkbox-row';
   const manualToggle = document.createElement('input');
@@ -3402,11 +3706,10 @@ async function openEditModal(application) {
 
   const statusFields = document.createElement('div');
   statusFields.className = `stack modal-edit-status ${isManualStatus ? '' : 'hidden'}`;
-  const statusField = createSelectField({
+  const statusField = createModalStatusSelectField({
     label: 'Status',
     name: 'current_status',
-    value: application.current_status || 'UNKNOWN',
-    options: statusOptions
+    value: application.current_status || 'UNKNOWN'
   });
   const noteField = createTextField({
     label: 'Note (optional)',
@@ -3455,6 +3758,7 @@ async function openEditModal(application) {
     footer,
     allowBackdropClose: false,
     initialFocus: companyField.input,
+    onClose: () => statusField.destroy(),
     variantClass: APPLICATION_MODAL_VARIANT_CLASS
   });
 
@@ -5191,6 +5495,13 @@ document.addEventListener('click', (event) => {
     if (!filterStatusSelect.contains(event.target)) {
       closeStatusMenu();
     }
+  }
+  if (modalStatusSelectControllers.size) {
+    modalStatusSelectControllers.forEach((controller) => {
+      if (controller.isOpen() && !controller.root.contains(event.target)) {
+        controller.close();
+      }
+    });
   }
 });
 

@@ -3377,32 +3377,32 @@ textarea:focus-visible {
 
 .status-select__dot[data-tone='any'],
 .status-menu__dot[data-tone='any'] {
-  background: var(--status-pill-unknown-border);
+  background: var(--status-dot-any);
 }
 
 .status-select__dot[data-tone='applied'],
 .status-menu__dot[data-tone='applied'] {
-  background: var(--status-pill-applied-border);
+  background: var(--status-dot-applied);
 }
 
 .status-select__dot[data-tone='interview_requested'],
 .status-menu__dot[data-tone='interview_requested'] {
-  background: var(--status-pill-interview-border);
+  background: var(--status-dot-interview);
 }
 
 .status-select__dot[data-tone='offer_received'],
 .status-menu__dot[data-tone='offer_received'] {
-  background: var(--status-pill-offer-border);
+  background: var(--status-dot-offer);
 }
 
 .status-select__dot[data-tone='rejected'],
 .status-menu__dot[data-tone='rejected'] {
-  background: var(--status-pill-rejected-border);
+  background: var(--status-dot-rejected);
 }
 
 .status-select__dot[data-tone='ghosted'],
 .status-menu__dot[data-tone='ghosted'] {
-  background: #8b5cf6;
+  background: var(--status-dot-ghosted);
 }
 
 .filter-field__control select,
@@ -4343,6 +4343,12 @@ details summary {
   --status-pill-unknown-bg: #e5e7eb;
   --status-pill-unknown-border: #d1d5db;
   --status-pill-unknown-text: #374151;
+  --status-dot-applied: #f4b400;
+  --status-dot-interview: #2f6bff;
+  --status-dot-offer: #22c55e;
+  --status-dot-rejected: #ef4444;
+  --status-dot-ghosted: #a855f7;
+  --status-dot-any: #98a2b3;
 }
 
 .appl-statusPill {
@@ -4746,6 +4752,94 @@ details summary {
     0 0 0 3px rgba(60, 120, 255, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.84),
     inset 0 2px 4px rgba(20, 40, 80, 0.05);
+}
+
+.modal--application-form .modal-status-select {
+  position: relative;
+  width: 100%;
+  min-height: 46px;
+}
+
+.modal--application-form .modal-status-select__trigger {
+  width: 100%;
+  min-height: 46px;
+  border-radius: 12px;
+  border: 1px solid rgba(40, 80, 160, 0.14);
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.96), rgba(241, 246, 252, 0.95));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 2px 4px rgba(20, 40, 80, 0.05);
+  padding: 0 13px 0 12px;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    background 150ms ease,
+    color 150ms ease;
+}
+
+.modal--application-form .modal-status-select__trigger:hover {
+  border-color: rgba(40, 80, 160, 0.2);
+  background: linear-gradient(180deg, rgba(252, 254, 255, 0.98), rgba(245, 249, 255, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.76),
+    inset 0 2px 4px rgba(20, 40, 80, 0.05),
+    0 6px 14px rgba(20, 40, 80, 0.08);
+}
+
+.modal--application-form .modal-status-select__trigger:focus-visible {
+  outline: none;
+  border-color: rgba(60, 120, 255, 0.58);
+  background: linear-gradient(180deg, rgba(252, 254, 255, 0.98), rgba(245, 249, 255, 0.96));
+  box-shadow:
+    0 0 0 3px rgba(60, 120, 255, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84),
+    inset 0 2px 4px rgba(20, 40, 80, 0.05);
+}
+
+.modal--application-form .modal-status-select.is-open .modal-status-select__trigger {
+  border-color: rgba(60, 120, 255, 0.38);
+  background: linear-gradient(180deg, rgba(252, 254, 255, 0.98), rgba(247, 251, 255, 0.96));
+  box-shadow:
+    0 0 0 2px rgba(60, 120, 255, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84),
+    inset 0 2px 4px rgba(20, 40, 80, 0.05);
+}
+
+.modal--application-form .modal-status-select .status-select__label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1e304d;
+}
+
+.modal--application-form .modal-status-select .status-select__dot {
+  width: 10px;
+  height: 10px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+.modal--application-form .modal-status-menu {
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  min-width: 100%;
+  z-index: 360;
+  border-radius: 14px;
+  border: 1px solid rgba(40, 80, 160, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 250, 255, 0.95));
+  box-shadow:
+    0 18px 40px rgba(20, 40, 80, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.62);
+}
+
+.modal--application-form .modal-status-menu__item {
+  min-height: 38px;
+  border-radius: 10px;
+}
+
+.modal--application-form .modal-status-menu__item .status-menu__dot {
+  width: 10px;
+  height: 10px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.88);
 }
 
 .modal--application-form .modal-checkbox-row {
