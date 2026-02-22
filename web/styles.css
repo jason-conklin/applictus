@@ -6968,7 +6968,7 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #applications-table {
-  --applications-grid-template: minmax(0, 2.15fr) minmax(0, 3fr) minmax(146px, 1.06fr) minmax(130px, 0.92fr) 76px;
+  --applications-grid-template: minmax(0, 2.15fr) minmax(0, 3fr) minmax(138px, 1fr) minmax(138px, 0.98fr) 76px;
 }
 
 #applications-table .applications-header,
@@ -6980,12 +6980,13 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #applications-table .applications-header {
-  min-height: 48px;
-  border-radius: 12px;
-  border: 1px solid rgba(24, 53, 99, 0.12);
-  background: linear-gradient(180deg, #f8fbff 0%, #f1f5fb 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  padding: 6px 0;
+  min-height: 50px;
+  border-radius: 0;
+  border: 0;
+  border-bottom: 1px solid var(--dash-border);
+  background: rgba(15, 23, 42, 0.018);
+  box-shadow: none;
+  padding: 8px 0 10px;
 }
 
 #applications-table .table-row.application-row {
@@ -7006,6 +7007,12 @@ body.app-page-bg .topbar .nav-link.active {
 #applications-table .applications-header > button.sort-btn {
   min-height: 34px;
   padding: 0 14px;
+  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  line-height: 1;
+  color: var(--dash-text-muted);
 }
 
 #applications-table .applications-header > button.header-status {
@@ -7013,6 +7020,22 @@ body.app-page-bg .topbar .nav-link.active {
   padding-right: 14px;
   justify-content: center;
   text-align: center;
+}
+
+#applications-table .applications-header .table-select-all-text {
+  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  line-height: 1;
+  color: var(--dash-text-muted);
+}
+
+#applications-table .applications-header .table-col-company,
+#applications-table .applications-header .table-col-role,
+#applications-table .applications-header .table-col-activity {
+  justify-content: flex-start;
+  text-align: left;
 }
 
 #applications-table .applications-header .table-col-status,
@@ -7084,7 +7107,7 @@ body.app-page-bg .topbar .nav-link.active {
   }
 
   #applications-table {
-    --applications-grid-template: minmax(0, 1.8fr) minmax(0, 2.4fr) minmax(132px, 1fr) minmax(122px, 0.9fr) 72px;
+    --applications-grid-template: minmax(0, 1.8fr) minmax(0, 2.4fr) minmax(128px, 0.97fr) minmax(126px, 0.93fr) 72px;
   }
 }
 
@@ -7121,6 +7144,6 @@ body.app-page-bg .topbar .nav-link.active {
   }
 
   #applications-table {
-    --applications-grid-template: minmax(0, 1.45fr) minmax(0, 1.75fr) minmax(114px, 1fr) minmax(108px, 0.9fr) 64px;
+    --applications-grid-template: minmax(0, 1.45fr) minmax(0, 1.75fr) minmax(110px, 0.97fr) minmax(112px, 0.93fr) 64px;
   }
 }
