@@ -5553,6 +5553,19 @@ details summary {
 .account-copy-btn svg {
   width: 16px;
   height: 16px;
+  stroke: #111827;
+}
+
+.account-copy-btn {
+  color: #111827;
+}
+
+.account-copy-btn:hover:not(:disabled) {
+  color: #0f172a;
+}
+
+.account-copy-btn:hover:not(:disabled) svg {
+  stroke: #0f172a;
 }
 
 .icon-btn:hover:not(:disabled) {
