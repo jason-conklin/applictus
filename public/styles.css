@@ -1441,7 +1441,10 @@ body.auth-bg-debug-flash .animated-bg-icon {
 }
 
 .acct-menu-item {
-  gap: 10px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
   padding: 10px 12px;
 }
 
@@ -1451,6 +1454,7 @@ body.auth-bg-debug-flash .animated-bg-icon {
   display: grid;
   place-items: center;
   flex: 0 0 18px;
+  justify-self: center;
   color: rgba(28, 50, 84, 0.74);
   opacity: 0.85;
 }
