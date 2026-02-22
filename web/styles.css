@@ -6990,7 +6990,7 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #applications-table {
-  --applications-grid-template: minmax(0, 2.15fr) minmax(0, 3fr) minmax(138px, 1fr) minmax(138px, 0.98fr) 76px;
+  --applications-grid-template: minmax(0, 1.9fr) minmax(0, 2.6fr) minmax(166px, 1.35fr) minmax(138px, 0.98fr) 76px;
 }
 
 #applications-table .applications-header,
@@ -7165,7 +7165,7 @@ body.app-page-bg .topbar .nav-link.active {
   }
 
   #applications-table {
-    --applications-grid-template: minmax(0, 1.8fr) minmax(0, 2.4fr) minmax(128px, 0.97fr) minmax(126px, 0.93fr) 72px;
+    --applications-grid-template: minmax(0, 1.62fr) minmax(0, 2.12fr) minmax(148px, 1.18fr) minmax(126px, 0.93fr) 72px;
   }
 }
 
