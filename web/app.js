@@ -228,8 +228,10 @@ const googleAuth = document.getElementById('google-auth');
 const accountLogout = document.getElementById('account-logout');
 const accountEmail = document.getElementById('account-email');
 const accountEmailCopy = document.getElementById('account-email-copy');
+const accountEmailCopyFeedback = document.getElementById('account-email-copy-feedback');
 const accountMethods = document.getElementById('account-methods');
 const accountPasswordButton = document.getElementById('account-password-button');
+const accountPasswordButtonLabel = document.getElementById('account-password-button-label');
 const accountPasswordHint = document.getElementById('account-password-hint');
 const accountGmailStatus = document.getElementById('account-gmail-status');
 const accountGmailEmail = document.getElementById('account-gmail-email');
@@ -304,7 +306,10 @@ const kpiOffers = document.getElementById('kpi-offers');
 const kpiInterviews = document.getElementById('kpi-interviews');
 const kpiRejected = document.getElementById('kpi-rejected');
 const accountEmailSync = document.getElementById('account-email-sync');
-const accountSyncDays = document.getElementById('account-sync-days');
+const accountSyncMenuButton = document.getElementById('account-sync-menu-button');
+const accountSyncRangeMenu = document.getElementById('account-sync-range-menu');
+const accountSyncActionGroup = document.getElementById('account-sync-action-group');
+const accountSyncHelperText = document.getElementById('account-sync-helper-text');
 const accountSyncStatus = document.getElementById('account-sync-status');
 const accountSyncResult = document.getElementById('account-sync-result');
 const gmailHint = document.getElementById('gmail-hint');
@@ -499,6 +504,9 @@ renderSyncSummary({ status: 'idle', rawDetails: '' });
 let syncRangeMenuOpen = false;
 let lastSyncOption = 'since_last';
 updateSyncOptionSelection(lastSyncOption);
+let accountSyncRangeMenuOpen = false;
+let accountLastSyncOption = 'since_last';
+updateAccountSyncOptionSelection(accountLastSyncOption);
 clearKpiNewSignals();
 clearKpiDeltaSignals();
 
@@ -792,8 +800,12 @@ function setSyncDisabled(isDisabled) {
     accountEmailSync.disabled = isDisabled;
     accountEmailSync.setAttribute('aria-busy', String(!!isDisabled));
   }
+  if (accountSyncMenuButton) {
+    accountSyncMenuButton.disabled = isDisabled;
+  }
   if (isDisabled) {
     closeSyncRangeMenu();
+    closeAccountSyncRangeMenu();
   }
 }
 
@@ -809,6 +821,20 @@ function setSyncRangeMenuOpen(open) {
 
 function closeSyncRangeMenu() {
   setSyncRangeMenuOpen(false);
+}
+
+function setAccountSyncRangeMenuOpen(open) {
+  accountSyncRangeMenuOpen = Boolean(open);
+  if (accountSyncRangeMenu) {
+    accountSyncRangeMenu.classList.toggle('hidden', !accountSyncRangeMenuOpen);
+  }
+  if (accountSyncMenuButton) {
+    accountSyncMenuButton.setAttribute('aria-expanded', accountSyncRangeMenuOpen ? 'true' : 'false');
+  }
+}
+
+function closeAccountSyncRangeMenu() {
+  setAccountSyncRangeMenuOpen(false);
 }
 
 function updateSyncOptionSelection(option) {
@@ -829,20 +855,56 @@ function updateSyncOptionSelection(option) {
   });
 }
 
-function updateSyncHelperText() {
-  if (!syncHelperText) {
+function updateAccountSyncOptionSelection(option) {
+  const normalized = String(option || 'since_last');
+  accountLastSyncOption = normalized;
+  if (!accountSyncRangeMenu) {
     return;
   }
+  const items = Array.from(accountSyncRangeMenu.querySelectorAll('[data-sync-option]'));
+  items.forEach((item) => {
+    const selected = item.dataset.syncOption === normalized;
+    item.classList.toggle('is-selected', selected);
+    item.setAttribute('aria-checked', selected ? 'true' : 'false');
+    const check = item.querySelector('.sync-range-check');
+    if (check) {
+      check.textContent = selected ? '✓' : '';
+    }
+  });
+}
+
+function updateSyncHelperText() {
+  const setHelper = (text) => {
+    if (syncHelperText) {
+      syncHelperText.textContent = text;
+    }
+    if (accountSyncHelperText) {
+      accountSyncHelperText.textContent = text;
+    }
+  };
+
   if (!emailState.connected) {
-    syncHelperText.textContent = '';
+    setHelper('');
     return;
   }
   if (!emailState.lastSyncedAt) {
-    syncHelperText.textContent = 'First scan checks the last 30 days';
+    setHelper('First scan checks the last 30 days');
     return;
   }
   const label = formatSyncDateTime(emailState.lastSyncedAt);
-  syncHelperText.textContent = label ? `Scans new emails since ${label}` : 'Scans new emails since last scan';
+  setHelper(label ? `Scans new emails since ${label}` : 'Scans new emails since last scan');
+}
+
+function updateAccountSyncResultLine() {
+  if (!accountSyncResult) {
+    return;
+  }
+  if (!emailState.connected || !emailState.lastSyncStats) {
+    accountSyncResult.textContent = '';
+    return;
+  }
+  const metricsLine = buildMetricsLine(deriveSyncMetrics(emailState.lastSyncStats, ''));
+  accountSyncResult.textContent = metricsLine;
 }
 
 function getDashboardEmptyStateHtml() {
@@ -2623,25 +2685,48 @@ function renderAccountPanel(user = sessionUser) {
   }
   if (accountEmailCopy) {
     accountEmailCopy.disabled = !user.email;
+    delete accountEmailCopy.dataset.copied;
+  }
+  if (accountEmailCopyFeedback) {
+    accountEmailCopyFeedback.textContent = '';
+    accountEmailCopyFeedback.classList.remove('is-visible');
   }
   if (accountMethods) {
     const provider = user.auth_provider || 'password';
     const hasGoogle = String(provider).includes('google');
     const hasPassword = Boolean(user.has_password);
-    const chips = [
-      { label: 'Password', enabled: hasPassword },
-      { label: 'Google', enabled: hasGoogle }
+    const methodBadges = [
+      {
+        key: 'password',
+        label: 'Password',
+        enabled: hasPassword,
+        icon:
+          '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8.5" cy="15.5" r="3.5"></circle><path d="M12 15.5H21"></path><path d="M17 12.5V18.5"></path></svg>'
+      },
+      {
+        key: 'google',
+        label: 'Google',
+        enabled: hasGoogle,
+        icon:
+          '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><path d="M4 12h16"></path><path d="M12 4c2.6 2.1 4 5 4 8s-1.4 5.9-4 8c-2.6-2.1-4-5-4-8s1.4-5.9 4-8z"></path></svg>'
+      }
     ];
-    accountMethods.innerHTML = chips
+    accountMethods.innerHTML = methodBadges
       .map(
-        (chip) =>
-          `<span class="method-chip" data-state="${chip.enabled ? 'on' : 'off'}"><span class="dot"></span>${
-            chip.label
-          }</span>`
+        (method) =>
+          `<span class="auth-badge" data-provider="${method.key}" data-state="${
+            method.enabled ? 'on' : 'off'
+          }" aria-label="${method.label} ${method.enabled ? 'enabled' : 'not enabled'}">
+            <span class="auth-badge-dot" aria-hidden="true"></span>
+            <span class="auth-badge-icon" aria-hidden="true">${method.icon}</span>
+            <span class="auth-badge-label">${method.label}</span>
+          </span>`
       )
       .join('');
   }
-  if (accountPasswordButton) {
+  if (accountPasswordButtonLabel) {
+    accountPasswordButtonLabel.textContent = user.has_password ? 'Change password' : 'Set password';
+  } else if (accountPasswordButton) {
     accountPasswordButton.textContent = user.has_password ? 'Change password' : 'Set password';
   }
   if (accountPasswordHint) {
@@ -3007,6 +3092,7 @@ async function refreshEmailStatus() {
       if (syncConnectCta) syncConnectCta.classList.remove('hidden');
       closeSyncRangeMenu();
       updateSyncHelperText();
+      updateAccountSyncResultLine();
       renderSyncSummary({ status: 'not_connected', rawDetails: '' });
       return;
     }
@@ -3041,6 +3127,7 @@ async function refreshEmailStatus() {
       if (syncConnectCta) syncConnectCta.classList.remove('hidden');
       closeSyncRangeMenu();
       updateSyncHelperText();
+      updateAccountSyncResultLine();
       renderSyncSummary({ status: 'not_connected', rawDetails: '' });
       return;
     }
@@ -3070,6 +3157,7 @@ async function refreshEmailStatus() {
       if (emailState.lastSyncStats && syncUiState.state !== 'running') {
         renderSyncSummary({ status: 'success', result: emailState.lastSyncStats, rawDetails: '' });
       }
+      updateAccountSyncResultLine();
     } else {
       emailState.lastSyncedAt = null;
       emailState.lastSyncStats = null;
@@ -3086,6 +3174,7 @@ async function refreshEmailStatus() {
       if (syncConnectCta) syncConnectCta.classList.remove('hidden');
       closeSyncRangeMenu();
       renderSyncSummary({ status: 'not_connected', rawDetails: '' });
+      updateAccountSyncResultLine();
     }
     updateSyncHelperText();
     refreshDashboardEmptyStateIfNeeded();
@@ -3108,6 +3197,7 @@ async function refreshEmailStatus() {
     if (syncConnectCta) syncConnectCta.classList.remove('hidden');
     closeSyncRangeMenu();
     updateSyncHelperText();
+    updateAccountSyncResultLine();
     refreshDashboardEmptyStateIfNeeded();
     renderSyncSummary({ status: 'not_connected', rawDetails: '' });
   }
@@ -3375,10 +3465,16 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
     return;
   }
   const isDashboardScanButton = buttonEl === emailSync;
-  const scanTextEl = isDashboardScanButton ? buttonEl?.querySelector('.scan-text') : null;
+  const isAccountScanButton = buttonEl === accountEmailSync;
+  const isScanButton = Boolean(buttonEl?.classList.contains('btn-scan'));
+  const scanTextEl = isScanButton ? buttonEl?.querySelector('.scan-text') : null;
   closeSyncRangeMenu();
-  if (buttonEl === emailSync && syncMenuButton) {
+  closeAccountSyncRangeMenu();
+  if (isDashboardScanButton && syncMenuButton) {
     syncMenuButton.disabled = true;
+  }
+  if (isAccountScanButton && accountSyncMenuButton) {
+    accountSyncMenuButton.disabled = true;
   }
   const normalizedMode = mode === 'days' ? 'days' : 'since_last';
   const normalizedDays =
@@ -3402,7 +3498,7 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
   if (buttonEl) {
     buttonEl.disabled = true;
     buttonEl.setAttribute('aria-busy', 'true');
-    if (isDashboardScanButton) {
+    if (isScanButton) {
       buttonEl.classList.add('is-scanning');
       buttonEl.dataset.originalScanText = scanTextEl?.textContent || 'Scan inbox';
       if (scanTextEl) {
@@ -3509,7 +3605,7 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
     if (buttonEl) {
       buttonEl.disabled = false;
       buttonEl.setAttribute('aria-busy', 'false');
-      if (isDashboardScanButton) {
+      if (isScanButton) {
         buttonEl.classList.remove('is-scanning');
         if (scanTextEl) {
           scanTextEl.textContent = buttonEl.dataset.originalScanText || 'Scan inbox';
@@ -3523,6 +3619,9 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
     }
     if (buttonEl === emailSync && syncMenuButton) {
       syncMenuButton.disabled = !emailState.connected;
+    }
+    if (buttonEl === accountEmailSync && accountSyncMenuButton) {
+      accountSyncMenuButton.disabled = !emailState.connected;
     }
   }
 }
@@ -3551,6 +3650,36 @@ async function runDashboardSyncOption(option) {
       resultEl: syncResult,
       buttonEl: emailSync
     });
+  }
+}
+
+async function runAccountSyncOption(option) {
+  if (!emailState.connected) {
+    return;
+  }
+  const value = String(option || 'since_last');
+  if (value === 'since_last') {
+    await runEmailSync({
+      mode: 'since_last',
+      statusEl: accountSyncStatus,
+      resultEl: accountSyncResult,
+      buttonEl: accountEmailSync
+    });
+  } else {
+    const days = Number(value);
+    if (!Number.isFinite(days) || days <= 0) {
+      return;
+    }
+    await runEmailSync({
+      mode: 'days',
+      days,
+      statusEl: accountSyncStatus,
+      resultEl: accountSyncResult,
+      buttonEl: accountEmailSync
+    });
+  }
+  if (accountSyncStatus?.textContent === 'Complete') {
+    updateAccountSyncResultLine();
   }
 }
 
@@ -5387,6 +5516,8 @@ if (contactForm && !contactForm.dataset.bound) {
   });
 }
 
+let accountCopyFeedbackTimer = null;
+
 if (accountEmailCopy && !accountEmailCopy.dataset.bound) {
   accountEmailCopy.dataset.bound = '1';
   accountEmailCopy.addEventListener('click', async () => {
@@ -5411,11 +5542,26 @@ if (accountEmailCopy && !accountEmailCopy.dataset.bound) {
       }
       temp.remove();
     }
-    accountEmailCopy.textContent = 'Copied';
-    window.setTimeout(() => {
-      if (accountEmailCopy) {
-        accountEmailCopy.textContent = 'Copy';
+    if (accountCopyFeedbackTimer) {
+      window.clearTimeout(accountCopyFeedbackTimer);
+      accountCopyFeedbackTimer = null;
+    }
+    if (accountEmailCopyFeedback) {
+      accountEmailCopyFeedback.textContent = 'Copied';
+      accountEmailCopyFeedback.classList.add('is-visible');
+    } else {
+      showNotice('Copied', 'Email');
+    }
+    accountEmailCopy.dataset.copied = '1';
+    accountCopyFeedbackTimer = window.setTimeout(() => {
+      if (accountEmailCopyFeedback) {
+        accountEmailCopyFeedback.textContent = '';
+        accountEmailCopyFeedback.classList.remove('is-visible');
       }
+      if (accountEmailCopy) {
+        delete accountEmailCopy.dataset.copied;
+      }
+      accountCopyFeedbackTimer = null;
     }, 1200);
   });
 }
@@ -5491,6 +5637,11 @@ document.addEventListener('click', (event) => {
       closeSyncRangeMenu();
     }
   }
+  if (accountSyncRangeMenuOpen && accountSyncActionGroup) {
+    if (!accountSyncActionGroup.contains(event.target)) {
+      closeAccountSyncRangeMenu();
+    }
+  }
   if (statusMenuOpen && filterStatusSelect) {
     if (!filterStatusSelect.contains(event.target)) {
       closeStatusMenu();
@@ -5512,6 +5663,10 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && syncRangeMenuOpen) {
     closeSyncRangeMenu();
     syncMenuButton?.focus();
+  }
+  if (event.key === 'Escape' && accountSyncRangeMenuOpen) {
+    closeAccountSyncRangeMenu();
+    accountSyncMenuButton?.focus();
   }
   if (event.key === 'Escape' && statusMenuOpen) {
     closeStatusMenu({ focusTrigger: true });
@@ -5831,11 +5986,63 @@ syncMenuButton?.addEventListener('click', (event) => {
   if (syncMenuButton.disabled) {
     return;
   }
+  closeAccountSyncRangeMenu();
   setSyncRangeMenuOpen(!syncRangeMenuOpen);
   if (syncRangeMenuOpen) {
     const selected = syncRangeMenu?.querySelector('.sync-range-menu-item.is-selected');
     const first = syncRangeMenu?.querySelector('.sync-range-menu-item');
     (selected || first)?.focus();
+  }
+});
+
+accountEmailSync?.addEventListener('click', async () => {
+  updateAccountSyncOptionSelection('since_last');
+  await runAccountSyncOption('since_last');
+});
+
+accountSyncMenuButton?.addEventListener('click', (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  if (accountSyncMenuButton.disabled) {
+    return;
+  }
+  closeSyncRangeMenu();
+  setAccountSyncRangeMenuOpen(!accountSyncRangeMenuOpen);
+  if (accountSyncRangeMenuOpen) {
+    const selected = accountSyncRangeMenu?.querySelector('.sync-range-menu-item.is-selected');
+    const first = accountSyncRangeMenu?.querySelector('.sync-range-menu-item');
+    (selected || first)?.focus();
+  }
+});
+
+accountSyncRangeMenu?.addEventListener('click', async (event) => {
+  const item = event.target.closest('.sync-range-menu-item[data-sync-option]');
+  if (!item) {
+    return;
+  }
+  const option = item.dataset.syncOption || 'since_last';
+  updateAccountSyncOptionSelection(option);
+  closeAccountSyncRangeMenu();
+  await runAccountSyncOption(option);
+});
+
+accountSyncRangeMenu?.addEventListener('keydown', async (event) => {
+  const item = event.target.closest('.sync-range-menu-item[data-sync-option]');
+  if (!item) {
+    return;
+  }
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    const option = item.dataset.syncOption || 'since_last';
+    updateAccountSyncOptionSelection(option);
+    closeAccountSyncRangeMenu();
+    await runAccountSyncOption(option);
+    return;
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeAccountSyncRangeMenu();
+    accountSyncMenuButton?.focus();
   }
 });
 
@@ -5908,22 +6115,6 @@ if (syncSummaryMain) {
     }
   });
 }
-
-accountEmailSync?.addEventListener('click', async () => {
-  const days = Number(accountSyncDays?.value) || 30;
-  // Navigate to dashboard and start sync to keep UX consistent
-  window.location.hash = '#dashboard';
-  setView('dashboard');
-  const menuOption = ['7', '14', '30', '90'].includes(String(days)) ? String(days) : 'since_last';
-  updateSyncOptionSelection(menuOption);
-  await runEmailSync({
-    mode: 'days',
-    days,
-    statusEl: accountSyncStatus,
-    resultEl: accountSyncResult,
-    buttonEl: emailSync
-  });
-});
 
 unsortedTable?.addEventListener('click', async (event) => {
   const button = event.target.closest('button[data-action]');

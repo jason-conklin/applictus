@@ -469,69 +469,140 @@
           <p class="muted">Manage your workspace and connected services.</p>
         </div>
 	        <div class="account-grid">
-	          <div class="card account-panel">
-	            <div class="account-panel-header">
+	          <div class="card account-panel account-info-card surface-raised">
+	            <div class="account-card-header">
 	              <h3>Account information</h3>
-	              <button class="btn btn--ghost btn--sm" id="account-logout" type="button">Log out</button>
+                <p class="muted small">Security & sign-in settings</p>
 	            </div>
 	            <div class="account-panel-body">
-	              <div class="account-section">
-	                <div class="muted small">Email</div>
-	                <div class="account-email-row">
-	                  <div class="account-email" id="account-email">—</div>
-	                  <button
-	                    class="btn btn--ghost btn--sm account-copy"
-	                    id="account-email-copy"
-	                    type="button"
-	                    aria-label="Copy email"
-	                  >
-	                    Copy
-	                  </button>
-	                </div>
-	              </div>
-	              <div class="account-section">
-	                <div class="muted small">Sign-in methods</div>
-	                <div class="account-methods" id="account-methods">—</div>
-	              </div>
-	              <div class="account-section">
-	                <button class="btn btn--secondary btn--md" type="button" id="account-password-button">Change password</button>
-	                <div class="muted small" id="account-password-hint"></div>
-	              </div>
+                <div class="account-row account-row--identity">
+                  <div class="account-row-label muted small">Email</div>
+                  <div class="account-row-value account-email" id="account-email">—</div>
+                  <div class="account-row-action">
+                    <button
+                      class="icon-btn account-copy-btn"
+                      id="account-email-copy"
+                      type="button"
+                      aria-label="Copy email address"
+                      title="Copy email"
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="9" y="9" width="10" height="10" rx="2"></rect>
+                        <path d="M5 15V7a2 2 0 0 1 2-2h8"></path>
+                      </svg>
+                      <span class="sr-only">Copy email</span>
+                    </button>
+                    <span class="account-copy-feedback muted small" id="account-email-copy-feedback" aria-live="polite"></span>
+                  </div>
+                </div>
+                <div class="account-auth-section">
+                  <div class="account-section-heading muted small">Sign-in methods</div>
+	                <div class="account-methods auth-badges" id="account-methods">—</div>
+                </div>
+                <div class="account-actions-row">
+                  <div class="account-actions-primary">
+                    <button class="btn btn--primary btn--md account-password-btn" type="button" id="account-password-button">
+                      <span class="account-action-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M14 10h4a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h4"></path>
+                          <path d="M12 3v11"></path>
+                          <path d="m9 6 3-3 3 3"></path>
+                        </svg>
+                      </span>
+                      <span id="account-password-button-label">Change password</span>
+                    </button>
+	                <div class="muted small account-password-copy" id="account-password-hint"></div>
+                  </div>
+                  <button class="btn btn--danger btn--sm account-logout-btn" id="account-logout" type="button">
+                    <span class="account-action-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <path d="M16 17l5-5-5-5"></path>
+                        <path d="M21 12H9"></path>
+                      </svg>
+                    </span>
+                    <span>Log out</span>
+                  </button>
+                </div>
 	            </div>
 	          </div>
-	          <div class="card">
-	            <h3>Gmail connection</h3>
-	            <div class="stack">
-	              <div class="gmail-panel">
-                <div class="gmail-panel-primary">
-                  <button class="btn btn--primary btn--md" type="button" id="email-connect">Connect Gmail</button>
-                  <div class="pill" id="account-gmail-status">Not connected</div>
+	          <div class="card account-gmail-card surface-raised">
+              <div class="account-gmail-head">
+                <div class="account-gmail-head-main">
+                  <h3>Gmail connection</h3>
+                  <div class="account-gmail-identity">
+                    <div class="pill" id="account-gmail-status">Not connected</div>
+                    <div class="muted small account-gmail-email" id="account-gmail-email">—</div>
+                  </div>
                 </div>
-                <button class="btn btn--danger btn--md hidden gmail-panel-disconnect" type="button" id="email-disconnect">
+                <button class="btn btn--danger btn--md hidden account-gmail-disconnect" type="button" id="email-disconnect">
                   Disconnect
                 </button>
               </div>
-              <div class="muted" id="account-gmail-email">—</div>
-              <div class="callout hidden" id="gmail-hint">
-                <div class="callout-title">Why is this disabled?</div>
-                <div class="muted small" id="gmail-hint-text">Add Gmail OAuth env vars to enable.</div>
+              <div class="account-gmail-body">
+                <div class="account-gmail-connect-row">
+                  <button class="btn btn--primary btn--md" type="button" id="email-connect">Connect Gmail</button>
+                </div>
+                <div class="callout hidden" id="gmail-hint">
+                  <div class="callout-title">Why is this disabled?</div>
+                  <div class="muted small" id="gmail-hint-text">Add Gmail OAuth env vars to enable.</div>
+                </div>
+                <div class="muted small account-gmail-copy">
+                  Applictus automatically analyzes job-related emails only. No emails are sent, no humans read your messages, and we store only basic details like company, role, date, and status.
+                </div>
+                <div class="gmail-verification-note">
+                  Google verification in progress—only approved users may connect during testing.
+                </div>
               </div>
-              <div class="muted small">
-                Applictus automatically analyzes job-related emails only. No emails are sent, no humans read your messages, and we store only basic details like company, role, date, and status.
+              <div class="account-sync-block">
+                <div class="muted small account-sync-meta" id="account-sync-result"></div>
+                <div class="account-sync-controls">
+                  <div class="sync-action-group scan-actions account-sync-action-group" id="account-sync-action-group">
+                    <button class="btn btn--primary btn--md btn-scan account-btn-scan" type="button" id="account-email-sync">
+                      <span class="btn-icon-left" aria-hidden="true">⟳</span>
+                      <span class="btn-label scan-label">
+                        <span class="scan-text">Scan inbox</span>
+                        <span class="scan-dots" aria-hidden="true"></span>
+                      </span>
+                    </button>
+                    <button
+                      class="btn btn--secondary btn--sm sync-menu-button btn-scan-menu"
+                      type="button"
+                      id="account-sync-menu-button"
+                      aria-haspopup="menu"
+                      aria-expanded="false"
+                      aria-controls="account-sync-range-menu"
+                      aria-label="Choose account scan range"
+                    >
+                      <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M5 7l5 6 5-6"></path>
+                      </svg>
+                    </button>
+                    <div class="sync-range-menu hidden account-sync-range-menu" id="account-sync-range-menu" role="menu" aria-label="Account scan range options">
+                      <button type="button" class="sync-range-menu-item is-selected" role="menuitemradio" aria-checked="true" data-sync-option="since_last">
+                        <span class="sync-range-check" aria-hidden="true">✓</span>
+                        <span class="sync-range-label">Scan since last</span>
+                      </button>
+                      <button type="button" class="sync-range-menu-item" role="menuitemradio" aria-checked="false" data-sync-option="7">
+                        <span class="sync-range-check" aria-hidden="true"></span>
+                        <span class="sync-range-label">Last 7 days</span>
+                      </button>
+                      <button type="button" class="sync-range-menu-item" role="menuitemradio" aria-checked="false" data-sync-option="30">
+                        <span class="sync-range-check" aria-hidden="true"></span>
+                        <span class="sync-range-label">Last 30 days</span>
+                      </button>
+                      <button type="button" class="sync-range-menu-item" role="menuitemradio" aria-checked="false" data-sync-option="90">
+                        <span class="sync-range-check" aria-hidden="true"></span>
+                        <span class="sync-range-label">Last 90 days</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="account-sync-text">
+                    <span class="muted small sync-helper-text account-sync-helper" id="account-sync-helper-text">First scan checks the last 30 days</span>
+                    <span class="muted small account-sync-status" id="account-sync-status">Ready</span>
+                  </div>
+                </div>
               </div>
-              <div class="gmail-verification-note">
-                Google verification in progress—only approved users may connect during testing.
-              </div>
-              <div class="sync-panel">
-                <label>
-                  Scan range (days)
-                  <input type="number" id="account-sync-days" min="1" max="365" value="30" />
-                </label>
-                <button class="btn btn--secondary btn--md" type="button" id="account-email-sync">Scan emails</button>
-                <div class="muted" id="account-sync-status">Idle</div>
-              </div>
-              <div class="muted small" id="account-sync-result"></div>
-            </div>
           </div>
         </div>
       </section>
