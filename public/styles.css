@@ -3521,7 +3521,7 @@ textarea:focus-visible {
   left: 0;
   right: 0;
   bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-  z-index: 60;
+  z-index: 240;
   margin: 0 auto;
   width: min(760px, calc(100vw - 48px));
   padding: 10px 12px;
@@ -6582,6 +6582,10 @@ body.app-page-bg .topbar {
   box-shadow:
     0 8px 18px rgba(10, 26, 55, 0.08),
     0 2px 6px rgba(10, 26, 55, 0.05);
+}
+
+body.app-page-bg .app-footer {
+  z-index: 2;
 }
 
 body.app-page-bg .topbar::before {
