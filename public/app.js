@@ -227,8 +227,6 @@ const signupForm = document.getElementById('signup-form');
 const googleAuth = document.getElementById('google-auth');
 const accountLogout = document.getElementById('account-logout');
 const accountEmail = document.getElementById('account-email');
-const accountEmailCopy = document.getElementById('account-email-copy');
-const accountEmailCopyFeedback = document.getElementById('account-email-copy-feedback');
 const accountMethods = document.getElementById('account-methods');
 const accountPasswordButton = document.getElementById('account-password-button');
 const accountPasswordButtonLabel = document.getElementById('account-password-button-label');
@@ -356,14 +354,6 @@ const modalTitle = document.getElementById('modal-title');
 const modalDescription = document.getElementById('modal-description');
 const modalBody = document.getElementById('modal-body');
 const modalFooter = document.getElementById('modal-footer');
-
-const ACCOUNT_COPY_ICON_MARKUP = `
-  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <rect x="9" y="9" width="10" height="10" rx="2"></rect>
-    <path d="M5 15V7a2 2 0 0 1 2-2h8"></path>
-  </svg>
-  <span class="sr-only">Copy email</span>
-`;
 
 // Resume Curator DOM refs
 const rcStatusEl = document.getElementById('rc-status');
@@ -2805,17 +2795,6 @@ function renderAccountPanel(user = sessionUser) {
   }
   if (accountEmail) {
     accountEmail.textContent = user.email || '—';
-  }
-  if (accountEmailCopy) {
-    if (!accountEmailCopy.querySelector('svg')) {
-      accountEmailCopy.innerHTML = ACCOUNT_COPY_ICON_MARKUP;
-    }
-    accountEmailCopy.disabled = !user.email;
-    delete accountEmailCopy.dataset.copied;
-  }
-  if (accountEmailCopyFeedback) {
-    accountEmailCopyFeedback.textContent = '';
-    accountEmailCopyFeedback.classList.remove('is-visible');
   }
   if (accountMethods) {
     const provider = user.auth_provider || 'password';
@@ -5671,56 +5650,6 @@ if (contactForm && !contactForm.dataset.bound) {
       contactForm.__submitting = false;
       if (submitBtn) submitBtn.disabled = false;
     }
-  });
-}
-
-let accountCopyFeedbackTimer = null;
-
-if (accountEmailCopy && !accountEmailCopy.dataset.bound) {
-  accountEmailCopy.dataset.bound = '1';
-  accountEmailCopy.addEventListener('click', async () => {
-    const email = sessionUser?.email || (accountEmail ? accountEmail.textContent : '');
-    if (!email || email === '—') {
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(email);
-    } catch (err) {
-      const temp = document.createElement('textarea');
-      temp.value = email;
-      temp.style.position = 'fixed';
-      temp.style.top = '-1000px';
-      document.body.appendChild(temp);
-      temp.focus();
-      temp.select();
-      try {
-        document.execCommand('copy');
-      } catch (copyErr) {
-        // Ignore clipboard failures.
-      }
-      temp.remove();
-    }
-    if (accountCopyFeedbackTimer) {
-      window.clearTimeout(accountCopyFeedbackTimer);
-      accountCopyFeedbackTimer = null;
-    }
-    if (accountEmailCopyFeedback) {
-      accountEmailCopyFeedback.textContent = 'Copied';
-      accountEmailCopyFeedback.classList.add('is-visible');
-    } else {
-      showNotice('Copied', 'Email');
-    }
-    accountEmailCopy.dataset.copied = '1';
-    accountCopyFeedbackTimer = window.setTimeout(() => {
-      if (accountEmailCopyFeedback) {
-        accountEmailCopyFeedback.textContent = '';
-        accountEmailCopyFeedback.classList.remove('is-visible');
-      }
-      if (accountEmailCopy) {
-        delete accountEmailCopy.dataset.copied;
-      }
-      accountCopyFeedbackTimer = null;
-    }, 1200);
   });
 }
 
