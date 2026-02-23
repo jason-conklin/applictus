@@ -542,6 +542,38 @@ Applied on February 6, 2026`;
   assert.ok((identity.roleConfidence || 0) >= 0.85);
 });
 
+test('extractThreadIdentity parses LinkedIn confirmation and rejects location as role', () => {
+  const subject = 'Your application was sent to EarthCam';
+  const sender = 'jobs-noreply@linkedin.com';
+  const bodyText = `Your application was sent to EarthCam
+EarthCam
+Jr. Python Developer
+Upper Saddle River, NJ (On-site)
+Applied on February 20, 2026`;
+
+  const identity = extractThreadIdentity({ subject, sender, bodyText });
+  assert.equal(identity.companyName, 'EarthCam');
+  assert.equal(identity.jobTitle, 'Jr. Python Developer');
+  assert.notEqual(identity.jobTitle, 'Upper Saddle River, NJ');
+});
+
+test('extractThreadIdentity parses Workable confirmation header block only', () => {
+  const subject = 'Thanks for applying to EarthCam';
+  const sender = 'noreply@candidates.workablemail.com';
+  const bodyText = `EarthCam
+Your application for the Jr. Python Developer job was submitted successfully.
+Here's a copy of your application data
+Personal information
+Operations & Logistics Assistant
+Python
+Education`;
+
+  const identity = extractThreadIdentity({ subject, sender, bodyText });
+  assert.equal(identity.companyName, 'EarthCam');
+  assert.equal(identity.jobTitle, 'Jr. Python Developer');
+  assert.notEqual(identity.jobTitle, 'Operations & Logistics Assistant');
+});
+
 test('normalizeJobIdentity canonicalizes Tata LinkedIn role strings for strict matching', () => {
   const confirmationRole = 'Artificial Intelligence Engineer - Entry Level';
   const rejectionRole = 'Artificial\u00a0Intelligence Engineer \u2013 Entry Level';
@@ -617,6 +649,83 @@ Applied on January 23, 2026`;
 
   const result = await matchAndAssignEvent({ db, userId: 'user-1', event, identity });
   assert.equal(result.action, 'created_application');
+});
+
+test('matchAndAssignEvent dedupes confirmation via application fingerprint fallback', async () => {
+  const existing = {
+    id: 'app-1',
+    user_id: 'user-1',
+    company_name: 'EarthCam',
+    company: 'EarthCam',
+    job_title: 'Jr. Python Developer',
+    role: 'Jr. Python Developer',
+    archived: false,
+    last_activity_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    company_source: 'email',
+    role_source: 'email'
+  };
+  let attachedApplicationId = null;
+
+  const db = {
+    prepare(sql) {
+      const text = String(sql);
+      return {
+        all() {
+          if (text.includes('FROM job_applications') && text.includes('archived = false')) {
+            return [existing];
+          }
+          if (text.includes('FROM email_events') && text.includes('WHERE application_id = ?')) {
+            return [];
+          }
+          return [];
+        },
+        get(id) {
+          if (text.startsWith('SELECT * FROM job_applications WHERE id = ?')) {
+            return id === existing.id ? existing : null;
+          }
+          return null;
+        },
+        run(...args) {
+          if (text.startsWith('UPDATE email_events SET application_id = ? WHERE id = ?')) {
+            attachedApplicationId = args[0];
+          }
+          return { changes: 1 };
+        }
+      };
+    }
+  };
+
+  const identity = {
+    companyName: 'EarthCam',
+    companyConfidence: 0.95,
+    jobTitle: 'Jr. Python Developer (On-site)',
+    roleConfidence: 0.9,
+    matchConfidence: 0.95,
+    domainConfidence: 0.6,
+    senderDomain: 'workablemail.com',
+    isAtsDomain: true,
+    isPlatformEmail: true
+  };
+  const event = {
+    id: 'evt-fingerprint',
+    sender: 'noreply@candidates.workablemail.com',
+    subject: 'Thanks for applying to EarthCam',
+    snippet: 'Your application for the Jr. Python Developer job was submitted successfully.',
+    detected_type: 'confirmation',
+    confidence_score: 0.94,
+    classification_confidence: 0.94,
+    role_title: 'Jr. Python Developer',
+    role_confidence: 0.9,
+    role_source: 'body',
+    created_at: new Date().toISOString()
+  };
+
+  const result = await matchAndAssignEvent({ db, userId: 'user-1', event, identity });
+  assert.equal(result.action, 'matched_existing');
+  assert.equal(result.applicationId, existing.id);
+  assert.equal(attachedApplicationId, existing.id);
 });
 
 test('buildUnassignedReason handles missing domain safely', async () => {

@@ -65,6 +65,26 @@ Thanks`
   assert.ok(result.confidenceScore >= 0.9);
 });
 
+test('classifyEmail ignores outbound scheduling replies from authenticated user', () => {
+  const result = classifyEmail({
+    subject: 'Re: Interview availability',
+    snippet: 'Tuesday, March 3rd at 4:00 PM works for me.',
+    sender: 'Jason Conklin <jasonconklin.dev@gmail.com>',
+    body: `Hi Mike,
+
+Tuesday, March 3rd at 4:00 PM works for me.
+Please send the Zoom invite.
+
+Best,
+Jason`,
+    authenticatedUserEmail: 'jasonconklin.dev@gmail.com',
+    messageLabels: ['SENT']
+  });
+  assert.equal(result.isJobRelated, false);
+  assert.equal(result.reason, 'outbound_sender');
+  assert.notEqual(result.detectedType, 'interview_requested');
+});
+
 test('classifyEmail detects interview_scheduled when invite confirmation is explicit', () => {
   const result = classifyEmail({
     subject: 'Interview scheduled confirmation',

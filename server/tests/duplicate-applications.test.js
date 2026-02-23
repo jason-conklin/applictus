@@ -414,6 +414,117 @@ test('LinkedIn + ATS confirmations for same role dedupe via fuzzy match', async 
   assert.equal(apps[0].job_title, 'Jr. Python Developer');
 });
 
+test('LinkedIn + Workable EarthCam confirmations merge into one application', async () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+
+  const firstTimestamp = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+  const secondTimestamp = new Date().toISOString();
+
+  const linkedInSubject = 'Your application was sent to EarthCam';
+  const linkedInSender = 'jobs-noreply@linkedin.com';
+  const linkedInBody = `Your application was sent to EarthCam
+EarthCam
+Jr. Python Developer
+Upper Saddle River, NJ (On-site)
+Applied on February 20, 2026`;
+  const linkedInIdentity = extractThreadIdentity({
+    subject: linkedInSubject,
+    sender: linkedInSender,
+    bodyText: linkedInBody
+  });
+  assert.equal(linkedInIdentity.companyName, 'EarthCam');
+  assert.equal(linkedInIdentity.jobTitle, 'Jr. Python Developer');
+
+  const eventAId = insertEmailEvent(db, {
+    userId,
+    messageId: 'earthcam-linkedin',
+    sender: linkedInSender,
+    subject: linkedInSubject,
+    detectedType: 'confirmation',
+    confidenceScore: 0.94,
+    classificationConfidence: 0.94,
+    snippet: 'Your application was sent to EarthCam'
+  });
+
+  const matchA = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: eventAId,
+      sender: linkedInSender,
+      subject: linkedInSubject,
+      detected_type: 'confirmation',
+      confidence_score: 0.94,
+      classification_confidence: 0.94,
+      role_title: linkedInIdentity.jobTitle,
+      role_confidence: linkedInIdentity.roleConfidence,
+      role_source: 'identity',
+      created_at: firstTimestamp
+    },
+    identity: linkedInIdentity
+  });
+  assert.equal(matchA.action, 'created_application');
+
+  const workableSubject = 'Thanks for applying to EarthCam';
+  const workableSender = 'noreply@candidates.workablemail.com';
+  const workableBody = `EarthCam
+Your application for the Jr. Python Developer job was submitted successfully.
+Here's a copy of your application data
+Personal information
+Operations & Logistics Assistant
+Education`;
+  const workableIdentity = extractThreadIdentity({
+    subject: workableSubject,
+    sender: workableSender,
+    bodyText: workableBody
+  });
+  assert.equal(workableIdentity.companyName, 'EarthCam');
+  assert.equal(workableIdentity.jobTitle, 'Jr. Python Developer');
+
+  const eventBId = insertEmailEvent(db, {
+    userId,
+    messageId: 'earthcam-workable',
+    sender: workableSender,
+    subject: workableSubject,
+    detectedType: 'confirmation',
+    confidenceScore: 0.94,
+    classificationConfidence: 0.94,
+    snippet: 'Your application for the Jr. Python Developer job was submitted successfully.'
+  });
+
+  const matchB = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: eventBId,
+      sender: workableSender,
+      subject: workableSubject,
+      detected_type: 'confirmation',
+      confidence_score: 0.94,
+      classification_confidence: 0.94,
+      role_title: workableIdentity.jobTitle,
+      role_confidence: workableIdentity.roleConfidence,
+      role_source: 'identity',
+      created_at: secondTimestamp
+    },
+    identity: workableIdentity
+  });
+  assert.equal(matchB.action, 'matched_existing');
+
+  const apps = db.prepare('SELECT id, company_name, job_title FROM job_applications WHERE user_id = ?').all(userId);
+  assert.equal(apps.length, 1);
+  assert.equal(apps[0].company_name, 'EarthCam');
+  assert.equal(apps[0].job_title, 'Jr. Python Developer');
+
+  const events = db
+    .prepare('SELECT id, application_id FROM email_events WHERE id IN (?, ?)')
+    .all(eventAId, eventBId);
+  assert.equal(events.length, 2);
+  assert.ok(events[0].application_id === events[1].application_id);
+});
+
 test('Distinct program role tails at same company do not dedupe', async () => {
   const db = new Database(':memory:');
   runMigrations(db);

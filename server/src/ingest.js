@@ -1,10 +1,11 @@
 const crypto = require('crypto');
 const { google } = require('googleapis');
-const { getAuthorizedClient } = require('./email');
+const { getAuthorizedClient, fetchConnectedEmail } = require('./email');
 const {
   classifyEmail,
   isLinkedInJobsUpdateEmail,
-  isLinkedInJobsApplicationSentEmail
+  isLinkedInJobsApplicationSentEmail,
+  isOutboundUserMessage
 } = require('../../shared/emailClassifier');
 const { matchAndAssignEvent } = require('./matching');
 const {
@@ -49,6 +50,7 @@ const REASON_KEYS = [
   'ambiguous_match_rejection',
   'ambiguous_linkedin_match',
   'below_threshold',
+  'outbound_ignored',
   'provider_filtered',
   'parse_error',
   'duplicate',
@@ -145,6 +147,18 @@ function inferFallbackRole(subject, snippet, bodyText) {
     return 'Technical opportunity';
   }
   return 'Intro call';
+}
+
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+function buildGmailSyncQuery({ afterSeconds, beforeSeconds }) {
+  const safeAfter = Number.isFinite(afterSeconds) ? Math.max(0, Math.floor(afterSeconds)) : 0;
+  const safeBefore = Number.isFinite(beforeSeconds)
+    ? Math.max(safeAfter + 1, Math.ceil(beforeSeconds))
+    : safeAfter + 1;
+  return `in:inbox -from:me -in:sent after:${safeAfter} before:${safeBefore}`;
 }
 
 function applyHighSignalFallbackIdentity({
@@ -880,14 +894,25 @@ async function syncGmailMessages({
   syncId = null,
   mode = 'days',
   timeWindowStart = null,
-  timeWindowEnd = null
+  timeWindowEnd = null,
+  authClientOverride = null,
+  gmailServiceOverride = null,
+  authenticatedUserEmailOverride = null
 }) {
-  const authClient = await getAuthorizedClient(db, userId);
-  if (!authClient) {
+  const authClient = authClientOverride || (await getAuthorizedClient(db, userId));
+  if (!authClient && !gmailServiceOverride) {
     return { status: 'not_connected' };
   }
 
-  const gmail = google.gmail({ version: 'v1', auth: authClient });
+  const gmail = gmailServiceOverride || google.gmail({ version: 'v1', auth: authClient });
+  let authenticatedUserEmail = normalizeEmail(authenticatedUserEmailOverride);
+  if (!authenticatedUserEmail) {
+    try {
+      authenticatedUserEmail = normalizeEmail(await fetchConnectedEmail(authClient));
+    } catch (_) {
+      authenticatedUserEmail = '';
+    }
+  }
   let pageToken;
   let fetched = 0;
   let pagesFetched = 0;
@@ -951,7 +976,10 @@ async function syncGmailMessages({
   );
   const afterSeconds = Math.floor(safeWindowStart.getTime() / 1000);
   const beforeSeconds = Math.max(afterSeconds + 1, Math.ceil(safeWindowEnd.getTime() / 1000));
-  const gmailQuery = `after:${afterSeconds} before:${beforeSeconds}`;
+  const gmailQuery = buildGmailSyncQuery({
+    afterSeconds,
+    beforeSeconds
+  });
   logInfo('ingest.start', {
     userId,
     mode,
@@ -1082,6 +1110,32 @@ async function syncGmailMessages({
         messageId: message.id,
         fetchAttachmentBodies: shouldFetchLinkedInAttachments
       });
+      const messageLabels = Array.isArray(details?.data?.labelIds) ? details.data.labelIds : [];
+      const outboundMessage = isOutboundUserMessage({
+        sender,
+        authenticatedUserEmail,
+        messageLabels
+      });
+      if (outboundMessage) {
+        skippedNotJob += 1;
+        reasons.outbound_ignored += 1;
+        await recordSkipSample({
+          db,
+          userId,
+          provider: 'gmail',
+          messageId: message.id,
+          sender,
+          subject,
+          reasonCode: 'outbound_ignored'
+        });
+        fetched += 1;
+        logDebug('ingest.skip_outbound', {
+          userId,
+          messageId: message.id,
+          sender: sender || null
+        });
+        continue;
+      }
       const sourceBucket = categorizeSenderDomain(sender);
       messageSourceCounts[sourceBucket] = (messageSourceCounts[sourceBucket] || 0) + 1;
 
@@ -1126,7 +1180,14 @@ async function syncGmailMessages({
           fetchedAttachmentBodies: shouldFetchLinkedInAttachments
         });
       }
-      const classification = classifyEmail({ subject, snippet, sender, body: bodyText });
+      const classification = classifyEmail({
+        subject,
+        snippet,
+        sender,
+        body: bodyText,
+        authenticatedUserEmail,
+        messageLabels
+      });
       if (
         process.env.DEBUG_INGEST_LINKEDIN === '1' &&
         linkedInJobsUpdate &&
@@ -1773,6 +1834,7 @@ module.exports = {
   getSyncProgress,
   REASON_KEYS,
   initReasonCounters,
+  buildGmailSyncQuery,
   extractMessageMetadata,
   insertEmailEventRecord,
   isLinkedInDuplicateReprocessCandidate,

@@ -357,6 +357,10 @@ function normalize(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
 function extractSenderEmail(sender) {
   const raw = String(sender || '');
   const bracket = raw.match(/<([^>]+)>/);
@@ -365,6 +369,25 @@ function extractSenderEmail(sender) {
   }
   const direct = raw.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
   return direct ? String(direct[0]).trim().toLowerCase() : raw.toLowerCase();
+}
+
+function hasSentLabel(messageLabels) {
+  if (!Array.isArray(messageLabels)) {
+    return false;
+  }
+  return messageLabels.some((label) => String(label || '').toUpperCase() === 'SENT');
+}
+
+function isOutboundUserMessage({ sender, authenticatedUserEmail, messageLabels }) {
+  const senderEmail = normalizeEmail(extractSenderEmail(sender));
+  const authEmail = normalizeEmail(authenticatedUserEmail);
+  if (senderEmail && authEmail && senderEmail === authEmail) {
+    return true;
+  }
+  if (hasSentLabel(messageLabels)) {
+    return true;
+  }
+  return false;
 }
 
 function countMatches(pattern, text) {
@@ -659,7 +682,14 @@ function findRuleMatch(rules, text, minConfidence, jobContext) {
   return null;
 }
 
-function classifyEmail({ subject, snippet, sender, body, headers }) {
+function classifyEmail({ subject, snippet, sender, body, headers, authenticatedUserEmail, messageLabels }) {
+  if (isOutboundUserMessage({ sender, authenticatedUserEmail, messageLabels })) {
+    return {
+      isJobRelated: false,
+      explanation: 'Outbound message from authenticated user suppressed.',
+      reason: 'outbound_sender'
+    };
+  }
   const normalizedSnippet = normalize(snippet);
   const normalizedBody = normalize(body || '');
   const textSource = `${normalize(body || '')} ${normalize(snippet)} ${normalize(subject)} ${normalize(
@@ -856,6 +886,7 @@ module.exports = {
   classifyEmail,
   isLinkedInJobsUpdateEmail,
   isLinkedInJobsApplicationSentEmail,
+  isOutboundUserMessage,
   isNewsletterOrDigestEmail,
   RULES,
   DENYLIST

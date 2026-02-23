@@ -399,6 +399,87 @@ function buildConfirmationDedupeKey(identity, externalReqId, roleTitle = null) {
   return { companySlug, roleSlug, domainSlug, reqSlug };
 }
 
+function buildApplicationFingerprint(identityLike) {
+  const companySource = normalizeCompany(identityLike?.companyName || identityLike?.company || null);
+  const roleSource =
+    normalizeRoleForApplication(identityLike?.jobTitle || identityLike?.role || identityLike?.roleTitle || null) ||
+    sanitizeJobTitle(identityLike?.jobTitle || identityLike?.role || identityLike?.roleTitle || null);
+  const normalizedCompany = normalizeJobIdentity(companySource);
+  const normalizedRole = normalizeJobIdentity(roleSource);
+  if (!normalizedCompany || !normalizedRole) {
+    return null;
+  }
+  const raw = `${normalizedCompany}|${normalizedRole}`;
+  const hash = crypto.createHash('sha1').update(raw).digest('hex');
+  return {
+    raw,
+    hash,
+    normalizedCompany,
+    normalizedRole
+  };
+}
+
+async function findApplicationByFingerprint(db, userId, identityLike, eventTimeMs, windowDays = 7) {
+  const fingerprint = buildApplicationFingerprint(identityLike);
+  if (!fingerprint) {
+    return null;
+  }
+
+  const rows = normalizeRowList(
+    await awaitMaybe(
+      db
+        .prepare(
+          `SELECT * FROM job_applications
+           WHERE user_id = ?
+             AND archived = false`
+        )
+        .all(userId)
+    )
+  );
+  if (!rows.length) {
+    return null;
+  }
+
+  const windowMs = windowDays * 24 * 60 * 60 * 1000;
+  const matches = [];
+  for (const app of rows) {
+    const appFingerprint = buildApplicationFingerprint({
+      companyName: app.company_name || app.company || null,
+      jobTitle: app.job_title || app.role || null
+    });
+    if (!appFingerprint || appFingerprint.hash !== fingerprint.hash) {
+      continue;
+    }
+
+    const tsIso = app.last_activity_at || app.updated_at || app.created_at || null;
+    const tsMs = tsIso ? new Date(tsIso).getTime() : null;
+    const deltaMs = Number.isFinite(tsMs) ? Math.abs(eventTimeMs - tsMs) : Number.POSITIVE_INFINITY;
+    matches.push({
+      app,
+      tsMs,
+      deltaMs
+    });
+  }
+
+  if (!matches.length) {
+    return null;
+  }
+
+  const recentMatches = matches
+    .filter((entry) => Number.isFinite(entry.deltaMs) && entry.deltaMs <= windowMs)
+    .sort((a, b) => a.deltaMs - b.deltaMs);
+  if (recentMatches.length) {
+    return recentMatches[0].app;
+  }
+
+  matches.sort((a, b) => {
+    const aTs = Number.isFinite(a.tsMs) ? a.tsMs : 0;
+    const bTs = Number.isFinite(b.tsMs) ? b.tsMs : 0;
+    return bTs - aTs;
+  });
+  return matches[0].app;
+}
+
 async function findDedupeApplication(db, userId, dedupeKey, eventTimestamp) {
   if (!dedupeKey) return null;
   const since = new Date(eventTimestamp || Date.now());
@@ -1634,6 +1715,31 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
     }
     const unassigned = buildUnassignedReason(event, identity);
     return { action: 'unassigned', reason: unassigned.reason, reasonDetail: unassigned.detail, identity };
+  }
+
+  if (isConfirmation && !isRejectionEvent) {
+    const fingerprintMatch = await findApplicationByFingerprint(
+      db,
+      userId,
+      {
+        companyName: identity.companyName,
+        jobTitle: roleForMatch || identity.jobTitle || event.role_title || null
+      },
+      eventTimeMs,
+      7
+    );
+    if (fingerprintMatch) {
+      await attachEventToApplication(db, event.id, fingerprintMatch.id);
+      await updateApplicationActivity(db, fingerprintMatch, event);
+      await applyBestMetadataForMatchedApplication(db, fingerprintMatch, identity, event, externalReqId);
+      logDebug('matching.confirmation_fingerprint_dedupe', {
+        eventId: event.id,
+        applicationId: fingerprintMatch.id,
+        company: identity.companyName || null,
+        role: roleForMatch || identity.jobTitle || event.role_title || null
+      });
+      return { action: 'matched_existing', applicationId: fingerprintMatch.id, identity };
+    }
   }
 
   // Hard identity boundary for confirmations: company + normalized role must match

@@ -1247,7 +1247,6 @@ function sanitizeJobTitle(title) {
     ' we will ',
     ' thank you ',
     ' sincerely ',
-    '.',
     '!',
     '?',
     '\n'
@@ -1257,6 +1256,12 @@ function sanitizeJobTitle(title) {
     if (idx > 0) {
       text = text.slice(0, idx).trim();
     }
+  }
+  const sentenceBoundary = text.match(
+    /[.!?]\s+(?:thank you|thanks|we\b|your\b|you\b|best\b|regards\b|sincerely\b|please\b|if\b)/i
+  );
+  if (sentenceBoundary && Number.isInteger(sentenceBoundary.index) && sentenceBoundary.index > 0) {
+    text = text.slice(0, sentenceBoundary.index).trim();
   }
   return text || null;
 }
@@ -1308,6 +1313,15 @@ const INDEED_APPLY_IGNORED_LINE_PATTERNS = [
   /^this information was sent to\b/i
 ];
 
+const WORKABLE_APPLICATION_DATA_STOP_PATTERN =
+  /^\s*(?:here'?s a copy of your application data|application data|personal information|education|work experience|work history|employment history|experience|skills|resume|cover letter)\b/i;
+
+const LINKEDIN_LOCATION_HINT_PATTERN =
+  /\b(?:remote|hybrid|on[- ]site|onsite|united states|usa|u\.s\.a\.?)\b/i;
+
+const LINKEDIN_LOCATION_ROLE_HINTS =
+  /\b(?:engineer|developer|analyst|manager|intern|architect|designer|consultant|scientist|specialist|coordinator|administrator|technician|lead)\b/i;
+
 function scoreForSource(base, source) {
   if (source === 'subject') {
     return base;
@@ -1322,6 +1336,55 @@ function scoreForSource(base, source) {
     return Math.max(0, base - 0.08);
   }
   return base;
+}
+
+function isLinkedInJobsSender(sender) {
+  const senderEmail = String(extractEmailAddress(sender) || sender || '').toLowerCase();
+  if (!senderEmail || !/@linkedin\.com$/.test(senderEmail)) {
+    return false;
+  }
+  const localPart = senderEmail.split('@')[0] || '';
+  return /jobs?-noreply|jobs?-alerts?|jobs?/.test(localPart);
+}
+
+function isLikelyLinkedInLocation(value) {
+  const text = normalize(value);
+  if (!text) {
+    return false;
+  }
+  if (LINKEDIN_LOCATION_HINT_PATTERN.test(text)) {
+    return true;
+  }
+  if (/^[A-Za-z.' -]{2,60},\s*[A-Z]{2}\b/.test(text)) {
+    return true;
+  }
+  if (/\([^)]+\)/.test(text) && /(?:\b[A-Z]{2}\b|remote|hybrid|on[- ]site|onsite)/i.test(text)) {
+    return true;
+  }
+  if (
+    /,\s*[A-Z]{2}\b/.test(text) &&
+    text.split(/\s+/).length <= 8 &&
+    !LINKEDIN_LOCATION_ROLE_HINTS.test(text)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function isWorkableConfirmationSender(sender) {
+  const senderEmail = String(extractEmailAddress(sender) || sender || '').toLowerCase();
+  return /@(?:candidates\.)?workablemail\.com$/.test(senderEmail);
+}
+
+function stripWorkableApplicationDataSections(text, maxLines = 120) {
+  const raw = String(text || '');
+  if (!raw.trim()) {
+    return '';
+  }
+  const lines = raw.replace(/\r\n/g, '\n').split('\n').slice(0, maxLines);
+  const cutoff = lines.findIndex((line) => WORKABLE_APPLICATION_DATA_STOP_PATTERN.test(normalize(line)));
+  const effectiveCutoff = cutoff >= 0 ? cutoff : lines.length;
+  return lines.slice(0, effectiveCutoff).join('\n').trim();
 }
 
 function extractWorkdayStructuredRole(bodyText) {
@@ -1362,7 +1425,10 @@ function extractRoleFromSenderName(senderName, companyName) {
 }
 
 function extractJobTitle({ subject, snippet, bodyText, senderName, sender, companyName }) {
-  const workdayStructured = extractWorkdayStructuredRole(bodyText);
+  const workableBodyFiltered = isWorkableConfirmationSender(sender)
+    ? stripWorkableApplicationDataSections(bodyText) || bodyText
+    : bodyText;
+  const workdayStructured = extractWorkdayStructuredRole(workableBodyFiltered);
   const candidates = [];
   if (workdayStructured) {
     const candidate = normalizeRoleCandidate(workdayStructured, companyName);
@@ -1378,7 +1444,7 @@ function extractJobTitle({ subject, snippet, bodyText, senderName, sender, compa
   const sources = [
     { label: 'subject', text: normalize(subject) },
     { label: 'snippet', text: normalize(snippet) },
-    { label: 'body', text: normalize(bodyText) }
+    { label: 'body', text: normalize(workableBodyFiltered) }
   ];
 
   for (const source of sources) {
@@ -2123,10 +2189,116 @@ function extractIndeedApplyIdentity({ subject, snippet, bodyText, sender }) {
   };
 }
 
+function extractWorkableApplicationIdentity({ subject, snippet, bodyText, sender }) {
+  if (!isWorkableConfirmationSender(sender)) {
+    return null;
+  }
+
+  const normalizedSubject = normalize(subject);
+  const bodyHeader = stripWorkableApplicationDataSections(bodyText, 120);
+  const snippetHeader = stripWorkableApplicationDataSections(snippet, 40);
+  const headerLines = [bodyHeader, snippetHeader]
+    .filter(Boolean)
+    .join('\n')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => normalize(line))
+    .filter(Boolean);
+  const headerText = headerLines.join('\n');
+  const compactHeaderText = normalize(headerText);
+  const senderDomain = extractSenderDomain(sender);
+
+  const looksLikeConfirmation =
+    /thanks for applying to/i.test(normalizedSubject) ||
+    /your application for/i.test(compactHeaderText) ||
+    /submitted successfully/i.test(compactHeaderText);
+  if (!looksLikeConfirmation) {
+    return null;
+  }
+
+  let companyName = null;
+  let companySource = 'none';
+  const subjectCompanyMatch = normalizedSubject.match(/thanks for applying to\s+(.+?)(?:[.!]|$)/i);
+  if (subjectCompanyMatch && subjectCompanyMatch[1]) {
+    companyName = cleanCompanyCandidate(subjectCompanyMatch[1]);
+    companySource = companyName ? 'subject' : 'none';
+  }
+
+  if (!companyName) {
+    const bodyCompanyMatch = compactHeaderText.match(/thanks for applying to\s+(.+?)(?:[.!]|$)/i);
+    if (bodyCompanyMatch && bodyCompanyMatch[1]) {
+      companyName = cleanCompanyCandidate(bodyCompanyMatch[1]);
+      companySource = companyName ? 'body_header_sentence' : 'none';
+    }
+  }
+
+  if (!companyName) {
+    for (const line of headerLines.slice(0, 8)) {
+      if (
+        !line ||
+        /thanks for applying|your application for|submitted successfully|application data/i.test(line)
+      ) {
+        continue;
+      }
+      if (/[.!?]/.test(line) && line.split(/\s+/).length > 4) {
+        continue;
+      }
+      const candidate = cleanCompanyCandidate(line);
+      if (!candidate) {
+        continue;
+      }
+      companyName = candidate;
+      companySource = 'body_header_line';
+      break;
+    }
+  }
+
+  let jobTitle = null;
+  let roleSource = 'none';
+  const roleMatch =
+    compactHeaderText.match(/your application for (?:the\s+)?(.+?)\s+job was submitted successfully/i) ||
+    compactHeaderText.match(/your application for (?:the\s+)?(.+?)\s+was submitted successfully/i);
+  if (roleMatch && roleMatch[1]) {
+    jobTitle = normalizeRoleCandidate(roleMatch[1], companyName);
+    roleSource = jobTitle ? 'body_header_sentence' : 'none';
+  }
+
+  if (!companyName && !jobTitle) {
+    return null;
+  }
+
+  const companyConfidence = companyName
+    ? companySource === 'subject'
+      ? 0.94
+      : 0.9
+    : 0;
+  const roleConfidence = jobTitle ? 0.94 : null;
+  const domainResult = companyName ? domainConfidence(companyName, senderDomain) : { score: 0.9, isAtsDomain: true };
+  const matchConfidence = companyName
+    ? jobTitle
+      ? Math.min(companyConfidence, roleConfidence || companyConfidence, domainResult.score || companyConfidence)
+      : Math.min(companyConfidence, domainResult.score || companyConfidence)
+    : 0;
+
+  return {
+    providerHint: 'workable',
+    companyName: companyName || null,
+    jobTitle: jobTitle || null,
+    senderDomain,
+    companyConfidence,
+    roleConfidence,
+    domainConfidence: domainResult.score,
+    matchConfidence,
+    isAtsDomain: domainResult.isAtsDomain,
+    isPlatformEmail: true,
+    bodyTextAvailable: Boolean(headerText.trim()),
+    explanation: `Workable confirmation parser (${roleSource} role, ${companySource} company; header block only).`
+  };
+}
+
 function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender }) {
   const senderDomain = extractSenderDomain(sender);
-  const isLinkedInJobsSender = /jobs-noreply@linkedin\.com/i.test(String(sender || ''));
-  if (!isLinkedInJobsSender) {
+  if (!isLinkedInJobsSender(sender)) {
     return null;
   }
 
@@ -2170,6 +2342,9 @@ function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender
     if (!candidate || candidate.length < 3 || candidate.length > 120) {
       return null;
     }
+    if (isLikelyLinkedInLocation(candidate)) {
+      return null;
+    }
     if (/your application was sent to/i.test(candidate) || /your update from/i.test(candidate)) {
       return null;
     }
@@ -2190,6 +2365,23 @@ function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender
     return candidate;
   };
 
+  const isSuspiciousLinkedInRole = (value) => {
+    const text = normalize(value);
+    if (!text) {
+      return true;
+    }
+    if (isLikelyLinkedInLocation(text)) {
+      return true;
+    }
+    if (/\b(?:nj|ny)\b/i.test(text)) {
+      return true;
+    }
+    if (/\b(?:remote|hybrid|on[- ]site|onsite)\b/i.test(text)) {
+      return true;
+    }
+    return /\([^)]*\)/.test(text);
+  };
+
   const normalizedSubject = String(subject || '').trim();
   const text = [String(snippet || ''), String(bodyText || '')].filter(Boolean).join('\n');
   const body = text.replace(/\r\n/g, '\n');
@@ -2197,6 +2389,7 @@ function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender
 
   let companyName = null;
   let jobTitle = null;
+  let jobTitleLineIndex = -1;
   let matchedRejectionTemplate = false;
   let matchedConfirmationTemplate = false;
   const rejectionSubjectTail = normalizedSubject.match(/^your application to\s+(.+)$/i);
@@ -2260,6 +2453,7 @@ function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender
           const normalizedRole = normalizeLinkedInRole(roleCandidate, companyName);
           if (normalizedRole) {
             jobTitle = normalizedRole;
+            jobTitleLineIndex = i;
           }
         }
         if (!companyName && companyCandidate) {
@@ -2281,6 +2475,7 @@ function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender
         const normalizedRole = normalizeLinkedInRole(roleCandidate, companyName);
         if (normalizedRole) {
           jobTitle = normalizedRole;
+          jobTitleLineIndex = j;
           break;
         }
       }
@@ -2324,6 +2519,7 @@ function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender
         const normalizedRole = normalizeLinkedInRole(left || line, companyName);
         if (normalizedRole) {
           jobTitle = normalizedRole;
+          jobTitleLineIndex = i;
           break;
         }
       }
@@ -2347,6 +2543,26 @@ function extractLinkedInApplicationIdentity({ subject, snippet, bodyText, sender
           }
         }
       }
+    }
+  }
+
+  if (!matchedRejectionTemplate && jobTitle && isSuspiciousLinkedInRole(jobTitle)) {
+    const searchStart =
+      Number.isInteger(jobTitleLineIndex) && jobTitleLineIndex >= 0 ? jobTitleLineIndex : lines.length;
+    const lowerBound = companyLineIndex >= 0 ? companyLineIndex + 1 : 0;
+    for (let i = searchStart - 1; i >= lowerBound; i -= 1) {
+      const line = lines[i];
+      if (!line || /^applied on\b/i.test(line) || isLikelyLinkedInLocation(line)) {
+        continue;
+      }
+      const left = line.split(/[·•|]/)[0]?.trim();
+      const fallbackRole = normalizeLinkedInRole(left || line, companyName);
+      if (!fallbackRole || isLikelyLinkedInLocation(fallbackRole)) {
+        continue;
+      }
+      jobTitle = fallbackRole;
+      jobTitleLineIndex = i;
+      break;
     }
   }
 
@@ -2385,8 +2601,11 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   const subjectText = normalize(subject);
   const snippetText = normalize(snippet);
   const bodyTextRaw = String(bodyText || '');
+  const workableBodyFiltered = isWorkableConfirmationSender(sender)
+    ? stripWorkableApplicationDataSections(bodyTextRaw) || bodyTextRaw
+    : bodyTextRaw;
   const snippetTextFiltered = normalize(stripDigestSections(snippet));
-  const bodyTextFiltered = stripDigestSections(bodyTextRaw) || bodyTextRaw;
+  const bodyTextFiltered = stripDigestSections(workableBodyFiltered) || workableBodyFiltered;
   const indeedApplyIdentity = extractIndeedApplyIdentity({
     subject: subjectText,
     snippet: snippetText,
@@ -2404,6 +2623,15 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   });
   if (linkedInIdentity) {
     return linkedInIdentity;
+  }
+  const workableIdentity = extractWorkableApplicationIdentity({
+    subject: subjectText,
+    snippet: snippetText,
+    bodyText: bodyTextRaw,
+    sender
+  });
+  if (workableIdentity) {
+    return workableIdentity;
   }
   const digestIdentity = extractWorkdayDigestIdentity({ subject: subjectText, bodyText: bodyTextRaw, sender });
   if (digestIdentity) {
