@@ -269,6 +269,155 @@ async function assertPgSchema(db) {
       throw err;
     }
   }
+
+  const inboundTables = await db
+    .prepare(
+      `SELECT table_name
+       FROM information_schema.tables
+       WHERE table_schema='public'
+         AND table_name IN ('inbound_addresses', 'inbound_messages', 'user_parse_hints')`
+    )
+    .all();
+  const inboundPresent = new Set((inboundTables || []).map((row) => row.table_name));
+  const inboundMissing = ['inbound_addresses', 'inbound_messages', 'user_parse_hints'].filter(
+    (name) => !inboundPresent.has(name)
+  );
+
+  if (inboundMissing.length) {
+    const message = [
+      'Postgres schema is missing required inbound forwarding tables:',
+      `  ${inboundMissing.join(', ')}`,
+      'Run migrations (or ensure startup migrations run). The migration that adds these is:',
+      '  server/migrations/025_inbound_forwarding_postgres.sql',
+      '  server/migrations/030_user_parse_hints_postgres.sql',
+      'Set SKIP_SCHEMA_CHECK=1 to bypass this check (not recommended).'
+    ].join('\n');
+
+    // eslint-disable-next-line no-console
+    console.error(message);
+
+    if (process.env.NODE_ENV === 'production') {
+      const err = new Error(message);
+      err.code = 'PG_SCHEMA_INVALID';
+      throw err;
+    }
+  }
+
+  const inboundAddressColumns = await db
+    .prepare(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema='public'
+         AND table_name='inbound_addresses'
+         AND column_name IN ('confirmed_at', 'last_received_at')`
+    )
+    .all();
+  const inboundAddressPresent = new Set((inboundAddressColumns || []).map((row) => row.column_name));
+  const inboundAddressMissing = ['confirmed_at', 'last_received_at'].filter(
+    (name) => !inboundAddressPresent.has(name)
+  );
+
+  if (inboundAddressMissing.length) {
+    const message = [
+      'Postgres schema is missing required inbound_addresses status columns:',
+      `  inbound_addresses.${inboundAddressMissing.join(', inbound_addresses.')}`,
+      'Run migrations (or ensure startup migrations run). The migration that adds these is:',
+      '  server/migrations/026_inbound_forwarding_status_postgres.sql',
+      'Set SKIP_SCHEMA_CHECK=1 to bypass this check (not recommended).'
+    ].join('\n');
+
+    // eslint-disable-next-line no-console
+    console.error(message);
+
+    if (process.env.NODE_ENV === 'production') {
+      const err = new Error(message);
+      err.code = 'PG_SCHEMA_INVALID';
+      throw err;
+    }
+  }
+
+  const inboundMessageColumns = await db
+    .prepare(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema='public'
+         AND table_name='inbound_messages'
+         AND column_name IN (
+           'processed_at',
+           'processing_status',
+           'processing_error',
+           'derived_event_id',
+           'derived_application_id',
+           'derived_application_key',
+           'derived_status',
+           'derived_company',
+           'derived_role',
+           'derived_debug_json'
+         )`
+    )
+    .all();
+  const inboundMessagePresent = new Set((inboundMessageColumns || []).map((row) => row.column_name));
+  const inboundMessageMissing = [
+    'processed_at',
+    'processing_status',
+    'processing_error',
+    'derived_event_id',
+    'derived_application_id',
+    'derived_application_key',
+    'derived_status',
+    'derived_company',
+    'derived_role',
+    'derived_debug_json'
+  ].filter((name) => !inboundMessagePresent.has(name));
+
+  if (inboundMessageMissing.length) {
+    const message = [
+      'Postgres schema is missing required inbound_messages processing columns:',
+      `  inbound_messages.${inboundMessageMissing.join(', inbound_messages.')}`,
+      'Run migrations (or ensure startup migrations run). The migration that adds these is:',
+      '  server/migrations/027_inbound_message_processing_postgres.sql',
+      '  server/migrations/028_application_key_postgres.sql',
+      '  server/migrations/029_inbound_debug_postgres.sql',
+      'Set SKIP_SCHEMA_CHECK=1 to bypass this check (not recommended).'
+    ].join('\n');
+
+    // eslint-disable-next-line no-console
+    console.error(message);
+
+    if (process.env.NODE_ENV === 'production') {
+      const err = new Error(message);
+      err.code = 'PG_SCHEMA_INVALID';
+      throw err;
+    }
+  }
+
+  const appKeyColumns = await db
+    .prepare(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema='public'
+         AND table_name='job_applications'
+         AND column_name = 'application_key'`
+    )
+    .all();
+  if (!Array.isArray(appKeyColumns) || !appKeyColumns.length) {
+    const message = [
+      'Postgres schema is missing required dedupe column:',
+      '  job_applications.application_key',
+      'Run migrations (or ensure startup migrations run). The migration that adds this is:',
+      '  server/migrations/028_application_key_postgres.sql',
+      'Set SKIP_SCHEMA_CHECK=1 to bypass this check (not recommended).'
+    ].join('\n');
+
+    // eslint-disable-next-line no-console
+    console.error(message);
+
+    if (process.env.NODE_ENV === 'production') {
+      const err = new Error(message);
+      err.code = 'PG_SCHEMA_INVALID';
+      throw err;
+    }
+  }
 }
 
 module.exports = {

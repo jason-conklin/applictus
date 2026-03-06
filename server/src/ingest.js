@@ -15,10 +15,24 @@ const {
   normalizeJobIdentity
 } = require('../../shared/matching');
 const { runStatusInferenceForApplication } = require('./statusInferenceRunner');
+const { STATUS_PRIORITY } = require('../../shared/statusInference');
 const { logInfo, logDebug } = require('./logger');
 const { runLlmExtraction, getConfig: getLlmConfig } = require('./llmClient');
 const { shouldInvokeLlm } = require('./llmGate');
 const { getEmailEventColumns } = require('./db');
+const normalizeJobFields = require('./normalizeJobFields');
+const { shouldSuppressEmail } = require('./suppressEmail');
+const { parseJobEmail } = require('./parseJobEmail');
+const { buildApplicationKey: buildDeterministicApplicationKey } = require('./applicationKey');
+const {
+  normalizeCompany: normalizeValidatedCompany,
+  normalizeRole: normalizeValidatedRole
+} = require('./validateJobFields');
+const {
+  applyFieldUpdate,
+  normalizeFieldSource,
+  normalizeFieldConfidenceForStorage
+} = require('./safeFieldUpdate');
 
 async function awaitMaybe(value) {
   return value && typeof value.then === 'function' ? await value : value;
@@ -37,6 +51,10 @@ function boolBind(db, value) {
     return Boolean(value);
   }
   return value ? 1 : 0;
+}
+
+function normalizeDbBool(value) {
+  return value === true || value === 1 || value === '1';
 }
 
 const REASON_KEYS = [
@@ -77,6 +95,13 @@ const GENERIC_MAIL_BASES = new Set([
   'protonmail',
   'icloud'
 ]);
+
+const PARSE_CONFIDENCE_THRESHOLDS = Object.freeze({
+  company: 70,
+  role: 70,
+  status: 60,
+  key: 80
+});
 
 function initReasonCounters() {
   return REASON_KEYS.reduce((acc, key) => {
@@ -772,8 +797,8 @@ async function repairLinkedInSplitApplications(db, userId, { syncStart, syncEnd 
            WHERE a.user_id = ?
              AND a.archived = ?
              AND e.user_id = ?
-             AND e.created_at >= ?
-             AND e.created_at <= ?
+             AND COALESCE(a.applied_at, a.last_activity_at, a.updated_at, a.created_at) >= ?
+             AND COALESCE(a.applied_at, a.last_activity_at, a.updated_at, a.created_at) <= ?
              AND lower(e.sender) LIKE ?
            GROUP BY a.id`
         )
@@ -1829,8 +1854,1473 @@ async function syncGmailMessages({
   };
 }
 
+function parseInboundRawPayload(rawPayload) {
+  if (!rawPayload) {
+    return null;
+  }
+  if (typeof rawPayload === 'object') {
+    return rawPayload;
+  }
+  if (typeof rawPayload !== 'string') {
+    return null;
+  }
+  try {
+    return JSON.parse(rawPayload);
+  } catch (_) {
+    return null;
+  }
+}
+
+function looksLikeEmailOrDomain(text) {
+  return normalizeJobFields.looksLikeEmailOrDomain(text);
+}
+
+function normalizeDerivedCompany(value) {
+  const text = normalizeValidatedCompany(value);
+  if (!text) {
+    return null;
+  }
+  if (looksLikeEmailOrDomain(text)) {
+    return null;
+  }
+  return text;
+}
+
+function normalizeDerivedRole(value) {
+  return normalizeValidatedRole(value) || null;
+}
+
+function isLikelyLocationText(value) {
+  return normalizeJobFields.isLikelyLocationRole(value);
+}
+
+function extractDeterministicForwardedIdentity({ subject, bodyText }) {
+  const normalizedSubject = String(subject || '').replace(/\s+/g, ' ').trim();
+  const normalizedBody = String(bodyText || '').replace(/\r\n/g, '\n');
+  const lines = normalizedBody
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  let companyName = null;
+  let jobTitle = null;
+  let explanation = null;
+
+  const linkedinSubjectMatch = normalizedSubject.match(/^(?:.+,\s*)?your application was sent to\s+(.+)$/i);
+  if (linkedinSubjectMatch && linkedinSubjectMatch[1]) {
+    companyName = normalizeDerivedCompany(linkedinSubjectMatch[1]);
+    const companyLineIdx = companyName
+      ? lines.findIndex((line) => line.toLowerCase() === companyName.toLowerCase())
+      : -1;
+    if (companyLineIdx >= 0) {
+      for (let i = companyLineIdx + 1; i < lines.length; i += 1) {
+        const candidate = normalizeDerivedRole(lines[i]);
+        if (!candidate) continue;
+        if (isLikelyLocationText(candidate)) continue;
+        if (companyName && candidate.toLowerCase() === companyName.toLowerCase()) continue;
+        jobTitle = candidate;
+        break;
+      }
+    }
+    if (!jobTitle) {
+      const nearbyRole = lines.find((line) => {
+        const candidate = normalizeDerivedRole(line);
+        if (!candidate) return false;
+        if (isLikelyLocationText(candidate)) return false;
+        if (companyName && candidate.toLowerCase() === companyName.toLowerCase()) return false;
+        return true;
+      });
+      jobTitle = normalizeDerivedRole(nearbyRole);
+    }
+    explanation = 'linkedin_forwarded_subject';
+  }
+
+  const workableSubjectMatch = normalizedSubject.match(/^thanks for applying to\s+(.+)$/i);
+  if (!companyName && workableSubjectMatch && workableSubjectMatch[1]) {
+    companyName = normalizeDerivedCompany(workableSubjectMatch[1]);
+  }
+  const workableRoleMatch = normalizedBody.match(
+    /your application for (?:the )?(.+?)\s+job was submitted successfully/i
+  );
+  if (!jobTitle && workableRoleMatch && workableRoleMatch[1]) {
+    jobTitle = normalizeDerivedRole(workableRoleMatch[1]);
+    explanation = explanation || 'workable_confirmation_sentence';
+  }
+
+  if (!jobTitle) {
+    const workdayRoleMatch = normalizedBody.match(
+      /thank you for applying for the role of\s+(.+?)(?:[\n.]|$)/i
+    );
+    if (workdayRoleMatch && workdayRoleMatch[1]) {
+      jobTitle = normalizeDerivedRole(workdayRoleMatch[1]);
+      explanation = explanation || 'workday_role_sentence';
+    }
+  }
+
+  const indeedRoleMatch = normalizedSubject.match(/indeed application:\s*(.+)$/i);
+  if (!jobTitle && indeedRoleMatch && indeedRoleMatch[1]) {
+    jobTitle = normalizeDerivedRole(indeedRoleMatch[1]);
+    explanation = explanation || 'indeed_subject';
+  }
+  if (!companyName || !jobTitle) {
+    const submittedIdx = lines.findIndex((line) => /application submitted/i.test(line));
+    if (submittedIdx >= 0) {
+      for (let i = submittedIdx + 1; i < lines.length; i += 1) {
+        const candidate = normalizeDerivedRole(lines[i]);
+        if (!candidate) continue;
+        if (!jobTitle && !/^(indeed|next steps?)$/i.test(candidate)) {
+          jobTitle = candidate;
+          continue;
+        }
+        if (jobTitle && !companyName) {
+          const companyCandidate = lines[i].split(' - ')[0];
+          companyName = normalizeDerivedCompany(companyCandidate);
+          if (companyName) {
+            break;
+          }
+        }
+      }
+      explanation = explanation || 'indeed_application_submitted_block';
+    }
+  }
+  if (!companyName) {
+    const sentToMatch = normalizedBody.match(/sent to\s+(.+?)\.\s*good luck!?/i);
+    if (sentToMatch && sentToMatch[1]) {
+      companyName = normalizeDerivedCompany(sentToMatch[1]);
+      explanation = explanation || 'sent_to_sentence';
+    }
+  }
+
+  const daiichiSubjectMatch =
+    normalizedSubject.match(/^thank you for your application to\s+(.+)$/i) ||
+    normalizedSubject.match(/\bapplication submitted to\s+(.+)$/i);
+  if (daiichiSubjectMatch && daiichiSubjectMatch[1]) {
+    const cleaned = daiichiSubjectMatch[1]
+      .replace(/\s*\(.*?\)\s*$/g, '')
+      .replace(/\s*\[.*?\]\s*$/g, '')
+      .trim();
+    const split = normalizeJobFields.splitCompanyRoleCombined(cleaned);
+    if (split?.role) {
+      companyName = normalizeDerivedCompany(split.company) || companyName;
+      jobTitle = normalizeDerivedRole(split.role) || jobTitle;
+      explanation = explanation || 'application_to_subject_split';
+    } else {
+      companyName = normalizeDerivedCompany(cleaned) || companyName;
+    }
+  }
+
+  if (jobTitle && isLikelyLocationText(jobTitle)) {
+    jobTitle = null;
+  }
+
+  return {
+    companyName: normalizeDerivedCompany(companyName),
+    jobTitle: normalizeDerivedRole(jobTitle),
+    explanation
+  };
+}
+
+function mapDetectedTypeToDerivedStatus(detectedType) {
+  const value = String(detectedType || '').toLowerCase();
+  if (value === 'confirmation') return 'applied';
+  if (value === 'rejection') return 'rejected';
+  if (value === 'offer') return 'offer_received';
+  if (value === 'interview' || value === 'interview_requested' || value === 'interview_scheduled') {
+    return 'interview_requested';
+  }
+  if (value === 'ghosted') return 'ghosted';
+  return 'unknown';
+}
+
+function mapParsedStatusToDetectedType(status) {
+  const value = String(status || '').toLowerCase();
+  if (value === 'applied') return 'confirmation';
+  if (value === 'interview_requested') return 'interview_requested';
+  if (value === 'offer_received') return 'offer';
+  if (value === 'rejected') return 'rejection';
+  if (value === 'ghosted') return 'ghosted';
+  return null;
+}
+
+function normalizeDerivedStatusValue(status) {
+  const value = String(status || '').trim().toLowerCase();
+  if (value === 'applied') return 'applied';
+  if (value === 'interview_requested') return 'interview_requested';
+  if (value === 'offer_received') return 'offer_received';
+  if (value === 'rejected') return 'rejected';
+  if (value === 'ghosted') return 'ghosted';
+  return null;
+}
+
+function buildFieldUpdateAudit({
+  accepted,
+  reason,
+  previousSource,
+  newSource,
+  previousConfidence,
+  newConfidence
+}) {
+  return {
+    accepted: Boolean(accepted),
+    reason: reason || 'rejected_lower_priority',
+    previous_source: normalizeFieldSource(previousSource || 'parser'),
+    new_source: normalizeFieldSource(newSource || 'parser'),
+    previous_confidence: normalizeFieldConfidenceForStorage(previousConfidence),
+    new_confidence: normalizeFieldConfidenceForStorage(newConfidence)
+  };
+}
+
+async function applySafeApplicationFieldUpdates({
+  db,
+  applicationId,
+  derivedCompany,
+  derivedRole,
+  derivedStatus,
+  parseConfidence,
+  parsedEmail,
+  eventId
+}) {
+  const emptyAudit = {
+    company: buildFieldUpdateAudit({
+      accepted: false,
+      reason: 'rejected_lower_priority',
+      previousSource: 'parser',
+      newSource: 'parser',
+      previousConfidence: 0,
+      newConfidence: parseConfidence?.company || 0
+    }),
+    role: buildFieldUpdateAudit({
+      accepted: false,
+      reason: 'rejected_lower_priority',
+      previousSource: 'parser',
+      newSource: 'parser',
+      previousConfidence: 0,
+      newConfidence: parseConfidence?.role || 0
+    }),
+    status: buildFieldUpdateAudit({
+      accepted: false,
+      reason: 'rejected_lower_priority',
+      previousSource: 'parser',
+      newSource: 'parser',
+      previousConfidence: 0,
+      newConfidence: parseConfidence?.status || 0
+    })
+  };
+
+  if (!applicationId) {
+    return { application: null, fieldUpdates: emptyAudit };
+  }
+
+  const application = await awaitMaybe(
+    db
+      .prepare(
+        `SELECT id, company_name, company, company_source, company_confidence, company_explanation,
+                job_title, role, role_source, role_confidence, role_explanation,
+                current_status, status, status_source, status_confidence, status_explanation, application_key
+         FROM job_applications
+         WHERE id = ?
+         LIMIT 1`
+      )
+      .get(applicationId)
+  );
+
+  if (!application) {
+    return { application: null, fieldUpdates: emptyAudit };
+  }
+
+  const hintOverrides = parsedEmail?.hints?.overrides || null;
+  const companySource = hintOverrides?.company_override ? 'hint' : 'parser';
+  const roleSource = hintOverrides?.role_override ? 'hint' : 'parser';
+  const statusSource = hintOverrides?.status_override ? 'hint' : 'parser';
+
+  const companyDecision = applyFieldUpdate({
+    existingValue: application.company_name || application.company || null,
+    existingConfidence: application.company_confidence,
+    existingSource: application.company_source || 'parser',
+    newValue: derivedCompany || null,
+    newConfidence: Number(parseConfidence?.company || 0),
+    newSource: companySource
+  });
+
+  const roleDecision = applyFieldUpdate({
+    existingValue: application.job_title || application.role || null,
+    existingConfidence: application.role_confidence,
+    existingSource: application.role_source || 'parser',
+    newValue: derivedRole || null,
+    newConfidence: Number(parseConfidence?.role || 0),
+    newSource: roleSource
+  });
+
+  const normalizedExistingStatus = normalizeDerivedStatusValue(
+    application.current_status || application.status || null
+  );
+  const normalizedIncomingStatus = normalizeDerivedStatusValue(derivedStatus);
+
+  const statusDecisionRaw = applyFieldUpdate({
+    existingValue: normalizedExistingStatus,
+    existingConfidence: application.status_confidence,
+    existingSource: application.status_source || 'parser',
+    newValue: normalizedIncomingStatus,
+    newConfidence: Number(parseConfidence?.status || 0),
+    newSource: statusSource
+  });
+
+  let statusDecision = statusDecisionRaw;
+  if (statusDecision.accepted && normalizedExistingStatus && normalizedIncomingStatus) {
+    const existingOrder = STATUS_PRIORITY[normalizedExistingStatus] || 0;
+    const incomingOrder = STATUS_PRIORITY[normalizedIncomingStatus] || 0;
+    if (incomingOrder < existingOrder && statusDecision.source !== 'user') {
+      statusDecision = {
+        accepted: false,
+        reason: 'rejected_lower_priority',
+        value: normalizedExistingStatus,
+        confidence: normalizeFieldConfidenceForStorage(application.status_confidence),
+        source: normalizeFieldSource(application.status_source || 'parser')
+      };
+    }
+  }
+
+  const fieldUpdates = {
+    company: buildFieldUpdateAudit({
+      accepted: companyDecision.accepted,
+      reason: companyDecision.reason,
+      previousSource: application.company_source || 'parser',
+      newSource: companySource,
+      previousConfidence: application.company_confidence,
+      newConfidence: parseConfidence?.company || 0
+    }),
+    role: buildFieldUpdateAudit({
+      accepted: roleDecision.accepted,
+      reason: roleDecision.reason,
+      previousSource: application.role_source || 'parser',
+      newSource: roleSource,
+      previousConfidence: application.role_confidence,
+      newConfidence: parseConfidence?.role || 0
+    }),
+    status: buildFieldUpdateAudit({
+      accepted: statusDecision.accepted,
+      reason: statusDecision.reason,
+      previousSource: application.status_source || 'parser',
+      newSource: statusSource,
+      previousConfidence: application.status_confidence,
+      newConfidence: parseConfidence?.status || 0
+    })
+  };
+
+  const updates = {};
+  if (companyDecision.accepted && companyDecision.value) {
+    const currentCompany = String(application.company_name || application.company || '').trim();
+    if (
+      companyDecision.value !== currentCompany ||
+      companyDecision.confidence !== normalizeFieldConfidenceForStorage(application.company_confidence) ||
+      companyDecision.source !== normalizeFieldSource(application.company_source || 'parser')
+    ) {
+      updates.company_name = companyDecision.value;
+      updates.company = companyDecision.value;
+      updates.company_confidence = companyDecision.confidence;
+      updates.company_source = companyDecision.source;
+      updates.company_explanation = `Inbound parse (${companyDecision.source}) from event ${eventId}.`;
+    }
+  }
+
+  if (roleDecision.accepted && roleDecision.value) {
+    const currentRole = String(application.job_title || application.role || '').trim();
+    if (
+      roleDecision.value !== currentRole ||
+      roleDecision.confidence !== normalizeFieldConfidenceForStorage(application.role_confidence) ||
+      roleDecision.source !== normalizeFieldSource(application.role_source || 'parser')
+    ) {
+      updates.job_title = roleDecision.value;
+      updates.role = roleDecision.value;
+      updates.role_confidence = roleDecision.confidence;
+      updates.role_source = roleDecision.source;
+      updates.role_explanation = `Inbound parse (${roleDecision.source}) from event ${eventId}.`;
+    }
+  }
+
+  if (statusDecision.accepted && statusDecision.value) {
+    const currentStatus = normalizeDerivedStatusValue(application.current_status || application.status || null);
+    if (
+      statusDecision.value !== currentStatus ||
+      statusDecision.confidence !== normalizeFieldConfidenceForStorage(application.status_confidence) ||
+      statusDecision.source !== normalizeFieldSource(application.status_source || 'parser')
+    ) {
+      updates.current_status = statusDecision.value;
+      updates.status = statusDecision.value;
+      updates.status_confidence = statusDecision.confidence;
+      updates.status_source = statusDecision.source;
+      updates.status_explanation = `Inbound parse (${statusDecision.source}) from event ${eventId}.`;
+      updates.status_updated_at = new Date().toISOString();
+    }
+  }
+
+  if (updates.company_name || updates.job_title) {
+    const keyPayload = normalizeJobFields.buildApplicationKey({
+      company: updates.company_name || application.company_name || application.company || null,
+      role: updates.job_title || application.job_title || application.role || null
+    });
+    updates.application_key = keyPayload?.key || null;
+  }
+
+  if (Object.keys(updates).length) {
+    updates.updated_at = new Date().toISOString();
+    const keys = Object.keys(updates);
+    const setClause = keys.map((key) => `${key} = ?`).join(', ');
+    const values = keys.map((key) => updates[key]);
+    values.push(application.id);
+    await awaitMaybe(db.prepare(`UPDATE job_applications SET ${setClause} WHERE id = ?`).run(...values));
+  }
+
+  const refreshed = await awaitMaybe(
+    db
+      .prepare(
+        `SELECT id, company_name, company, company_source, company_confidence,
+                job_title, role, role_source, role_confidence,
+                current_status, status, status_source, status_confidence, application_key
+         FROM job_applications
+         WHERE id = ?
+         LIMIT 1`
+      )
+      .get(application.id)
+  );
+
+  return {
+    application: refreshed || application,
+    fieldUpdates
+  };
+}
+
+const INTERVIEW_SIGNAL_PATTERNS = [
+  /we would like to speak with you/i,
+  /i would like to speak with you/i,
+  /schedule (?:a|an|your)\s+(?:call|interview|phone screen)/i,
+  /let(?:'|’)s schedule/i,
+  /are you available/i,
+  /here are some times?/i,
+  /what time works/i,
+  /phone screen|screening call/i,
+  /zoom (?:invitation|invite)/i,
+  /calendar invite/i,
+  /\binterview\b/i
+];
+
+const OFFER_SIGNAL_PATTERNS = [
+  /offer letter/i,
+  /offer received/i,
+  /offer extended/i,
+  /pleased to offer/i,
+  /congratulations.*offer/i,
+  /offering you the position/i
+];
+
+const JOB_CONTEXT_PATTERN =
+  /\b(application|applied|position|role|candidate|requisition|job|thank you for applying|your application)\b/i;
+
+const DAY_PATTERN =
+  /\b(mon|monday|tue|tues|tuesday|wed|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday|sun|sunday)\b/i;
+const TIME_PATTERN =
+  /\b(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\d{1,2}\s*(?:-|–|to)\s*\d{1,2}\s*(?:am|pm)\b|\d{1,2}:\d{2}\b|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b/i;
+
+function collectSignalScore(text, patterns, basePoints = 10) {
+  const source = String(text || '');
+  const hits = [];
+  let score = 0;
+  for (const pattern of patterns) {
+    if (pattern.test(source)) {
+      hits.push(pattern.source);
+      score += basePoints;
+    }
+  }
+  return { score, hits };
+}
+
+function hasDigestVeto({ sender, subject, bodyText }) {
+  const senderText = String(sender || '').toLowerCase();
+  const subjectText = String(subject || '').toLowerCase();
+  const body = String(bodyText || '').toLowerCase();
+  const readMoreCount = (body.match(/\bread more\b/g) || []).length;
+  const fromDigestDomain =
+    senderText.includes('glassdoor.com') || senderText.includes('linkedin.com');
+  return Boolean(
+    fromDigestDomain &&
+      body.includes('unsubscribe') &&
+      readMoreCount >= 2 &&
+      /tech buzz|jobs recommended|top job picks|job alert|community|digest|newsletter/.test(
+        `${subjectText} ${body}`
+      )
+  );
+}
+
+function enforceForwardingStatusGuardrails({
+  detectedType,
+  subject,
+  snippet,
+  bodyText,
+  sender,
+  company,
+  role
+}) {
+  const mergedText = `${String(subject || '')}\n${String(snippet || '')}\n${String(bodyText || '')}`;
+  const interviewSignal = collectSignalScore(mergedText, INTERVIEW_SIGNAL_PATTERNS, 9);
+  const offerSignal = collectSignalScore(mergedText, OFFER_SIGNAL_PATTERNS, 12);
+  const timeSlotEvidence = DAY_PATTERN.test(mergedText) || TIME_PATTERN.test(mergedText);
+  if (timeSlotEvidence) {
+    interviewSignal.score += 8;
+  }
+  const jobContextEvidence = JOB_CONTEXT_PATTERN.test(`${subject}\n${snippet}`) || Boolean(company && role);
+  const normalizedType = String(detectedType || '').toLowerCase();
+
+  if (hasDigestVeto({ sender, subject, bodyText })) {
+    return {
+      ignoreReason: 'bulk_digest_veto',
+      detectedType: normalizedType,
+      interviewSignal: { ...interviewSignal, timeSlotEvidence },
+      offerSignal,
+      jobContextEvidence
+    };
+  }
+
+  if (
+    normalizedType === 'interview' ||
+    normalizedType === 'interview_requested' ||
+    normalizedType === 'interview_scheduled' ||
+    normalizedType === 'meeting_requested'
+  ) {
+    const strongIntent =
+      interviewSignal.score >= 24 ||
+      (interviewSignal.hits.length >= 2 && timeSlotEvidence);
+    if (!strongIntent || !jobContextEvidence) {
+      return {
+        detectedType: 'other_job_related',
+        demotedReason: !jobContextEvidence ? 'interview_missing_job_context' : 'interview_signal_weak',
+        interviewSignal: { ...interviewSignal, timeSlotEvidence },
+        offerSignal,
+        jobContextEvidence
+      };
+    }
+  }
+
+  if (normalizedType === 'offer') {
+    if (offerSignal.score < 16 || !jobContextEvidence) {
+      return {
+        detectedType: 'other_job_related',
+        demotedReason: !jobContextEvidence ? 'offer_missing_job_context' : 'offer_signal_weak',
+        interviewSignal: { ...interviewSignal, timeSlotEvidence },
+        offerSignal,
+        jobContextEvidence
+      };
+    }
+  }
+
+  return {
+    detectedType: normalizedType,
+    interviewSignal: { ...interviewSignal, timeSlotEvidence },
+    offerSignal,
+    jobContextEvidence
+  };
+}
+
+function encodeDebugJson(db, payload) {
+  if (!payload) {
+    return null;
+  }
+  if (db && db.isAsync) {
+    return payload;
+  }
+  try {
+    return JSON.stringify(payload);
+  } catch (_) {
+    return null;
+  }
+}
+
+async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
+  if (!db || typeof db.prepare !== 'function') {
+    throw new Error('DB_REQUIRED');
+  }
+  if (!userId) {
+    throw new Error('USER_ID_REQUIRED');
+  }
+
+  const activeBind = boolBind(db, true);
+  const activeAddress = await awaitMaybe(
+    db
+      .prepare(
+        `SELECT id, address_email, last_received_at
+         FROM inbound_addresses
+         WHERE user_id = ? AND is_active = ?
+         ORDER BY created_at DESC
+         LIMIT 1`
+      )
+      .get(userId, activeBind)
+  );
+
+  if (!activeAddress) {
+    return {
+      status: 'not_connected',
+      processed: 0,
+      ignored: 0,
+      errors: 0,
+      created: 0,
+      updated: 0,
+      pending_remaining: 0,
+      last_received_at: null,
+      last_processed_at: null,
+      sample: []
+    };
+  }
+
+  const safeLimit = Math.max(1, Math.min(500, Math.floor(Number(limit) || 100)));
+  const pendingRowsRaw = await awaitMaybe(
+    db
+      .prepare(
+        `SELECT im.*,
+                ia.is_active AS inbound_address_is_active,
+                ia.address_email AS inbound_address_email
+         FROM inbound_messages im
+         LEFT JOIN inbound_addresses ia ON ia.id = im.inbound_address_id
+         WHERE im.user_id = ?
+           AND (im.processing_status IS NULL OR im.processing_status IN ('pending', 'error'))
+         ORDER BY received_at ASC, created_at ASC
+         LIMIT ?`
+      )
+      .all(userId, safeLimit)
+  );
+  const pendingRows = normalizeRowList(pendingRowsRaw);
+  const userRow = await awaitMaybe(db.prepare('SELECT email, name FROM users WHERE id = ?').get(userId));
+  const userEmail = normalizeEmail(userRow?.email || '');
+  const userName = String(userRow?.name || '').trim();
+
+  let processed = 0;
+  let ignored = 0;
+  let errors = 0;
+  let created = 0;
+  let updated = 0;
+  const sample = [];
+  const errorSamples = [];
+  let lastProcessedAt = null;
+
+  for (const row of pendingRows) {
+    const startedAt = new Date().toISOString();
+    let debugMeta = null;
+    await awaitMaybe(
+      db
+        .prepare(
+          `UPDATE inbound_messages
+           SET processing_status = 'processing', processing_error = NULL
+           WHERE id = ?`
+        )
+        .run(row.id)
+    );
+
+    try {
+      const rawPayload = parseInboundRawPayload(row.raw_payload);
+      const headers = Array.isArray(rawPayload?.Headers) ? rawPayload.Headers : [];
+      const sender = String(row.from_email || rawPayload?.From || '').trim();
+      const subject = String(row.subject || rawPayload?.Subject || '').trim();
+      const fromTextBody = truncateBodyText(row.body_text || rawPayload?.TextBody || '');
+      const fromHtmlBody = fromTextBody
+        ? ''
+        : truncateBodyText(stripHtml(row.body_html || rawPayload?.HtmlBody || ''));
+      const bodyText = fromTextBody || fromHtmlBody;
+      const snippet = truncateSnippet(bodyText || subject || '', 180) || '';
+      const senderLower = String(sender || '').toLowerCase();
+      const senderDomain = senderLower.includes('@') ? senderLower.split('@')[1] : '';
+      const providerHint = senderLower.includes('linkedin.com')
+        ? 'linkedin'
+        : senderLower.includes('workablemail.com')
+          ? 'workable'
+          : senderLower.includes('workday.com') || senderLower.includes('myworkday.com')
+            ? 'workday'
+            : senderLower.includes('indeed')
+              ? 'indeed'
+              : 'generic';
+      debugMeta = {
+        version: 'v1',
+        provider_hint: providerHint,
+        provider_id: providerHint,
+        provider_reason: 'sender_heuristic',
+        suppression: { applied: false },
+        extracted: {
+          company_candidates: [],
+          role_candidates: [],
+          status_candidates: [],
+          chosen: { company: null, role: null, status: null }
+        },
+        normalization: {
+          company_in: null,
+          company_out: null,
+          role_in: null,
+          role_out: null,
+          parser_company_in: null,
+          parser_role_in: null
+        },
+        matching: {
+          application_key: null,
+          application_key_inputs: null,
+          matched_by: null,
+          matched_application_id: null
+        },
+        confidence: {
+          company: 0,
+          role: 0,
+          status: 0,
+          key: 0
+        },
+        hints: {
+          applied: false,
+          reason: 'none',
+          hint_id: null,
+          fingerprint: null,
+          overrides: null
+        },
+        validation: {
+          notes: []
+        },
+        signals: {
+          interview: { score: 0, phrases_hit: [], time_slot_evidence: false },
+          offer: { score: 0, phrases_hit: [] }
+        }
+      };
+
+      if (!normalizeDbBool(row.inbound_address_is_active)) {
+        ignored += 1;
+        const processedAt = new Date().toISOString();
+        debugMeta.suppression = {
+          applied: true,
+          reason: 'inactive_forwarding_address'
+        };
+        debugMeta.matching = {
+          ...(debugMeta.matching || {}),
+          matched_by: 'inactive_address'
+        };
+        if (errorSamples.length < 5) {
+          errorSamples.push({
+            subject: truncateSnippet(subject, 96) || '(no subject)',
+            reason: 'suppressed:inactive_forwarding_address'
+          });
+        }
+        await awaitMaybe(
+          db
+            .prepare(
+              `UPDATE inbound_messages
+               SET processing_status = 'ignored',
+                   processed_at = ?,
+                   processing_error = ?,
+                   derived_debug_json = ?
+               WHERE id = ?`
+            )
+            .run(
+              processedAt,
+              'suppressed:inactive_forwarding_address',
+              encodeDebugJson(db, debugMeta),
+              row.id
+            )
+        );
+        lastProcessedAt = processedAt;
+        continue;
+      }
+
+      const suppression = shouldSuppressEmail({
+        from: sender,
+        subject,
+        text: bodyText,
+        headers,
+        to: row.to_email || rawPayload?.To || '',
+        userEmail,
+        userName
+      });
+      if (suppression?.suppress) {
+        ignored += 1;
+        const processedAt = new Date().toISOString();
+        debugMeta.suppression = {
+          applied: true,
+          reason: suppression.reason || 'suppressed'
+        };
+        if (errorSamples.length < 5) {
+          errorSamples.push({
+            subject: truncateSnippet(subject, 96) || '(no subject)',
+            reason: `suppressed:${suppression.reason || 'suppressed'}`
+          });
+        }
+        await awaitMaybe(
+          db
+            .prepare(
+              `UPDATE inbound_messages
+               SET processing_status = 'ignored',
+                   processed_at = ?,
+                   processing_error = ?,
+                   derived_debug_json = ?
+               WHERE id = ?`
+            )
+            .run(
+              processedAt,
+              `suppressed:${suppression.reason || 'suppressed'}`,
+              encodeDebugJson(db, debugMeta),
+              row.id
+            )
+        );
+        lastProcessedAt = processedAt;
+        continue;
+      }
+
+      const parsedEmail = await parseJobEmail({
+        fromEmail: sender,
+        fromDomain: senderDomain,
+        subject,
+        text: bodyText,
+        html: row.body_html || rawPayload?.HtmlBody || '',
+        headers,
+        db,
+        userId
+      });
+      const parseConfidence = parsedEmail?.confidence || {};
+      debugMeta.provider_id = parsedEmail?.providerId || providerHint;
+      debugMeta.provider_reason = parsedEmail?.providerReason || 'sender_heuristic';
+      debugMeta.confidence = {
+        company: Number(parseConfidence.company || 0),
+        role: Number(parseConfidence.role || 0),
+        status: Number(parseConfidence.status || 0),
+        key: Number(parseConfidence.key || 0)
+      };
+      debugMeta.validation.notes = Array.isArray(parsedEmail?.notes) ? parsedEmail.notes : [];
+      debugMeta.extracted.company_candidates = Array.from(
+        new Set([...(parsedEmail?.candidates?.company || []), parsedEmail?.company].filter(Boolean))
+      );
+      debugMeta.extracted.role_candidates = Array.from(
+        new Set([...(parsedEmail?.candidates?.role || []), parsedEmail?.role].filter(Boolean))
+      );
+      debugMeta.normalization.parser_company_in = parsedEmail?.company || null;
+      debugMeta.normalization.parser_role_in = parsedEmail?.role || null;
+      debugMeta.hints = parsedEmail?.hints || debugMeta.hints;
+
+      const parsedDetectedType = mapParsedStatusToDetectedType(parsedEmail?.status);
+      const parserHasHighSignal = Boolean(
+        parsedDetectedType &&
+          Number(parseConfidence.status || 0) >= PARSE_CONFIDENCE_THRESHOLDS.status &&
+          (parsedEmail?.company || parsedEmail?.role)
+      );
+
+      const classification = classifyEmail({
+        subject,
+        snippet,
+        sender,
+        body: bodyText,
+        headers,
+        authenticatedUserEmail: userEmail,
+        messageLabels: []
+      });
+
+      if (!classification?.isJobRelated && !parserHasHighSignal) {
+        ignored += 1;
+        const processedAt = new Date().toISOString();
+        const reason = classification?.reason ? `suppressed:${classification.reason}` : 'suppressed:not_job_related';
+        debugMeta.suppression = {
+          applied: true,
+          reason: classification?.reason || 'not_job_related'
+        };
+        debugMeta.extracted.status_candidates = [String(classification?.detectedType || 'other_job_related')];
+        if (errorSamples.length < 5) {
+          errorSamples.push({
+            subject: truncateSnippet(subject, 96) || '(no subject)',
+            reason
+          });
+        }
+        await awaitMaybe(
+          db
+            .prepare(
+              `UPDATE inbound_messages
+               SET processing_status = 'ignored',
+                   processed_at = ?,
+                   processing_error = ?,
+                   derived_debug_json = ?
+               WHERE id = ?`
+            )
+            .run(processedAt, reason, encodeDebugJson(db, debugMeta), row.id)
+        );
+        lastProcessedAt = processedAt;
+        continue;
+      }
+
+      const identity = extractThreadIdentity({
+        subject,
+        sender,
+        snippet,
+        bodyText
+      });
+      const roleResult = extractJobTitle({
+        subject,
+        snippet,
+        bodyText,
+        sender,
+        companyName: identity.companyName || null
+      });
+      const deterministic = extractDeterministicForwardedIdentity({ subject, bodyText });
+
+      const companyCandidates = [
+        parsedEmail?.company || null,
+        deterministic.companyName || null,
+        identity.companyName || null
+      ].filter(Boolean);
+      const roleCandidates = [
+        parsedEmail?.role || null,
+        deterministic.jobTitle || null,
+        roleResult?.jobTitle || null,
+        identity.jobTitle || null
+      ].filter(Boolean);
+      debugMeta.extracted.company_candidates = Array.from(new Set(companyCandidates));
+      debugMeta.extracted.role_candidates = Array.from(new Set(roleCandidates));
+
+      const parsedCompanyCandidate =
+        Number(parseConfidence.company || 0) >= PARSE_CONFIDENCE_THRESHOLDS.company
+          ? parsedEmail?.company || null
+          : null;
+      const parsedRoleCandidate =
+        Number(parseConfidence.role || 0) >= PARSE_CONFIDENCE_THRESHOLDS.role
+          ? parsedEmail?.role || null
+          : null;
+
+      const bestCompanyCandidate = parsedCompanyCandidate || deterministic.companyName || identity.companyName || null;
+      const bestRoleCandidate =
+        parsedRoleCandidate || deterministic.jobTitle || roleResult?.jobTitle || identity.jobTitle || null;
+      debugMeta.normalization.company_in = bestCompanyCandidate;
+      debugMeta.normalization.role_in = bestRoleCandidate;
+
+      const derivedCompany = normalizeDerivedCompany(bestCompanyCandidate);
+      const derivedRole = normalizeDerivedRole(bestRoleCandidate);
+      debugMeta.normalization.company_out = derivedCompany;
+      debugMeta.normalization.role_out = derivedRole;
+      const externalReqId = extractExternalReqId({ subject, snippet, bodyText })?.externalReqId || null;
+      const deterministicAppKeyPayload = buildDeterministicApplicationKey({
+        providerId: parsedEmail?.providerId || providerHint,
+        company: derivedCompany,
+        role: derivedRole,
+        jobId: externalReqId || parsedEmail?.application_key_payload?.normalizedJobId || null
+      });
+      const appKeyPayload =
+        Number(parseConfidence.key || 0) >= PARSE_CONFIDENCE_THRESHOLDS.key && parsedEmail?.application_key_payload
+          ? parsedEmail.application_key_payload
+          : deterministicAppKeyPayload || normalizeJobFields.buildApplicationKey({
+            company: derivedCompany,
+            role: derivedRole
+          });
+      const derivedApplicationKey = appKeyPayload?.key || parsedEmail?.application_key || null;
+      debugMeta.matching.application_key = derivedApplicationKey;
+      debugMeta.matching.application_key_inputs = appKeyPayload?.inputs || null;
+
+      const parserDetectedType =
+        parsedDetectedType && Number(parseConfidence.status || 0) >= PARSE_CONFIDENCE_THRESHOLDS.status
+          ? parsedDetectedType
+          : null;
+      const statusGuard = enforceForwardingStatusGuardrails({
+        detectedType: parserDetectedType || classification.detectedType || 'other_job_related',
+        subject,
+        snippet,
+        bodyText,
+        sender,
+        company: derivedCompany,
+        role: derivedRole
+      });
+      debugMeta.signals.interview = {
+        score: statusGuard.interviewSignal?.score || 0,
+        phrases_hit: statusGuard.interviewSignal?.hits || [],
+        time_slot_evidence: Boolean(statusGuard.interviewSignal?.timeSlotEvidence)
+      };
+      debugMeta.signals.offer = {
+        score: statusGuard.offerSignal?.score || 0,
+        phrases_hit: statusGuard.offerSignal?.hits || []
+      };
+
+      if (statusGuard.ignoreReason) {
+        ignored += 1;
+        const processedAt = new Date().toISOString();
+        debugMeta.suppression = {
+          applied: true,
+          reason: statusGuard.ignoreReason
+        };
+        await awaitMaybe(
+          db
+            .prepare(
+              `UPDATE inbound_messages
+               SET processing_status = 'ignored',
+                   processed_at = ?,
+                   processing_error = ?,
+                   derived_debug_json = ?
+               WHERE id = ?`
+            )
+            .run(
+              processedAt,
+              `suppressed:${statusGuard.ignoreReason}`,
+              encodeDebugJson(db, debugMeta),
+              row.id
+            )
+        );
+        lastProcessedAt = processedAt;
+        if (errorSamples.length < 5) {
+          errorSamples.push({
+            subject: truncateSnippet(subject, 96) || '(no subject)',
+            reason: `suppressed:${statusGuard.ignoreReason}`
+          });
+        }
+        continue;
+      }
+
+      const detectedType = String(
+        statusGuard.detectedType || parserDetectedType || classification.detectedType || 'other_job_related'
+      ).toLowerCase();
+      debugMeta.extracted.status_candidates = Array.from(
+        new Set(
+          [
+            String(classification.detectedType || 'other_job_related'),
+            String(parsedDetectedType || ''),
+            detectedType
+          ].filter(Boolean)
+        )
+      );
+      const parserStatusConfidence = Number(parseConfidence.status || 0) / 100;
+      const confidence = parserDetectedType
+        ? Math.max(
+            parserStatusConfidence,
+            Number.isFinite(classification.confidenceScore) ? classification.confidenceScore : 0.6
+          )
+        : Number.isFinite(classification.confidenceScore)
+          ? classification.confidenceScore
+          : 0.7;
+      const internalDateMs = row.received_at ? new Date(row.received_at).getTime() : Date.now();
+      const eventCreatedAt = row.created_at ? new Date(row.created_at).toISOString() : startedAt;
+      const providerMessageId = String(
+        row.provider_message_id || row.message_id_header || row.sha256 || row.id
+      ).trim();
+      const messageId = `inbound:${row.id}`;
+
+      const eventPayload = {
+        id: row.derived_event_id || crypto.randomUUID(),
+        userId,
+        provider: 'inbound_forward',
+        messageId,
+        providerMessageId: providerMessageId || null,
+        rfcMessageId: row.message_id_header || null,
+        sender: sender || null,
+        subject: subject || null,
+        internalDate: Number.isFinite(internalDateMs) ? internalDateMs : Date.now(),
+        snippet: snippet || null,
+        detectedType,
+        confidenceScore: confidence,
+        classificationConfidence: confidence,
+        identityConfidence:
+          Number(parseConfidence.company || 0) >= PARSE_CONFIDENCE_THRESHOLDS.company ||
+          Number(parseConfidence.role || 0) >= PARSE_CONFIDENCE_THRESHOLDS.role
+            ? Math.max(Number(parseConfidence.company || 0), Number(parseConfidence.role || 0)) / 100
+            : Number.isFinite(identity.matchConfidence)
+              ? identity.matchConfidence
+              : null,
+        identityCompanyName: derivedCompany || null,
+        identityJobTitle: derivedRole || null,
+        identityCompanyConfidence:
+          Number(parseConfidence.company || 0) >= PARSE_CONFIDENCE_THRESHOLDS.company
+            ? Number(parseConfidence.company || 0) / 100
+            : Number.isFinite(identity.companyConfidence)
+              ? identity.companyConfidence
+              : null,
+        identityExplanation:
+          parsedEmail?.notes?.length
+            ? `${parsedEmail.providerId || providerHint} parser: ${parsedEmail.notes.join('; ')}`
+            : deterministic.explanation || identity.explanation || null,
+        explanation: classification.explanation || 'Forwarded inbound email processed.',
+        reasonCode: statusGuard.demotedReason || classification.reason || null,
+        reasonDetail: null,
+        roleTitle: derivedRole || null,
+        roleConfidence:
+          Number(parseConfidence.role || 0) >= PARSE_CONFIDENCE_THRESHOLDS.role
+            ? Number(parseConfidence.role || 0) / 100
+            : Number.isFinite(roleResult?.confidence)
+              ? roleResult.confidence
+              : null,
+        roleSource:
+          Number(parseConfidence.role || 0) >= PARSE_CONFIDENCE_THRESHOLDS.role
+            ? `${parsedEmail.providerId || providerHint}_parser`
+            : deterministic.jobTitle
+              ? 'deterministic'
+              : roleResult?.source || null,
+        roleExplanation:
+          Number(parseConfidence.role || 0) >= PARSE_CONFIDENCE_THRESHOLDS.role
+            ? (parsedEmail?.notes || []).join('; ') || 'Deterministic provider parser output.'
+            : roleResult?.explanation || deterministic.explanation || null,
+        externalReqId,
+        ingestDecision: 'inbound_sync',
+        createdAt: eventCreatedAt,
+        updatedAt: new Date().toISOString()
+      };
+
+      const existingEvent = await awaitMaybe(
+        db
+          .prepare(
+            `SELECT id
+             FROM email_events
+             WHERE user_id = ? AND provider = ? AND message_id = ?
+             LIMIT 1`
+          )
+          .get(userId, 'inbound_forward', messageId)
+      );
+
+      if (existingEvent?.id) {
+        eventPayload.id = existingEvent.id;
+        await awaitMaybe(updateEmailEventRecord(db, existingEvent.id, eventPayload));
+      } else {
+        await awaitMaybe(insertEmailEventRecord(db, eventPayload));
+      }
+
+      const matchIdentity = {
+        ...identity,
+        companyName: derivedCompany || identity.companyName || null,
+        jobTitle: derivedRole || identity.jobTitle || null,
+        companyConfidence:
+          Number(parseConfidence.company || 0) >= PARSE_CONFIDENCE_THRESHOLDS.company
+            ? Number(parseConfidence.company || 0) / 100
+            : identity.companyConfidence,
+        roleConfidence:
+          Number(parseConfidence.role || 0) >= PARSE_CONFIDENCE_THRESHOLDS.role
+            ? Number(parseConfidence.role || 0) / 100
+            : identity.roleConfidence,
+        explanation:
+          parsedEmail?.notes?.length
+            ? `${parsedEmail.providerId || providerHint} parser`
+            : identity.explanation,
+        applicationKey: derivedApplicationKey
+      };
+
+      const matchResult = await awaitMaybe(
+        matchAndAssignEvent({
+          db,
+          userId,
+          event: {
+            id: eventPayload.id,
+            sender: sender || null,
+            subject: subject || null,
+            snippet: snippet || null,
+            internal_date: eventPayload.internalDate,
+            detected_type: detectedType,
+            confidence_score: confidence,
+            classification_confidence: confidence,
+            classification_reason: statusGuard.demotedReason || classification.reason || null,
+            bodyText,
+            role_title: derivedRole || null,
+            role_confidence: eventPayload.roleConfidence,
+            role_source: eventPayload.roleSource,
+            role_explanation: eventPayload.roleExplanation,
+            external_req_id: externalReqId,
+            created_at: eventCreatedAt
+          },
+          identity: matchIdentity
+        })
+      );
+
+      const action = String(matchResult?.action || '');
+      if (action === 'created_application') {
+        created += 1;
+      } else if (action === 'matched_existing') {
+        updated += 1;
+      }
+
+      let safeUpdateResult = {
+        application: null,
+        fieldUpdates: null
+      };
+      if (matchResult?.applicationId) {
+        safeUpdateResult = await applySafeApplicationFieldUpdates({
+          db,
+          applicationId: matchResult.applicationId,
+          derivedCompany,
+          derivedRole,
+          derivedStatus: mapDetectedTypeToDerivedStatus(detectedType),
+          parseConfidence,
+          parsedEmail,
+          eventId: eventPayload.id
+        });
+      }
+
+      let matchedBy = action === 'created_application' ? 'created_new' : 'normalized_exact';
+      if (action === 'unassigned') {
+        matchedBy = 'created_new';
+      }
+      let similarityDetail = null;
+      if (matchResult?.applicationId) {
+        const matchedApp =
+          safeUpdateResult?.application ||
+          (await awaitMaybe(
+            db
+              .prepare(
+                `SELECT id, company_name, company, job_title, role, application_key
+                 FROM job_applications
+                 WHERE id = ?
+                 LIMIT 1`
+              )
+              .get(matchResult.applicationId)
+          ));
+        if (matchedApp) {
+          const matchedFingerprint = normalizeJobFields.buildApplicationKey({
+            company: matchedApp.company_name || matchedApp.company || null,
+            role: matchedApp.job_title || matchedApp.role || null
+          });
+          const currentRole = String(appKeyPayload?.normalizedRole || '');
+          const matchedRole = String(matchedFingerprint?.normalizedRole || '');
+          const containsRatio =
+            currentRole && matchedRole
+              ? Math.min(currentRole.length, matchedRole.length) / Math.max(currentRole.length, matchedRole.length)
+              : 0;
+          if (
+            derivedApplicationKey &&
+            matchedApp.application_key &&
+            derivedApplicationKey === matchedApp.application_key
+          ) {
+            matchedBy = 'key';
+          } else if (
+            appKeyPayload?.normalizedCompany &&
+            matchedFingerprint?.normalizedCompany === appKeyPayload.normalizedCompany &&
+            matchedFingerprint?.normalizedRole === appKeyPayload.normalizedRole
+          ) {
+            matchedBy = 'normalized_exact';
+          } else if (
+            appKeyPayload?.normalizedCompany &&
+            matchedFingerprint?.normalizedCompany === appKeyPayload.normalizedCompany &&
+            containsRatio > 0.6 &&
+            (currentRole.includes(matchedRole) || matchedRole.includes(currentRole))
+          ) {
+            matchedBy = 'contains_similarity';
+            similarityDetail = {
+              method: 'contains',
+              a: currentRole,
+              b: matchedRole
+            };
+          }
+        }
+      }
+      debugMeta.extracted.chosen = {
+        company: derivedCompany || null,
+        role: derivedRole || null,
+        status: mapDetectedTypeToDerivedStatus(detectedType)
+      };
+      debugMeta.matching = {
+        application_key: derivedApplicationKey,
+        application_key_inputs: appKeyPayload?.inputs || null,
+        matched_by: matchedBy,
+        matched_application_id: matchResult?.applicationId || null,
+        similarity: similarityDetail,
+        field_updates: safeUpdateResult?.fieldUpdates || null
+      };
+
+      processed += 1;
+      const processedAt = new Date().toISOString();
+      const derivedStatus = mapDetectedTypeToDerivedStatus(detectedType);
+      await awaitMaybe(
+        db
+          .prepare(
+            `UPDATE inbound_messages
+             SET processing_status = 'processed',
+                 processed_at = ?,
+                 processing_error = ?,
+                 derived_event_id = ?,
+                 derived_application_id = ?,
+                 derived_application_key = ?,
+                 derived_status = ?,
+                 derived_company = ?,
+                 derived_role = ?,
+                 derived_debug_json = ?
+             WHERE id = ?`
+          )
+          .run(
+            processedAt,
+            action === 'unassigned' ? `unassigned:${matchResult?.reason || 'no_match'}` : null,
+            eventPayload.id,
+            matchResult?.applicationId || null,
+            derivedApplicationKey,
+            derivedStatus,
+            derivedCompany || null,
+            derivedRole || null,
+            encodeDebugJson(db, debugMeta),
+            row.id
+          )
+      );
+      lastProcessedAt = processedAt;
+
+      if (sample.length < 3) {
+        sample.push({
+          subject: truncateSnippet(subject, 120) || null,
+          derived_company: derivedCompany || null,
+          derived_role: derivedRole || null,
+          derived_status: derivedStatus
+        });
+      }
+    } catch (err) {
+      errors += 1;
+      const processedAt = new Date().toISOString();
+      const errorMessage = String(err?.message || err || 'unknown_error').slice(0, 180);
+      if (debugMeta && typeof debugMeta === 'object') {
+        debugMeta.suppression = debugMeta.suppression || { applied: false };
+        debugMeta.matching = {
+          ...(debugMeta.matching || {}),
+          matched_by: 'error'
+        };
+      }
+      if (errorSamples.length < 5) {
+        errorSamples.push({
+          subject: truncateSnippet(String(row?.subject || ''), 96) || '(no subject)',
+          reason: errorMessage
+        });
+      }
+      await awaitMaybe(
+        db
+          .prepare(
+            `UPDATE inbound_messages
+             SET processing_status = 'error',
+                 processed_at = ?,
+                 processing_error = ?,
+                 derived_debug_json = ?
+             WHERE id = ?`
+          )
+          .run(processedAt, errorMessage, encodeDebugJson(db, debugMeta), row.id)
+      );
+      lastProcessedAt = processedAt;
+      logInfo('inbound.sync_message_error', {
+        userId,
+        inboundMessageId: row.id,
+        error: errorMessage
+      });
+    }
+  }
+
+  const latestReceivedRow = await awaitMaybe(
+    db
+      .prepare(
+        `SELECT received_at
+         FROM inbound_messages
+         WHERE user_id = ?
+         ORDER BY received_at DESC, created_at DESC
+         LIMIT 1`
+      )
+      .get(userId)
+  );
+  const maxProcessedRow = await awaitMaybe(
+    db
+      .prepare(
+        `SELECT processed_at
+         FROM inbound_messages
+         WHERE user_id = ? AND processed_at IS NOT NULL
+         ORDER BY processed_at DESC
+         LIMIT 1`
+      )
+      .get(userId)
+  );
+  const pendingRemainingRow = await awaitMaybe(
+    db
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM inbound_messages
+         WHERE user_id = ?
+           AND (processing_status IS NULL OR processing_status IN ('pending', 'processing', 'error'))`
+      )
+      .get(userId)
+  );
+  const pendingRemaining = Number(pendingRemainingRow?.count || 0);
+
+  return {
+    status: 'ok',
+    processed,
+    ignored,
+    errors,
+    created,
+    updated,
+    last_received_at: activeAddress.last_received_at || latestReceivedRow?.received_at || null,
+    last_processed_at: maxProcessedRow?.processed_at || lastProcessedAt || null,
+    pending_remaining: Number.isFinite(pendingRemaining) ? Math.max(0, pendingRemaining) : 0,
+    sample,
+    errors_detail: errorSamples
+  };
+}
+
+async function ingestInboundEmailForUser(db, userId, inboundMessage) {
+  if (!db || typeof db.prepare !== 'function') {
+    throw new Error('DB_REQUIRED');
+  }
+  if (!userId) {
+    throw new Error('USER_ID_REQUIRED');
+  }
+  if (!inboundMessage || typeof inboundMessage !== 'object') {
+    throw new Error('INBOUND_MESSAGE_REQUIRED');
+  }
+
+  const sender = String(inboundMessage.from_email || '').trim() || null;
+  const subject = String(inboundMessage.subject || '').trim() || null;
+  const bodyText = truncateBodyText(inboundMessage.body_text || '');
+  const bodyFromHtml = bodyText ? '' : stripHtml(inboundMessage.body_html || '');
+  const canonicalBodyText = bodyText || truncateBodyText(bodyFromHtml || '');
+  const snippet = truncateSnippet(canonicalBodyText || subject || '', 180);
+  const receivedMs = inboundMessage.received_at
+    ? new Date(inboundMessage.received_at).getTime()
+    : Number.NaN;
+  const internalDate = Number.isFinite(receivedMs) ? receivedMs : Date.now();
+
+  const classification = classifyEmail({
+    subject: subject || '',
+    snippet: snippet || '',
+    sender: sender || '',
+    body: canonicalBodyText || '',
+    authenticatedUserEmail: null,
+    messageLabels: []
+  });
+  const fallbackDetectedType = classification?.isJobRelated
+    ? classification?.detectedType || 'other_job_related'
+    : 'other_job_related';
+
+  const eventId = crypto.randomUUID();
+  const createdAt = inboundMessage.created_at
+    ? new Date(inboundMessage.created_at).toISOString()
+    : new Date().toISOString();
+  const providerMessageId = String(
+    inboundMessage.provider_message_id || inboundMessage.message_id_header || inboundMessage.sha256 || inboundMessage.id
+  ).trim();
+
+  await awaitMaybe(
+    insertEmailEventRecord(db, {
+      id: eventId,
+      userId,
+      provider: 'inbound_forward',
+      messageId: `inbound:${inboundMessage.id || providerMessageId || eventId}`,
+      providerMessageId: providerMessageId || null,
+      rfcMessageId: inboundMessage.message_id_header || null,
+      sender,
+      subject,
+      internalDate,
+      snippet,
+      detectedType: fallbackDetectedType,
+      confidenceScore: Number.isFinite(classification?.confidenceScore)
+        ? classification.confidenceScore
+        : 0.5,
+      classificationConfidence: Number.isFinite(classification?.confidenceScore)
+        ? classification.confidenceScore
+        : 0.5,
+      explanation:
+        classification?.explanation || 'Forwarded inbound email captured for downstream processing.',
+      reasonCode: classification?.reason || null,
+      reasonDetail: null,
+      ingestDecision: 'inbound_raw',
+      createdAt
+    })
+  );
+
+  return {
+    ok: true,
+    eventId,
+    detectedType: fallbackDetectedType,
+    confidenceScore: Number.isFinite(classification?.confidenceScore) ? classification.confidenceScore : 0.5,
+    isJobRelated: Boolean(classification?.isJobRelated)
+  };
+}
+
 module.exports = {
   syncGmailMessages,
+  syncInboundForwardedMessages,
+  ingestInboundEmailForUser,
   getSyncProgress,
   REASON_KEYS,
   initReasonCounters,

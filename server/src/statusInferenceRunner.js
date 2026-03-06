@@ -2,6 +2,10 @@ const crypto = require('crypto');
 const { ApplicationStatus } = require('../../shared/types');
 const { inferStatus, TERMINAL_STATUSES, STATUS_PRIORITY } = require('../../shared/statusInference');
 const { logInfo } = require('./logger');
+const {
+  normalizeFieldConfidenceForComparison,
+  normalizeFieldConfidenceForStorage
+} = require('./safeFieldUpdate');
 
 function nowIso() {
   return new Date().toISOString();
@@ -45,7 +49,7 @@ function shouldBlockAuto(application, nextStatus, confidence) {
       current === ApplicationStatus.OFFER_RECEIVED &&
       nextStatus === ApplicationStatus.REJECTED
     ) {
-      const currentConfidence = application.status_confidence || 0;
+      const currentConfidence = normalizeFieldConfidenceForComparison(application.status_confidence) / 100;
       if ((confidence || 0) >= currentConfidence) {
         return null;
       }
@@ -168,10 +172,10 @@ async function runStatusInferenceForApplicationAsync(db, userId, applicationId) 
       if (!blocked) {
         updates.current_status = result.inferred_status;
         updates.status = result.inferred_status;
-        updates.status_confidence = result.confidence;
+        updates.status_confidence = normalizeFieldConfidenceForStorage(result.confidence);
         updates.status_explanation = result.explanation;
         updates.status_updated_at = nowIso();
-        updates.status_source = 'inferred';
+        updates.status_source = 'system';
         updates.suggested_status = null;
         updates.suggested_confidence = null;
         updates.suggested_explanation = null;
@@ -286,10 +290,10 @@ function runStatusInferenceForApplication(db, userId, applicationId) {
     if (!blocked) {
       updates.current_status = result.inferred_status;
       updates.status = result.inferred_status;
-      updates.status_confidence = result.confidence;
+      updates.status_confidence = normalizeFieldConfidenceForStorage(result.confidence);
       updates.status_explanation = result.explanation;
       updates.status_updated_at = nowIso();
-      updates.status_source = 'inferred';
+      updates.status_source = 'system';
       updates.suggested_status = null;
       updates.suggested_confidence = null;
       updates.suggested_explanation = null;

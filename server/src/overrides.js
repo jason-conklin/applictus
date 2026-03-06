@@ -16,7 +16,7 @@ function applyStatusOverride(db, { userId, application, nextStatus, explanation 
          suggested_confidence = NULL, suggested_explanation = NULL, user_override = true,
          updated_at = ?
      WHERE id = ?`
-  ).run(nextStatus, nextStatus, 1.0, statusExplanation, nowIso(), nowIso(), application.id);
+  ).run(nextStatus, nextStatus, 100, statusExplanation, nowIso(), nowIso(), application.id);
 
   createUserAction(db, {
     userId,

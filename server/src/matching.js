@@ -20,6 +20,17 @@ const {
 const { logDebug } = require('./logger');
 const { TERMINAL_STATUSES, STATUS_PRIORITY } = require('../../shared/statusInference');
 const { coalesceTimestamps } = require('./sqlHelpers');
+const {
+  buildApplicationKey,
+  normalizeCompany: normalizeCompanyStrict,
+  normalizeRole: normalizeRoleStrict
+} = require('./normalizeJobFields');
+const {
+  applyFieldUpdate,
+  normalizeFieldSource,
+  normalizeFieldConfidenceForStorage,
+  normalizeFieldConfidenceForComparison
+} = require('./safeFieldUpdate');
 
 const AUTO_CREATE_TYPES = new Set([
   'confirmation',
@@ -182,6 +193,9 @@ function isLowQualityRoleCandidate(value) {
   if (
     /^(thank you for|we regret to inform|after careful consideration|unfortunately)\b/i.test(text)
   ) {
+    return true;
+  }
+  if (/^time and effort you put\b/i.test(text)) {
     return true;
   }
   return false;
@@ -400,29 +414,86 @@ function buildConfirmationDedupeKey(identity, externalReqId, roleTitle = null) {
 }
 
 function buildApplicationFingerprint(identityLike) {
-  const companySource = normalizeCompany(identityLike?.companyName || identityLike?.company || null);
+  const companySource =
+    normalizeCompanyStrict(identityLike?.companyName || identityLike?.company || null) ||
+    normalizeCompany(identityLike?.companyName || identityLike?.company || null);
   const roleSource =
+    normalizeRoleStrict(identityLike?.jobTitle || identityLike?.role || identityLike?.roleTitle || null) ||
     normalizeRoleForApplication(identityLike?.jobTitle || identityLike?.role || identityLike?.roleTitle || null) ||
     sanitizeJobTitle(identityLike?.jobTitle || identityLike?.role || identityLike?.roleTitle || null);
-  const normalizedCompany = normalizeJobIdentity(companySource);
-  const normalizedRole = normalizeJobIdentity(roleSource);
-  if (!normalizedCompany || !normalizedRole) {
+  const keyPayload = buildApplicationKey({
+    company: companySource,
+    role: roleSource
+  });
+  if (!keyPayload) {
     return null;
   }
-  const raw = `${normalizedCompany}|${normalizedRole}`;
-  const hash = crypto.createHash('sha1').update(raw).digest('hex');
   return {
-    raw,
-    hash,
-    normalizedCompany,
-    normalizedRole
+    raw: keyPayload.raw,
+    hash: keyPayload.key,
+    normalizedCompany: keyPayload.normalizedCompany,
+    normalizedRole: keyPayload.normalizedRole
   };
 }
 
+function roleContainmentSimilarity(left, right) {
+  const a = String(left || '').trim();
+  const b = String(right || '').trim();
+  if (!a || !b) {
+    return 0;
+  }
+  if (a === b) {
+    return 1;
+  }
+  if (a.includes(b) || b.includes(a)) {
+    const min = Math.min(a.length, b.length);
+    const max = Math.max(a.length, b.length);
+    return max > 0 ? min / max : 0;
+  }
+  return 0;
+}
+
 async function findApplicationByFingerprint(db, userId, identityLike, eventTimeMs, windowDays = 7) {
+  const explicitApplicationKey = String(identityLike?.applicationKey || '').trim();
+  if (explicitApplicationKey) {
+    const byExplicitKey = normalizeRowList(
+      await awaitMaybe(
+        db
+          .prepare(
+            `SELECT *
+             FROM job_applications
+             WHERE user_id = ?
+               AND archived = false
+               AND application_key = ?`
+          )
+          .all(userId, explicitApplicationKey)
+      )
+    );
+    if (byExplicitKey.length) {
+      return byExplicitKey[0];
+    }
+  }
+
   const fingerprint = buildApplicationFingerprint(identityLike);
   if (!fingerprint) {
     return null;
+  }
+
+  const byKey = normalizeRowList(
+    await awaitMaybe(
+      db
+        .prepare(
+          `SELECT *
+           FROM job_applications
+           WHERE user_id = ?
+             AND archived = false
+             AND application_key = ?`
+        )
+        .all(userId, fingerprint.hash)
+    )
+  );
+  if (byKey.length) {
+    return byKey[0];
   }
 
   const rows = normalizeRowList(
@@ -438,6 +509,39 @@ async function findApplicationByFingerprint(db, userId, identityLike, eventTimeM
   );
   if (!rows.length) {
     return null;
+  }
+
+  const exactNormalized = rows.find((app) => {
+    const appFingerprint = buildApplicationFingerprint({
+      companyName: app.company_name || app.company || null,
+      jobTitle: app.job_title || app.role || null
+    });
+    return (
+      appFingerprint &&
+      appFingerprint.normalizedCompany === fingerprint.normalizedCompany &&
+      appFingerprint.normalizedRole === fingerprint.normalizedRole
+    );
+  });
+  if (exactNormalized) {
+    return exactNormalized;
+  }
+
+  const containsMatch = rows.find((app) => {
+    const appFingerprint = buildApplicationFingerprint({
+      companyName: app.company_name || app.company || null,
+      jobTitle: app.job_title || app.role || null
+    });
+    if (!appFingerprint) {
+      return false;
+    }
+    if (appFingerprint.normalizedCompany !== fingerprint.normalizedCompany) {
+      return false;
+    }
+    const ratio = roleContainmentSimilarity(appFingerprint.normalizedRole, fingerprint.normalizedRole);
+    return ratio > 0.6;
+  });
+  if (containsMatch) {
+    return containsMatch;
   }
 
   const windowMs = windowDays * 24 * 60 * 60 * 1000;
@@ -551,7 +655,10 @@ function getClassificationConfidence(event) {
     event.confidence_score ??
     event.confidenceScore ??
     event.confidence;
-  return Number.isFinite(value) ? value : 0;
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return value > 1 ? value / 100 : value;
 }
 
 function isHighSignalEvent(event) {
@@ -594,7 +701,7 @@ function shouldBlockAutoStatus(application, nextStatus, confidence) {
       current === ApplicationStatus.OFFER_RECEIVED &&
       nextStatus === ApplicationStatus.REJECTED
     ) {
-      const currentConfidence = application.status_confidence || 0;
+      const currentConfidence = normalizeFieldConfidenceForComparison(application.status_confidence) / 100;
       if ((confidence || 0) >= currentConfidence) {
         return null;
       }
@@ -696,12 +803,12 @@ function shouldUpdateCompany(application, candidate) {
   if (isLowQualityCompanyCandidate(candidate.name)) {
     return false;
   }
-  if (application.company_source === 'manual') {
+  if (normalizeFieldSource(application.company_source || 'parser') === 'user') {
     return false;
   }
   const currentName = application.company_name || application.company || null;
   const currentConfidence = Number.isFinite(application.company_confidence)
-    ? application.company_confidence
+    ? normalizeFieldConfidenceForComparison(application.company_confidence) / 100
     : 0;
   const nextConfidence = Number.isFinite(candidate.confidence) ? candidate.confidence : 0;
   const currentInvalid = !currentName || isProviderName(currentName) || isLowQualityCompanyCandidate(currentName);
@@ -716,29 +823,60 @@ function shouldUpdateCompany(application, candidate) {
 }
 
 function applyCompanyCandidate(db, application, candidate) {
-  if (!shouldUpdateCompany(application, candidate)) {
+  if (!candidate?.name || isLowQualityCompanyCandidate(candidate.name)) {
     return false;
   }
+  const existingCompany = application.company_name || application.company || null;
+  const existingCompanySource = normalizeFieldSource(application.company_source || 'parser');
+  const existingCompanyLooksInvalid = existingCompany ? isLowQualityCompanyCandidate(existingCompany) : false;
+  const existingCompanyIsUserLocked = existingCompanySource === 'user';
+  const decision = applyFieldUpdate({
+    existingValue: existingCompany,
+    existingConfidence:
+      existingCompanyLooksInvalid && !existingCompanyIsUserLocked ? 0 : application.company_confidence,
+    existingSource:
+      existingCompanyLooksInvalid && !existingCompanyIsUserLocked
+        ? 'system'
+        : application.company_source || 'parser',
+    newValue: candidate.name,
+    newConfidence: candidate.confidence,
+    newSource: candidate.source || 'parser'
+  });
+  if (!decision.accepted) {
+    return false;
+  }
+  const nextCompany = decision.value;
+  const currentRole = application.job_title || application.role || null;
+  const nextApplicationKey = buildApplicationKey({
+    company: nextCompany,
+    role: currentRole
+  })?.key || null;
   const stmt = db.prepare(
     `UPDATE job_applications
-     SET company_name = ?, company = ?, company_confidence = ?, company_source = ?, company_explanation = ?, updated_at = ?
+     SET company_name = ?, company = ?, company_confidence = ?, company_source = ?, company_explanation = ?, application_key = ?, updated_at = ?
      WHERE id = ?`
   );
   const dialect = dbDialect(db);
   stmt.run(
     ...normalizeBindParams(
       [
-        candidate.name,
-        candidate.name,
-        Number.isFinite(candidate.confidence) ? candidate.confidence : null,
-        candidate.source || null,
+        nextCompany,
+        nextCompany,
+        decision.confidence,
+        decision.source,
         candidate.explanation || null,
+        nextApplicationKey,
         new Date().toISOString(),
         application.id
       ],
       dialect
     )
   );
+  application.company_name = nextCompany;
+  application.company = nextCompany;
+  application.company_confidence = decision.confidence;
+  application.company_source = decision.source;
+  application.application_key = nextApplicationKey;
   return true;
 }
 
@@ -749,14 +887,14 @@ function shouldUpdateRole(application, candidate) {
   if (isLowQualityRoleCandidate(candidate.title)) {
     return false;
   }
-  if (application.role_source === 'manual') {
+  if (normalizeFieldSource(application.role_source || 'parser') === 'user') {
     return false;
   }
   const currentTitle = application.job_title || application.role || null;
   const currentDisplay = currentTitle ? normalizeDisplayTitle(currentTitle) : null;
   const incomingDisplay = normalizeDisplayTitle(candidate.title);
   const currentConfidence = Number.isFinite(application.role_confidence)
-    ? application.role_confidence
+    ? normalizeFieldConfidenceForComparison(application.role_confidence) / 100
     : 0;
   const nextConfidence = Number.isFinite(candidate.confidence) ? candidate.confidence : 0;
   if (!currentTitle || currentTitle === UNKNOWN_ROLE || isLowQualityRoleCandidate(currentTitle)) {
@@ -773,13 +911,35 @@ function shouldUpdateRole(application, candidate) {
 }
 
 function applyRoleCandidate(db, application, candidate) {
-  if (!shouldUpdateRole(application, candidate)) {
+  if (!candidate?.title || isLowQualityRoleCandidate(candidate.title)) {
     return false;
   }
-  const displayTitle = normalizeDisplayTitle(candidate.title);
+  const normalizedIncoming = normalizeDisplayTitle(candidate.title);
+  const existingRole = application.job_title || application.role || null;
+  const existingRoleSource = normalizeFieldSource(application.role_source || 'parser');
+  const existingRoleLooksInvalid = existingRole ? isLowQualityRoleCandidate(existingRole) : false;
+  const existingRoleIsUserLocked = existingRoleSource === 'user';
+  const decision = applyFieldUpdate({
+    existingValue: existingRole,
+    existingConfidence: existingRoleLooksInvalid && !existingRoleIsUserLocked ? 0 : application.role_confidence,
+    existingSource:
+      existingRoleLooksInvalid && !existingRoleIsUserLocked ? 'system' : application.role_source || 'parser',
+    newValue: normalizedIncoming,
+    newConfidence: candidate.confidence,
+    newSource: candidate.source || 'parser'
+  });
+  if (!decision.accepted) {
+    return false;
+  }
+  const displayTitle = decision.value;
+  const currentCompany = application.company_name || application.company || null;
+  const nextApplicationKey = buildApplicationKey({
+    company: currentCompany,
+    role: displayTitle
+  })?.key || null;
   const stmt = db.prepare(
     `UPDATE job_applications
-     SET job_title = ?, role = ?, role_confidence = ?, role_source = ?, role_explanation = ?, updated_at = ?
+     SET job_title = ?, role = ?, role_confidence = ?, role_source = ?, role_explanation = ?, application_key = ?, updated_at = ?
      WHERE id = ?`
   );
   const dialect = dbDialect(db);
@@ -788,15 +948,21 @@ function applyRoleCandidate(db, application, candidate) {
       [
         displayTitle,
         displayTitle,
-        Number.isFinite(candidate.confidence) ? candidate.confidence : null,
-        candidate.source || null,
+        decision.confidence,
+        decision.source,
         candidate.explanation || null,
+        nextApplicationKey,
         new Date().toISOString(),
         application.id
       ],
       dialect
     )
   );
+  application.job_title = displayTitle;
+  application.role = displayTitle;
+  application.role_confidence = decision.confidence;
+  application.role_source = decision.source;
+  application.application_key = nextApplicationKey;
   return true;
 }
 
@@ -919,7 +1085,9 @@ async function refreshApplicationMetadataFromTimeline(db, applicationId) {
     const companyName = normalizeCompany(row.identity_company_name || null);
     if (companyName && !isLowQualityCompanyCandidate(companyName)) {
       const confidence = Number.isFinite(row.identity_company_confidence)
-        ? row.identity_company_confidence
+        ? (Number(row.identity_company_confidence) > 1
+            ? Number(row.identity_company_confidence) / 100
+            : Number(row.identity_company_confidence))
         : isConfirmation
         ? 0.88
         : 0.8;
@@ -937,7 +1105,7 @@ async function refreshApplicationMetadataFromTimeline(db, applicationId) {
     const roleText = normalizeRoleForApplication(row.role_title || row.identity_job_title || null);
     if (roleText && !isLowQualityRoleCandidate(roleText)) {
       const confidence = Number.isFinite(row.role_confidence)
-        ? row.role_confidence
+        ? (Number(row.role_confidence) > 1 ? Number(row.role_confidence) / 100 : Number(row.role_confidence))
         : isConfirmation
         ? 0.9
         : 0.82;
@@ -1447,8 +1615,25 @@ async function createApplicationFromEvent(db, userId, identity, event) {
       ? identity.jobTitleRaw
       : roleCandidate?.title || UNKNOWN_ROLE;
   const jobTitle = normalizeDisplayTitle(displaySource);
+  const applicationKeyPayload = buildApplicationKey({
+    company: identity.companyName || null,
+    role: jobTitle || null
+  });
+  const applicationKey = applicationKeyPayload?.key || null;
 
   const { status, statusConfidence, appliedAt } = inferInitialStatus(event, eventTimestamp);
+  const storedStatusConfidence = Number.isFinite(statusConfidence)
+    ? normalizeFieldConfidenceForStorage(statusConfidence)
+    : null;
+  const storedCompanyConfidence = Number.isFinite(companyCandidate?.confidence)
+    ? normalizeFieldConfidenceForStorage(companyCandidate.confidence)
+    : null;
+  const storedRoleConfidence = Number.isFinite(roleCandidate?.confidence)
+    ? normalizeFieldConfidenceForStorage(roleCandidate.confidence)
+    : null;
+  const normalizedCompanySource = normalizeFieldSource(companyCandidate?.source || 'parser');
+  const normalizedRoleSource = normalizeFieldSource(roleCandidate?.source || 'parser');
+  const normalizedStatusSource = normalizeFieldSource('system');
   const statusExplanation =
     status === ApplicationStatus.APPLIED
       ? `Auto-applied from confirmation event ${event.id}.`
@@ -1461,10 +1646,10 @@ async function createApplicationFromEvent(db, userId, identity, event) {
     identity.companyName,
     jobTitle,
     status,
-    'inferred',
+    normalizedStatusSource,
     identity.companyName,
-    Number.isFinite(companyCandidate?.confidence) ? companyCandidate.confidence : null,
-    companyCandidate?.source || null,
+    storedCompanyConfidence,
+    normalizedCompanySource,
     companyCandidate?.explanation || null,
     jobTitle,
     null,
@@ -1472,15 +1657,16 @@ async function createApplicationFromEvent(db, userId, identity, event) {
     externalReqId,
     appliedAt,
     status,
-    statusConfidence,
+    storedStatusConfidence,
     statusExplanation,
     createdAt,
-    Number.isFinite(roleCandidate?.confidence) ? roleCandidate.confidence : null,
-    roleCandidate?.source || null,
+    storedRoleConfidence,
+    normalizedRoleSource,
     roleCandidate?.explanation || null,
     eventTimestamp,
     false,
     false,
+    applicationKey,
     createdAt,
     createdAt
   ];
@@ -1500,8 +1686,8 @@ async function createApplicationFromEvent(db, userId, identity, event) {
       (id, user_id, company, role, status, status_source, company_name, company_confidence,
        company_source, company_explanation, job_title, job_location, source, external_req_id, applied_at,
        current_status, status_confidence, status_explanation, status_updated_at, role_confidence,
-       role_source, role_explanation, last_activity_at, archived, user_override, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       role_source, role_explanation, last_activity_at, archived, user_override, application_key, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(...normalizeBindParams(insertParams, dialect))
   );
@@ -1861,6 +2047,44 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
         ambiguous = true;
       }
     }
+    if (!existing && !ambiguous && identity.senderDomain && getClassificationConfidence(event) >= 0.9) {
+      // Last-resort rejection fallback:
+      // if exactly one recent app shares the sender domain and current metadata is low quality,
+      // attach instead of creating a duplicate split thread.
+      const sourceMatches = normalizeRowList(
+        await awaitMaybe(
+          db
+            .prepare(
+              `SELECT * FROM job_applications
+               WHERE user_id = ?
+                 AND source = ?
+                 AND archived = false
+                 AND ${coalesceTimestamps(['last_activity_at', 'updated_at', 'created_at'])} >= ?`
+            )
+            .all(
+              userId,
+              identity.senderDomain,
+              new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
+            )
+        )
+      );
+      if (sourceMatches.length === 1) {
+        const candidate = sourceMatches[0];
+        const candidateCompany = candidate.company_name || candidate.company || '';
+        const candidateRole = candidate.job_title || candidate.role || '';
+        const companyLooksInvalid =
+          !candidateCompany ||
+          isInvalidCompanyCandidate(candidateCompany) ||
+          /@/.test(String(candidateCompany));
+        const roleLooksWeak =
+          !candidateRole ||
+          isWeakRoleText(candidateRole) ||
+          isLowQualityRoleCandidate(candidateRole);
+        if (companyLooksInvalid || roleLooksWeak) {
+          existing = candidate;
+        }
+      }
+    }
     if (!existing && ambiguous) {
       return {
         action: 'unassigned',
@@ -1990,25 +2214,35 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
         getClassificationConfidence(event)
       );
       if (!blocked) {
-        const statusUpdateParams = [
-          ApplicationStatus.REJECTED,
-          ApplicationStatus.REJECTED,
-          'inferred',
-          getClassificationConfidence(event),
-          `Rejection detected from event ${event.id}.`,
-          new Date().toISOString(),
-          toIsoFromInternalDate(event.internal_date, new Date(event.created_at)),
-          existing.id
-        ];
-        await awaitMaybe(
-          db
-            .prepare(
-              `UPDATE job_applications
-                 SET current_status = ?, status = ?, status_source = ?, status_confidence = ?, status_explanation = ?, status_updated_at = ?, last_activity_at = ?
-               WHERE id = ?`
-            )
-            .run(...normalizeBindParams(statusUpdateParams, dbDialect(db)))
-        );
+        const statusDecision = applyFieldUpdate({
+          existingValue: existing.current_status || existing.status || null,
+          existingConfidence: existing.status_confidence,
+          existingSource: existing.status_source || (existing.user_override ? 'user' : 'parser'),
+          newValue: ApplicationStatus.REJECTED,
+          newConfidence: getClassificationConfidence(event),
+          newSource: 'parser'
+        });
+        if (statusDecision.accepted) {
+          const statusUpdateParams = [
+            ApplicationStatus.REJECTED,
+            ApplicationStatus.REJECTED,
+            statusDecision.source,
+            statusDecision.confidence,
+            `Rejection detected from event ${event.id}.`,
+            new Date().toISOString(),
+            toIsoFromInternalDate(event.internal_date, new Date(event.created_at)),
+            existing.id
+          ];
+          await awaitMaybe(
+            db
+              .prepare(
+                `UPDATE job_applications
+                   SET current_status = ?, status = ?, status_source = ?, status_confidence = ?, status_explanation = ?, status_updated_at = ?, last_activity_at = ?
+                 WHERE id = ?`
+              )
+              .run(...normalizeBindParams(statusUpdateParams, dbDialect(db)))
+          );
+        }
       }
     }
     return { action: 'matched_existing', applicationId: existing.id, identity };
@@ -2537,7 +2771,9 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
           identity.isAtsDomain ||
           (app.source && atsRegex.test(app.source)) ||
           (app.company && atsRegex.test(app.company));
-        const appCompanyConf = Number.isFinite(app.company_confidence) ? app.company_confidence : 1;
+        const appCompanyConf = Number.isFinite(app.company_confidence)
+          ? normalizeFieldConfidenceForComparison(app.company_confidence) / 100
+          : 1;
         const identityCompanyConf = identity.companyConfidence || 0;
         if (!atsInvolved) continue;
         if (identityCompanyConf < MIN_COMPANY_CONFIDENCE || appCompanyConf < MIN_COMPANY_CONFIDENCE) continue;

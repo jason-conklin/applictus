@@ -26,8 +26,19 @@ const {
   getGoogleProfileFromCode,
   GOOGLE_SIGNIN_SCOPES
 } = require('./googleAuth');
-const { syncGmailMessages, getSyncProgress } = require('./ingest');
-const { logError } = require('./logger');
+const { syncGmailMessages, syncInboundForwardedMessages, getSyncProgress } = require('./ingest');
+const { logInfo, logWarn, logError } = require('./logger');
+const {
+  extractInboundRecipient,
+  extractSenderEmail: extractInboundSenderEmail,
+  extractMessageIdHeader,
+  buildInboundMessageSha256,
+  normalizeText: normalizeInboundText,
+  toIsoDate,
+  getActiveInboundAddress,
+  getOrCreateInboundAddress,
+  rotateInboundAddress
+} = require('./inbound');
 const {
   extractThreadIdentity,
   inferInitialStatus,
@@ -46,6 +57,8 @@ const resumeCuratorRouter = require('./routes/resumeCurator');
 const { coalesceTimestamps } = require('./sqlHelpers');
 const { pgMigrate, assertPgSchema } = require('./pgMigrate');
 const { getRuntimeDatabaseUrl } = require('./dbConfig');
+const { buildApplicationKey } = require('./normalizeJobFields');
+const { buildHintFingerprintFromEmail, upsertUserHint } = require('./hints');
 
 function isProd() {
   return process.env.NODE_ENV === 'production';
@@ -82,7 +95,7 @@ app.use((req, res, next) => {
   if (origin && ALLOWED_ORIGINS.has(origin)) {
     res.set('Access-Control-Allow-Origin', origin);
     res.set('Access-Control-Allow-Credentials', 'true');
-    res.set('Access-Control-Allow-Headers', 'Content-Type, X-CSRF-Token');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, X-CSRF-Token, X-Applictus-Inbound-Secret');
     res.set('Access-Control-Allow-Methods', 'GET,POST,PATCH,PUT,DELETE,OPTIONS');
     res.set('Access-Control-Expose-Headers', 'Location');
     res.set('Vary', 'Origin');
@@ -126,13 +139,21 @@ const GOOGLE_STATE_COOKIE = 'jt_google_state';
 const GOOGLE_STATE_TTL_MS = 10 * 60 * 1000;
 const GMAIL_AUTO_CONNECT_STATE = 'auto_connect';
 const GMAIL_SYNC_ACTION_TYPE = 'GMAIL_SYNC';
+const INBOUND_SYNC_ACTION_TYPE = 'INBOUND_SYNC';
 const FIRST_SYNC_DAYS = 30;
+const INBOUND_CONNECTED_WINDOW_DAYS = 30;
+const INBOUND_MESSAGE_COUNT_WINDOW_DAYS = 7;
+const INBOUND_INACTIVE_WARNING_WINDOW_DAYS = 7;
+const INBOUND_SUBJECT_MAX = 80;
+const INBOUND_SYNC_LOCK_TTL_MS = 2 * 60 * 1000;
 const VALID_STATUSES = new Set(Object.values(ApplicationStatus));
 const CSRF_HEADER = 'x-csrf-token';
+const INBOUND_SECRET_HEADER = 'x-applictus-inbound-secret';
 const CSRF_TTL_MS = 2 * 60 * 60 * 1000;
 const AUTH_DB_TIMEOUT_MS = 2_000;
 const DB_HEALTH_TIMEOUT_MS = 2_000;
 const preauthCsrfStore = new Map();
+const CSRF_BYPASS_PATHS = new Set(['/api/inbound/postmark']);
 const DB_UNAVAILABLE_CODES = new Set([
   'ETIMEDOUT',
   'ECONNREFUSED',
@@ -142,6 +163,7 @@ const DB_UNAVAILABLE_CODES = new Set([
   '57P03',
   '53300'
 ]);
+const inboundSyncLocks = new Map();
 
 function nowIso() {
   return new Date().toISOString();
@@ -227,6 +249,232 @@ async function dbTimed(fn, timeoutMs = AUTH_DB_TIMEOUT_MS, timeoutCode = 'ETIMED
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
+}
+
+function getAdminEmailSet() {
+  return new Set(
+    String(process.env.ADMIN_EMAILS || '')
+      .split(',')
+      .map((value) => normalizeEmail(value))
+      .filter(Boolean)
+  );
+}
+
+function isAdminUser(user) {
+  const email = normalizeEmail(user?.email || '');
+  if (!email) {
+    return false;
+  }
+  return getAdminEmailSet().has(email);
+}
+
+function parseJsonSafe(value) {
+  if (!value) {
+    return null;
+  }
+  if (typeof value === 'object') {
+    return value;
+  }
+  try {
+    return JSON.parse(String(value));
+  } catch (_) {
+    return null;
+  }
+}
+
+function extractDomainFromAddress(value) {
+  const text = String(value || '').trim().toLowerCase();
+  if (!text) {
+    return null;
+  }
+  const angleMatch = text.match(/<([^>]+)>/);
+  const candidate = angleMatch && angleMatch[1] ? angleMatch[1] : text;
+  const emailMatch = candidate.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
+  const email = emailMatch ? emailMatch[0] : candidate;
+  const atIdx = email.lastIndexOf('@');
+  if (atIdx === -1) {
+    return null;
+  }
+  return email.slice(atIdx + 1);
+}
+
+function normalizeHintStatus(value) {
+  const status = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (!status) {
+    return null;
+  }
+  return VALID_STATUSES.has(status) ? status : null;
+}
+
+function extractProviderIdFromInboundDebug(debugJson) {
+  if (!debugJson || typeof debugJson !== 'object') {
+    return null;
+  }
+  if (debugJson.provider_id) {
+    return String(debugJson.provider_id).toLowerCase();
+  }
+  if (debugJson.provider_hint) {
+    const hint = String(debugJson.provider_hint).toLowerCase();
+    if (hint === 'linkedin') return 'linkedin_jobs';
+    if (hint === 'workable') return 'workable_candidates';
+    if (hint === 'indeed') return 'indeed_apply';
+    if (hint === 'workday') return 'workday';
+  }
+  return null;
+}
+
+async function resolveHintSourceContext({ userId, applicationId, lastInboundMessageId, lastEventId }) {
+  const inboundColumns = `
+    id,
+    from_email,
+    subject,
+    body_text,
+    body_html,
+    derived_debug_json
+  `;
+
+  let inboundRow = null;
+  const inboundId = String(lastInboundMessageId || '').trim();
+  if (inboundId) {
+    inboundRow = await db.prepare(
+      `SELECT ${inboundColumns}
+       FROM inbound_messages
+       WHERE id = ? AND user_id = ?
+       LIMIT 1`
+    ).get(inboundId, userId);
+  }
+
+  const eventId = String(lastEventId || '').trim();
+  if (!inboundRow && eventId) {
+    inboundRow = await db.prepare(
+      `SELECT ${inboundColumns}
+       FROM inbound_messages
+       WHERE user_id = ?
+         AND derived_event_id = ?
+       ORDER BY received_at DESC, created_at DESC
+       LIMIT 1`
+    ).get(userId, eventId);
+  }
+
+  if (!inboundRow && applicationId) {
+    inboundRow = await db.prepare(
+      `SELECT ${inboundColumns}
+       FROM inbound_messages
+       WHERE user_id = ?
+         AND derived_application_id = ?
+       ORDER BY received_at DESC, created_at DESC
+       LIMIT 1`
+    ).get(userId, applicationId);
+  }
+
+  if (inboundRow) {
+    const debugJson = parseJsonSafe(inboundRow.derived_debug_json);
+    const providerId = extractProviderIdFromInboundDebug(debugJson) || 'generic';
+    const textBody =
+      normalizeInboundText(inboundRow.body_text || '') ||
+      normalizeInboundText(stripHtml(inboundRow.body_html || '')) ||
+      '';
+    return {
+      sourceType: 'inbound_message',
+      sourceId: inboundRow.id,
+      providerId,
+      fromDomain: extractDomainFromAddress(inboundRow.from_email),
+      subject: String(inboundRow.subject || '').trim(),
+      text: textBody
+    };
+  }
+
+  let eventRow = null;
+  if (eventId) {
+    eventRow = await db.prepare(
+      `SELECT id, provider, sender, subject, snippet
+       FROM email_events
+       WHERE id = ?
+         AND user_id = ?
+         AND application_id = ?
+       LIMIT 1`
+    ).get(eventId, userId, applicationId);
+  }
+
+  if (!eventRow && applicationId) {
+    eventRow = await db.prepare(
+      `SELECT id, provider, sender, subject, snippet
+       FROM email_events
+       WHERE user_id = ?
+         AND application_id = ?
+       ORDER BY internal_date DESC, created_at DESC
+       LIMIT 1`
+    ).get(userId, applicationId);
+  }
+
+  if (!eventRow) {
+    return null;
+  }
+
+  const senderDomain = extractDomainFromAddress(eventRow.sender || '');
+  let providerId = 'generic';
+  if (eventRow.provider === 'inbound_forward') {
+    if (senderDomain && senderDomain.includes('linkedin.com')) providerId = 'linkedin_jobs';
+    else if (senderDomain && senderDomain.includes('workablemail.com')) providerId = 'workable_candidates';
+    else if (senderDomain && senderDomain.includes('indeed.com')) providerId = 'indeed_apply';
+    else if (senderDomain && senderDomain.includes('myworkday.com')) providerId = 'workday';
+  }
+
+  return {
+    sourceType: 'email_event',
+    sourceId: eventRow.id,
+    providerId,
+    fromDomain: senderDomain,
+    subject: String(eventRow.subject || '').trim(),
+    text: normalizeInboundText(eventRow.snippet || '')
+  };
+}
+
+function acquireInboundSyncLock(userId, ttlMs = INBOUND_SYNC_LOCK_TTL_MS) {
+  if (!userId) {
+    return null;
+  }
+  const now = Date.now();
+  const existing = inboundSyncLocks.get(userId);
+  if (existing && existing.expiresAt > now) {
+    return null;
+  }
+  const token = crypto.randomUUID();
+  inboundSyncLocks.set(userId, {
+    token,
+    expiresAt: now + Math.max(5_000, ttlMs)
+  });
+  return token;
+}
+
+function releaseInboundSyncLock(userId, token) {
+  const existing = inboundSyncLocks.get(userId);
+  if (!existing) {
+    return;
+  }
+  if (!token || existing.token !== token) {
+    return;
+  }
+  inboundSyncLocks.delete(userId);
+}
+
+function safeCompareSecret(actual, expected) {
+  const left = Buffer.from(String(actual || ''), 'utf8');
+  const right = Buffer.from(String(expected || ''), 'utf8');
+  if (!left.length || !right.length || left.length !== right.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(left, right);
+}
+
+function isUniqueConstraintError(err) {
+  const code = String(err?.code || '').toUpperCase();
+  if (code === '23505' || code.startsWith('SQLITE_CONSTRAINT')) {
+    return true;
+  }
+  return /duplicate|unique/i.test(String(err?.message || ''));
 }
 
 function getClientIp(req) {
@@ -604,6 +852,333 @@ async function storeGmailSyncMeta(userId, payload) {
   }
 }
 
+function normalizeInboundSyncMeta(raw, fallbackCreatedAt = null) {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const syncedAt = raw.last_inbound_sync_at || raw.last_processed_at || fallbackCreatedAt || null;
+  const parsedSyncedAt = parseIsoDate(syncedAt);
+  if (!parsedSyncedAt) {
+    return null;
+  }
+  const processed = Number(raw.last_inbound_processed_count ?? raw.processed);
+  const ignored = Number(raw.last_inbound_ignored_count ?? raw.ignored);
+  const created = Number(raw.last_inbound_created_count ?? raw.created);
+  const updated = Number(raw.last_inbound_updated_count ?? raw.updated);
+  const errors = Number(raw.last_inbound_error_count ?? raw.errors);
+  return {
+    last_inbound_sync_at: parsedSyncedAt.toISOString(),
+    last_inbound_processed_count: Number.isFinite(processed) ? processed : 0,
+    last_inbound_ignored_count: Number.isFinite(ignored) ? ignored : 0,
+    last_inbound_created_count: Number.isFinite(created) ? created : 0,
+    last_inbound_updated_count: Number.isFinite(updated) ? updated : 0,
+    last_inbound_error_count: Number.isFinite(errors) ? errors : 0
+  };
+}
+
+async function getLatestInboundSyncMeta(userId) {
+  const rowOrPromise = db
+    .prepare(
+      `SELECT action_payload, created_at
+       FROM user_actions
+       WHERE user_id = ? AND action_type = ?
+       ORDER BY created_at DESC
+       LIMIT 1`
+    )
+    .get(userId, INBOUND_SYNC_ACTION_TYPE);
+  const row = rowOrPromise && typeof rowOrPromise.then === 'function' ? await rowOrPromise : rowOrPromise;
+  if (!row?.action_payload) {
+    return null;
+  }
+  let parsed = null;
+  try {
+    parsed = JSON.parse(row.action_payload);
+  } catch (_) {
+    parsed = null;
+  }
+  return normalizeInboundSyncMeta(parsed, row.created_at);
+}
+
+async function storeInboundSyncMeta(userId, payload) {
+  if (!userId || !payload) {
+    return;
+  }
+  const normalized = normalizeInboundSyncMeta(payload);
+  if (!normalized) {
+    return;
+  }
+  const resultOrPromise = db
+    .prepare(
+      `INSERT INTO user_actions (id, user_id, application_id, action_type, action_payload, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      crypto.randomUUID(),
+      userId,
+      null,
+      INBOUND_SYNC_ACTION_TYPE,
+      JSON.stringify(normalized),
+      nowIso()
+    );
+  if (resultOrPromise && typeof resultOrPromise.then === 'function') {
+    await resultOrPromise;
+  }
+}
+
+function normalizeDbBool(value) {
+  return value === true || value === 1 || value === '1';
+}
+
+function boolBind(db, value) {
+  if (db && db.isAsync) {
+    return Boolean(value);
+  }
+  return value ? 1 : 0;
+}
+
+async function dbGet(sql, ...params) {
+  return dbTimed(async () => {
+    const rowOrPromise = db.prepare(sql).get(...params);
+    return rowOrPromise && typeof rowOrPromise.then === 'function' ? await rowOrPromise : rowOrPromise;
+  });
+}
+
+async function dbRun(sql, ...params) {
+  return dbTimed(async () => {
+    const resultOrPromise = db.prepare(sql).run(...params);
+    if (resultOrPromise && typeof resultOrPromise.then === 'function') {
+      return await resultOrPromise;
+    }
+    return resultOrPromise;
+  });
+}
+
+async function getUserInboxSignal(userId) {
+  if (!userId) {
+    return null;
+  }
+  return dbGet(
+    `SELECT user_id, pending_count, last_inbound_at, last_subject_preview, updated_at
+     FROM user_inbox_signals
+     WHERE user_id = ?
+     LIMIT 1`,
+    userId
+  );
+}
+
+async function countPendingInboundQueue(userId) {
+  if (!userId) {
+    return 0;
+  }
+  const row = await dbGet(
+    `SELECT COUNT(*) AS count
+     FROM inbound_messages
+     WHERE user_id = ?
+       AND (processing_status IS NULL OR processing_status IN ('pending', 'processing', 'error'))`,
+    userId
+  );
+  const count = Number(row?.count || 0);
+  return Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+}
+
+async function upsertUserInboxSignalIncrement(userId, { lastInboundAt, lastSubjectPreview } = {}) {
+  if (!userId) {
+    return;
+  }
+  const now = nowIso();
+  const subjectPreview = truncateInboundSubject(lastSubjectPreview || null);
+  await dbRun(
+    `INSERT INTO user_inbox_signals
+      (user_id, pending_count, last_inbound_at, last_subject_preview, updated_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET
+       pending_count = COALESCE(user_inbox_signals.pending_count, 0) + 1,
+       last_inbound_at = excluded.last_inbound_at,
+       last_subject_preview = excluded.last_subject_preview,
+       updated_at = excluded.updated_at`,
+    userId,
+    1,
+    lastInboundAt || now,
+    subjectPreview,
+    now
+  );
+}
+
+async function setUserInboxSignalPendingCount(userId, pendingCount, { lastInboundAt, lastSubjectPreview } = {}) {
+  if (!userId) {
+    return;
+  }
+  const normalizedPending = Math.max(0, Math.floor(Number(pendingCount) || 0));
+  const now = nowIso();
+  const subjectPreview = truncateInboundSubject(lastSubjectPreview || null);
+  await dbRun(
+    `INSERT INTO user_inbox_signals
+      (user_id, pending_count, last_inbound_at, last_subject_preview, updated_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET
+       pending_count = excluded.pending_count,
+       last_inbound_at = COALESCE(excluded.last_inbound_at, user_inbox_signals.last_inbound_at),
+       last_subject_preview = COALESCE(excluded.last_subject_preview, user_inbox_signals.last_subject_preview),
+       updated_at = excluded.updated_at`,
+    userId,
+    normalizedPending,
+    lastInboundAt || null,
+    subjectPreview,
+    now
+  );
+}
+
+function truncateInboundSubject(subject) {
+  if (!subject) {
+    return null;
+  }
+  const normalized = String(subject).replace(/\s+/g, ' ').trim();
+  if (!normalized) {
+    return null;
+  }
+  if (normalized.length <= INBOUND_SUBJECT_MAX) {
+    return normalized;
+  }
+  return `${normalized.slice(0, INBOUND_SUBJECT_MAX - 1)}…`;
+}
+
+function inferInboundSetupState({ hasAddress, confirmedAt, lastReceivedAt }) {
+  if (!hasAddress) {
+    return 'not_started';
+  }
+  if (lastReceivedAt) {
+    return 'active';
+  }
+  if (confirmedAt) {
+    return 'awaiting_first_email';
+  }
+  return 'awaiting_confirmation';
+}
+
+async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) {
+  const inboundDomain = String(process.env.INBOUND_DOMAIN || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, '');
+
+  const address = ensureAddress
+    ? await getOrCreateInboundAddress(db, userId, { inboundDomain })
+    : await getActiveInboundAddress(db, userId, { includeInactive: false });
+  const inboundSyncMeta = await getLatestInboundSyncMeta(userId);
+  const signalRow = await getUserInboxSignal(userId);
+  const inactiveSince = new Date(
+    Date.now() - INBOUND_INACTIVE_WARNING_WINDOW_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+  const inactiveAddressBind = boolBind(db, false);
+  const recentInactiveInbound = await dbGet(
+    `SELECT im.received_at, im.subject, ia.address_email
+     FROM inbound_messages im
+     INNER JOIN inbound_addresses ia ON ia.id = im.inbound_address_id
+     WHERE im.user_id = ?
+       AND ia.is_active = ?
+       AND im.received_at >= ?
+     ORDER BY im.received_at DESC, im.created_at DESC
+     LIMIT 1`,
+    userId,
+    inactiveAddressBind,
+    inactiveSince
+  );
+
+  if (!address) {
+    const pendingCount = signalRow ? Number(signalRow.pending_count || 0) : 0;
+    return {
+      address_email: null,
+      is_active: false,
+      confirmed_at: null,
+      last_received_at: null,
+      last_received_subject: null,
+      message_count_7d: 0,
+      inbound_pending_count: Number.isFinite(pendingCount) ? Math.max(0, pendingCount) : 0,
+      inbound_signal_updated_at: signalRow?.updated_at || null,
+      inbound_signal_last_inbound_at: signalRow?.last_inbound_at || null,
+      inbound_signal_last_subject: truncateInboundSubject(signalRow?.last_subject_preview || null),
+      inactive_address_warning: Boolean(recentInactiveInbound),
+      inactive_address_warning_meta: recentInactiveInbound
+        ? {
+            address_email: recentInactiveInbound.address_email || null,
+            last_received_at: recentInactiveInbound.received_at || null,
+            subject: truncateInboundSubject(recentInactiveInbound.subject || null)
+          }
+        : null,
+      setup_state: 'not_started',
+      connected: false,
+      effective_connected: false,
+      last_inbound_sync_at: inboundSyncMeta?.last_inbound_sync_at || null,
+      last_inbound_sync: inboundSyncMeta || null
+    };
+  }
+
+  const latestInbound = await dbGet(
+    `SELECT subject, received_at
+     FROM inbound_messages
+     WHERE user_id = ? AND inbound_address_id = ?
+     ORDER BY received_at DESC, created_at DESC
+     LIMIT 1`,
+    userId,
+    address.id
+  );
+  const countSince = new Date(Date.now() - INBOUND_MESSAGE_COUNT_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const countRow = await dbGet(
+    `SELECT COUNT(*) AS count
+     FROM inbound_messages
+     WHERE user_id = ? AND inbound_address_id = ? AND received_at >= ?`,
+    userId,
+    address.id,
+    countSince
+  );
+
+  const lastReceivedAt = address.last_received_at || latestInbound?.received_at || null;
+  if (latestInbound?.received_at && (!address.last_received_at || latestInbound.received_at > address.last_received_at)) {
+    await dbRun('UPDATE inbound_addresses SET last_received_at = ? WHERE id = ?', latestInbound.received_at, address.id);
+  }
+
+  const recentThreshold = new Date(Date.now() - INBOUND_CONNECTED_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const parsedLastReceived = parseIsoDate(lastReceivedAt);
+  const hasRecentInbound = Boolean(parsedLastReceived && parsedLastReceived >= recentThreshold);
+  const setupState = inferInboundSetupState({
+    hasAddress: true,
+    confirmedAt: address.confirmed_at || null,
+    lastReceivedAt
+  });
+  const fallbackPendingCount = signalRow ? null : await countPendingInboundQueue(userId);
+  const pendingCount = signalRow ? Number(signalRow.pending_count || 0) : Number(fallbackPendingCount || 0);
+  const signalLastInboundAt = signalRow?.last_inbound_at || lastReceivedAt || null;
+  const signalLastSubject = truncateInboundSubject(
+    signalRow?.last_subject_preview || latestInbound?.subject || null
+  );
+
+  return {
+    address_email: address.address_email || null,
+    is_active: normalizeDbBool(address.is_active),
+    confirmed_at: address.confirmed_at || null,
+    last_received_at: lastReceivedAt,
+    last_received_subject: truncateInboundSubject(latestInbound?.subject || null),
+    message_count_7d: Number(countRow?.count || 0),
+    inbound_pending_count: Number.isFinite(pendingCount) ? Math.max(0, pendingCount) : 0,
+    inbound_signal_updated_at: signalRow?.updated_at || null,
+    inbound_signal_last_inbound_at: signalLastInboundAt,
+    inbound_signal_last_subject: signalLastSubject,
+    inactive_address_warning: Boolean(recentInactiveInbound),
+    inactive_address_warning_meta: recentInactiveInbound
+      ? {
+          address_email: recentInactiveInbound.address_email || null,
+          last_received_at: recentInactiveInbound.received_at || null,
+          subject: truncateInboundSubject(recentInactiveInbound.subject || null)
+        }
+      : null,
+    setup_state: setupState,
+    connected: hasRecentInbound,
+    effective_connected: Boolean(lastReceivedAt),
+    last_inbound_sync_at: inboundSyncMeta?.last_inbound_sync_at || null,
+    last_inbound_sync: inboundSyncMeta || null
+  };
+}
+
 function isGoogleInvalidGrantError(err) {
   const queue = [err];
   const visited = new Set();
@@ -685,6 +1260,9 @@ async function issueCsrfToken(req, res) {
 
 function enforceCsrf(req, res, next) {
   if (!req.path.startsWith('/api/')) {
+    return next();
+  }
+  if (CSRF_BYPASS_PATHS.has(req.path)) {
     return next();
   }
   if (!['POST', 'PATCH', 'DELETE'].includes(req.method)) {
@@ -769,7 +1347,26 @@ function applyEventToApplication(application, event) {
     updates.updated_at = nowIso();
     const keys = Object.keys(updates);
     const setClause = keys.map((key) => `${key} = ?`).join(', ');
-    const values = keys.map((key) => updates[key]);
+    const toPatchBindValue = (value) => {
+      if (value === undefined || value === null) {
+        return null;
+      }
+      if (typeof value === 'boolean') {
+        return boolBind(db, value);
+      }
+      if (value instanceof Date) {
+        return value.toISOString();
+      }
+      if (typeof value === 'object') {
+        try {
+          return JSON.stringify(value);
+        } catch (_) {
+          return String(value);
+        }
+      }
+      return value;
+    };
+    const values = keys.map((key) => toPatchBindValue(updates[key]));
     values.push(application.id);
     db.prepare(`UPDATE job_applications SET ${setClause} WHERE id = ?`).run(...values);
   }
@@ -998,6 +1595,278 @@ app.get('/api/health/db', async (_req, res) => {
     }
     logError('health.db.failed', buildDbUnavailableMeta(err, 'health.db'));
     return res.status(503).json({ ok: false, error: 'DB_UNAVAILABLE' });
+  }
+});
+
+app.post('/api/inbound/postmark', async (req, res) => {
+  const configuredSecret = String(process.env.POSTMARK_INBOUND_SECRET || '').trim();
+  if (!configuredSecret) {
+    logError('inbound.not_configured', {
+      provider: 'postmark',
+      reason: 'POSTMARK_INBOUND_SECRET missing'
+    });
+    return res.status(503).json({ error: 'INBOUND_NOT_CONFIGURED' });
+  }
+
+  const providedSecret = req.get(INBOUND_SECRET_HEADER);
+  if (!safeCompareSecret(providedSecret, configuredSecret)) {
+    return res.status(401).json({ error: 'UNAUTHORIZED' });
+  }
+
+  const payload = req.body && typeof req.body === 'object' ? req.body : null;
+  if (!payload) {
+    return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+  }
+
+  const inboundDomain = String(process.env.INBOUND_DOMAIN || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, '');
+  const provider = 'postmark';
+  const recipientEmail = extractInboundRecipient(payload, { inboundDomain });
+  const fromEmail = extractInboundSenderEmail(payload);
+  const subject = String(payload.Subject || '').trim() || null;
+  const providerMessageId = payload.MessageID ? String(payload.MessageID).trim() : null;
+  const messageIdHeader = extractMessageIdHeader(payload);
+  const bodyText = normalizeInboundText(payload.TextBody || '');
+  const bodyHtml = payload.HtmlBody ? String(payload.HtmlBody) : null;
+  const receivedAt = toIsoDate(payload.Date);
+  const sha256 = buildInboundMessageSha256({
+    fromEmail,
+    subject,
+    receivedAt,
+    textBody: bodyText,
+    htmlBody: bodyHtml
+  });
+
+  logInfo('inbound.received', {
+    provider,
+    recipientEmail: recipientEmail || null,
+    fromEmail: fromEmail || null,
+    providerMessageIdHash: hashSampleId(providerMessageId),
+    messageIdHeaderHash: hashSampleId(messageIdHeader),
+    subjectLength: subject ? subject.length : 0,
+    bodyTextLength: bodyText.length,
+    bodyHtmlLength: bodyHtml ? bodyHtml.length : 0,
+    sha256Prefix: sha256.slice(0, 12)
+  });
+
+  if (!recipientEmail) {
+    logWarn('inbound.mapped_user', {
+      provider,
+      mapped: false,
+      reason: 'missing_recipient'
+    });
+    return res.status(202).json({ ok: true, ignored: true, reason: 'MISSING_RECIPIENT' });
+  }
+
+  try {
+    const mappedAddress = await dbTimed(async () => {
+      const rowOrPromise = db
+        .prepare(
+          `SELECT id, user_id, address_email, is_active
+           FROM inbound_addresses
+           WHERE lower(address_email) = ?
+           ORDER BY is_active DESC, created_at DESC
+           LIMIT 1`
+        )
+        .get(String(recipientEmail).toLowerCase());
+      return rowOrPromise && typeof rowOrPromise.then === 'function' ? await rowOrPromise : rowOrPromise;
+    });
+
+    if (!mappedAddress) {
+      logInfo('inbound.mapped_user', {
+        provider,
+        mapped: false,
+        recipientEmail
+      });
+      return res.status(202).json({ ok: true, ignored: true, reason: 'RECIPIENT_NOT_MAPPED' });
+    }
+
+    logInfo('inbound.mapped_user', {
+      provider,
+      mapped: true,
+      userId: mappedAddress.user_id,
+      inboundAddressId: mappedAddress.id,
+      inboundAddressActive: normalizeDbBool(mappedAddress.is_active)
+    });
+
+    if (!normalizeDbBool(mappedAddress.is_active)) {
+      logWarn('inbound.inactive_address_received', {
+        provider,
+        userId: mappedAddress.user_id,
+        inboundAddressId: mappedAddress.id,
+        recipientEmail
+      });
+    }
+
+    const dedupeByHeader = messageIdHeader
+      ? await dbTimed(async () => {
+          const rowOrPromise = db
+            .prepare(
+              `SELECT id
+               FROM inbound_messages
+               WHERE user_id = ?
+                 AND provider = ?
+                 AND message_id_header = ?
+               LIMIT 1`
+            )
+            .get(mappedAddress.user_id, provider, messageIdHeader);
+          return rowOrPromise && typeof rowOrPromise.then === 'function' ? await rowOrPromise : rowOrPromise;
+        })
+      : null;
+    if (dedupeByHeader) {
+      logInfo('inbound.deduped', {
+        provider,
+        userId: mappedAddress.user_id,
+        reason: 'message_id_header',
+        inboundMessageId: dedupeByHeader.id
+      });
+      return res.status(200).json({ ok: true, deduped: true });
+    }
+
+    const dedupeByProviderId = providerMessageId
+      ? await dbTimed(async () => {
+          const rowOrPromise = db
+            .prepare(
+              `SELECT id
+               FROM inbound_messages
+               WHERE user_id = ?
+                 AND provider = ?
+                 AND provider_message_id = ?
+               LIMIT 1`
+            )
+            .get(mappedAddress.user_id, provider, providerMessageId);
+          return rowOrPromise && typeof rowOrPromise.then === 'function' ? await rowOrPromise : rowOrPromise;
+        })
+      : null;
+    if (dedupeByProviderId) {
+      logInfo('inbound.deduped', {
+        provider,
+        userId: mappedAddress.user_id,
+        reason: 'provider_message_id',
+        inboundMessageId: dedupeByProviderId.id
+      });
+      return res.status(200).json({ ok: true, deduped: true });
+    }
+
+    const dedupeBySha = await dbTimed(async () => {
+      const rowOrPromise = db
+        .prepare(
+          `SELECT id
+           FROM inbound_messages
+           WHERE sha256 = ?
+           LIMIT 1`
+        )
+        .get(sha256);
+      return rowOrPromise && typeof rowOrPromise.then === 'function' ? await rowOrPromise : rowOrPromise;
+    });
+    if (dedupeBySha) {
+      logInfo('inbound.deduped', {
+        provider,
+        userId: mappedAddress.user_id,
+        reason: 'sha256',
+        inboundMessageId: dedupeBySha.id
+      });
+      return res.status(200).json({ ok: true, deduped: true });
+    }
+
+    const inboundMessageId = crypto.randomUUID();
+    const createdAt = nowIso();
+    const rawPayload = db && db.isAsync ? payload : JSON.stringify(payload);
+
+    try {
+      await dbTimed(async () => {
+        const runRes = db
+          .prepare(
+            `INSERT INTO inbound_messages
+             (id, user_id, inbound_address_id, provider, provider_message_id, message_id_header,
+              subject, from_email, to_email, received_at, body_text, body_html, raw_payload, sha256, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .run(
+            inboundMessageId,
+            mappedAddress.user_id,
+            mappedAddress.id,
+            provider,
+            providerMessageId || null,
+            messageIdHeader || null,
+            subject,
+            fromEmail || null,
+            recipientEmail,
+            receivedAt,
+            bodyText || null,
+            bodyHtml,
+            rawPayload,
+            sha256,
+            createdAt
+          );
+        if (runRes && typeof runRes.then === 'function') {
+          await runRes;
+        }
+      });
+    } catch (insertErr) {
+      if (isUniqueConstraintError(insertErr)) {
+        logInfo('inbound.deduped', {
+          provider,
+          userId: mappedAddress.user_id,
+          reason: 'unique_constraint',
+          sha256Prefix: sha256.slice(0, 12)
+        });
+        return res.status(200).json({ ok: true, deduped: true });
+      }
+      throw insertErr;
+    }
+
+    logInfo('inbound.persisted', {
+      provider,
+      inboundMessageId,
+      userId: mappedAddress.user_id,
+      inboundAddressId: mappedAddress.id,
+      subjectLength: subject ? subject.length : 0,
+      bodyTextLength: bodyText.length,
+      bodyHtmlLength: bodyHtml ? bodyHtml.length : 0,
+      sha256Prefix: sha256.slice(0, 12)
+    });
+
+    await dbTimed(async () => {
+      const runRes = db
+        .prepare('UPDATE inbound_addresses SET last_received_at = ? WHERE id = ?')
+        .run(nowIso(), mappedAddress.id);
+      if (runRes && typeof runRes.then === 'function') {
+        await runRes;
+      }
+    });
+    await upsertUserInboxSignalIncrement(mappedAddress.user_id, {
+      lastInboundAt: nowIso(),
+      lastSubjectPreview: subject || null
+    });
+
+    logInfo('inbound.queued', {
+      provider,
+      inboundMessageId,
+      userId: mappedAddress.user_id
+    });
+
+    return res.status(200).json({
+      ok: true,
+      inbound_message_id: inboundMessageId,
+      deduped: false
+    });
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'inbound.postmark');
+    }
+    logError('inbound.failed', {
+      provider,
+      code: err && err.code ? String(err.code) : null,
+      detail: err && err.message ? String(err.message).slice(0, 240) : String(err),
+      recipientEmail: recipientEmail || null,
+      providerMessageIdHash: hashSampleId(providerMessageId),
+      messageIdHeaderHash: hashSampleId(messageIdHeader),
+      sha256Prefix: sha256.slice(0, 12)
+    });
+    return res.status(500).json({ error: 'INBOUND_FAILED' });
   }
 });
 
@@ -1398,6 +2267,344 @@ app.post('/api/contact', contactIpLimiter, async (req, res) => {
       });
     }
     return res.status(500).json({ error: 'CONTACT_SUBMIT_FAILED' });
+  }
+});
+
+app.get('/api/inbound/address', requireAuth, async (req, res) => {
+  try {
+    const status = await buildInboundAddressStatus(req.user.id, { ensureAddress: true });
+    return res.json(status);
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'inbound.address');
+    }
+    if (err?.code === 'INBOUND_DOMAIN_REQUIRED') {
+      return res.status(503).json({ error: 'INBOUND_NOT_CONFIGURED' });
+    }
+    logError('inbound.address.failed', {
+      userId: req.user?.id || null,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+    return res.status(500).json({ error: 'INBOUND_STATUS_FAILED' });
+  }
+});
+
+app.post('/api/inbound/address/confirm', requireAuth, async (req, res) => {
+  try {
+    const inboundDomain = String(process.env.INBOUND_DOMAIN || '')
+      .trim()
+      .toLowerCase()
+      .replace(/^@+/, '');
+    const address = await getOrCreateInboundAddress(db, req.user.id, { inboundDomain });
+    const confirmedAt = nowIso();
+    await dbRun(
+      'UPDATE inbound_addresses SET confirmed_at = COALESCE(confirmed_at, ?) WHERE id = ?',
+      confirmedAt,
+      address.id
+    );
+    const status = await buildInboundAddressStatus(req.user.id, { ensureAddress: false });
+    return res.json(status);
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'inbound.address.confirm');
+    }
+    if (err?.code === 'INBOUND_DOMAIN_REQUIRED') {
+      return res.status(503).json({ error: 'INBOUND_NOT_CONFIGURED' });
+    }
+    logError('inbound.address.confirm.failed', {
+      userId: req.user?.id || null,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+    return res.status(500).json({ error: 'INBOUND_CONFIRM_FAILED' });
+  }
+});
+
+app.post('/api/inbound/address/rotate', requireAuth, async (req, res) => {
+  try {
+    const inboundDomain = String(process.env.INBOUND_DOMAIN || '')
+      .trim()
+      .toLowerCase()
+      .replace(/^@+/, '');
+    const previous = await buildInboundAddressStatus(req.user.id, { ensureAddress: true });
+    await rotateInboundAddress(db, req.user.id, { inboundDomain });
+    const status = await buildInboundAddressStatus(req.user.id, { ensureAddress: false });
+    return res.json({
+      ...status,
+      rotated_from: previous.address_email || null
+    });
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'inbound.address.rotate');
+    }
+    if (err?.code === 'INBOUND_DOMAIN_REQUIRED') {
+      return res.status(503).json({ error: 'INBOUND_NOT_CONFIGURED' });
+    }
+    logError('inbound.address.rotate.failed', {
+      userId: req.user?.id || null,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+    return res.status(500).json({ error: 'INBOUND_ROTATE_FAILED' });
+  }
+});
+
+app.get('/api/inbound/status', requireAuth, async (req, res) => {
+  try {
+    const status = await buildInboundAddressStatus(req.user.id, { ensureAddress: false });
+    return res.json(status);
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'inbound.status');
+    }
+    logError('inbound.status.failed', {
+      userId: req.user?.id || null,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+    return res.status(500).json({ error: 'INBOUND_STATUS_FAILED' });
+  }
+});
+
+app.get('/api/inbound/recent', requireAuth, async (req, res) => {
+  if (!isAdminUser(req.user)) {
+    return res.status(403).json({ error: 'FORBIDDEN' });
+  }
+  try {
+    const limit = clampNumber(Number(req.query.limit) || 50, 1, 200);
+    const rows = await db
+      .prepare(
+        `SELECT id,
+                received_at,
+                from_email,
+                subject,
+                provider,
+                derived_company,
+                derived_role,
+                derived_status,
+                derived_application_id,
+                processing_status,
+                processing_error,
+                derived_debug_json
+         FROM inbound_messages
+         WHERE user_id = ?
+         ORDER BY received_at DESC, created_at DESC
+         LIMIT ?`
+      )
+      .all(req.user.id, limit);
+
+    const normalizedRows = (Array.isArray(rows) ? rows : rows?.rows || []).map((row) => {
+      const processingState = row.processing_status || null;
+      const errorValue = String(row.processing_error || '').trim();
+      const suppressReason =
+        processingState === 'ignored' && errorValue.startsWith('suppressed:')
+          ? errorValue.slice('suppressed:'.length)
+          : null;
+      let debugJson = null;
+      if (row.derived_debug_json && typeof row.derived_debug_json === 'object') {
+        debugJson = row.derived_debug_json;
+      } else if (row.derived_debug_json) {
+        try {
+          debugJson = JSON.parse(String(row.derived_debug_json));
+        } catch (_) {
+          debugJson = null;
+        }
+      }
+      const derivedProviderId =
+        (debugJson && (debugJson.provider_id || debugJson.providerId || debugJson.provider_hint || debugJson.providerHint)) ||
+        null;
+      return {
+        id: row.id,
+        received_at: row.received_at || null,
+        from_email: row.from_email || null,
+        subject: row.subject || null,
+        provider_id: derivedProviderId || row.provider || null,
+        derived_company: row.derived_company || null,
+        derived_role: row.derived_role || null,
+        derived_status: row.derived_status || null,
+        derived_application_id: row.derived_application_id || null,
+        processing_state: processingState,
+        suppress_reason: suppressReason,
+        derived_debug_json: debugJson
+      };
+    });
+    const signalRow = await getUserInboxSignal(req.user.id);
+    const pendingFallback = signalRow ? null : await countPendingInboundQueue(req.user.id);
+    return res.json({
+      signal: {
+        pending_count: signalRow
+          ? Number(signalRow.pending_count || 0)
+          : Number.isFinite(Number(pendingFallback))
+            ? Number(pendingFallback)
+            : 0,
+        last_inbound_at: signalRow?.last_inbound_at || null,
+        last_subject_preview: truncateInboundSubject(signalRow?.last_subject_preview || null),
+        updated_at: signalRow?.updated_at || null
+      },
+      messages: normalizedRows
+    });
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'inbound.recent');
+    }
+    logError('inbound.recent.failed', {
+      userId: req.user?.id || null,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+    return res.status(500).json({ error: 'INBOUND_RECENT_FAILED' });
+  }
+});
+
+app.get('/api/inbound/hints', requireAuth, async (req, res) => {
+  if (!isAdminUser(req.user)) {
+    return res.status(403).json({ error: 'FORBIDDEN' });
+  }
+  try {
+    const limit = clampNumber(Number(req.query.limit) || 100, 1, 300);
+    const rowsRaw = await db
+      .prepare(
+        `SELECT id,
+                provider_id,
+                from_domain,
+                subject_pattern,
+                job_id_token,
+                company_override,
+                role_override,
+                status_override,
+                hit_count,
+                last_hit_at,
+                created_at,
+                updated_at
+         FROM user_parse_hints
+         WHERE user_id = ?
+         ORDER BY updated_at DESC
+         LIMIT ?`
+      )
+      .all(req.user.id, limit);
+    const rows = Array.isArray(rowsRaw) ? rowsRaw : rowsRaw?.rows || [];
+    return res.json({ hints: rows });
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'inbound.hints.list');
+    }
+    logError('inbound.hints.list.failed', {
+      userId: req.user?.id || null,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+    return res.status(500).json({ error: 'INBOUND_HINTS_LIST_FAILED' });
+  }
+});
+
+app.delete('/api/inbound/hints/:id', requireAuth, async (req, res) => {
+  if (!isAdminUser(req.user)) {
+    return res.status(403).json({ error: 'FORBIDDEN' });
+  }
+  try {
+    const id = String(req.params.id || '').trim();
+    if (!id) {
+      return res.status(400).json({ error: 'INVALID_HINT_ID' });
+    }
+    const existing = await db
+      .prepare('SELECT id FROM user_parse_hints WHERE id = ? AND user_id = ?')
+      .get(id, req.user.id);
+    if (!existing) {
+      return res.status(404).json({ error: 'NOT_FOUND' });
+    }
+    await db.prepare('DELETE FROM user_parse_hints WHERE id = ? AND user_id = ?').run(id, req.user.id);
+    return res.json({ ok: true });
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'inbound.hints.delete');
+    }
+    logError('inbound.hints.delete.failed', {
+      userId: req.user?.id || null,
+      hintId: req.params?.id || null,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+    return res.status(500).json({ error: 'INBOUND_HINT_DELETE_FAILED' });
+  }
+});
+
+app.post('/api/inbound/sync', requireAuth, async (req, res) => {
+  const lockToken = acquireInboundSyncLock(req.user?.id || null);
+  if (!lockToken) {
+    return res.status(409).json({ error: 'SYNC_IN_PROGRESS' });
+  }
+  try {
+    const limit = Math.max(1, Math.min(500, Math.floor(Number(req.body?.limit) || 120)));
+    const statusBefore = await buildInboundAddressStatus(req.user.id, { ensureAddress: true });
+    if (!statusBefore.last_received_at || statusBefore.setup_state !== 'active') {
+      return res.json({
+        status: 'not_connected',
+        processed: 0,
+        ignored: 0,
+        errors: 0,
+        created: 0,
+        updated: 0,
+        pending_remaining: Number(statusBefore?.inbound_pending_count || 0),
+        sample: [],
+        ...statusBefore
+      });
+    }
+
+    const result = await syncInboundForwardedMessages({
+      db,
+      userId: req.user.id,
+      limit
+    });
+    const pendingRemaining = Number.isFinite(Number(result?.pending_remaining))
+      ? Number(result.pending_remaining)
+      : await countPendingInboundQueue(req.user.id);
+    await setUserInboxSignalPendingCount(req.user.id, pendingRemaining, {
+      lastInboundAt: result?.last_received_at || statusBefore?.last_received_at || null,
+      lastSubjectPreview: statusBefore?.last_received_subject || null
+    });
+
+    const inboundSyncMeta = normalizeInboundSyncMeta({
+      last_inbound_sync_at: result.last_processed_at || nowIso(),
+      processed: result.processed,
+      ignored: result.ignored,
+      created: result.created,
+      updated: result.updated,
+      errors: result.errors
+    });
+    if (inboundSyncMeta) {
+      await storeInboundSyncMeta(req.user.id, inboundSyncMeta);
+    }
+
+    const statusAfter = await buildInboundAddressStatus(req.user.id, { ensureAddress: false });
+    return res.json({
+      status: result.status || 'ok',
+      processed: result.processed || 0,
+      ignored: result.ignored || 0,
+      errors: result.errors || 0,
+      errors_detail: Array.isArray(result.errors_detail) ? result.errors_detail.slice(0, 5) : [],
+      created: result.created || 0,
+      updated: result.updated || 0,
+      pending_remaining: pendingRemaining,
+      sample: Array.isArray(result.sample) ? result.sample.slice(0, 3) : [],
+      last_processed_at: result.last_processed_at || inboundSyncMeta?.last_inbound_sync_at || null,
+      ...statusAfter,
+      last_inbound_sync_at:
+        inboundSyncMeta?.last_inbound_sync_at || statusAfter.last_inbound_sync_at || null,
+      last_inbound_sync: inboundSyncMeta || statusAfter.last_inbound_sync || null
+    });
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'inbound.sync');
+    }
+    logError('inbound.sync.failed', {
+      userId: req.user?.id || null,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 240) : String(err)
+    });
+    return res.status(500).json({ error: 'INBOUND_SYNC_FAILED' });
+  } finally {
+    releaseInboundSyncLock(req.user?.id || null, lockToken);
   }
 });
 
@@ -1837,12 +3044,17 @@ app.post('/api/email/events/:id/create-application', requireAuth, (req, res) => 
     initialStatus.status === ApplicationStatus.APPLIED
       ? `User created from confirmation event ${event.id}.`
       : 'User created from email event.';
-  const companyConfidence = companyName ? 1 : null;
-  const companySource = companyName ? 'manual' : null;
+  const statusConfidence = initialStatus.status !== ApplicationStatus.UNKNOWN ? 100 : null;
+  const companyConfidence = companyName ? 100 : null;
+  const companySource = companyName ? 'user' : null;
   const companyExplanation = companyName ? 'Manual entry.' : null;
-  const roleConfidence = jobTitle ? 1 : null;
-  const roleSource = jobTitle ? 'manual' : null;
+  const roleConfidence = jobTitle ? 100 : null;
+  const roleSource = jobTitle ? 'user' : null;
   const roleExplanation = jobTitle ? 'Manual entry.' : null;
+  const applicationKey = buildApplicationKey({
+    company: companyName,
+    role: jobTitle
+  })?.key || null;
 
   const id = crypto.randomUUID();
   const createdAt = nowIso();
@@ -1851,8 +3063,8 @@ app.post('/api/email/events/:id/create-application', requireAuth, (req, res) => 
      (id, user_id, company, role, status, status_source, company_name, job_title, job_location, source,
       external_req_id, applied_at, current_status, status_confidence, status_explanation, status_updated_at,
       company_confidence, company_source, company_explanation, role_confidence, role_source, role_explanation,
-      last_activity_at, archived, user_override, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      last_activity_at, archived, user_override, application_key, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     req.user.id,
@@ -1867,7 +3079,7 @@ app.post('/api/email/events/:id/create-application', requireAuth, (req, res) => 
     event.external_req_id || null,
     initialStatus.appliedAt,
     initialStatus.status,
-    initialStatus.statusConfidence,
+    statusConfidence,
     statusExplanation,
     createdAt,
     companyConfidence,
@@ -1879,6 +3091,7 @@ app.post('/api/email/events/:id/create-application', requireAuth, (req, res) => 
     eventTimestamp,
     0,
     1,
+    applicationKey,
     createdAt,
     createdAt
   );
@@ -2124,8 +3337,24 @@ app.get('/api/applications/:id', requireAuth, async (req, res) => {
       ...row,
       internal_date: normalizeEpochMs(row.internal_date)
     }));
+    const latestInbound = await db
+      .prepare(
+        `SELECT id
+         FROM inbound_messages
+         WHERE user_id = ?
+           AND derived_application_id = ?
+         ORDER BY received_at DESC, created_at DESC
+         LIMIT 1`
+      )
+      .get(req.user.id, application.id);
 
-    return res.json({ application, events: normalizedEvents });
+    return res.json({
+      application: {
+        ...application,
+        last_inbound_message_id: latestInbound?.id || null
+      },
+      events: normalizedEvents
+    });
   } catch (err) {
     if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
       // eslint-disable-next-line no-console
@@ -2155,22 +3384,26 @@ app.post('/api/applications', requireAuth, (req, res) => {
   const id = crypto.randomUUID();
   const timestamp = nowIso();
   const appliedAt = status === ApplicationStatus.APPLIED ? timestamp : null;
-  const statusConfidence = status !== ApplicationStatus.UNKNOWN ? 1.0 : null;
+  const statusConfidence = status !== ApplicationStatus.UNKNOWN ? 100 : null;
   const statusExplanation =
     status !== ApplicationStatus.UNKNOWN ? 'User set initial status.' : null;
-  const companyConfidence = companyName ? 1 : null;
-  const companySource = companyName ? 'manual' : null;
+  const companyConfidence = companyName ? 100 : null;
+  const companySource = companyName ? 'user' : null;
   const companyExplanation = companyName ? 'Manual entry.' : null;
-  const roleConfidence = jobTitle ? 1 : null;
-  const roleSource = jobTitle ? 'manual' : null;
+  const roleConfidence = jobTitle ? 100 : null;
+  const roleSource = jobTitle ? 'user' : null;
   const roleExplanation = jobTitle ? 'Manual entry.' : null;
+  const applicationKey = buildApplicationKey({
+    company: companyName,
+    role: jobTitle
+  })?.key || null;
   db.prepare(
     `INSERT INTO job_applications
      (id, user_id, company, role, status, status_source, company_name, job_title, job_location, source,
       applied_at, current_status, status_confidence, status_explanation, status_updated_at,
       company_confidence, company_source, company_explanation, role_confidence, role_source, role_explanation,
-      last_activity_at, archived, user_override, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      last_activity_at, archived, user_override, application_key, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     req.user.id,
@@ -2196,6 +3429,7 @@ app.post('/api/applications', requireAuth, (req, res) => {
     timestamp,
     0,
     1,
+    applicationKey,
     timestamp,
     timestamp
   );
@@ -2211,136 +3445,241 @@ app.post('/api/applications', requireAuth, (req, res) => {
   return res.json({ application });
 });
 
-app.patch('/api/applications/:id', requireAuth, (req, res) => {
-  const application = db
-    .prepare('SELECT * FROM job_applications WHERE id = ? AND user_id = ?')
-    .get(req.params.id, req.user.id);
-  if (!application) {
-    return res.status(404).json({ error: 'NOT_FOUND' });
-  }
-
-  const updates = { updated_at: nowIso() };
-  const payload = {};
-  let statusOverride = null;
-  let metadataChanges = {};
-  let archiveChange = null;
-
-  if (req.body.company_name || req.body.company) {
-    updates.company_name = String(req.body.company_name || req.body.company).trim();
-    updates.company = updates.company_name;
-    updates.company_confidence = 1;
-    updates.company_source = 'manual';
-    updates.company_explanation = 'Manual edit.';
-    payload.company_name = updates.company_name;
-    metadataChanges.company_name = {
-      previous_value: application.company_name || null,
-      new_value: updates.company_name
-    };
-  }
-  if (req.body.job_title || req.body.role) {
-    updates.job_title = String(req.body.job_title || req.body.role).trim();
-    updates.role = updates.job_title;
-    updates.role_confidence = 1;
-    updates.role_source = 'manual';
-    updates.role_explanation = 'Manual edit.';
-    payload.job_title = updates.job_title;
-    metadataChanges.job_title = {
-      previous_value: application.job_title || null,
-      new_value: updates.job_title
-    };
-  }
-  if (req.body.job_location) {
-    updates.job_location = String(req.body.job_location).trim();
-    payload.job_location = updates.job_location;
-    metadataChanges.job_location = {
-      previous_value: application.job_location || null,
-      new_value: updates.job_location
-    };
-  }
-  if (req.body.source) {
-    updates.source = String(req.body.source).trim();
-    payload.source = updates.source;
-    metadataChanges.source = {
-      previous_value: application.source || null,
-      new_value: updates.source
-    };
-  }
-  if (req.body.current_status || req.body.status) {
-    const nextStatus = req.body.current_status || req.body.status;
-    if (!VALID_STATUSES.has(nextStatus)) {
-      return res.status(400).json({ error: 'INVALID_STATUS' });
+app.patch('/api/applications/:id', requireAuth, async (req, res) => {
+  try {
+    const application = await db
+      .prepare('SELECT * FROM job_applications WHERE id = ? AND user_id = ?')
+      .get(req.params.id, req.user.id);
+    if (!application) {
+      return res.status(404).json({ error: 'NOT_FOUND' });
     }
-    statusOverride = {
-      nextStatus,
-      explanation: req.body.status_explanation
+
+    const updates = { updated_at: nowIso() };
+    const payload = {};
+    let statusOverride = null;
+    const metadataChanges = {};
+    let archiveChange = null;
+    const changedForHints = {};
+
+    if (req.body.company_name || req.body.company) {
+      const nextCompany = String(req.body.company_name || req.body.company).trim();
+      const prevCompany = String(application.company_name || application.company || '').trim();
+      if (nextCompany && nextCompany !== prevCompany) {
+        updates.company_name = nextCompany;
+        updates.company = nextCompany;
+        updates.company_confidence = 100;
+        updates.company_source = 'user';
+        updates.company_explanation = 'Manual edit.';
+        payload.company_name = nextCompany;
+        metadataChanges.company_name = {
+          previous_value: prevCompany || null,
+          new_value: nextCompany
+        };
+        changedForHints.company_override = nextCompany;
+      }
+    }
+
+    if (req.body.job_title || req.body.role) {
+      const nextRole = String(req.body.job_title || req.body.role).trim();
+      const prevRole = String(application.job_title || application.role || '').trim();
+      if (nextRole && nextRole !== prevRole) {
+        updates.job_title = nextRole;
+        updates.role = nextRole;
+        updates.role_confidence = 100;
+        updates.role_source = 'user';
+        updates.role_explanation = 'Manual edit.';
+        payload.job_title = nextRole;
+        metadataChanges.job_title = {
+          previous_value: prevRole || null,
+          new_value: nextRole
+        };
+        changedForHints.role_override = nextRole;
+      }
+    }
+
+    if (updates.company_name || updates.job_title) {
+      const nextCompany = updates.company_name || application.company_name || application.company || null;
+      const nextRole = updates.job_title || application.job_title || application.role || null;
+      updates.application_key =
+        buildApplicationKey({
+          company: nextCompany,
+          role: nextRole
+        })?.key || null;
+    }
+
+    if (req.body.job_location) {
+      const nextLocation = String(req.body.job_location).trim();
+      const prevLocation = String(application.job_location || '').trim();
+      if (nextLocation !== prevLocation) {
+        updates.job_location = nextLocation;
+        payload.job_location = nextLocation;
+        metadataChanges.job_location = {
+          previous_value: prevLocation || null,
+          new_value: nextLocation
+        };
+      }
+    }
+
+    if (req.body.source) {
+      const nextSource = String(req.body.source).trim();
+      const prevSource = String(application.source || '').trim();
+      if (nextSource !== prevSource) {
+        updates.source = nextSource;
+        payload.source = nextSource;
+        metadataChanges.source = {
+          previous_value: prevSource || null,
+          new_value: nextSource
+        };
+      }
+    }
+
+    if (req.body.current_status || req.body.status) {
+      const nextStatus = String(req.body.current_status || req.body.status).trim().toLowerCase();
+      if (!VALID_STATUSES.has(nextStatus)) {
+        return res.status(400).json({ error: 'INVALID_STATUS' });
+      }
+      const prevStatus = String(application.current_status || application.status || '').trim().toLowerCase();
+      if (nextStatus !== prevStatus) {
+        statusOverride = {
+          nextStatus,
+          explanation: req.body.status_explanation
+        };
+        payload.current_status = nextStatus;
+        changedForHints.status_override = nextStatus;
+      }
+    }
+
+    if (typeof req.body.archived === 'boolean') {
+      updates.archived = Boolean(req.body.archived);
+      payload.archived = updates.archived;
+      archiveChange = {
+        previous_value: Boolean(application.archived),
+        new_value: updates.archived
+      };
+    }
+
+    if (Object.keys(metadataChanges).length) {
+      updates.user_override = true;
+    }
+
+    const keys = Object.keys(updates);
+    const setClause = keys.map((key) => `${key} = ?`).join(', ');
+    const toPatchBindValue = (value) => {
+      if (value === undefined || value === null) {
+        return null;
+      }
+      if (typeof value === 'boolean') {
+        return boolBind(db, value);
+      }
+      if (value instanceof Date) {
+        return value.toISOString();
+      }
+      if (typeof value === 'object') {
+        try {
+          return JSON.stringify(value);
+        } catch (_) {
+          return String(value);
+        }
+      }
+      return value;
     };
-    payload.current_status = nextStatus;
-  }
-  if (typeof req.body.archived === 'boolean') {
-    updates.archived = Boolean(req.body.archived);
-    payload.archived = updates.archived;
-    archiveChange = {
-      previous_value: Boolean(application.archived),
-      new_value: updates.archived
-    };
-  }
+    const values = keys.map((key) => toPatchBindValue(updates[key]));
+    values.push(application.id);
+    if (keys.length) {
+      await db.prepare(`UPDATE job_applications SET ${setClause} WHERE id = ?`).run(...values);
+    }
 
-  if (Object.keys(metadataChanges).length) {
-    updates.user_override = true;
-  }
+    if (Object.keys(metadataChanges).length) {
+      createUserAction(db, {
+        userId: req.user.id,
+        applicationId: application.id,
+        actionType: 'EDIT_METADATA',
+        payload: metadataChanges
+      });
+    }
 
-  const keys = Object.keys(updates);
-  const setClause = keys.map((key) => `${key} = ?`).join(', ');
-  const values = keys.map((key) => updates[key]);
-  values.push(application.id);
+    let updated = await db.prepare('SELECT * FROM job_applications WHERE id = ?').get(application.id);
+    if (statusOverride) {
+      updated = await applyStatusOverride(db, {
+        userId: req.user.id,
+        application: updated,
+        nextStatus: statusOverride.nextStatus,
+        explanation: statusOverride.explanation
+      });
+    }
 
-  if (keys.length) {
-    db.prepare(`UPDATE job_applications SET ${setClause} WHERE id = ?`).run(...values);
-  }
+    let hintLearning = null;
+    if (
+      changedForHints.company_override !== undefined ||
+      changedForHints.role_override !== undefined ||
+      changedForHints.status_override !== undefined
+    ) {
+      const context = await resolveHintSourceContext({
+        userId: req.user.id,
+        applicationId: application.id,
+        lastInboundMessageId: req.body.last_inbound_message_id || null,
+        lastEventId: req.body.last_event_id || null
+      });
 
-  if (Object.keys(metadataChanges).length) {
-    createUserAction(db, {
-      userId: req.user.id,
-      applicationId: application.id,
-      actionType: 'EDIT_METADATA',
-      payload: metadataChanges
+      if (context?.providerId) {
+        const fingerprint = buildHintFingerprintFromEmail({
+          providerId: context.providerId,
+          fromDomain: context.fromDomain,
+          subject: context.subject,
+          text: context.text
+        });
+        const hint = await upsertUserHint(db, req.user.id, fingerprint, {
+          company_override: changedForHints.company_override,
+          role_override: changedForHints.role_override,
+          status_override: normalizeHintStatus(changedForHints.status_override)
+        });
+        if (hint) {
+          hintLearning = {
+            learned: true,
+            hint_id: hint.id,
+            source_type: context.sourceType,
+            source_id: context.sourceId
+          };
+        }
+      }
+    }
+
+    if (archiveChange) {
+      createUserAction(db, {
+        userId: req.user.id,
+        applicationId: application.id,
+        actionType: updates.archived ? 'ARCHIVE' : 'UNARCHIVE',
+        payload: archiveChange
+      });
+    }
+
+    if (
+      Object.keys(payload).length &&
+      !Object.keys(metadataChanges).length &&
+      !statusOverride &&
+      typeof req.body.archived !== 'boolean'
+    ) {
+      createUserAction(db, {
+        userId: req.user.id,
+        applicationId: application.id,
+        actionType: 'UPDATE_APPLICATION',
+        payload
+      });
+    }
+
+    return res.json({ application: updated, hint_learning: hintLearning });
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'applications.patch');
+    }
+    logError('applications.patch.failed', {
+      userId: req.user?.id || null,
+      applicationId: req.params?.id || null,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
     });
+    return res.status(500).json({ error: 'UPDATE_APPLICATION_FAILED' });
   }
-
-  let updated = db.prepare('SELECT * FROM job_applications WHERE id = ?').get(application.id);
-  if (statusOverride) {
-    updated = applyStatusOverride(db, {
-      userId: req.user.id,
-      application: updated,
-      nextStatus: statusOverride.nextStatus,
-      explanation: statusOverride.explanation
-    });
-  }
-
-  if (archiveChange) {
-    createUserAction(db, {
-      userId: req.user.id,
-      applicationId: application.id,
-      actionType: updates.archived ? 'ARCHIVE' : 'UNARCHIVE',
-      payload: archiveChange
-    });
-  }
-
-  if (
-    Object.keys(payload).length &&
-    !Object.keys(metadataChanges).length &&
-    !statusOverride &&
-    typeof req.body.archived !== 'boolean'
-  ) {
-    createUserAction(db, {
-      userId: req.user.id,
-      applicationId: application.id,
-      actionType: 'UPDATE_APPLICATION',
-      payload
-    });
-  }
-
-  return res.json({ application: updated });
 });
 
 app.post('/api/applications/bulk-archive', requireAuth, async (req, res) => {
@@ -2529,7 +3868,7 @@ app.post('/api/applications/:id/suggestion/accept', requireAuth, (req, res) => {
   const updates = {
     current_status: application.suggested_status,
     status: application.suggested_status,
-    status_confidence: 1.0,
+    status_confidence: 100,
     status_explanation: `${application.suggested_explanation || 'Suggestion accepted.'} User confirmed.`,
     status_updated_at: nowIso(),
     status_source: 'user',

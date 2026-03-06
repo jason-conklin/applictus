@@ -10,6 +10,7 @@
     "dev": "node server/src/index.js",
     "start": "node server/src/index.js",
     "seed": "node server/scripts/seed.js",
+    "inbound:smoke": "node server/scripts/postmark-inbound-smoke.js",
     "test": "node server/scripts/run-tests.js",
     "copy:web": "node server/scripts/copy-web-to-public.js"
   },

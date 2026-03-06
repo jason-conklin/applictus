@@ -82,6 +82,26 @@ Generate a key:
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
+## Forwarding-Based Inbound Ingestion (Postmark)
+You can ingest forwarded emails without Google OAuth by using the Postmark inbound webhook:
+
+```bash
+POSTMARK_INBOUND_SECRET=...
+INBOUND_DOMAIN=mail.applictus.com
+```
+
+- Webhook endpoint: `POST /api/inbound/postmark`
+- Required header: `x-applictus-inbound-secret: <POSTMARK_INBOUND_SECRET>`
+- Recipient mapping uses generated per-user addresses stored in `inbound_addresses`.
+- Raw inbound payloads are persisted in `inbound_messages` for debugging/dedupe.
+
+Local smoke test script:
+```bash
+node server/scripts/postmark-inbound-smoke.js
+# optional webhook send (requires running server + secret):
+POSTMARK_SMOKE_SEND=1 node server/scripts/postmark-inbound-smoke.js
+```
+
 ### Migrations
 Migrations run automatically on server start. To run them manually:
 ```bash

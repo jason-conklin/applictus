@@ -233,6 +233,18 @@ const accountPasswordButtonLabel = document.getElementById('account-password-but
 const accountPasswordHint = document.getElementById('account-password-hint');
 const accountGmailStatus = document.getElementById('account-gmail-status');
 const accountGmailEmail = document.getElementById('account-gmail-email');
+const inboundStatusPill = document.getElementById('inbound-status-pill');
+const inboundAddressEmail = document.getElementById('inbound-address-email');
+const inboundMetaLine = document.getElementById('inbound-meta-line');
+const inboundOldAddressWarning = document.getElementById('inbound-old-address-warning');
+const inboundOpenSetup = document.getElementById('inbound-open-setup');
+const inboundRotateAddress = document.getElementById('inbound-rotate-address');
+const inboundCopyAddress = document.getElementById('inbound-copy-address');
+const inboundSendTest = document.getElementById('inbound-send-test');
+const inboundWhyToggle = document.getElementById('inbound-why-toggle');
+const inboundWhyPanel = document.getElementById('inbound-why-panel');
+const inboundDiagnosticsWrap = document.getElementById('inbound-diagnostics-wrap');
+const inboundDiagnosticsLink = document.getElementById('inbound-diagnostics-link');
 const contactForm = document.getElementById('contact-form');
 const contactError = document.getElementById('contact-error');
 const contactSuccess = document.getElementById('contact-success');
@@ -308,6 +320,7 @@ const syncSummaryStatus = document.getElementById('sync-summary-status');
 const syncSummaryMetrics = document.getElementById('sync-summary-metrics');
 const syncDetailsToggle = document.getElementById('sync-details-toggle');
 const syncDetailsWrapper = document.getElementById('sync-details-wrapper');
+const legacySyncDetails = document.getElementById('legacy-sync-details');
 const kpiTotal = document.getElementById('kpi-total');
 const kpiApplied = document.getElementById('kpi-applied');
 const kpiOffers = document.getElementById('kpi-offers');
@@ -497,11 +510,32 @@ const emailState = {
   lastSyncedAt: null,
   lastSyncStats: null
 };
+const inboundState = {
+  addressEmail: null,
+  isActive: false,
+  confirmedAt: null,
+  lastReceivedAt: null,
+  lastReceivedSubject: null,
+  messageCount7d: 0,
+  pendingCount: 0,
+  signalUpdatedAt: null,
+  signalLastInboundAt: null,
+  signalLastSubject: null,
+  inactiveAddressWarning: false,
+  inactiveAddressWarningMeta: null,
+  setupState: 'not_started',
+  connected: false,
+  effectiveConnected: false,
+  lastInboundSyncAt: null,
+  lastInboundSync: null,
+  diagnosticsAdmin: false
+};
 const syncUiState = {
   visible: false,
   progress: 0,
   label: '',
   error: false,
+  indeterminate: false,
   syncId: null,
   pollTimer: null,
   easingTimer: null,
@@ -512,6 +546,16 @@ const syncUiState = {
   finishTimer: null,
   finishGuard: null
 };
+const inboundAutoSyncState = {
+  timer: null,
+  inFlight: false,
+  lastTriggeredReceivedAt: null,
+  lastTriggeredSignalAt: null,
+  lastToastAt: 0,
+  lastAutoSyncAt: 0
+};
+const INBOUND_AUTO_SYNC_INTERVAL_MS = 9000;
+const INBOUND_AUTO_SYNC_DEBOUNCE_MS = 15000;
 renderSyncSummary({ status: 'idle', rawDetails: '' });
 
 let syncRangeMenuOpen = false;
@@ -787,9 +831,6 @@ function setSyncStatusText(text) {
   if (syncStatus) {
     syncStatus.textContent = text;
   }
-  if (accountSyncStatus) {
-    accountSyncStatus.textContent = text;
-  }
 }
 
 function setSyncResultText(text) {
@@ -802,13 +843,6 @@ function setSyncResultText(text) {
 }
 
 function setSyncDisabled(isDisabled) {
-  if (emailSync) {
-    emailSync.disabled = isDisabled;
-    emailSync.setAttribute('aria-busy', String(!!isDisabled));
-  }
-  if (syncMenuButton) {
-    syncMenuButton.disabled = isDisabled;
-  }
   if (accountEmailSync) {
     accountEmailSync.disabled = isDisabled;
     accountEmailSync.setAttribute('aria-busy', String(!!isDisabled));
@@ -817,9 +851,217 @@ function setSyncDisabled(isDisabled) {
     accountSyncMenuButton.disabled = isDisabled;
   }
   if (isDisabled) {
-    closeSyncRangeMenu();
     closeAccountSyncRangeMenu();
   }
+}
+
+function isForwardingActive() {
+  return inboundState.setupState === 'active' || inboundState.effectiveConnected;
+}
+
+function setDashboardScanButtonLabel(label) {
+  if (!emailSync) {
+    return;
+  }
+  const scanText = emailSync.querySelector('.scan-text');
+  if (scanText) {
+    scanText.textContent = label;
+  } else {
+    emailSync.textContent = label;
+  }
+}
+
+function formatInboundMetaText() {
+  const syncMeta = inboundState.lastInboundSync || null;
+  const syncParts = [];
+  if (syncMeta) {
+    const syncedAt = formatSyncDateTime(syncMeta.last_inbound_sync_at || inboundState.lastInboundSyncAt);
+    if (syncedAt) {
+      syncParts.push(`Last inbox sync • ${syncedAt}`);
+    } else {
+      syncParts.push('Last inbox sync complete');
+    }
+    const processed = Number(syncMeta.last_inbound_processed_count ?? 0);
+    const created = Number(syncMeta.last_inbound_created_count ?? 0);
+    const updated = Number(syncMeta.last_inbound_updated_count ?? 0);
+    const ignored = Number(syncMeta.last_inbound_ignored_count ?? 0);
+    if (Number.isFinite(processed)) {
+      syncParts.push(`Processed ${processed}`);
+    }
+    if (Number.isFinite(created)) {
+      syncParts.push(`Added ${created}`);
+    }
+    if (Number.isFinite(updated)) {
+      syncParts.push(`Updated ${updated}`);
+    }
+    if (Number.isFinite(ignored)) {
+      syncParts.push(`Ignored ${ignored}`);
+    }
+  }
+
+  const lastSeen = formatSyncDateTime(inboundState.lastReceivedAt);
+  if (inboundState.setupState === 'active') {
+    const parts = [];
+    if (syncParts.length) {
+      parts.push(syncParts.join(' · '));
+    }
+    if (lastSeen) {
+      parts.push(`Last email received • ${lastSeen}`);
+    }
+    if (inboundState.lastReceivedSubject) {
+      parts.push(`“${inboundState.lastReceivedSubject}”`);
+    }
+    if (Number.isFinite(inboundState.messageCount7d) && inboundState.messageCount7d > 0) {
+      parts.push(`${inboundState.messageCount7d} in last 7 days`);
+    }
+    return parts.join(' • ') || 'Forwarding active. Waiting for new job-email updates.';
+  }
+  if (inboundState.setupState === 'awaiting_first_email') {
+    if (syncParts.length) {
+      return `${syncParts.join(' · ')} • No forwarded emails yet.`;
+    }
+    return 'No forwarded emails yet. Forward one real application email or complete the Gmail forwarding confirmation to activate Applictus.';
+  }
+  if (inboundState.setupState === 'awaiting_confirmation') {
+    return 'Waiting for forwarding verification. Complete Step 2 in setup.';
+  }
+  return 'No forwarding connected yet.';
+}
+
+function renderForwardingSummary() {
+  if (!syncSummary || !syncSummaryStatus || !syncSummaryMetrics) {
+    return;
+  }
+  const setupState = inboundState.setupState || 'not_started';
+  let statusText = 'Inbox not connected';
+  if (setupState === 'active') {
+    statusText = '✅ Forwarding active';
+  } else if (setupState === 'awaiting_first_email') {
+    statusText = 'Forwarding set up — waiting for first email';
+  } else if (setupState === 'awaiting_confirmation') {
+    statusText = 'Waiting for forwarding verification';
+  }
+  syncSummaryStatus.textContent = statusText;
+  if (setupState === 'active' && Number(state.lastTotal || 0) === 0) {
+    syncSummaryMetrics.textContent = 'Inbox connected. We’ll update your dashboard when job emails arrive.';
+  } else if (setupState === 'not_started') {
+    syncSummaryMetrics.textContent = 'Set up automatic forwarding in about 2 minutes — no Google login required.';
+  } else {
+    syncSummaryMetrics.textContent = formatInboundMetaText();
+  }
+  syncSummary.classList.remove('hidden');
+  if (syncResult) {
+    syncResult.textContent = '';
+  }
+  applySyncDetailsVisibility(false, false, false);
+}
+
+function updateDashboardPrimarySyncUI() {
+  if (!emailSync) {
+    return;
+  }
+  const active = isForwardingActive();
+  setDashboardScanButtonLabel(active ? 'Sync inbox' : 'Connect inbox');
+  emailSync.dataset.forwardingMode = active ? 'sync' : 'connect';
+  emailSync.disabled = false;
+  emailSync.setAttribute('aria-busy', 'false');
+  if (syncMenuButton) {
+    syncMenuButton.classList.add('hidden');
+    syncMenuButton.disabled = true;
+    syncMenuButton.setAttribute('aria-hidden', 'true');
+  }
+  if (syncRangeMenuOpen) {
+    closeSyncRangeMenu();
+  }
+  if (syncConnectCta) {
+    syncConnectCta.classList.add('hidden');
+  }
+  if (syncControls) {
+    syncControls.classList.remove('hidden');
+  }
+  if (legacySyncDetails) {
+    legacySyncDetails.classList.toggle('legacy-sync-details--disabled', !emailState.connected);
+  }
+}
+
+function updateInboundStatusPresentation() {
+  const setupState = inboundState.setupState || 'not_started';
+  let pillText = 'Not connected';
+  let pillState = 'idle';
+  let dashboardText = 'Not connected';
+  let dashboardState = 'idle';
+  let syncText = 'Setup needed';
+
+  if (setupState === 'active') {
+    pillText = 'Receiving forwarded emails';
+    pillState = 'connected';
+    dashboardText = 'Connected';
+    dashboardState = 'connected';
+    syncText = 'Forwarding active';
+  } else if (setupState === 'awaiting_first_email') {
+    pillText = 'Forwarding enabled — waiting for first email';
+    pillState = 'info';
+    dashboardText = 'Setup complete';
+    dashboardState = 'info';
+    syncText = 'Waiting for first email';
+  } else if (setupState === 'awaiting_confirmation') {
+    pillText = 'Waiting for verification';
+    pillState = 'idle';
+    dashboardText = 'Waiting for verification';
+    dashboardState = 'idle';
+    syncText = 'Setup in progress';
+  }
+
+  setPillState(inboundStatusPill, pillText, pillState);
+  setPillState(dashboardGmailStatus, dashboardText, dashboardState);
+  if (dashboardGmailEmail) {
+    dashboardGmailEmail.textContent = inboundState.addressEmail
+      ? `Forwarding to ${inboundState.addressEmail}`
+      : 'Forwarding address not ready';
+  }
+  if (syncStatus) {
+    syncStatus.textContent = syncText;
+  }
+  if (inboundAddressEmail) {
+    inboundAddressEmail.textContent = inboundState.addressEmail || '—';
+  }
+  if (inboundMetaLine) {
+    inboundMetaLine.textContent = formatInboundMetaText();
+  }
+  if (inboundCopyAddress) {
+    inboundCopyAddress.disabled = !inboundState.addressEmail;
+  }
+  if (inboundSendTest) {
+    inboundSendTest.disabled = !inboundState.addressEmail;
+  }
+  if (inboundRotateAddress) {
+    inboundRotateAddress.disabled = !inboundState.addressEmail;
+  }
+  if (inboundOpenSetup) {
+    inboundOpenSetup.textContent = setupState === 'active' ? 'View setup' : 'Open setup';
+  }
+  if (inboundOldAddressWarning) {
+    const showWarning = Boolean(inboundState.inactiveAddressWarning);
+    inboundOldAddressWarning.classList.toggle('hidden', !showWarning);
+    if (showWarning) {
+      const warningMeta = inboundState.inactiveAddressWarningMeta || {};
+      const warningParts = ['We detected mail arriving at an old forwarding address.'];
+      if (warningMeta.address_email) {
+        warningParts.push(`Address: ${warningMeta.address_email}.`);
+      }
+      const warningWhen = formatSyncDateTime(warningMeta.last_received_at);
+      if (warningWhen) {
+        warningParts.push(`Last email received: ${warningWhen}.`);
+      }
+      if (warningMeta.subject) {
+        warningParts.push(`Subject: “${warningMeta.subject}”.`);
+      }
+      warningParts.push('Update your forwarding settings to your current address.');
+      inboundOldAddressWarning.textContent = warningParts.join(' ');
+    }
+  }
+  renderForwardingSummary();
+  updateDashboardPrimarySyncUI();
 }
 
 function setSyncRangeMenuOpen(open) {
@@ -887,25 +1129,29 @@ function updateAccountSyncOptionSelection(option) {
 }
 
 function updateSyncHelperText() {
-  const setHelper = (text) => {
-    if (syncHelperText) {
-      syncHelperText.textContent = text;
+  if (syncHelperText) {
+    if (inboundState.setupState === 'active') {
+      syncHelperText.textContent = 'Applictus monitors emails forwarded to your secure inbox address.';
+    } else if (inboundState.setupState === 'awaiting_first_email') {
+      syncHelperText.textContent = 'Forwarding enabled — waiting for first email';
+    } else if (inboundState.setupState === 'awaiting_confirmation') {
+      syncHelperText.textContent = 'Enable forwarding in Gmail, then confirm setup in Applictus.';
+    } else {
+      syncHelperText.textContent =
+        'Set up automatic forwarding in about 2 minutes — no Google login required.';
     }
-    if (accountSyncHelperText) {
-      accountSyncHelperText.textContent = text;
-    }
-  };
-
-  if (!emailState.connected) {
-    setHelper('');
+  }
+  if (!accountSyncHelperText) {
     return;
   }
-  if (!emailState.lastSyncedAt) {
-    setHelper('First scan checks the last 30 days');
+  if (!emailState.connected) {
+    accountSyncHelperText.textContent = 'Legacy: requires Google permission screens.';
     return;
   }
   const label = formatSyncDateTime(emailState.lastSyncedAt);
-  setHelper(label ? `Scans new emails since ${label}` : 'Scans new emails since last scan');
+  accountSyncHelperText.textContent = label
+    ? `Legacy Gmail last sync • ${label}`
+    : 'Legacy: requires Google permission screens.';
 }
 
 function updateAccountSyncResultLine() {
@@ -924,9 +1170,9 @@ function getDashboardEmptyStateHtml() {
   return `
     <div class="empty-state">
       <h3>No applications yet</h3>
-      <p class="muted">Scan Gmail to import applications automatically, or add one manually.</p>
+      <p class="muted">Connect inbox forwarding to import applications automatically, or add one manually.</p>
       <div class="empty-state-actions">
-        <button class="btn btn--primary btn--md" type="button" data-action="sync-gmail">Scan Gmail</button>
+        <button class="btn btn--primary btn--md" type="button" data-action="sync-inbox">Sync inbox</button>
         <button class="btn btn--ghost btn--sm" type="button" data-action="add-application">Add application</button>
       </div>
     </div>
@@ -1605,7 +1851,7 @@ function parseDate(value) {
   return null;
 }
 
-function setSyncProgressState({ visible, progress, label, error = false }) {
+function setSyncProgressState({ visible, progress, label, error = false, indeterminate = false }) {
   if (!syncProgress || !syncProgressFill || !syncProgressTrack || !syncProgressLabel || !syncProgressValue) {
     return;
   }
@@ -1613,10 +1859,15 @@ function setSyncProgressState({ visible, progress, label, error = false }) {
   if (typeof progress === 'number') {
     syncUiState.progress = progress;
   }
+  syncUiState.indeterminate = Boolean(indeterminate);
   syncUiState.label = label || syncUiState.label;
   syncUiState.error = error;
 
   syncProgress.classList.toggle('hidden', !visible);
+  syncProgress.classList.toggle(
+    'is-indeterminate',
+    Boolean(visible) && syncUiState.indeterminate && !error
+  );
   const scanningActive =
     Boolean(visible) &&
     !error &&
@@ -1625,6 +1876,15 @@ function setSyncProgressState({ visible, progress, label, error = false }) {
       /scan/i.test(String(syncUiState.label || '')));
   syncProgress.classList.toggle('is-scanning', scanningActive);
   syncProgressLabel.textContent = syncUiState.label || '';
+  if (syncUiState.indeterminate && !error) {
+    syncProgressValue.textContent = '…';
+    syncProgressTrack.removeAttribute('aria-valuenow');
+    syncProgressTrack.setAttribute('aria-valuetext', 'Syncing');
+    syncProgressFill.style.width = '42%';
+    syncProgressFill.classList.toggle('error', false);
+    syncProgressFill.classList.toggle('is-scanning', true);
+    return;
+  }
   const rawPct = Math.max(0, Math.min(100, (syncUiState.progress || 0) * 100));
   const displayPct =
     syncUiState.state === 'finishing'
@@ -1633,6 +1893,7 @@ function setSyncProgressState({ visible, progress, label, error = false }) {
       ? 1
       : Math.min(99.5, rawPct);
   syncProgressValue.textContent = `${Math.round(displayPct)}%`;
+  syncProgressTrack.removeAttribute('aria-valuetext');
   syncProgressTrack.setAttribute('aria-valuenow', String(Math.round(displayPct)));
   syncProgressFill.style.width = `${displayPct}%`;
   syncProgressFill.classList.toggle('error', !!error);
@@ -1649,7 +1910,7 @@ function setSyncProgressState({ visible, progress, label, error = false }) {
 }
 
 function hideSyncProgress() {
-  setSyncProgressState({ visible: false, progress: 0, label: '', error: false });
+  setSyncProgressState({ visible: false, progress: 0, label: '', error: false, indeterminate: false });
   if (syncUiState.pollTimer) {
     window.clearInterval(syncUiState.pollTimer);
     syncUiState.pollTimer = null;
@@ -2033,10 +2294,10 @@ function setPageMeta(view) {
   };
 
   const descriptions = {
-    auth: 'Sign in to Applictus to track job applications and scan Gmail updates.',
+    auth: 'Sign in to Applictus to track job applications from forwarded inbox updates.',
     dashboard:
-      'Applictus helps you track job applications and scan Gmail updates so you always know your application status.',
-    account: 'Manage your Applictus account and Gmail connection.',
+      'Applictus tracks application progress from forwarded inbox updates so you always know your current status.',
+    account: 'Manage your Applictus account and forwarding inbox connection.',
     archive: 'Browse archived job applications in Applictus.',
     privacy: 'Read the Applictus Privacy Policy.',
     terms: 'Read the Applictus Terms of Service.',
@@ -2775,6 +3036,11 @@ function setView(view) {
       link.classList.toggle('active', href === `#${view}`);
     });
   }
+  if (view === 'dashboard') {
+    syncInboundAutoPolling();
+  } else {
+    clearInboundAutoSyncPolling();
+  }
 }
 
 function setAuthPanel(panel) {
@@ -3037,6 +3303,7 @@ async function loadSession() {
   }
 
   await refreshEmailStatus();
+  await refreshInboundStatus({ ensureAddress: true });
   return true;
 }
 
@@ -3179,15 +3446,880 @@ async function refreshUnsortedEvents() {
   }
 }
 
+function applyInboundStatusPayload(data = {}) {
+  inboundState.addressEmail = data.address_email || null;
+  inboundState.isActive = Boolean(data.is_active);
+  inboundState.confirmedAt = data.confirmed_at || null;
+  inboundState.lastReceivedAt = data.last_received_at || null;
+  inboundState.lastReceivedSubject = data.last_received_subject || null;
+  inboundState.messageCount7d = Number.isFinite(Number(data.message_count_7d))
+    ? Number(data.message_count_7d)
+    : 0;
+  inboundState.pendingCount = Number.isFinite(Number(data.inbound_pending_count))
+    ? Math.max(0, Number(data.inbound_pending_count))
+    : 0;
+  inboundState.signalUpdatedAt = data.inbound_signal_updated_at || null;
+  inboundState.signalLastInboundAt = data.inbound_signal_last_inbound_at || null;
+  inboundState.signalLastSubject = data.inbound_signal_last_subject || null;
+  inboundState.inactiveAddressWarning = Boolean(data.inactive_address_warning);
+  inboundState.inactiveAddressWarningMeta = data.inactive_address_warning_meta || null;
+  inboundState.setupState = data.setup_state || 'not_started';
+  inboundState.connected = Boolean(data.connected);
+  inboundState.effectiveConnected = Boolean(data.effective_connected);
+  inboundState.lastInboundSyncAt = data.last_inbound_sync_at || null;
+  inboundState.lastInboundSync = data.last_inbound_sync || null;
+  updateInboundStatusPresentation();
+  updateSyncHelperText();
+  updateInboundDiagnosticsVisibility();
+}
+
+async function refreshInboundStatus({ ensureAddress = true } = {}) {
+  const endpoint = ensureAddress ? '/api/inbound/address' : '/api/inbound/status';
+  try {
+    const data = await api(endpoint);
+    applyInboundStatusPayload(data || {});
+  } catch (err) {
+    inboundState.addressEmail = null;
+    inboundState.isActive = false;
+    inboundState.confirmedAt = null;
+    inboundState.lastReceivedAt = null;
+    inboundState.lastReceivedSubject = null;
+    inboundState.messageCount7d = 0;
+    inboundState.pendingCount = 0;
+    inboundState.signalUpdatedAt = null;
+    inboundState.signalLastInboundAt = null;
+    inboundState.signalLastSubject = null;
+    inboundState.inactiveAddressWarning = false;
+    inboundState.inactiveAddressWarningMeta = null;
+    inboundState.setupState = 'not_started';
+    inboundState.connected = false;
+    inboundState.effectiveConnected = false;
+    inboundState.lastInboundSyncAt = null;
+    inboundState.lastInboundSync = null;
+    updateInboundStatusPresentation();
+    updateSyncHelperText();
+  }
+  syncInboundAutoPolling();
+}
+
+function updateInboundDiagnosticsVisibility() {
+  if (!inboundDiagnosticsWrap) {
+    return;
+  }
+  inboundDiagnosticsWrap.classList.toggle('hidden', !inboundState.diagnosticsAdmin);
+}
+
+async function refreshInboundDiagnosticsAccess() {
+  if (!sessionUser) {
+    inboundState.diagnosticsAdmin = false;
+    updateInboundDiagnosticsVisibility();
+    return;
+  }
+  try {
+    await api('/api/inbound/recent?limit=1');
+    inboundState.diagnosticsAdmin = true;
+  } catch (err) {
+    inboundState.diagnosticsAdmin = false;
+  }
+  updateInboundDiagnosticsVisibility();
+}
+
+function clearInboundAutoSyncPolling() {
+  if (inboundAutoSyncState.timer) {
+    window.clearInterval(inboundAutoSyncState.timer);
+    inboundAutoSyncState.timer = null;
+  }
+}
+
+function routeIsDashboard() {
+  const routeKey = getCurrentRouteKey();
+  return !routeKey || routeKey === 'dashboard';
+}
+
+function hasNewInboundSinceLastSync() {
+  if (Number(inboundState.pendingCount || 0) > 0) {
+    return true;
+  }
+  const receivedMs = Date.parse(inboundState.lastReceivedAt || '');
+  if (!Number.isFinite(receivedMs)) {
+    return false;
+  }
+  const lastSyncedMs = Date.parse(inboundState.lastInboundSyncAt || '');
+  if (!Number.isFinite(lastSyncedMs)) {
+    return true;
+  }
+  return receivedMs > lastSyncedMs;
+}
+
+async function pollInboundStatusForAutoSync() {
+  if (!routeIsDashboard() || !sessionUser) {
+    clearInboundAutoSyncPolling();
+    return;
+  }
+  if (document.hidden) {
+    return;
+  }
+  if (inboundAutoSyncState.inFlight) {
+    return;
+  }
+  try {
+    await refreshInboundStatus({ ensureAddress: false });
+    if (!isForwardingActive()) {
+      return;
+    }
+    if (!hasNewInboundSinceLastSync()) {
+      return;
+    }
+    const pendingCount = Math.max(0, Number(inboundState.pendingCount || 0));
+    const signalStamp =
+      inboundState.signalUpdatedAt || inboundState.signalLastInboundAt || inboundState.lastReceivedAt || '';
+    const receivedAt = inboundState.lastReceivedAt || '';
+    if (signalStamp && inboundAutoSyncState.lastTriggeredSignalAt === signalStamp && pendingCount <= 0) {
+      return;
+    }
+    if (!receivedAt && pendingCount <= 0) {
+      return;
+    }
+    const nowMs = Date.now();
+    if (nowMs - inboundAutoSyncState.lastAutoSyncAt < INBOUND_AUTO_SYNC_DEBOUNCE_MS) {
+      return;
+    }
+    inboundAutoSyncState.lastTriggeredSignalAt = signalStamp || null;
+    inboundAutoSyncState.lastTriggeredReceivedAt = receivedAt;
+    inboundAutoSyncState.lastAutoSyncAt = nowMs;
+    if (nowMs - inboundAutoSyncState.lastToastAt > 4000) {
+      const toastMessage =
+        pendingCount > 1
+          ? `${pendingCount} new inbox updates received — syncing…`
+          : 'New inbox update received — syncing…';
+      showToast(toastMessage, { tone: 'info' });
+      inboundAutoSyncState.lastToastAt = nowMs;
+    }
+    await refreshForwardingInbox({ autoTriggered: true, pendingCountHint: pendingCount });
+  } catch (err) {
+    if (DEBUG_APP) {
+      // eslint-disable-next-line no-console
+      console.debug('[inbound-auto-sync] poll failed', err);
+    }
+  }
+}
+
+function syncInboundAutoPolling() {
+  const shouldPoll = Boolean(sessionUser) && routeIsDashboard() && isForwardingActive() && !document.hidden;
+  if (!shouldPoll) {
+    clearInboundAutoSyncPolling();
+    return;
+  }
+  if (inboundAutoSyncState.timer) {
+    return;
+  }
+  void pollInboundStatusForAutoSync();
+  inboundAutoSyncState.timer = window.setInterval(() => {
+    void pollInboundStatusForAutoSync();
+  }, INBOUND_AUTO_SYNC_INTERVAL_MS);
+}
+
+const FORWARDING_FILTER_QUERY =
+  '(subject:(application OR interview OR offer OR rejection) OR from:(workday OR greenhouse OR lever OR icims OR smartrecruiters OR workablemail OR linkedin.com))';
+
+const OUTLOOK_FORWARDING_HELP = [
+  'Outlook (optional): Settings → Mail → Forwarding.',
+  'Add your Applictus address and save.',
+  'You can add a rule later to narrow to job updates.'
+].join('\n');
+
+function waitForMs(durationMs) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, Math.max(0, Number(durationMs) || 0));
+  });
+}
+
+function buildForwardingTestMailto(addressEmail) {
+  const target = String(addressEmail || '').trim();
+  if (!target) {
+    return '';
+  }
+  const subject = encodeURIComponent('Applictus test');
+  const body = encodeURIComponent('This is a forwarding test email for Applictus.');
+  return `mailto:${encodeURIComponent(target)}?subject=${subject}&body=${body}`;
+}
+
+function createForwardingCollapsible({ title, open = false } = {}) {
+  const details = document.createElement('details');
+  details.className = 'forwarding-collapsible';
+  details.open = Boolean(open);
+  const summary = document.createElement('summary');
+  summary.textContent = String(title || 'Details');
+  const body = document.createElement('div');
+  body.className = 'forwarding-collapsible-body';
+  details.append(summary, body);
+  return { details, body };
+}
+
+async function copyTextToClipboard(text, successMessage) {
+  const value = String(text || '').trim();
+  if (!value) {
+    return false;
+  }
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+    } else {
+      const input = document.createElement('textarea');
+      input.value = value;
+      input.setAttribute('readonly', 'true');
+      input.style.position = 'absolute';
+      input.style.left = '-9999px';
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      input.remove();
+    }
+    if (successMessage) {
+      showToast(successMessage, { tone: 'success' });
+    }
+    return true;
+  } catch (err) {
+    showToast('Unable to copy. Please copy manually.', { tone: 'warning' });
+    return false;
+  }
+}
+
+function buildInboundSetupStep(step, setStep, setupContext) {
+  const container = document.createElement('div');
+  container.className = 'forwarding-setup-step';
+  const progress = document.createElement('div');
+  progress.className = 'forwarding-setup-progress muted small';
+  progress.textContent = `Step ${step + 1} of 3`;
+  container.appendChild(progress);
+
+  if (step === 0) {
+    const title = document.createElement('h4');
+    title.textContent = 'Your Applictus inbox address';
+    const note = document.createElement('p');
+    note.className = 'muted small';
+    note.textContent = 'Emails forwarded here are used only to detect job-application updates.';
+    const row = document.createElement('div');
+    row.className = 'forwarding-address-row';
+    const code = document.createElement('code');
+    code.className = 'forwarding-address-code';
+    code.textContent = inboundState.addressEmail || 'Loading…';
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'btn btn--ghost btn--sm';
+    copyBtn.textContent = 'Copy';
+    copyBtn.disabled = !inboundState.addressEmail;
+    copyBtn.addEventListener('click', () => {
+      void copyTextToClipboard(inboundState.addressEmail, 'Copied forwarding address');
+    });
+    row.append(code, copyBtn);
+    container.append(title, note, row);
+    return container;
+  }
+
+  if (step === 1) {
+    const title = document.createElement('h4');
+    title.textContent = 'Enable forwarding in Gmail';
+    const subtitle = document.createElement('p');
+    subtitle.className = 'muted small';
+    subtitle.textContent = 'Google requires a one-time forwarding confirmation.';
+    const gmailSetup = createForwardingCollapsible({
+      title: 'Enable forwarding in Gmail',
+      open: true
+    });
+    const list = document.createElement('ol');
+    list.className = 'forwarding-steps-list';
+    list.innerHTML = `
+      <li>Open Gmail Settings → Forwarding and POP/IMAP</li>
+      <li>Add a forwarding address and paste your Applictus address</li>
+      <li>Approve the forwarding confirmation email sent by Gmail (one-time)</li>
+    `;
+    const gmailActions = document.createElement('div');
+    gmailActions.className = 'forwarding-step-actions';
+    const openSettings = document.createElement('a');
+    openSettings.className = 'btn btn--secondary btn--sm';
+    openSettings.href = 'https://mail.google.com/mail/u/0/#settings/fwdandpop';
+    openSettings.target = '_blank';
+    openSettings.rel = 'noopener noreferrer';
+    openSettings.textContent = 'Open Gmail forwarding settings';
+    const confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.className = 'btn btn--primary btn--sm';
+    confirmBtn.textContent = inboundState.confirmedAt ? 'Forwarding confirmed' : 'I confirmed forwarding';
+    confirmBtn.disabled = Boolean(inboundState.confirmedAt);
+    confirmBtn.addEventListener('click', async () => {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Saving…';
+      try {
+        const data = await api('/api/inbound/address/confirm', { method: 'POST' });
+        applyInboundStatusPayload(data || {});
+        showToast('Forwarding confirmation saved.', { tone: 'success' });
+        setStep(2);
+      } catch (err) {
+        showNotice(err.message || 'Unable to confirm forwarding.', 'Forwarding setup');
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'I confirmed forwarding';
+      }
+    });
+    gmailActions.append(openSettings, confirmBtn);
+    gmailSetup.body.append(list, gmailActions);
+    const note = document.createElement('p');
+    note.className = 'muted small';
+    note.textContent =
+      'After confirming forwarding, move to Step 3 and click Verify setup. We mark Active once the first forwarded email arrives.';
+    container.append(title, subtitle, gmailSetup.details, note);
+    if (/gmail forwarding confirmation/i.test(String(inboundState.lastReceivedSubject || ''))) {
+      const confirmed = document.createElement('div');
+      confirmed.className = 'forwarding-connected-note';
+      confirmed.textContent = 'We received a forwarding confirmation email ✓';
+      container.appendChild(confirmed);
+    }
+    return container;
+  }
+
+  const title = document.createElement('h4');
+  title.textContent = 'Optional: add a job-email filter';
+  const note = document.createElement('p');
+  note.className = 'muted small';
+  note.textContent = 'Recommended so Applictus only receives application-related messages.';
+  const filterSnippet = document.createElement('pre');
+  filterSnippet.className = 'forwarding-filter-snippet';
+  filterSnippet.textContent = FORWARDING_FILTER_QUERY;
+  const filterActions = document.createElement('div');
+  filterActions.className = 'forwarding-step-actions';
+  const copyFilterBtn = document.createElement('button');
+  copyFilterBtn.type = 'button';
+  copyFilterBtn.className = 'btn btn--secondary btn--sm';
+  copyFilterBtn.textContent = 'Copy recommended filter';
+  copyFilterBtn.addEventListener('click', () => {
+    void copyTextToClipboard(FORWARDING_FILTER_QUERY, 'Copied filter query');
+  });
+  filterActions.append(copyFilterBtn);
+
+  const outlookPanel = createForwardingCollapsible({
+    title: 'Outlook setup (optional)',
+    open: false
+  });
+  const outlookSnippet = document.createElement('pre');
+  outlookSnippet.className = 'forwarding-filter-snippet';
+  outlookSnippet.textContent = OUTLOOK_FORWARDING_HELP;
+  outlookPanel.body.append(outlookSnippet);
+
+  const verifyHeading = document.createElement('p');
+  verifyHeading.className = 'muted small';
+  verifyHeading.textContent = 'Verify setup after forwarding one test or real application email.';
+  const checklist = document.createElement('ol');
+  checklist.className = 'forwarding-steps-list';
+  checklist.innerHTML = `
+    <li>Send yourself a test email with subject “Applictus test” or forward any recent job email.</li>
+    <li>Click Verify setup. We check for new forwarded mail automatically.</li>
+    <li>When received, status changes to Active and setup is complete.</li>
+  `;
+  const actions = document.createElement('div');
+  actions.className = 'forwarding-step-actions';
+  const sendTestBtn = document.createElement('button');
+  sendTestBtn.type = 'button';
+  sendTestBtn.className = 'btn btn--secondary btn--sm';
+  sendTestBtn.textContent = 'Send test email';
+  sendTestBtn.disabled = !inboundState.addressEmail || setupContext?.verifying;
+  sendTestBtn.addEventListener('click', () => {
+    const mailto = buildForwardingTestMailto(inboundState.addressEmail);
+    if (!mailto) {
+      return;
+    }
+    window.location.href = mailto;
+  });
+
+  const verifyBtn = document.createElement('button');
+  verifyBtn.type = 'button';
+  verifyBtn.className = 'btn btn--primary btn--sm';
+  verifyBtn.textContent = setupContext?.verified
+    ? 'Verified'
+    : setupContext?.verifying
+      ? 'Checking…'
+      : 'Verify setup';
+  verifyBtn.disabled = Boolean(setupContext?.verifying || setupContext?.verified);
+  verifyBtn.addEventListener('click', () => {
+    if (!setupContext || typeof setupContext.runVerificationCheck !== 'function') {
+      return;
+    }
+    void setupContext.runVerificationCheck();
+  });
+
+  actions.append(sendTestBtn, verifyBtn);
+  container.append(title, note, filterSnippet, filterActions, outlookPanel.details, verifyHeading, checklist, actions);
+
+  if (setupContext?.verifyMessage) {
+    const verifyMessage = document.createElement('p');
+    verifyMessage.className = 'muted small';
+    verifyMessage.textContent = setupContext.verifyMessage;
+    container.appendChild(verifyMessage);
+  }
+
+  if (setupContext?.verified || isForwardingActive()) {
+    const connected = document.createElement('div');
+    connected.className = 'forwarding-connected-note';
+    connected.textContent = 'Connected ✓';
+    container.appendChild(connected);
+  }
+  return container;
+}
+
+function openInboundSetupModal({ startStep = 0 } = {}) {
+  let currentStep = Math.max(0, Math.min(2, Number(startStep) || 0));
+  const setupContext = {
+    verifying: false,
+    verified: isForwardingActive(),
+    verifyMessage: isForwardingActive() ? 'Forwarding is active.' : '',
+    closed: false,
+    closeTimer: null,
+    runVerificationCheck: null
+  };
+
+  const safeRender = () => {
+    if (!setupContext.closed) {
+      render();
+    }
+  };
+
+  setupContext.runVerificationCheck = async () => {
+    if (setupContext.verifying || setupContext.closed) {
+      return;
+    }
+    setupContext.verifying = true;
+    setupContext.verifyMessage = 'Checking for forwarded email…';
+    safeRender();
+
+    const maxAttempts = 6;
+    const waitMs = 2500;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      if (setupContext.closed) {
+        return;
+      }
+      await refreshInboundStatus({ ensureAddress: false });
+      const receivedMs = Date.parse(inboundState.lastReceivedAt || '');
+      const activeNow = inboundState.setupState === 'active' && Number.isFinite(receivedMs);
+      if (activeNow) {
+        setupContext.verifying = false;
+        setupContext.verified = true;
+        setupContext.verifyMessage = 'Connected ✓ We are receiving forwarded emails.';
+        showToast('Forwarding verified.', { tone: 'success' });
+        safeRender();
+        if (setupContext.closeTimer) {
+          window.clearTimeout(setupContext.closeTimer);
+        }
+        setupContext.closeTimer = window.setTimeout(() => {
+          if (!setupContext.closed) {
+            closeModal('verified');
+          }
+        }, 900);
+        return;
+      }
+      if (attempt < maxAttempts - 1) {
+        setupContext.verifyMessage = `Waiting for forwarded email… (${attempt + 1}/${maxAttempts})`;
+        safeRender();
+        await waitForMs(waitMs);
+      }
+    }
+
+    if (setupContext.closed) {
+      return;
+    }
+    setupContext.verifying = false;
+    setupContext.verifyMessage = 'No forwarded email detected yet. Forward one email, then try Verify setup again.';
+    showToast('Still waiting for the first forwarded email.', { tone: 'info' });
+    safeRender();
+  };
+
+  const body = document.createElement('div');
+  body.className = 'forwarding-setup-body';
+  const footer = document.createElement('div');
+  footer.className = 'modal-footer forwarding-setup-footer';
+  const backBtn = document.createElement('button');
+  backBtn.type = 'button';
+  backBtn.className = 'btn btn--ghost btn--sm';
+  const nextBtn = document.createElement('button');
+  nextBtn.type = 'button';
+  nextBtn.className = 'btn btn--primary btn--md';
+  footer.append(backBtn, nextBtn);
+
+  const render = () => {
+    body.innerHTML = '';
+    body.appendChild(
+      buildInboundSetupStep(currentStep, (nextStep) => {
+        currentStep = Math.max(0, Math.min(2, Number(nextStep) || 0));
+        render();
+      }, setupContext)
+    );
+    const trustNote = document.createElement('div');
+    trustNote.className = 'forwarding-trust-note muted small';
+    trustNote.innerHTML = `
+      <span>No Google sign-in required</span>
+      <span>You control what gets forwarded</span>
+      <span>You can rotate this address anytime</span>
+    `;
+    body.appendChild(trustNote);
+    backBtn.textContent = currentStep === 0 ? 'Close' : 'Back';
+    nextBtn.textContent = currentStep >= 2 ? 'Done' : 'Next';
+    nextBtn.disabled = Boolean(setupContext.verifying);
+  };
+
+  backBtn.addEventListener('click', () => {
+    if (currentStep === 0) {
+      closeModal('cancel');
+      return;
+    }
+    currentStep -= 1;
+    render();
+  });
+
+  nextBtn.addEventListener('click', () => {
+    if (setupContext.verifying) {
+      return;
+    }
+    if (currentStep >= 2) {
+      closeModal('done');
+      return;
+    }
+    currentStep += 1;
+    render();
+  });
+
+  openModal({
+    title: 'Connect inbox with forwarding',
+    description: 'Forward application emails once, then Applictus keeps your timeline up to date automatically.',
+    body,
+    footer,
+    allowBackdropClose: true,
+    variantClass: 'modal--inbound-setup',
+    onClose: () => {
+      setupContext.closed = true;
+      if (setupContext.closeTimer) {
+        window.clearTimeout(setupContext.closeTimer);
+        setupContext.closeTimer = null;
+      }
+    }
+  });
+  render();
+}
+
+async function rotateInboundAddressFlow() {
+  if (!inboundState.addressEmail) {
+    return;
+  }
+  const confirmed = await new Promise((resolve) => {
+    let resolved = false;
+    const body = document.createElement('div');
+    body.className = 'stack';
+    const intro = document.createElement('p');
+    intro.textContent = 'You’ll need to update Gmail forwarding to the new address.';
+    const detail = document.createElement('p');
+    detail.className = 'muted small';
+    detail.textContent = 'The current address will stop being recommended for new forwarding setup.';
+    body.append(intro, detail);
+    const footer = buildModalFooter({ confirmText: 'Rotate address', cancelText: 'Cancel' });
+    const confirmBtn = footer.querySelector('[data-role="confirm"]');
+    if (confirmBtn) {
+      confirmBtn.classList.remove('btn--primary');
+      confirmBtn.classList.add('btn--danger');
+      confirmBtn.addEventListener('click', () => closeModal('confirm'));
+    }
+    openModal({
+      title: 'Rotate forwarding address?',
+      description: '',
+      body,
+      footer,
+      allowBackdropClose: true,
+      onClose: (reason) => {
+        if (resolved) {
+          return;
+        }
+        resolved = true;
+        resolve(reason === 'confirm');
+      }
+    });
+  });
+  if (!confirmed) {
+    return;
+  }
+  if (inboundRotateAddress) {
+    inboundRotateAddress.disabled = true;
+  }
+  try {
+    const data = await api('/api/inbound/address/rotate', { method: 'POST' });
+    applyInboundStatusPayload(data || {});
+    showToast('Forwarding address rotated. Update your Gmail forwarding rule.', { tone: 'success' });
+  } catch (err) {
+    showNotice(err.message || 'Unable to rotate address.', 'Rotate address');
+  } finally {
+    if (inboundRotateAddress) {
+      inboundRotateAddress.disabled = false;
+    }
+  }
+}
+
+function formatDiagnosticsDate(value) {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  return parsed.toLocaleString([], {
+    month: 'numeric',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+}
+
+async function openInboundDiagnosticsModal() {
+  if (!inboundState.diagnosticsAdmin) {
+    return;
+  }
+  const escapeDiag = (value) =>
+    String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  let payload = { messages: [] };
+  try {
+    payload = await api('/api/inbound/recent?limit=50');
+  } catch (err) {
+    showNotice(err.message || 'Unable to load diagnostics.', 'Diagnostics');
+    return;
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'inbound-diagnostics';
+  const signal = payload?.signal || null;
+  if (signal && typeof signal === 'object') {
+    const signalMeta = document.createElement('div');
+    signalMeta.className = 'inbound-diagnostics-signal muted small';
+    const pending = Math.max(0, Number(signal.pending_count || 0));
+    const seenAt = formatDiagnosticsDate(signal.last_inbound_at || null);
+    signalMeta.textContent = `Signal · pending ${pending} · last inbound ${seenAt}`;
+    wrapper.appendChild(signalMeta);
+    if (pending > 100) {
+      const highPending = document.createElement('div');
+      highPending.className = 'inbound-diagnostics-overload muted small';
+      highPending.textContent = 'High pending volume detected (>100). Check forwarding rules and suppression patterns.';
+      wrapper.appendChild(highPending);
+    }
+  }
+  const table = document.createElement('div');
+  table.className = 'inbound-diagnostics-table';
+  const header = document.createElement('div');
+  header.className = 'inbound-diagnostics-row inbound-diagnostics-row--head';
+  header.innerHTML = `
+    <div>Time</div>
+    <div>From</div>
+    <div>Subject</div>
+    <div>Company</div>
+    <div>Role</div>
+    <div>Status</div>
+    <div>State</div>
+    <div>Reason</div>
+  `;
+  table.appendChild(header);
+
+  const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+  if (!messages.length) {
+    const empty = document.createElement('div');
+    empty.className = 'muted small';
+    empty.textContent = 'No inbound messages yet.';
+    wrapper.appendChild(empty);
+  } else {
+    messages.forEach((message) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'inbound-diagnostics-row';
+      const providerBadge = message.provider_id
+        ? `<span class="inbound-provider-badge">${escapeDiag(message.provider_id)}</span>`
+        : '';
+      row.innerHTML = `
+        <div>${formatDiagnosticsDate(message.received_at)}</div>
+        <div title="${escapeDiag(message.from_email || '')}">${escapeDiag(message.from_email || '—')}</div>
+        <div title="${escapeDiag(message.subject || '')}">${providerBadge}${escapeDiag(message.subject || '—')}</div>
+        <div>${escapeDiag(message.derived_company || '—')}</div>
+        <div>${escapeDiag(message.derived_role || '—')}</div>
+        <div>${escapeDiag(message.derived_status || '—')}</div>
+        <div>${escapeDiag(message.processing_state || '—')}</div>
+        <div>${escapeDiag(message.suppress_reason || '—')}</div>
+      `;
+
+      const debugWrap = document.createElement('div');
+      debugWrap.className = 'inbound-diagnostics-debug hidden';
+      const debugPre = document.createElement('pre');
+      debugPre.textContent = JSON.stringify(message.derived_debug_json || {}, null, 2);
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'btn btn--ghost btn--sm';
+      copyBtn.textContent = 'Copy debug';
+      copyBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void copyTextToClipboard(debugPre.textContent, 'Copied debug payload');
+      });
+      debugWrap.append(copyBtn, debugPre);
+
+      row.addEventListener('click', () => {
+        debugWrap.classList.toggle('hidden');
+      });
+
+      table.append(row, debugWrap);
+    });
+    wrapper.appendChild(table);
+  }
+
+  const footer = buildModalFooter({ confirmText: 'Close', cancelText: 'Close' });
+  const confirmBtn = footer.querySelector('[data-role="confirm"]');
+  const cancelBtn = footer.querySelector('[data-role="cancel"]');
+  confirmBtn?.addEventListener('click', () => closeModal('close'));
+  cancelBtn?.addEventListener('click', () => closeModal('close'));
+
+  openModal({
+    title: 'Inbound diagnostics',
+    description: 'Recent forwarded messages and derivation reasoning.',
+    body: wrapper,
+    footer,
+    allowBackdropClose: true
+  });
+}
+
+async function refreshForwardingInbox({ autoTriggered = false, pendingCountHint = 0 } = {}) {
+  if (!emailSync || emailSync.disabled || inboundAutoSyncState.inFlight) {
+    return;
+  }
+  if (autoTriggered) {
+    inboundAutoSyncState.lastAutoSyncAt = Date.now();
+  }
+  const preScanSnapshot = await captureSignalSnapshot();
+  inboundAutoSyncState.inFlight = true;
+  const scanText = emailSync.querySelector('.scan-text');
+  const originalText = scanText?.textContent || 'Sync inbox';
+  emailSync.disabled = true;
+  emailSync.classList.add('is-scanning');
+  if (scanText) {
+    scanText.textContent = 'Syncing';
+  }
+  setSyncStatusText('Syncing…');
+  renderSyncSummary({ status: 'running', rawDetails: 'Sync in progress…' });
+  setSyncProgressState({
+    visible: true,
+    indeterminate: true,
+    label: 'Syncing forwarded emails…',
+    error: false
+  });
+  try {
+    const result = await api('/api/inbound/sync', {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+    if (result?.status === 'not_connected') {
+      setSyncStatusText('Setup needed');
+      renderSyncSummary({ status: 'not_connected', rawDetails: 'Connect inbox forwarding to start syncing.' });
+      if (syncResult) {
+        syncResult.textContent = 'Connect inbox forwarding to start syncing.';
+      }
+      if (!autoTriggered) {
+        openInboundSetupModal({ startStep: 0 });
+      }
+      return;
+    }
+
+    const processedCount = Math.max(0, Number(result?.processed || 0));
+    const createdCount = Math.max(0, Number(result?.created || 0));
+    const updatedCount = Math.max(0, Number(result?.updated || 0));
+    const ignoredCount = Math.max(0, Number(result?.ignored || 0));
+    const summaryParts = [];
+    if (createdCount > 0) {
+      summaryParts.push(`${createdCount} new application${createdCount === 1 ? '' : 's'}`);
+    }
+    if (updatedCount > 0) {
+      summaryParts.push(`${updatedCount} update${updatedCount === 1 ? '' : 's'}`);
+    }
+    if (ignoredCount > 0) {
+      summaryParts.push(`${ignoredCount} ignored`);
+    }
+    if (!summaryParts.length && processedCount > 0) {
+      summaryParts.push(`${processedCount} processed`);
+    }
+    const summaryLine = summaryParts.length ? `Sync complete — ${summaryParts.join(', ')}` : 'Up to date';
+    const upToDateLine = 'Up to date';
+    if (processedCount > 0) {
+      renderSyncSummary({
+        status: 'success',
+        rawDetails: summaryLine
+      });
+      if (syncResult) {
+        syncResult.textContent = summaryLine;
+      }
+      setSyncStatusText('Forwarding active');
+    } else {
+      renderSyncSummary({
+        status: 'success',
+        rawDetails: upToDateLine
+      });
+      if (syncResult) {
+        syncResult.textContent = upToDateLine;
+      }
+      setSyncStatusText('Up to date');
+    }
+
+    await refreshInboundStatus({ ensureAddress: true });
+    await loadActiveApplications();
+    if (processedCount > 0) {
+      await applyPostScanSignals(preScanSnapshot, result);
+    } else {
+      applyRowSignalPulse({ offerIds: [], interviewIds: [] });
+      clearKpiNewSignals();
+      clearKpiDeltaSignals();
+    }
+    await refreshEmailEvents();
+    await refreshUnsortedEvents();
+    const details = Array.isArray(result?.errors_detail) ? result.errors_detail : [];
+    if (Number(result?.errors || 0) > 0) {
+      const detailText = details
+        .slice(0, 3)
+        .map((item) => `${item.subject}: ${item.reason}`)
+        .join('\n');
+      renderSyncSummary({
+        status: 'success',
+        rawDetails: `${summaryLine}${detailText ? `\n${detailText}` : ''}`
+      });
+      showToast('Some messages could not be processed.', { tone: 'warning' });
+    } else if (processedCount > 0) {
+      showToast(summaryLine, { tone: 'success' });
+    } else if (!autoTriggered && Number(pendingCountHint || 0) <= 1) {
+      showToast('Up to date.', { tone: 'info' });
+    }
+  } catch (err) {
+    if (err?.status === 409 || err?.code === 'SYNC_IN_PROGRESS' || String(err?.message || '').includes('SYNC_IN_PROGRESS')) {
+      setSyncStatusText('Syncing…');
+      renderSyncSummary({ status: 'running', rawDetails: 'Sync already in progress.' });
+      return;
+    }
+    setSyncStatusText('Sync failed');
+    renderSyncSummary({
+      status: 'failed',
+      rawDetails: err?.message || 'Unable to sync forwarded inbox.'
+    });
+    showNotice(err.message || 'Unable to refresh inbox status.', 'Sync inbox');
+  } finally {
+    hideSyncProgress();
+    emailSync.classList.remove('is-scanning');
+    emailSync.disabled = false;
+    if (scanText) {
+      scanText.textContent = originalText;
+    }
+    updateDashboardPrimarySyncUI();
+    inboundAutoSyncState.inFlight = false;
+  }
+}
+
 async function refreshEmailStatus() {
-  if (
-    !accountGmailStatus &&
-    !accountGmailEmail &&
-    !emailSync &&
-    !accountEmailSync &&
-    !dashboardGmailStatus &&
-    !dashboardGmailEmail
-  ) {
+  if (!accountGmailStatus && !accountGmailEmail && !accountEmailSync) {
     return;
   }
   try {
@@ -3202,7 +4334,6 @@ async function refreshEmailStatus() {
       emailState.lastSyncedAt = null;
       emailState.lastSyncStats = null;
       setPillState(accountGmailStatus, 'Not configured', 'warning');
-      setPillState(dashboardGmailStatus, 'Not configured', 'warning');
       if (emailConnect) {
         emailConnect.disabled = true;
       }
@@ -3211,61 +4342,50 @@ async function refreshEmailStatus() {
         emailDisconnect.disabled = true;
       }
       setSyncDisabled(true);
-      setSyncStatusText('Disabled');
+      if (accountSyncStatus) {
+        accountSyncStatus.textContent = 'Disabled';
+      }
       if (accountGmailEmail) {
         accountGmailEmail.textContent = 'Gmail OAuth is not configured.';
-      }
-      if (dashboardGmailEmail) {
-        dashboardGmailEmail.textContent = 'Gmail OAuth is not configured.';
-      }
-      if (gmailHint) {
-        gmailHint.classList.remove('hidden');
-      }
-    if (gmailHintText) {
-      gmailHintText.textContent =
-        'Add GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REDIRECT_URI in .env to enable Gmail.';
-    }
-      if (syncControls) syncControls.classList.add('hidden');
-      if (syncConnectCta) syncConnectCta.classList.remove('hidden');
-      closeSyncRangeMenu();
-      updateSyncHelperText();
-      updateAccountSyncResultLine();
-      renderSyncSummary({ status: 'not_connected', rawDetails: '' });
-      return;
-    }
-    if (!data.encryptionReady) {
-      emailState.lastSyncedAt = null;
-      emailState.lastSyncStats = null;
-      setPillState(accountGmailStatus, 'Encryption required', 'warning');
-      setPillState(dashboardGmailStatus, 'Encryption required', 'warning');
-    if (emailConnect) {
-      emailConnect.disabled = true;
-    }
-    if (emailDisconnect) {
-      emailDisconnect.classList.add('hidden');
-      emailDisconnect.disabled = true;
-    }
-    setSyncDisabled(true);
-    setSyncStatusText('Disabled');
-      if (accountGmailEmail) {
-        accountGmailEmail.textContent = 'Token encryption key is missing.';
-      }
-      if (dashboardGmailEmail) {
-        dashboardGmailEmail.textContent = 'Token encryption key is missing.';
       }
       if (gmailHint) {
         gmailHint.classList.remove('hidden');
       }
       if (gmailHintText) {
         gmailHintText.textContent =
-        'Set JOBTRACK_TOKEN_ENC_KEY to enable encrypted Gmail tokens.';
-    }
-      if (syncControls) syncControls.classList.add('hidden');
-      if (syncConnectCta) syncConnectCta.classList.remove('hidden');
-      closeSyncRangeMenu();
+          'Add GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REDIRECT_URI in .env to enable Gmail.';
+      }
       updateSyncHelperText();
       updateAccountSyncResultLine();
-      renderSyncSummary({ status: 'not_connected', rawDetails: '' });
+      return;
+    }
+    if (!data.encryptionReady) {
+      emailState.lastSyncedAt = null;
+      emailState.lastSyncStats = null;
+      setPillState(accountGmailStatus, 'Encryption required', 'warning');
+      if (emailConnect) {
+        emailConnect.disabled = true;
+      }
+      if (emailDisconnect) {
+        emailDisconnect.classList.add('hidden');
+        emailDisconnect.disabled = true;
+      }
+      setSyncDisabled(true);
+      if (accountSyncStatus) {
+        accountSyncStatus.textContent = 'Disabled';
+      }
+      if (accountGmailEmail) {
+        accountGmailEmail.textContent = 'Token encryption key is missing.';
+      }
+      if (gmailHint) {
+        gmailHint.classList.remove('hidden');
+      }
+      if (gmailHintText) {
+        gmailHintText.textContent =
+          'Set JOBTRACK_TOKEN_ENC_KEY to enable encrypted Gmail tokens.';
+      }
+      updateSyncHelperText();
+      updateAccountSyncResultLine();
       return;
     }
     if (gmailHint) {
@@ -3281,36 +4401,23 @@ async function refreshEmailStatus() {
     setSyncDisabled(!data.connected);
     if (data.connected) {
       setPillState(accountGmailStatus, 'Connected', 'connected');
-      setPillState(dashboardGmailStatus, 'Connected', 'connected');
       if (accountGmailEmail) {
         accountGmailEmail.textContent = data.email ? `Connected as ${data.email}` : 'Connected';
       }
-      if (dashboardGmailEmail) {
-        dashboardGmailEmail.textContent = data.email ? data.email : 'Connected';
-      }
-      if (syncControls) syncControls.classList.remove('hidden');
-      if (syncConnectCta) syncConnectCta.classList.add('hidden');
-      setSyncStatusText('Ready');
-      if (emailState.lastSyncStats && syncUiState.state !== 'running') {
-        renderSyncSummary({ status: 'success', result: emailState.lastSyncStats, rawDetails: '' });
+      if (accountSyncStatus) {
+        accountSyncStatus.textContent = 'Ready';
       }
       updateAccountSyncResultLine();
     } else {
       emailState.lastSyncedAt = null;
       emailState.lastSyncStats = null;
       setPillState(accountGmailStatus, 'Not connected', 'idle');
-      setPillState(dashboardGmailStatus, 'Not connected', 'idle');
       if (accountGmailEmail) {
         accountGmailEmail.textContent = 'Not connected.';
       }
-      if (dashboardGmailEmail) {
-        dashboardGmailEmail.textContent = '';
+      if (accountSyncStatus) {
+        accountSyncStatus.textContent = '';
       }
-      setSyncStatusText('');
-      if (syncControls) syncControls.classList.add('hidden');
-      if (syncConnectCta) syncConnectCta.classList.remove('hidden');
-      closeSyncRangeMenu();
-      renderSyncSummary({ status: 'not_connected', rawDetails: '' });
       updateAccountSyncResultLine();
     }
     updateSyncHelperText();
@@ -3326,17 +4433,15 @@ async function refreshEmailStatus() {
       emailDisconnect.disabled = true;
     }
     setSyncDisabled(true);
-    setSyncStatusText('Not connected');
+    if (accountSyncStatus) {
+      accountSyncStatus.textContent = 'Not connected';
+    }
     if (gmailHint) {
       gmailHint.classList.add('hidden');
     }
-    if (syncControls) syncControls.classList.add('hidden');
-    if (syncConnectCta) syncConnectCta.classList.remove('hidden');
-    closeSyncRangeMenu();
     updateSyncHelperText();
     updateAccountSyncResultLine();
     refreshDashboardEmptyStateIfNeeded();
-    renderSyncSummary({ status: 'not_connected', rawDetails: '' });
   }
 }
 
@@ -3546,7 +4651,7 @@ function renderSyncSummary({ status = 'idle', result = null, rawDetails = '', la
       break;
     case 'not_connected':
       statusText = 'Not connected';
-      metricsText = 'Connect Gmail to start scanning';
+      metricsText = 'Connect inbox to start syncing';
       break;
     default:
       statusText = 'Last scan not run';
@@ -3680,7 +4785,7 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
       emailState.lastSyncStats = result.last_sync || result;
       updateSyncHelperText();
     }
-    const rawDetails = status === 'not_connected' ? 'Connect Gmail first.' : formatSyncSummary(result);
+    const rawDetails = status === 'not_connected' ? 'Connect Legacy Gmail first.' : formatSyncSummary(result);
     renderSyncSummary({
       status: status === 'not_connected' ? 'not_connected' : 'success',
       result,
@@ -3821,83 +4926,11 @@ async function runAccountSyncOption(option) {
 }
 
 async function runQuickSync() {
-  const statusEl = document.getElementById('empty-sync-status');
-  if (statusEl) {
-    statusEl.textContent = 'Scanning...';
+  if (!isForwardingActive()) {
+    openInboundSetupModal({ startStep: 0 });
+    return;
   }
-  if (syncErrorToggle) {
-    syncErrorToggle.dataset.mode = 'details';
-    syncErrorToggle.textContent = 'Show details';
-  }
-  renderSyncSummary({ status: 'running', rawDetails: 'Scan in progress…' });
-  const preScanSnapshot = await captureSignalSnapshot();
-  const syncId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
-  startSyncPolling(syncId);
-  try {
-    const result = await api('/api/email/sync', {
-      method: 'POST',
-      body: JSON.stringify({ mode: 'since_last', sync_id: syncId })
-    });
-    const status = result.status || 'success';
-    const rawDetails = status === 'not_connected' ? 'Connect Gmail first.' : formatSyncSummary(result);
-    if (statusEl) {
-      statusEl.textContent = status === 'not_connected' ? 'Connect Gmail first.' : 'Complete';
-    }
-    if (status === 'not_connected') {
-      emailState.lastSyncedAt = null;
-      emailState.lastSyncStats = null;
-    } else {
-      emailState.lastSyncedAt =
-        result.last_synced_at || result.lastSync?.last_synced_at || result.time_window_end || new Date().toISOString();
-      emailState.lastSyncStats = result.last_sync || result;
-    }
-    updateSyncHelperText();
-    renderSyncSummary({
-      status: status === 'not_connected' ? 'not_connected' : 'success',
-      result,
-      rawDetails
-    });
-    await loadActiveApplications();
-    await applyPostScanSignals(preScanSnapshot, result);
-    await refreshEmailEvents();
-    await refreshUnsortedEvents();
-    enterFinishing();
-  } catch (err) {
-    if (isGmailReconnectRequiredError(err)) {
-      if (statusEl) {
-        statusEl.textContent = 'Reconnect Gmail to continue scanning.';
-      }
-      if (syncErrorBanner && syncErrorMessage && syncErrorDetail) {
-        syncErrorMessage.textContent = 'Your Gmail connection expired. Please reconnect.';
-        syncErrorDetail.textContent = 'Google no longer accepts the saved Gmail token. Reconnect to continue scanning.';
-        syncErrorBanner.classList.remove('hidden');
-        syncErrorDetail.classList.add('hidden');
-      }
-      if (syncErrorToggle) {
-        syncErrorToggle.dataset.mode = 'reconnect';
-        syncErrorToggle.textContent = 'Reconnect Gmail';
-      }
-      renderSyncSummary({
-        status: 'failed',
-        rawDetails: 'Your Gmail connection expired. Please reconnect.',
-        label: 'Reconnect Gmail'
-      });
-      await refreshEmailStatus().catch(() => {});
-      return;
-    }
-    if (statusEl) {
-      const code = err?.code ? ` (${err.code})` : '';
-      statusEl.textContent = `Scan failed: ${err?.message || 'Unexpected error'}${code}`;
-      if (err?.detail) {
-        statusEl.textContent += ` — ${err.detail}`;
-      }
-    }
-    const code = err?.code ? ` (${err.code})` : '';
-    const rawDetails = `${err?.message || 'Unexpected error'}${code}${
-      err?.detail ? `\n${err.detail}` : ''
-    }`;
-    renderSyncSummary({ status: 'failed', rawDetails, label: 'Scan failed' });
-  }
+  await refreshForwardingInbox();
 }
 
 function formatApplicationLabel(application) {
@@ -4049,6 +5082,14 @@ async function openEditModal(application) {
         job_location: location,
         source
       };
+      const latestTimelineEventId =
+        Array.isArray(lastDetailEvents) && lastDetailEvents.length ? lastDetailEvents[0]?.id : null;
+      if (latestTimelineEventId) {
+        payload.last_event_id = latestTimelineEventId;
+      }
+      if (application.last_inbound_message_id) {
+        payload.last_inbound_message_id = application.last_inbound_message_id;
+      }
       if (manualStatus) {
         payload.current_status = statusField.select.value;
         const note = noteField.input.value.trim();
@@ -5337,6 +6378,8 @@ function route() {
     setView('account');
     renderAccountPanel();
     void refreshEmailStatus();
+    void refreshInboundStatus({ ensureAddress: true });
+    void refreshInboundDiagnosticsAccess();
   } else if (routeKey === 'privacy') {
     setView('privacy');
   } else if (routeKey === 'terms') {
@@ -5359,6 +6402,8 @@ function route() {
     setView('account');
     renderAccountPanel();
     void refreshEmailStatus();
+    void refreshInboundStatus({ ensureAddress: true });
+    void refreshInboundDiagnosticsAccess();
   } else if (routeKey === 'resume-curator') {
     setView('resume-curator');
     initResumeCurator();
@@ -5366,6 +6411,7 @@ function route() {
     clearKpiNewSignals();
     clearKpiDeltaSignals();
     setView('dashboard');
+    void refreshInboundStatus({ ensureAddress: true });
     void loadActiveApplications().catch((err) => {
       const authFailure = err?.status === 401 || err?.message === 'AUTH_REQUIRED';
       if (authFailure) {
@@ -5663,6 +6709,8 @@ if (accountPasswordButton && !accountPasswordButton.dataset.bound) {
 async function performLogout() {
   await api('/api/auth/logout', { method: 'POST' });
   sessionUser = null;
+  inboundState.diagnosticsAdmin = false;
+  updateInboundDiagnosticsVisibility();
   closeProfileMenu();
   window.location.hash = '#account';
   setAuthPanel('signin');
@@ -5768,6 +6816,17 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    clearInboundAutoSyncPolling();
+    return;
+  }
+  if (routeIsDashboard() && sessionUser) {
+    syncInboundAutoPolling();
+    void pollInboundStatusForAutoSync();
+  }
+});
+
 document.addEventListener('click', (event) => {
   const backButton = event.target.closest('[data-action="legal-back"]');
   if (!backButton) {
@@ -5797,9 +6856,12 @@ dashboardView?.addEventListener('click', async (event) => {
     openAddModal();
     return;
   }
-  if (action === 'sync-gmail') {
-    updateSyncOptionSelection('since_last');
-    await runDashboardSyncOption('since_last');
+  if (action === 'sync-inbox') {
+    if (isForwardingActive()) {
+      await refreshForwardingInbox();
+    } else {
+      openInboundSetupModal({ startStep: 0 });
+    }
     return;
   }
   if (action === 'manage-gmail') {
@@ -6241,8 +7303,11 @@ emailDisconnect?.addEventListener('click', async () => {
 });
 
 emailSync?.addEventListener('click', async () => {
-  updateSyncOptionSelection('since_last');
-  await runDashboardSyncOption('since_last');
+  if (isForwardingActive()) {
+    await refreshForwardingInbox();
+    return;
+  }
+  openInboundSetupModal({ startStep: 0 });
 });
 
 syncMenuButton?.addEventListener('click', (event) => {
@@ -6263,6 +7328,40 @@ syncMenuButton?.addEventListener('click', (event) => {
 accountEmailSync?.addEventListener('click', async () => {
   updateAccountSyncOptionSelection('since_last');
   await runAccountSyncOption('since_last');
+});
+
+inboundOpenSetup?.addEventListener('click', () => {
+  openInboundSetupModal({ startStep: 0 });
+});
+
+inboundCopyAddress?.addEventListener('click', () => {
+  void copyTextToClipboard(inboundState.addressEmail, 'Copied forwarding address');
+});
+
+inboundSendTest?.addEventListener('click', () => {
+  if (!inboundState.addressEmail) {
+    return;
+  }
+  const subject = encodeURIComponent('Applictus test');
+  const body = encodeURIComponent('This is a forwarding test email for Applictus.');
+  window.location.href = `mailto:${encodeURIComponent(inboundState.addressEmail)}?subject=${subject}&body=${body}`;
+});
+
+inboundRotateAddress?.addEventListener('click', async () => {
+  await rotateInboundAddressFlow();
+});
+
+inboundWhyToggle?.addEventListener('click', () => {
+  if (!inboundWhyPanel) {
+    return;
+  }
+  const next = inboundWhyPanel.classList.contains('hidden');
+  inboundWhyPanel.classList.toggle('hidden', !next);
+  inboundWhyToggle.setAttribute('aria-expanded', next ? 'true' : 'false');
+});
+
+inboundDiagnosticsLink?.addEventListener('click', () => {
+  void openInboundDiagnosticsModal();
 });
 
 accountSyncMenuButton?.addEventListener('click', (event) => {
