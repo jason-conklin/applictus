@@ -93,11 +93,10 @@ test('postmark webhook persists pending inbound message and dedupes duplicates',
   });
   const payload = buildPayload(inboundAddress.address_email);
 
-  const first = await fetch(`${baseUrl}/api/inbound/postmark`, {
+  const first = await fetch(`${baseUrl}/api/inbound/postmark?secret=test-inbound-secret`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'x-applictus-inbound-secret': 'test-inbound-secret'
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify(payload)
   });
@@ -168,13 +167,51 @@ test('postmark webhook returns 202 for unmapped recipient and 401 for invalid se
   const unmapped = await fetch(`${baseUrl}/api/inbound/postmark`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'x-applictus-inbound-secret': 'test-inbound-secret'
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify(payload)
   });
-  const unmappedBody = await unmapped.json();
-  assert.equal(unmapped.status, 202);
+  const unmappedWithoutAuth = await unmapped.json();
+  assert.equal(unmapped.status, 401);
+  assert.equal(unmappedWithoutAuth.error, 'UNAUTHORIZED');
+
+  const unmappedWithQueryAuth = await fetch(`${baseUrl}/api/inbound/postmark?secret=test-inbound-secret`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+  const unmappedBody = await unmappedWithQueryAuth.json();
+  assert.equal(unmappedWithQueryAuth.status, 202);
   assert.equal(unmappedBody.ok, true);
   assert.equal(unmappedBody.ignored, true);
+});
+
+test('postmark webhook returns 503 when POSTMARK_INBOUND_SECRET is missing', async (t) => {
+  const { baseUrl, stop } = await startServerWithEnv({
+    NODE_ENV: 'test',
+    JOBTRACK_DB_PATH: ':memory:',
+    JOBTRACK_LOG_LEVEL: 'error',
+    POSTMARK_INBOUND_SECRET: '',
+    INBOUND_DOMAIN: 'mail.applictus.com'
+  });
+  t.after(stop);
+  if (!baseUrl) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  const payload = buildPayload('u_unknown@mail.applictus.com');
+  const response = await fetch(`${baseUrl}/api/inbound/postmark?secret=any-secret`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+  const body = await response.json();
+  assert.equal(response.status, 503);
+  assert.equal(body.error, 'INBOUND_NOT_READY');
+  assert.equal(body.message, 'POSTMARK_INBOUND_SECRET not configured');
 });

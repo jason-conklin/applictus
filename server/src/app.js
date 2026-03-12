@@ -1004,6 +1004,27 @@ async function upsertUserInboxSignalIncrement(userId, { lastInboundAt, lastSubje
   );
 }
 
+async function touchUserInboxSignal(userId, { lastInboundAt, lastSubjectPreview } = {}) {
+  if (!userId) {
+    return;
+  }
+  const now = nowIso();
+  const subjectPreview = truncateInboundSubject(lastSubjectPreview || null);
+  await dbRun(
+    `INSERT INTO user_inbox_signals
+      (user_id, pending_count, last_inbound_at, last_subject_preview, updated_at)
+     VALUES (?, 0, ?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET
+       last_inbound_at = COALESCE(excluded.last_inbound_at, user_inbox_signals.last_inbound_at),
+       last_subject_preview = COALESCE(excluded.last_subject_preview, user_inbox_signals.last_subject_preview),
+       updated_at = excluded.updated_at`,
+    userId,
+    lastInboundAt || now,
+    subjectPreview,
+    now
+  );
+}
+
 async function setUserInboxSignalPendingCount(userId, pendingCount, { lastInboundAt, lastSubjectPreview } = {}) {
   if (!userId) {
     return;
@@ -1600,18 +1621,42 @@ app.get('/api/health/db', async (_req, res) => {
 
 app.post('/api/inbound/postmark', async (req, res) => {
   const configuredSecret = String(process.env.POSTMARK_INBOUND_SECRET || '').trim();
+  const querySecretRaw = req.query?.secret;
+  const querySecret = Array.isArray(querySecretRaw)
+    ? querySecretRaw[0]
+    : querySecretRaw;
+  const headerSecret = req.get(INBOUND_SECRET_HEADER);
+  const hasQuerySecret = Boolean(String(querySecret || '').trim());
+  const hasHeaderSecret = Boolean(String(headerSecret || '').trim());
+  const authModeAttempted = hasQuerySecret ? 'query' : hasHeaderSecret ? 'header' : 'none';
+  const webhookAuthMeta = {
+    provider: 'postmark',
+    has_query_secret: hasQuerySecret,
+    has_header_secret: hasHeaderSecret,
+    env_secret_present: Boolean(configuredSecret),
+    auth_mode_attempted: authModeAttempted
+  };
+
+  logInfo('inbound.webhook.received', webhookAuthMeta);
+
   if (!configuredSecret) {
-    logError('inbound.not_configured', {
-      provider: 'postmark',
-      reason: 'POSTMARK_INBOUND_SECRET missing'
+    logError('inbound.webhook.missing_env', webhookAuthMeta);
+    return res.status(503).json({
+      error: 'INBOUND_NOT_READY',
+      message: 'POSTMARK_INBOUND_SECRET not configured'
     });
-    return res.status(503).json({ error: 'INBOUND_NOT_CONFIGURED' });
   }
 
-  const providedSecret = req.get(INBOUND_SECRET_HEADER);
-  if (!safeCompareSecret(providedSecret, configuredSecret)) {
+  const querySecretMatches = safeCompareSecret(querySecret, configuredSecret);
+  const headerSecretMatches = safeCompareSecret(headerSecret, configuredSecret);
+  if (!querySecretMatches && !headerSecretMatches) {
+    logWarn('inbound.webhook.auth_failed', webhookAuthMeta);
     return res.status(401).json({ error: 'UNAUTHORIZED' });
   }
+  logInfo('inbound.webhook.auth_success', {
+    ...webhookAuthMeta,
+    auth_mode: querySecretMatches ? 'query' : 'header'
+  });
 
   const payload = req.body && typeof req.body === 'object' ? req.body : null;
   if (!payload) {
@@ -1699,6 +1744,20 @@ app.post('/api/inbound/postmark', async (req, res) => {
         recipientEmail
       });
     }
+
+    const inboundReceivedAt = nowIso();
+    await dbTimed(async () => {
+      const runRes = db
+        .prepare('UPDATE inbound_addresses SET last_received_at = ? WHERE id = ?')
+        .run(inboundReceivedAt, mappedAddress.id);
+      if (runRes && typeof runRes.then === 'function') {
+        await runRes;
+      }
+    });
+    await touchUserInboxSignal(mappedAddress.user_id, {
+      lastInboundAt: inboundReceivedAt,
+      lastSubjectPreview: subject || null
+    });
 
     const dedupeByHeader = messageIdHeader
       ? await dbTimed(async () => {
@@ -1829,16 +1888,8 @@ app.post('/api/inbound/postmark', async (req, res) => {
       sha256Prefix: sha256.slice(0, 12)
     });
 
-    await dbTimed(async () => {
-      const runRes = db
-        .prepare('UPDATE inbound_addresses SET last_received_at = ? WHERE id = ?')
-        .run(nowIso(), mappedAddress.id);
-      if (runRes && typeof runRes.then === 'function') {
-        await runRes;
-      }
-    });
     await upsertUserInboxSignalIncrement(mappedAddress.user_id, {
-      lastInboundAt: nowIso(),
+      lastInboundAt: inboundReceivedAt,
       lastSubjectPreview: subject || null
     });
 
