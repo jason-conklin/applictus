@@ -241,6 +241,7 @@ const inboundOpenSetup = document.getElementById('inbound-open-setup');
 const inboundRotateAddress = document.getElementById('inbound-rotate-address');
 const inboundCopyAddress = document.getElementById('inbound-copy-address');
 const inboundSendTest = document.getElementById('inbound-send-test');
+const inboundProcessNow = document.getElementById('inbound-process-now');
 const inboundWhyToggle = document.getElementById('inbound-why-toggle');
 const inboundWhyPanel = document.getElementById('inbound-why-panel');
 const inboundDiagnosticsWrap = document.getElementById('inbound-diagnostics-wrap');
@@ -299,6 +300,7 @@ const syncMenuButton = document.getElementById('email-sync-menu-button');
 const syncRangeMenu = document.getElementById('sync-range-menu');
 const syncActionGroup = document.getElementById('sync-action-group');
 const syncHelperText = document.getElementById('sync-helper-text');
+const syncProcessNow = document.getElementById('sync-process-now');
 const syncStatus = document.getElementById('sync-status');
 const syncResult = document.getElementById('sync-result');
 const syncErrorBanner = document.getElementById('sync-error-banner');
@@ -856,7 +858,31 @@ function setSyncDisabled(isDisabled) {
 }
 
 function isForwardingActive() {
-  return inboundState.setupState === 'active' || inboundState.effectiveConnected;
+  return resolveInboundSetupState() === 'active' || inboundState.effectiveConnected;
+}
+
+function hasForwardingAddress(addressEmail = inboundState.addressEmail) {
+  return Boolean(String(addressEmail || '').trim());
+}
+
+function resolveInboundSetupState(
+  reportedSetupState = inboundState.setupState,
+  {
+    addressEmail = inboundState.addressEmail,
+    confirmedAt = inboundState.confirmedAt,
+    lastReceivedAt = inboundState.lastReceivedAt
+  } = {}
+) {
+  if (lastReceivedAt) {
+    return 'active';
+  }
+  if (confirmedAt) {
+    return 'awaiting_first_email';
+  }
+  if (hasForwardingAddress(addressEmail)) {
+    return 'awaiting_confirmation';
+  }
+  return reportedSetupState || 'not_started';
 }
 
 function setDashboardScanButtonLabel(label) {
@@ -923,7 +949,7 @@ function formatInboundMetaText() {
     return 'No forwarded emails yet. Forward one real application email or complete the Gmail forwarding confirmation to activate Applictus.';
   }
   if (inboundState.setupState === 'awaiting_confirmation') {
-    return 'Waiting for forwarding verification. Complete Step 2 in setup.';
+    return 'Waiting for first forwarded email. Finish Step 2 in setup if forwarding is not enabled yet.';
   }
   return 'No forwarding connected yet.';
 }
@@ -939,7 +965,7 @@ function renderForwardingSummary() {
   } else if (setupState === 'awaiting_first_email') {
     statusText = 'Forwarding set up — waiting for first email';
   } else if (setupState === 'awaiting_confirmation') {
-    statusText = 'Waiting for forwarding verification';
+    statusText = 'Waiting for first forwarded email';
   }
   syncSummaryStatus.textContent = statusText;
   if (setupState === 'active' && Number(state.lastTotal || 0) === 0) {
@@ -1005,11 +1031,11 @@ function updateInboundStatusPresentation() {
     dashboardState = 'info';
     syncText = 'Waiting for first email';
   } else if (setupState === 'awaiting_confirmation') {
-    pillText = 'Waiting for verification';
+    pillText = 'Waiting for first forwarded email';
     pillState = 'idle';
-    dashboardText = 'Waiting for verification';
+    dashboardText = 'Waiting for first email';
     dashboardState = 'idle';
-    syncText = 'Setup in progress';
+    syncText = 'Waiting for first email';
   }
 
   setPillState(inboundStatusPill, pillText, pillState);
@@ -1033,6 +1059,9 @@ function updateInboundStatusPresentation() {
   }
   if (inboundSendTest) {
     inboundSendTest.disabled = !inboundState.addressEmail;
+  }
+  if (inboundProcessNow) {
+    inboundProcessNow.disabled = !inboundState.addressEmail;
   }
   if (inboundRotateAddress) {
     inboundRotateAddress.disabled = !inboundState.addressEmail;
@@ -1135,7 +1164,7 @@ function updateSyncHelperText() {
     } else if (inboundState.setupState === 'awaiting_first_email') {
       syncHelperText.textContent = 'Forwarding enabled — waiting for first email';
     } else if (inboundState.setupState === 'awaiting_confirmation') {
-      syncHelperText.textContent = 'Enable forwarding in Gmail, then confirm setup in Applictus.';
+      syncHelperText.textContent = 'Waiting for first forwarded email. Complete Step 2 if forwarding is not enabled yet.';
     } else {
       syncHelperText.textContent =
         'Set up automatic forwarding in about 2 minutes — no Google login required.';
@@ -3463,7 +3492,11 @@ function applyInboundStatusPayload(data = {}) {
   inboundState.signalLastSubject = data.inbound_signal_last_subject || null;
   inboundState.inactiveAddressWarning = Boolean(data.inactive_address_warning);
   inboundState.inactiveAddressWarningMeta = data.inactive_address_warning_meta || null;
-  inboundState.setupState = data.setup_state || 'not_started';
+  inboundState.setupState = resolveInboundSetupState(data.setup_state || 'not_started', {
+    addressEmail: data.address_email || null,
+    confirmedAt: data.confirmed_at || null,
+    lastReceivedAt: data.last_received_at || null
+  });
   inboundState.connected = Boolean(data.connected);
   inboundState.effectiveConnected = Boolean(data.effective_connected);
   inboundState.lastInboundSyncAt = data.last_inbound_sync_at || null;
@@ -3605,7 +3638,11 @@ async function pollInboundStatusForAutoSync() {
 }
 
 function syncInboundAutoPolling() {
-  const shouldPoll = Boolean(sessionUser) && routeIsDashboard() && isForwardingActive() && !document.hidden;
+  const shouldPoll =
+    Boolean(sessionUser) &&
+    routeIsDashboard() &&
+    !document.hidden &&
+    (hasForwardingAddress() || inboundState.setupState !== 'not_started');
   if (!shouldPoll) {
     clearInboundAutoSyncPolling();
     return;
@@ -4187,7 +4224,11 @@ async function openInboundDiagnosticsModal() {
   });
 }
 
-async function refreshForwardingInbox({ autoTriggered = false, pendingCountHint = 0 } = {}) {
+async function refreshForwardingInbox({
+  autoTriggered = false,
+  pendingCountHint = 0,
+  suppressSetupModalOnNotConnected = false
+} = {}) {
   if (!emailSync || emailSync.disabled || inboundAutoSyncState.inFlight) {
     return;
   }
@@ -4217,12 +4258,16 @@ async function refreshForwardingInbox({ autoTriggered = false, pendingCountHint 
       body: JSON.stringify({})
     });
     if (result?.status === 'not_connected') {
+      const hasAddress = hasForwardingAddress();
+      const notConnectedMessage = hasAddress
+        ? 'Inbox connected. Waiting for first forwarded email before processing.'
+        : 'Connect inbox forwarding to start syncing.';
       setSyncStatusText('Setup needed');
-      renderSyncSummary({ status: 'not_connected', rawDetails: 'Connect inbox forwarding to start syncing.' });
+      renderSyncSummary({ status: 'not_connected', rawDetails: notConnectedMessage });
       if (syncResult) {
-        syncResult.textContent = 'Connect inbox forwarding to start syncing.';
+        syncResult.textContent = notConnectedMessage;
       }
-      if (!autoTriggered) {
+      if (!autoTriggered && !suppressSetupModalOnNotConnected) {
         openInboundSetupModal({ startStep: 0 });
       }
       return;
@@ -4316,6 +4361,19 @@ async function refreshForwardingInbox({ autoTriggered = false, pendingCountHint 
     updateDashboardPrimarySyncUI();
     inboundAutoSyncState.inFlight = false;
   }
+}
+
+async function runManualInboundProcessNow() {
+  await refreshInboundStatus({ ensureAddress: true });
+  if (!hasForwardingAddress()) {
+    openInboundSetupModal({ startStep: 0 });
+    return;
+  }
+  await refreshForwardingInbox({
+    autoTriggered: false,
+    pendingCountHint: Math.max(0, Number(inboundState.pendingCount || 0)),
+    suppressSetupModalOnNotConnected: true
+  });
 }
 
 async function refreshEmailStatus() {
@@ -7347,6 +7405,10 @@ inboundSendTest?.addEventListener('click', () => {
   window.location.href = `mailto:${encodeURIComponent(inboundState.addressEmail)}?subject=${subject}&body=${body}`;
 });
 
+inboundProcessNow?.addEventListener('click', async () => {
+  await runManualInboundProcessNow();
+});
+
 inboundRotateAddress?.addEventListener('click', async () => {
   await rotateInboundAddressFlow();
 });
@@ -7362,6 +7424,10 @@ inboundWhyToggle?.addEventListener('click', () => {
 
 inboundDiagnosticsLink?.addEventListener('click', () => {
   void openInboundDiagnosticsModal();
+});
+
+syncProcessNow?.addEventListener('click', async () => {
+  await runManualInboundProcessNow();
 });
 
 accountSyncMenuButton?.addEventListener('click', (event) => {
@@ -7628,6 +7694,13 @@ modalRoot?.addEventListener('click', (event) => {
   if (action === 'backdrop' && modalState.allowBackdropClose) {
     closeModal('backdrop');
   }
+});
+
+const modalCloseButton = modalRoot?.querySelector('[data-action="close"]');
+modalCloseButton?.addEventListener('click', (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  closeModal('close');
 });
 
 window.addEventListener('hashchange', route);

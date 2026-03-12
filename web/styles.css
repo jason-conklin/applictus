@@ -2613,6 +2613,25 @@ textarea:focus-visible {
   white-space: normal;
 }
 
+.sync-manual-process {
+  align-self: flex-end;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #2f5ea8;
+}
+
+.sync-manual-process:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  text-decoration: none;
+}
+
+.sync-manual-process:disabled:hover {
+  color: #2f5ea8;
+  text-decoration: none;
+}
+
 .legacy-sync-details {
   margin-top: 2px;
   width: 100%;
@@ -4772,10 +4791,16 @@ details summary {
 
 .modal-close {
   position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 38px;
-  height: 38px;
+  top: 12px;
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  pointer-events: auto;
+  touch-action: manipulation;
   border-radius: 999px;
   padding: 0;
   border: 1px solid rgba(40, 80, 160, 0.16);
@@ -9124,6 +9149,10 @@ body.app-page-bg .topbar .nav-link.active {
   font-size: 12px;
   text-align: right;
   max-width: 300px;
+}
+
+#dashboard-view .sync-manual-process {
+  color: #2f5ea8;
 }
 
 #dashboard-view .sync-bottom .sync-summary-status {
