@@ -137,6 +137,9 @@ function getRoleCandidateRejectionReason(roleCandidate, companyCandidate) {
   if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(roleText)) {
     return 'contains_email';
   }
+  if (parseCompanyLocationLine(roleText, companyCandidate)) {
+    return 'company_location_line';
+  }
   if (looksLikeLocation(roleText)) {
     return 'location_like';
   }
@@ -206,34 +209,87 @@ function selectBestRoleCandidate(evaluations = []) {
   })[0];
 }
 
+function parseCompanyLocationLine(line, expectedCompany) {
+  const text = normalizeLine(line);
+  if (!text) {
+    return null;
+  }
+  const companyLocationMatch =
+    text.match(/^(.+?)\s*[·•]\s*(.+)$/) || text.match(/^(.+?)\s[-–—]\s(.+)$/);
+  if (!companyLocationMatch) {
+    return null;
+  }
+  const lineCompany = normalizeLine(companyLocationMatch[1]);
+  const lineLocation = normalizeLine(companyLocationMatch[2]);
+  if (!lineCompany || !lineLocation) {
+    return null;
+  }
+  if (!looksLikeLocation(lineLocation)) {
+    return null;
+  }
+  if (expectedCompany && !isCompanyLikeAlias(lineCompany, expectedCompany)) {
+    return null;
+  }
+  return {
+    company: lineCompany,
+    location: lineLocation,
+    line: text
+  };
+}
+
 function findCompanyLocationLine(lines, companyRaw) {
-  const targetCompany = normalizeLine(companyRaw);
   if (!Array.isArray(lines) || !lines.length) {
     return { index: -1, companyLine: null, inferredCompany: null };
   }
 
   for (let i = 0; i < lines.length; i += 1) {
-    const line = normalizeLine(lines[i]);
-    const companyLocationMatch = line.match(/^(.+?)\s+[·•]\s+(.+)$/);
-    if (!companyLocationMatch) {
-      continue;
-    }
-    const lineCompany = normalizeLine(companyLocationMatch[1]);
-    const lineLocation = normalizeLine(companyLocationMatch[2]);
-    if (!looksLikeLocation(lineLocation)) {
-      continue;
-    }
-    if (targetCompany && lineCompany.toLowerCase() !== targetCompany.toLowerCase()) {
+    const parsed = parseCompanyLocationLine(lines[i], companyRaw);
+    if (!parsed) {
       continue;
     }
     return {
       index: i,
-      companyLine: line,
-      inferredCompany: lineCompany || null
+      companyLine: parsed.line,
+      inferredCompany: parsed.company || null
     };
   }
 
   return { index: -1, companyLine: null, inferredCompany: null };
+}
+
+function collectFollowingNonEmptyLines(lines = [], anchorIndex = -1, limit = 3) {
+  const out = [];
+  for (let i = anchorIndex + 1; i < lines.length && out.length < limit; i += 1) {
+    const line = normalizeLine(lines[i]);
+    if (line) {
+      out.push({ index: i, line });
+    }
+  }
+  return out;
+}
+
+function findLinkedInAnchorLine(lines = []) {
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = normalizeLine(lines[i]);
+    if (!line) continue;
+    const inlineMatch = line.match(/^your application was sent to\s+(.+)$/i);
+    if (inlineMatch) {
+      return {
+        index: i,
+        line,
+        company: normalizeLine(inlineMatch[1]) || null
+      };
+    }
+    if (/^your application was sent to\s*:?$/i.test(line)) {
+      const next = collectFollowingNonEmptyLines(lines, i, 1)[0];
+      return {
+        index: i,
+        line,
+        company: next?.line || null
+      };
+    }
+  }
+  return null;
 }
 
 function parse({ subject, text }) {
@@ -244,6 +300,10 @@ function parse({ subject, text }) {
   };
   const debug = {
     linkedin_company_line: null,
+    linkedin_company_line_detected: null,
+    linkedin_anchor_line: null,
+    linkedin_lines_after_anchor: [],
+    linkedin_parser_mode: 'nearby_window',
     linkedin_role_window: [],
     linkedin_role_candidates_scored: [],
     linkedin_role_selected: null,
@@ -269,17 +329,76 @@ function parse({ subject, text }) {
     candidates.company.push(companyRaw);
   }
 
+  const scoredCandidates = [];
+  const anchorLine = findLinkedInAnchorLine(lines);
+  if (anchorLine) {
+    debug.linkedin_parser_mode = 'anchor_then_following_lines';
+    debug.linkedin_anchor_line = anchorLine.line || null;
+    if (!companyRaw && anchorLine.company) {
+      companyRaw = anchorLine.company;
+      candidates.company.push(companyRaw);
+    }
+
+    const followingLines = collectFollowingNonEmptyLines(lines, anchorLine.index, 3);
+    debug.linkedin_lines_after_anchor = followingLines.map((entry) => entry.line);
+    for (let i = 0; i < followingLines.length; i += 1) {
+      const line = followingLines[i].line;
+      const companyLocationMeta = parseCompanyLocationLine(line, companyRaw);
+      if (companyLocationMeta) {
+        debug.linkedin_company_line_detected = companyLocationMeta.line;
+        debug.linkedin_company_line = debug.linkedin_company_line || companyLocationMeta.line;
+        if (!companyRaw && companyLocationMeta.company) {
+          companyRaw = companyLocationMeta.company;
+          candidates.company.push(companyRaw);
+        }
+      }
+      const evaluation = evaluateRoleCandidate(line, {
+        company: companyRaw,
+        source: 'line_after_anchor',
+        distance: i + 1
+      });
+      scoredCandidates.push(evaluation);
+      if (evaluation.rejected) {
+        if (!debug.linkedin_role_candidate_raw) {
+          debug.linkedin_role_candidate_raw = evaluation.raw || null;
+          debug.linkedin_role_candidate_cleaned = evaluation.cleaned || null;
+          debug.linkedin_role_rejected_reason = evaluation.reason || null;
+        }
+        notes.push(`role_rejected:after_anchor:${evaluation.reason}:${line.slice(0, 120)}`);
+        continue;
+      }
+
+      roleRaw = evaluation.cleaned;
+      debug.linkedin_role_source = 'line_after_anchor';
+      debug.role_source = 'line_after_anchor';
+      debug.linkedin_role_line_detected = evaluation.raw || null;
+      debug.linkedin_role_cleaned = evaluation.cleaned || null;
+      debug.linkedin_role_candidate_raw = evaluation.raw || null;
+      debug.linkedin_role_candidate_cleaned = evaluation.cleaned || null;
+      debug.linkedin_role_rejected_reason = null;
+      candidates.role.push(evaluation.raw);
+      if (evaluation.cleaned !== evaluation.raw) {
+        candidates.role.push(evaluation.cleaned);
+      }
+      break;
+    }
+    if (!roleRaw && !debug.linkedin_role_rejected_reason) {
+      debug.linkedin_role_rejected_reason = 'no_valid_candidate_after_anchor';
+      notes.push('role_rejected:after_anchor:no_valid_candidate');
+    }
+  }
+
   const companyLocation = findCompanyLocationLine(lines, companyRaw);
-  debug.linkedin_company_line = companyLocation.companyLine || null;
+  debug.linkedin_company_line = debug.linkedin_company_line || companyLocation.companyLine || null;
+  debug.linkedin_company_line_detected = debug.linkedin_company_line_detected || companyLocation.companyLine || null;
   if (!companyRaw && companyLocation.inferredCompany) {
     companyRaw = companyLocation.inferredCompany;
     candidates.company.push(companyRaw);
   }
 
   let selectedEvaluation = null;
-  const scoredCandidates = [];
 
-  if (companyLocation.index >= 0) {
+  if (!roleRaw && companyLocation.index >= 0) {
     const aboveWindow = [];
     for (let i = companyLocation.index - 1; i >= 0 && aboveWindow.length < 3; i -= 1) {
       const line = normalizeLine(lines[i]);
@@ -438,6 +557,9 @@ function parse({ subject, text }) {
     debug.linkedin_role_rejected_reason = debug.linkedin_role_rejected_reason || 'matches_company_after_normalize';
     role = undefined;
   }
+  if (!role && !debug.linkedin_role_rejected_reason) {
+    debug.linkedin_role_rejected_reason = 'no_valid_role_candidate';
+  }
 
   debug.linkedin_role_candidates_scored = scoredCandidates.map((candidate) => ({
     raw: candidate.raw,
@@ -455,7 +577,7 @@ function parse({ subject, text }) {
     confidence: {
       company: company ? (subjectCompanyMatch ? 96 : 78) : 0,
       role: role
-        ? debug.role_source === 'line_above_company'
+        ? debug.role_source === 'line_after_anchor' || debug.role_source === 'line_above_company'
           ? 96
           : debug.role_source === 'line_below_company' || debug.role_source === 'line_after_company'
             ? 88

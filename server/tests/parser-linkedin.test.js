@@ -3,6 +3,33 @@ const assert = require('node:assert/strict');
 
 const { parseJobEmail } = require('../src/parseJobEmail');
 
+test('linkedin parser extracts Dexian quick-apply role with hyphen company/location separator', async () => {
+  const parsed = await parseJobEmail({
+    fromEmail: 'jobs-noreply@linkedin.com',
+    fromDomain: 'linkedin.com',
+    subject: 'Jason, your application was sent to Dexian',
+    text: [
+      'Your application was sent to Dexian',
+      'Python Developer',
+      'Dexian - Jersey City, NJ (Hybrid)',
+      'Applied on March 13, 2026'
+    ].join('\n')
+  });
+
+  assert.equal(parsed.providerId, 'linkedin_jobs');
+  assert.equal(parsed.company, 'Dexian');
+  assert.equal(parsed.role, 'Python Developer');
+  assert.equal(parsed.parserDebug?.linkedin_parser_mode, 'anchor_then_following_lines');
+  assert.equal(parsed.parserDebug?.linkedin_anchor_line, 'Your application was sent to Dexian');
+  assert.deepEqual(parsed.parserDebug?.linkedin_lines_after_anchor, [
+    'Python Developer',
+    'Dexian - Jersey City, NJ (Hybrid)',
+    'Applied on March 13, 2026'
+  ]);
+  assert.equal(parsed.parserDebug?.linkedin_company_line_detected, 'Dexian - Jersey City, NJ (Hybrid)');
+  assert.equal(parsed.parserDebug?.linkedin_role_selected, 'Python Developer');
+});
+
 test('linkedin parser selects best role from nearby window when alias lines are present', async () => {
   const parsed = await parseJobEmail({
     fromEmail: 'jobs-noreply@linkedin.com',
@@ -23,10 +50,11 @@ test('linkedin parser selects best role from nearby window when alias lines are 
   assert.equal(parsed.company, 'HMG AMERICA LLC');
   assert.equal(parsed.role, 'Reactjs developer');
   assert.ok(parsed.confidence.role >= 80);
-  assert.equal(parsed.parserDebug?.linkedin_role_source, 'line_above_company');
-  assert.ok(Array.isArray(parsed.parserDebug?.linkedin_role_window));
-  assert.ok(parsed.parserDebug.linkedin_role_window.includes('HMG America'));
-  assert.ok(parsed.parserDebug.linkedin_role_window.includes('Reactjs developer'));
+  assert.equal(parsed.parserDebug?.linkedin_role_source, 'line_after_anchor');
+  assert.ok(Array.isArray(parsed.parserDebug?.linkedin_lines_after_anchor));
+  assert.ok(parsed.parserDebug.linkedin_lines_after_anchor.includes('HMG AMERICA LLC'));
+  assert.ok(parsed.parserDebug.linkedin_lines_after_anchor.includes('HMG America'));
+  assert.ok(parsed.parserDebug.linkedin_lines_after_anchor.includes('Reactjs developer'));
   assert.equal(parsed.parserDebug?.linkedin_role_selected, 'Reactjs developer');
   assert.ok(Array.isArray(parsed.parserDebug?.linkedin_role_candidates_scored));
   const aliasCandidate = parsed.parserDebug.linkedin_role_candidates_scored.find(
@@ -58,7 +86,7 @@ test('linkedin parser extracts Node.js role from line above company/location', a
   assert.equal(parsed.parserDebug?.linkedin_company_line, 'Iris Software Inc. • Princeton, NJ');
   assert.equal(parsed.parserDebug?.linkedin_role_candidate_raw, 'Node.js Developer');
   assert.equal(parsed.parserDebug?.linkedin_role_candidate_cleaned, 'Node.js Developer');
-  assert.equal(parsed.parserDebug?.linkedin_role_source, 'line_above_company');
+  assert.equal(parsed.parserDebug?.linkedin_role_source, 'line_after_anchor');
 });
 
 test('linkedin parser strips numeric id suffix from role above company/location', async () => {
@@ -67,6 +95,7 @@ test('linkedin parser strips numeric id suffix from role above company/location'
     fromDomain: 'linkedin.com',
     subject: 'Your application was sent to Orion Innovation',
     text: [
+      'Your application was sent to Orion Innovation',
       'Programmer Analyst (21243)',
       'Orion Innovation • Edison, NJ (On-site)'
     ].join('\n')
@@ -76,7 +105,7 @@ test('linkedin parser strips numeric id suffix from role above company/location'
   assert.equal(parsed.company, 'Orion Innovation');
   assert.equal(parsed.role, 'Programmer Analyst');
   assert.ok(parsed.confidence.role >= 80);
-  assert.equal(parsed.parserDebug?.linkedin_role_source, 'line_above_company');
+  assert.equal(parsed.parserDebug?.linkedin_role_source, 'line_after_anchor');
 });
 
 test('linkedin parser leaves role empty when line above company is invalid', async () => {
