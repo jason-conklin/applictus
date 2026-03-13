@@ -539,6 +539,11 @@ const inboundState = {
   preferredAddressEmail: null,
   inboxUsername: null,
   isActive: false,
+  forwardingReadiness: 'not_started',
+  addressReachable: false,
+  hasNonVerificationInbound: false,
+  gmailVerificationPending: false,
+  gmailVerification: null,
   confirmedAt: null,
   lastReceivedAt: null,
   lastReceivedSubject: null,
@@ -890,6 +895,10 @@ function setSyncDisabled(isDisabled) {
 }
 
 function isForwardingActive() {
+  const readiness = resolveForwardingReadiness();
+  if (readiness) {
+    return readiness === 'forwarding_active';
+  }
   return resolveInboundSetupState() === 'active' || inboundState.effectiveConnected;
 }
 
@@ -915,6 +924,41 @@ function resolveInboundSetupState(
     return 'awaiting_confirmation';
   }
   return reportedSetupState || 'not_started';
+}
+
+function resolveForwardingReadiness(
+  reportedReadiness = inboundState.forwardingReadiness,
+  {
+    setupState = inboundState.setupState,
+    lastReceivedAt = inboundState.lastReceivedAt,
+    hasNonVerificationInbound = inboundState.hasNonVerificationInbound,
+    gmailVerificationPending = inboundState.gmailVerificationPending
+  } = {}
+) {
+  const normalizedReported = String(reportedReadiness || '').trim().toLowerCase();
+  if (normalizedReported) {
+    return normalizedReported;
+  }
+  if (hasNonVerificationInbound) {
+    return 'forwarding_active';
+  }
+  if (gmailVerificationPending) {
+    return 'gmail_verification_pending';
+  }
+  if (lastReceivedAt) {
+    return 'address_reachable';
+  }
+  const normalizedSetupState = String(setupState || '').trim().toLowerCase();
+  if (normalizedSetupState === 'active') {
+    return 'forwarding_active';
+  }
+  if (normalizedSetupState === 'awaiting_first_email') {
+    return 'awaiting_first_email';
+  }
+  if (normalizedSetupState === 'awaiting_confirmation') {
+    return 'awaiting_confirmation';
+  }
+  return 'not_started';
 }
 
 function setInlineHintState(element, message, state = null) {
@@ -1112,6 +1156,7 @@ function setDashboardScanButtonLabel(label) {
 }
 
 function formatInboundMetaText() {
+  const readiness = resolveForwardingReadiness();
   const syncMeta = inboundState.lastInboundSync || null;
   const syncParts = [];
   if (syncMeta) {
@@ -1140,7 +1185,7 @@ function formatInboundMetaText() {
   }
 
   const lastSeen = formatSyncDateTime(inboundState.lastReceivedAt);
-  if (inboundState.setupState === 'active') {
+  if (readiness === 'forwarding_active') {
     const parts = [];
     if (syncParts.length) {
       parts.push(syncParts.join(' · '));
@@ -1156,14 +1201,35 @@ function formatInboundMetaText() {
     }
     return parts.join(' • ') || 'Forwarding active. Waiting for new job-email updates.';
   }
-  if (inboundState.setupState === 'awaiting_first_email') {
+  if (readiness === 'gmail_verification_pending') {
+    const parts = [];
+    if (lastSeen) {
+      parts.push(`Address reachable • Last email received • ${lastSeen}`);
+    } else {
+      parts.push('Address reachable');
+    }
+    parts.push('Gmail verification pending');
+    if (inboundState.gmailVerification?.confirmationUrl) {
+      parts.push('Open the confirmation link in Step 2');
+    }
+    return parts.join(' • ');
+  }
+  if (readiness === 'address_reachable') {
+    const parts = ['Address reachable'];
+    if (lastSeen) {
+      parts.push(`Last email received • ${lastSeen}`);
+    }
+    parts.push('Waiting for first non-verification forwarded email');
+    return parts.join(' • ');
+  }
+  if (readiness === 'awaiting_first_email') {
     if (syncParts.length) {
       return `${syncParts.join(' · ')} • No forwarded emails yet.`;
     }
     return 'No forwarded emails yet. Forward one real application email or complete the Gmail forwarding confirmation to activate Applictus.';
   }
-  if (inboundState.setupState === 'awaiting_confirmation') {
-    return 'Waiting for first forwarded email. Finish Step 2 in setup if forwarding is not enabled yet.';
+  if (readiness === 'awaiting_confirmation') {
+    return 'Waiting for forwarding verification in Gmail. Complete Step 2 in setup.';
   }
   return 'No forwarding connected yet.';
 }
@@ -1173,16 +1239,21 @@ function renderForwardingSummary() {
     return;
   }
   const setupState = inboundState.setupState || 'not_started';
+  const readiness = resolveForwardingReadiness();
   let statusText = 'Inbox not connected';
-  if (setupState === 'active') {
+  if (readiness === 'forwarding_active') {
     statusText = '✅ Forwarding active';
-  } else if (setupState === 'awaiting_first_email') {
+  } else if (readiness === 'gmail_verification_pending') {
+    statusText = 'Address reachable • Gmail verification pending';
+  } else if (readiness === 'address_reachable') {
+    statusText = 'Address reachable';
+  } else if (readiness === 'awaiting_first_email') {
     statusText = 'Forwarding set up — waiting for first email';
-  } else if (setupState === 'awaiting_confirmation') {
-    statusText = 'Waiting for first forwarded email';
+  } else if (readiness === 'awaiting_confirmation') {
+    statusText = 'Waiting for forwarding verification';
   }
   syncSummaryStatus.textContent = statusText;
-  if (setupState === 'active' && Number(state.lastTotal || 0) === 0) {
+  if (readiness === 'forwarding_active' && Number(state.lastTotal || 0) === 0) {
     syncSummaryMetrics.textContent = 'Inbox connected. We’ll update your dashboard when job emails arrive.';
   } else if (setupState === 'not_started') {
     syncSummaryMetrics.textContent = 'Set up automatic forwarding in about 2 minutes — no Google login required.';
@@ -1226,30 +1297,43 @@ function updateDashboardPrimarySyncUI() {
 
 function updateInboundStatusPresentation() {
   const setupState = inboundState.setupState || 'not_started';
+  const readiness = resolveForwardingReadiness();
   let pillText = 'Not connected';
   let pillState = 'idle';
   let dashboardText = 'Not connected';
   let dashboardState = 'idle';
   let syncText = 'Setup needed';
 
-  if (setupState === 'active') {
+  if (readiness === 'forwarding_active') {
     pillText = 'Receiving forwarded emails';
     pillState = 'connected';
     dashboardText = 'Connected';
     dashboardState = 'connected';
     syncText = 'Forwarding active';
-  } else if (setupState === 'awaiting_first_email') {
+  } else if (readiness === 'gmail_verification_pending') {
+    pillText = 'Address reachable — Gmail verification pending';
+    pillState = 'info';
+    dashboardText = 'Gmail verification pending';
+    dashboardState = 'info';
+    syncText = 'Address reachable';
+  } else if (readiness === 'address_reachable') {
+    pillText = 'Address reachable';
+    pillState = 'info';
+    dashboardText = 'Address reachable';
+    dashboardState = 'info';
+    syncText = 'Address reachable';
+  } else if (readiness === 'awaiting_first_email') {
     pillText = 'Forwarding enabled — waiting for first email';
     pillState = 'info';
     dashboardText = 'Setup complete';
     dashboardState = 'info';
     syncText = 'Waiting for first email';
-  } else if (setupState === 'awaiting_confirmation') {
-    pillText = 'Waiting for first forwarded email';
+  } else if (readiness === 'awaiting_confirmation') {
+    pillText = 'Waiting for forwarding verification';
     pillState = 'idle';
-    dashboardText = 'Waiting for first email';
+    dashboardText = 'Waiting for verification';
     dashboardState = 'idle';
-    syncText = 'Waiting for first email';
+    syncText = 'Waiting for verification';
   }
 
   setPillState(inboundStatusPill, pillText, pillState);
@@ -1373,13 +1457,18 @@ function updateAccountSyncOptionSelection(option) {
 }
 
 function updateSyncHelperText() {
+  const readiness = resolveForwardingReadiness();
   if (syncHelperText) {
-    if (inboundState.setupState === 'active') {
+    if (readiness === 'forwarding_active') {
       syncHelperText.textContent = 'Applictus monitors emails forwarded to your secure inbox address.';
-    } else if (inboundState.setupState === 'awaiting_first_email') {
+    } else if (readiness === 'gmail_verification_pending') {
+      syncHelperText.textContent = 'Address reachable. Gmail verification is still pending in Step 2.';
+    } else if (readiness === 'address_reachable') {
+      syncHelperText.textContent = 'Address reachable. Waiting for first non-verification forwarded email.';
+    } else if (readiness === 'awaiting_first_email') {
       syncHelperText.textContent = 'Forwarding enabled — waiting for first email';
-    } else if (inboundState.setupState === 'awaiting_confirmation') {
-      syncHelperText.textContent = 'Waiting for first forwarded email. Complete Step 2 if forwarding is not enabled yet.';
+    } else if (readiness === 'awaiting_confirmation') {
+      syncHelperText.textContent = 'Waiting for forwarding verification in Gmail. Complete Step 2 in setup.';
     } else {
       syncHelperText.textContent =
         'Set up automatic forwarding in about 2 minutes — no Google login required.';
@@ -3868,6 +3957,23 @@ function applyInboundStatusPayload(data = {}) {
     confirmedAt: data.confirmed_at || null,
     lastReceivedAt: data.last_received_at || null
   });
+  inboundState.gmailVerification = data.gmail_forwarding_verification
+    ? {
+        receivedAt: data.gmail_forwarding_verification.received_at || null,
+        subject: data.gmail_forwarding_verification.subject || null,
+        confirmationUrl: data.gmail_forwarding_verification.confirmation_url || null,
+        confirmationCode: data.gmail_forwarding_verification.confirmation_code || null
+      }
+    : null;
+  inboundState.addressReachable = Boolean(data.address_reachable || data.last_received_at);
+  inboundState.hasNonVerificationInbound = Boolean(data.has_non_verification_inbound);
+  inboundState.gmailVerificationPending = Boolean(data.gmail_verification_pending);
+  inboundState.forwardingReadiness = resolveForwardingReadiness(data.forwarding_readiness || '', {
+    setupState: inboundState.setupState,
+    lastReceivedAt: inboundState.lastReceivedAt,
+    hasNonVerificationInbound: inboundState.hasNonVerificationInbound,
+    gmailVerificationPending: inboundState.gmailVerificationPending
+  });
   inboundState.connected = Boolean(data.connected);
   inboundState.effectiveConnected = Boolean(data.effective_connected);
   inboundState.lastInboundSyncAt = data.last_inbound_sync_at || null;
@@ -3890,6 +3996,11 @@ async function refreshInboundStatus({ ensureAddress = true } = {}) {
     inboundState.preferredAddressEmail = null;
     inboundState.inboxUsername = sessionUser?.inbox_username || null;
     inboundState.isActive = false;
+    inboundState.forwardingReadiness = 'not_started';
+    inboundState.addressReachable = false;
+    inboundState.hasNonVerificationInbound = false;
+    inboundState.gmailVerificationPending = false;
+    inboundState.gmailVerification = null;
     inboundState.confirmedAt = null;
     inboundState.lastReceivedAt = null;
     inboundState.lastReceivedSubject = null;
@@ -4145,7 +4256,7 @@ function buildInboundSetupStep(step, setStep, setupContext) {
     list.innerHTML = `
       <li>Open Gmail Settings → Forwarding and POP/IMAP</li>
       <li>Add a forwarding address and paste your Applictus address</li>
-      <li>Approve the forwarding confirmation email sent by Gmail (one-time)</li>
+      <li>Complete Gmail’s one-time verification from the confirmation email</li>
     `;
     const gmailActions = document.createElement('div');
     gmailActions.className = 'forwarding-step-actions';
@@ -4176,17 +4287,81 @@ function buildInboundSetupStep(step, setStep, setupContext) {
     });
     gmailActions.append(openSettings, confirmBtn);
     gmailSetup.body.append(list, gmailActions);
+    const verificationData = inboundState.gmailVerification || null;
+    const hasVerificationEmail =
+      Boolean(verificationData?.receivedAt) ||
+      /gmail forwarding confirmation/i.test(String(inboundState.lastReceivedSubject || ''));
+    if (hasVerificationEmail) {
+      const verifiedNote = document.createElement('div');
+      verifiedNote.className = 'forwarding-connected-note';
+      verifiedNote.textContent = 'We received a forwarding confirmation email ✓';
+      gmailSetup.body.appendChild(verifiedNote);
+
+      const helper = document.createElement('div');
+      helper.className = 'forwarding-verification-helper';
+      const helperTitle = document.createElement('div');
+      helperTitle.className = 'muted small';
+      helperTitle.textContent = 'Use this to finish Gmail verification:';
+      helper.appendChild(helperTitle);
+
+      const helperActions = document.createElement('div');
+      helperActions.className = 'forwarding-step-actions';
+      if (verificationData?.confirmationUrl) {
+        const openVerification = document.createElement('a');
+        openVerification.className = 'btn btn--primary btn--sm';
+        openVerification.href = verificationData.confirmationUrl;
+        openVerification.target = '_blank';
+        openVerification.rel = 'noopener noreferrer';
+        openVerification.textContent = 'Open verification link';
+        helperActions.appendChild(openVerification);
+      }
+      if (verificationData?.confirmationCode) {
+        const copyCode = document.createElement('button');
+        copyCode.type = 'button';
+        copyCode.className = 'btn btn--secondary btn--sm';
+        copyCode.textContent = 'Copy confirmation code';
+        copyCode.addEventListener('click', () => {
+          void copyTextToClipboard(verificationData.confirmationCode, 'Copied confirmation code');
+        });
+        helperActions.appendChild(copyCode);
+      }
+      if (!verificationData?.confirmationUrl && !verificationData?.confirmationCode) {
+        const noData = document.createElement('p');
+        noData.className = 'muted small';
+        noData.textContent =
+          'Confirmation email detected. If Gmail still says pending, click “Re-send email” and reopen setup.';
+        helper.appendChild(noData);
+      }
+      if (helperActions.children.length) {
+        helper.appendChild(helperActions);
+      }
+      if (verificationData?.confirmationCode) {
+        const codeLine = document.createElement('p');
+        codeLine.className = 'muted small';
+        const codeLabel = document.createElement('span');
+        codeLabel.textContent = 'Confirmation code: ';
+        const codeValue = document.createElement('code');
+        codeValue.textContent = verificationData.confirmationCode;
+        codeLine.append(codeLabel, codeValue);
+        helper.appendChild(codeLine);
+      }
+      if (verificationData?.receivedAt) {
+        const receivedLine = document.createElement('p');
+        receivedLine.className = 'muted small';
+        const receivedAtLabel = formatSyncDateTime(verificationData.receivedAt);
+        if (receivedAtLabel) {
+          receivedLine.textContent = `Received: ${receivedAtLabel}`;
+          helper.appendChild(receivedLine);
+        }
+      }
+      gmailSetup.body.appendChild(helper);
+    }
     const note = document.createElement('p');
     note.className = 'muted small';
-    note.textContent =
-      'After confirming forwarding, move to Step 3 and click Verify setup. We mark Active once the first forwarded email arrives.';
+    note.textContent = hasVerificationEmail
+      ? 'Address reachable. Finish Gmail verification, then move to Step 3 and click Verify setup.'
+      : 'After confirming forwarding, move to Step 3 and click Verify setup. We mark Active once the first forwarded email arrives.';
     container.append(title, subtitle, gmailSetup.details, note);
-    if (/gmail forwarding confirmation/i.test(String(inboundState.lastReceivedSubject || ''))) {
-      const confirmed = document.createElement('div');
-      confirmed.className = 'forwarding-connected-note';
-      confirmed.textContent = 'We received a forwarding confirmation email ✓';
-      container.appendChild(confirmed);
-    }
     return container;
   }
 
@@ -4280,10 +4455,19 @@ function buildInboundSetupStep(step, setStep, setupContext) {
 
 function openInboundSetupModal({ startStep = 0 } = {}) {
   let currentStep = Math.max(0, Math.min(2, Number(startStep) || 0));
+  const initialReadiness = resolveForwardingReadiness();
+  const initialVerifyMessage =
+    initialReadiness === 'forwarding_active'
+      ? 'Forwarding is active.'
+      : initialReadiness === 'gmail_verification_pending'
+        ? 'Address reachable. Gmail verification is still pending.'
+        : initialReadiness === 'address_reachable'
+          ? 'Address reachable. Forward one more non-verification email to complete activation.'
+          : '';
   const setupContext = {
     verifying: false,
     verified: isForwardingActive(),
-    verifyMessage: isForwardingActive() ? 'Forwarding is active.' : '',
+    verifyMessage: initialVerifyMessage,
     closed: false,
     closeTimer: null,
     runVerificationCheck: null
@@ -4311,7 +4495,7 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
       }
       await refreshInboundStatus({ ensureAddress: false });
       const receivedMs = Date.parse(inboundState.lastReceivedAt || '');
-      const activeNow = inboundState.setupState === 'active' && Number.isFinite(receivedMs);
+      const activeNow = isForwardingActive() && Number.isFinite(receivedMs);
       if (activeNow) {
         setupContext.verifying = false;
         setupContext.verified = true;
@@ -4339,8 +4523,14 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
       return;
     }
     setupContext.verifying = false;
-    setupContext.verifyMessage = 'No forwarded email detected yet. Forward one email, then try Verify setup again.';
-    showToast('Still waiting for the first forwarded email.', { tone: 'info' });
+    const readiness = resolveForwardingReadiness();
+    if (readiness === 'gmail_verification_pending') {
+      setupContext.verifyMessage = 'Address reachable, but Gmail verification is still pending in Step 2.';
+      showToast('Address reachable. Finish Gmail verification to complete setup.', { tone: 'info' });
+    } else {
+      setupContext.verifyMessage = 'No forwarded email detected yet. Forward one email, then try Verify setup again.';
+      showToast('Still waiting for the first forwarded email.', { tone: 'info' });
+    }
     safeRender();
   };
 

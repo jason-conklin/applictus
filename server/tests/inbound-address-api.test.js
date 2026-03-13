@@ -103,6 +103,28 @@ function buildInboundPayload(toEmail) {
   };
 }
 
+function buildGmailForwardingVerificationPayload(toEmail) {
+  const stamp = Date.now();
+  return {
+    From: 'Gmail Team <forwarding-noreply@google.com>',
+    FromFull: { Name: 'Gmail Team', Email: 'forwarding-noreply@google.com' },
+    To: toEmail,
+    ToFull: [{ Email: toEmail }],
+    Subject: 'Gmail Forwarding Confirmation - Receive Mail from your account',
+    MessageID: `<gmail-forwarding-${stamp}@google.com>`,
+    Date: new Date().toISOString(),
+    TextBody: [
+      'Gmail Forwarding Confirmation',
+      'Please confirm this forwarding request by visiting the link below:',
+      'https://mail-settings.google.com/mail/?ui=2&ik=abc123&view=up&act=fwdconfirm',
+      'Gmail Forwarding Confirmation Code: 123456'
+    ].join('\n'),
+    HtmlBody:
+      '<p>Gmail Forwarding Confirmation</p><p><a href="https://mail-settings.google.com/mail/?ui=2&ik=abc123&view=up&act=fwdconfirm">Verify email</a></p>',
+    Headers: [{ Name: 'Message-ID', Value: `<gmail-forwarding-rfc-${stamp}@google.com>` }]
+  };
+}
+
 test('inbound address APIs create, confirm, rotate, and become active after inbound email', async (t) => {
   const { baseUrl, stop } = await startServerWithEnv({
     NODE_ENV: 'test',
@@ -162,4 +184,69 @@ test('inbound address APIs create, confirm, rotate, and become active after inbo
   assert.equal(statusAfter.body.setup_state, 'active');
   assert.equal(statusAfter.body.effective_connected, true);
   assert.ok(statusAfter.body.last_received_at);
+});
+
+test('inbound status exposes Gmail forwarding verification helper and readiness transition', async (t) => {
+  const { baseUrl, stop } = await startServerWithEnv({
+    NODE_ENV: 'test',
+    JOBTRACK_DB_PATH: ':memory:',
+    JOBTRACK_LOG_LEVEL: 'error',
+    INBOUND_DOMAIN: 'mail.applictus.com',
+    POSTMARK_INBOUND_SECRET: 'test-inbound-secret'
+  });
+  t.after(stop);
+  if (!baseUrl) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  const request = await createClient(baseUrl);
+  const email = `inbound-verify-${crypto.randomUUID()}@example.com`;
+  const password = 'StrongPassword123!';
+  const signup = await request('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({ email, password })
+  });
+  assert.equal(signup.status, 200);
+
+  const addressRes = await request('/api/inbound/address');
+  assert.equal(addressRes.status, 200);
+  const toEmail = addressRes.body.address_email;
+  assert.ok(toEmail);
+
+  const verificationInbound = await fetch(`${baseUrl}/api/inbound/postmark`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-applictus-inbound-secret': 'test-inbound-secret'
+    },
+    body: JSON.stringify(buildGmailForwardingVerificationPayload(toEmail))
+  });
+  assert.equal(verificationInbound.status, 200);
+
+  const pendingStatus = await request('/api/inbound/status');
+  assert.equal(pendingStatus.status, 200);
+  assert.equal(pendingStatus.body.forwarding_readiness, 'gmail_verification_pending');
+  assert.equal(pendingStatus.body.gmail_verification_pending, true);
+  assert.ok(pendingStatus.body.gmail_forwarding_verification);
+  assert.equal(pendingStatus.body.gmail_forwarding_verification.confirmation_code, '123456');
+  assert.match(
+    String(pendingStatus.body.gmail_forwarding_verification.confirmation_url || ''),
+    /mail-settings\.google\.com/i
+  );
+
+  const normalInbound = await fetch(`${baseUrl}/api/inbound/postmark`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-applictus-inbound-secret': 'test-inbound-secret'
+    },
+    body: JSON.stringify(buildInboundPayload(toEmail))
+  });
+  assert.equal(normalInbound.status, 200);
+
+  const activeStatus = await request('/api/inbound/status');
+  assert.equal(activeStatus.status, 200);
+  assert.equal(activeStatus.body.forwarding_readiness, 'forwarding_active');
+  assert.equal(activeStatus.body.gmail_verification_pending, false);
 });

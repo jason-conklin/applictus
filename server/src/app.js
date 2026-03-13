@@ -34,6 +34,7 @@ const {
   extractMessageIdHeader,
   buildInboundMessageSha256,
   normalizeText: normalizeInboundText,
+  stripHtml: stripInboundHtml,
   toIsoDate,
   getActiveInboundAddress,
   getInboundAddressByLocal,
@@ -282,6 +283,116 @@ function parseJsonSafe(value) {
   } catch (_) {
     return null;
   }
+}
+
+function isGmailForwardingConfirmationEnvelope({ subject, textBody, htmlBody }) {
+  const subjectText = String(subject || '').toLowerCase();
+  const text = String(textBody || '').toLowerCase();
+  const html = String(htmlBody || '').toLowerCase();
+  return (
+    subjectText.includes('gmail forwarding confirmation') ||
+    text.includes('gmail forwarding confirmation') ||
+    text.includes('gmail forwarding confirmation code') ||
+    html.includes('gmail forwarding confirmation')
+  );
+}
+
+function extractUrlsFromText(value) {
+  const text = String(value || '');
+  if (!text) {
+    return [];
+  }
+  const matches = text.match(/https?:\/\/[^\s<>"')]+/gi) || [];
+  return Array.from(
+    new Set(
+      matches
+        .map((url) => String(url || '').replace(/[),.;]+$/, '').trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function extractForwardingConfirmationCode(value) {
+  const text = String(value || '');
+  if (!text) {
+    return null;
+  }
+  const patterns = [
+    /\bgmail forwarding confirmation code[:\s]+([a-z0-9-]{4,})\b/i,
+    /\bconfirmation code[:\s]+([a-z0-9-]{4,})\b/i,
+    /\bverification code[:\s]+([a-z0-9-]{4,})\b/i
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      return String(match[1]).trim();
+    }
+  }
+  return null;
+}
+
+function extractGmailForwardingVerificationInfo({ subject, bodyText, bodyHtml, rawPayload }) {
+  const payload = parseJsonSafe(rawPayload) || {};
+  const payloadText = String(payload.TextBody || '');
+  const payloadHtml = String(payload.HtmlBody || '');
+  const combinedText = [bodyText, payloadText, stripInboundHtml(bodyHtml), stripInboundHtml(payloadHtml)]
+    .filter(Boolean)
+    .join('\n');
+  const combinedHtml = [bodyHtml, payloadHtml].filter(Boolean).join('\n');
+
+  const detected = isGmailForwardingConfirmationEnvelope({
+    subject,
+    textBody: combinedText,
+    htmlBody: combinedHtml
+  });
+
+  if (!detected) {
+    return { detected: false, confirmation_url: null, confirmation_code: null };
+  }
+
+  const candidateUrls = Array.from(
+    new Set([...extractUrlsFromText(combinedHtml), ...extractUrlsFromText(combinedText)])
+  );
+  const preferredUrl =
+    candidateUrls.find((url) => /mail-settings\.google\.com|mail\.google\.com|accounts\.google\.com/i.test(url)) ||
+    candidateUrls.find((url) => /verify|forward|confirm|fwd/i.test(url)) ||
+    candidateUrls[0] ||
+    null;
+  const confirmationCode = extractForwardingConfirmationCode(combinedText) || null;
+
+  return {
+    detected: true,
+    confirmation_url: preferredUrl,
+    confirmation_code: confirmationCode
+  };
+}
+
+function inferForwardingReadiness({
+  hasAddress,
+  setupState,
+  lastReceivedAt,
+  hasNonVerificationInbound,
+  hasGmailVerification
+}) {
+  if (!hasAddress) {
+    return 'not_started';
+  }
+  if (hasNonVerificationInbound) {
+    return 'forwarding_active';
+  }
+  if (hasGmailVerification) {
+    return 'gmail_verification_pending';
+  }
+  if (lastReceivedAt) {
+    return 'address_reachable';
+  }
+  if (String(setupState || '') === 'awaiting_first_email') {
+    return 'awaiting_first_email';
+  }
+  if (String(setupState || '') === 'awaiting_confirmation') {
+    return 'awaiting_confirmation';
+  }
+  return 'not_started';
 }
 
 function extractDomainFromAddress(value) {
@@ -1270,6 +1381,11 @@ async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) 
       confirmed_at: null,
       last_received_at: null,
       last_received_subject: null,
+      forwarding_readiness: 'not_started',
+      address_reachable: false,
+      has_non_verification_inbound: false,
+      gmail_verification_pending: false,
+      gmail_forwarding_verification: null,
       message_count_7d: 0,
       inbound_pending_count: Number.isFinite(pendingCount) ? Math.max(0, pendingCount) : 0,
       inbound_signal_updated_at: signalRow?.updated_at || null,
@@ -1300,6 +1416,18 @@ async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) 
     userId,
     address.id
   );
+  const recentInboundRows = await dbTimed(async () => {
+    const rowsOrPromise = db
+      .prepare(
+        `SELECT subject, body_text, body_html, raw_payload, received_at, created_at
+         FROM inbound_messages
+         WHERE user_id = ? AND inbound_address_id = ?
+         ORDER BY received_at DESC, created_at DESC
+         LIMIT 25`
+      )
+      .all(userId, address.id);
+    return rowsOrPromise && typeof rowsOrPromise.then === 'function' ? await rowsOrPromise : rowsOrPromise;
+  });
   const countSince = new Date(Date.now() - INBOUND_MESSAGE_COUNT_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const countRow = await dbGet(
     `SELECT COUNT(*) AS count
@@ -1323,6 +1451,37 @@ async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) 
     confirmedAt: address.confirmed_at || null,
     lastReceivedAt
   });
+  const inboundRows = Array.isArray(recentInboundRows) ? recentInboundRows : [];
+  let latestGmailVerification = null;
+  let hasNonVerificationInbound = false;
+  for (const row of inboundRows) {
+    const verification = extractGmailForwardingVerificationInfo({
+      subject: row?.subject || null,
+      bodyText: row?.body_text || null,
+      bodyHtml: row?.body_html || null,
+      rawPayload: row?.raw_payload || null
+    });
+    if (verification.detected) {
+      if (!latestGmailVerification) {
+        latestGmailVerification = {
+          received_at: row?.received_at || null,
+          subject: truncateInboundSubject(row?.subject || null),
+          confirmation_url: verification.confirmation_url || null,
+          confirmation_code: verification.confirmation_code || null
+        };
+      }
+      continue;
+    }
+    hasNonVerificationInbound = true;
+    break;
+  }
+  const forwardingReadiness = inferForwardingReadiness({
+    hasAddress: true,
+    setupState,
+    lastReceivedAt,
+    hasNonVerificationInbound,
+    hasGmailVerification: Boolean(latestGmailVerification)
+  });
   const fallbackPendingCount = signalRow ? null : await countPendingInboundQueue(userId);
   const pendingCount = signalRow ? Number(signalRow.pending_count || 0) : Number(fallbackPendingCount || 0);
   const signalLastInboundAt = signalRow?.last_inbound_at || lastReceivedAt || null;
@@ -1338,6 +1497,11 @@ async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) 
     confirmed_at: address.confirmed_at || null,
     last_received_at: lastReceivedAt,
     last_received_subject: truncateInboundSubject(latestInbound?.subject || null),
+    forwarding_readiness: forwardingReadiness,
+    address_reachable: Boolean(lastReceivedAt),
+    has_non_verification_inbound: Boolean(hasNonVerificationInbound),
+    gmail_verification_pending: forwardingReadiness === 'gmail_verification_pending',
+    gmail_forwarding_verification: latestGmailVerification,
     message_count_7d: Number(countRow?.count || 0),
     inbound_pending_count: Number.isFinite(pendingCount) ? Math.max(0, pendingCount) : 0,
     inbound_signal_updated_at: signalRow?.updated_at || null,
