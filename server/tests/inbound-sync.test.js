@@ -128,6 +128,104 @@ function buildWorkablePayload(toEmail) {
   };
 }
 
+function buildForwardedLinkedInPayload(toEmail, userEmail) {
+  const stamp = Date.now();
+  return {
+    From: `Jason Conklin <${userEmail}>`,
+    To: toEmail,
+    ToFull: [{ Email: toEmail }],
+    Subject: 'Fwd: Jason, your application was sent to Cassidy',
+    MessageID: `<forwarded-linkedin-${stamp}@gmail.com>`,
+    Date: new Date().toISOString(),
+    TextBody: [
+      'Forwarding this to Applictus.',
+      '',
+      '---------- Forwarded message ---------',
+      'From: LinkedIn Jobs <jobs-noreply@linkedin.com>',
+      'Date: Thu, Mar 12, 2026 at 10:31 AM',
+      'Subject: Jason, your application was sent to Cassidy',
+      `To: ${userEmail}`,
+      '',
+      'Cassidy',
+      'Software Engineer',
+      'Cassidy · New York, NY (On-site)'
+    ].join('\n'),
+    Headers: [{ Name: 'Message-ID', Value: `<forwarded-linkedin-rfc-${stamp}@gmail.com>` }]
+  };
+}
+
+function buildForwardedWorkablePayload(toEmail, userEmail) {
+  const stamp = Date.now();
+  return {
+    From: `Jason Conklin <${userEmail}>`,
+    To: toEmail,
+    ToFull: [{ Email: toEmail }],
+    Subject: 'FW: Thanks for applying to EarthCam',
+    MessageID: `<forwarded-workable-${stamp}@gmail.com>`,
+    Date: new Date().toISOString(),
+    TextBody: [
+      'FYI',
+      '',
+      '---------- Forwarded message ---------',
+      'From: Workable <noreply@candidates.workablemail.com>',
+      'Date: Thu, Mar 12, 2026 at 11:02 AM',
+      'Subject: Thanks for applying to EarthCam',
+      `To: ${userEmail}`,
+      '',
+      'EarthCam',
+      'Your application for the Jr. Python Developer job was submitted successfully.',
+      "Here's a copy of your application data...",
+      'Personal information',
+      'Operations & Logistics Assistant'
+    ].join('\n'),
+    Headers: [{ Name: 'Message-ID', Value: `<forwarded-workable-rfc-${stamp}@gmail.com>` }]
+  };
+}
+
+function buildForwardedIndeedPayload(toEmail, userEmail) {
+  const stamp = Date.now();
+  return {
+    From: `Jason Conklin <${userEmail}>`,
+    To: toEmail,
+    ToFull: [{ Email: toEmail }],
+    Subject: 'Fwd: Indeed Application: Mobile Developer',
+    MessageID: `<forwarded-indeed-${stamp}@gmail.com>`,
+    Date: new Date().toISOString(),
+    TextBody: [
+      'Forwarding this one too.',
+      '',
+      '---------- Forwarded message ---------',
+      'From: Indeed Apply <indeedapply@indeed.com>',
+      'Date: Thu, Mar 12, 2026 at 11:18 AM',
+      'Subject: Indeed Application: Mobile Developer',
+      `To: ${userEmail}`,
+      '',
+      'Application submitted',
+      'Mobile Developer',
+      'Visual Computer Solutions - Freehold, NJ 07728'
+    ].join('\n'),
+    Headers: [{ Name: 'Message-ID', Value: `<forwarded-indeed-rfc-${stamp}@gmail.com>` }]
+  };
+}
+
+function buildUserReplyPayload(toEmail, userEmail) {
+  const stamp = Date.now();
+  return {
+    From: `Jason Conklin <${userEmail}>`,
+    To: toEmail,
+    ToFull: [{ Email: toEmail }],
+    Subject: 'Re: Interview scheduling',
+    MessageID: `<outbound-reply-${stamp}@gmail.com>`,
+    Date: new Date().toISOString(),
+    TextBody: [
+      'Tuesday, March 3rd at 4:00 PM works for me.',
+      'Thanks!',
+      'Jason'
+    ].join('\n'),
+    Headers: [{ Name: 'Message-ID', Value: `<outbound-reply-rfc-${stamp}@gmail.com>` }]
+  };
+}
+
 function buildGlassdoorDigestPayload(toEmail) {
   const stamp = Date.now();
   return {
@@ -322,4 +420,236 @@ test('inbound sync ignores digest emails and Gmail forwarding verification messa
   assert.match(String(digestRow.processing_error), /suppressed:bulk_digest/i);
   assert.equal(String(verificationRow.processing_status), 'ignored');
   assert.match(String(verificationRow.processing_error), /gmail_forwarding_verification/i);
+});
+
+test('inbound sync unwraps manually forwarded LinkedIn confirmations and creates applications', async (t) => {
+  const { baseUrl, db, stop } = await startServerWithEnv({
+    NODE_ENV: 'test',
+    JOBTRACK_DB_PATH: ':memory:',
+    JOBTRACK_LOG_LEVEL: 'error',
+    INBOUND_DOMAIN: 'mail.applictus.com',
+    POSTMARK_INBOUND_SECRET: 'test-inbound-secret'
+  });
+  t.after(stop);
+  if (!baseUrl || !db) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  const request = await createClient(baseUrl);
+  const userEmail = `forwarded-linkedin-${crypto.randomUUID()}@example.com`;
+  const signup = await request('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({
+      email: userEmail,
+      password: 'StrongPassword123!'
+    })
+  });
+  assert.equal(signup.status, 200);
+
+  const addressRes = await request('/api/inbound/address');
+  assert.equal(addressRes.status, 200);
+  const toEmail = addressRes.body.address_email;
+  assert.ok(toEmail);
+
+  const forwarded = await postInbound(baseUrl, buildForwardedLinkedInPayload(toEmail, userEmail));
+  assert.equal(forwarded.status, 200);
+
+  const syncRes = await request('/api/inbound/sync', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+  assert.equal(syncRes.status, 200);
+  assert.equal(syncRes.body.status, 'ok');
+  assert.ok(syncRes.body.processed >= 1);
+  assert.equal(syncRes.body.ignored, 0);
+
+  const inboundRow = await db
+    .prepare(
+      `SELECT processing_status, derived_company, derived_role, derived_debug_json
+       FROM inbound_messages
+       ORDER BY created_at DESC
+       LIMIT 1`
+    )
+    .get();
+  assert.equal(String(inboundRow.processing_status), 'processed');
+  assert.equal(inboundRow.derived_company, 'Cassidy');
+  assert.equal(inboundRow.derived_role, 'Software Engineer');
+
+  const debug = JSON.parse(String(inboundRow.derived_debug_json || '{}'));
+  assert.equal(debug?.forwarding_wrapper?.detected, true);
+  assert.equal(debug?.forwarding_wrapper?.used_original_for_parsing, true);
+  assert.equal(debug?.forwarding_wrapper?.original_from_email, 'jobs-noreply@linkedin.com');
+  assert.equal(String(debug?.provider_id || ''), 'linkedin_jobs');
+
+  const applications = await db
+    .prepare(
+      `SELECT COUNT(*) AS count
+       FROM job_applications
+       WHERE archived = 0`
+    )
+    .get();
+  assert.ok(Number(applications.count) >= 1);
+});
+
+test('inbound sync still suppresses genuine user-authored outbound replies', async (t) => {
+  const { baseUrl, db, stop } = await startServerWithEnv({
+    NODE_ENV: 'test',
+    JOBTRACK_DB_PATH: ':memory:',
+    JOBTRACK_LOG_LEVEL: 'error',
+    INBOUND_DOMAIN: 'mail.applictus.com',
+    POSTMARK_INBOUND_SECRET: 'test-inbound-secret'
+  });
+  t.after(stop);
+  if (!baseUrl || !db) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  const request = await createClient(baseUrl);
+  const userEmail = `outbound-suppression-${crypto.randomUUID()}@example.com`;
+  const signup = await request('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({
+      email: userEmail,
+      password: 'StrongPassword123!'
+    })
+  });
+  assert.equal(signup.status, 200);
+
+  const addressRes = await request('/api/inbound/address');
+  assert.equal(addressRes.status, 200);
+  const toEmail = addressRes.body.address_email;
+
+  const outbound = await postInbound(baseUrl, buildUserReplyPayload(toEmail, userEmail));
+  assert.equal(outbound.status, 200);
+
+  const syncRes = await request('/api/inbound/sync', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+  assert.equal(syncRes.status, 200);
+  assert.equal(syncRes.body.processed, 0);
+  assert.equal(syncRes.body.ignored, 1);
+
+  const row = await db
+    .prepare(
+      `SELECT processing_status, processing_error
+       FROM inbound_messages
+       ORDER BY created_at DESC
+       LIMIT 1`
+    )
+    .get();
+  assert.equal(String(row.processing_status), 'ignored');
+  assert.match(String(row.processing_error || ''), /suppressed:outbound_user/i);
+});
+
+test('inbound sync unwraps manually forwarded Workable confirmations', async (t) => {
+  const { baseUrl, db, stop } = await startServerWithEnv({
+    NODE_ENV: 'test',
+    JOBTRACK_DB_PATH: ':memory:',
+    JOBTRACK_LOG_LEVEL: 'error',
+    INBOUND_DOMAIN: 'mail.applictus.com',
+    POSTMARK_INBOUND_SECRET: 'test-inbound-secret'
+  });
+  t.after(stop);
+  if (!baseUrl || !db) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  const request = await createClient(baseUrl);
+  const userEmail = `forwarded-workable-${crypto.randomUUID()}@example.com`;
+  const signup = await request('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({
+      email: userEmail,
+      password: 'StrongPassword123!'
+    })
+  });
+  assert.equal(signup.status, 200);
+
+  const addressRes = await request('/api/inbound/address');
+  assert.equal(addressRes.status, 200);
+  const toEmail = addressRes.body.address_email;
+
+  const forwarded = await postInbound(baseUrl, buildForwardedWorkablePayload(toEmail, userEmail));
+  assert.equal(forwarded.status, 200);
+
+  const syncRes = await request('/api/inbound/sync', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+  assert.equal(syncRes.status, 200);
+  assert.ok(syncRes.body.processed >= 1);
+
+  const row = await db
+    .prepare(
+      `SELECT processing_status, derived_company, derived_role, derived_debug_json
+       FROM inbound_messages
+       ORDER BY created_at DESC
+       LIMIT 1`
+    )
+    .get();
+  assert.equal(String(row.processing_status), 'processed');
+  assert.equal(row.derived_company, 'EarthCam');
+  assert.equal(row.derived_role, 'Jr. Python Developer');
+  const debug = JSON.parse(String(row.derived_debug_json || '{}'));
+  assert.equal(debug?.forwarding_wrapper?.detected, true);
+  assert.equal(debug?.forwarding_wrapper?.original_from_email, 'noreply@candidates.workablemail.com');
+});
+
+test('inbound sync unwraps manually forwarded Indeed confirmations', async (t) => {
+  const { baseUrl, db, stop } = await startServerWithEnv({
+    NODE_ENV: 'test',
+    JOBTRACK_DB_PATH: ':memory:',
+    JOBTRACK_LOG_LEVEL: 'error',
+    INBOUND_DOMAIN: 'mail.applictus.com',
+    POSTMARK_INBOUND_SECRET: 'test-inbound-secret'
+  });
+  t.after(stop);
+  if (!baseUrl || !db) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  const request = await createClient(baseUrl);
+  const userEmail = `forwarded-indeed-${crypto.randomUUID()}@example.com`;
+  const signup = await request('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({
+      email: userEmail,
+      password: 'StrongPassword123!'
+    })
+  });
+  assert.equal(signup.status, 200);
+
+  const addressRes = await request('/api/inbound/address');
+  assert.equal(addressRes.status, 200);
+  const toEmail = addressRes.body.address_email;
+
+  const forwarded = await postInbound(baseUrl, buildForwardedIndeedPayload(toEmail, userEmail));
+  assert.equal(forwarded.status, 200);
+
+  const syncRes = await request('/api/inbound/sync', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+  assert.equal(syncRes.status, 200);
+  assert.ok(syncRes.body.processed >= 1);
+
+  const row = await db
+    .prepare(
+      `SELECT processing_status, derived_company, derived_role, derived_debug_json
+       FROM inbound_messages
+       ORDER BY created_at DESC
+       LIMIT 1`
+    )
+    .get();
+  assert.equal(String(row.processing_status), 'processed');
+  assert.equal(row.derived_company, 'Visual Computer Solutions');
+  assert.equal(row.derived_role, 'Mobile Developer');
+  const debug = JSON.parse(String(row.derived_debug_json || '{}'));
+  assert.equal(debug?.forwarding_wrapper?.detected, true);
+  assert.equal(debug?.forwarding_wrapper?.original_from_email, 'indeedapply@indeed.com');
 });

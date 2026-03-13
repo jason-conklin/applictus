@@ -118,11 +118,21 @@ function shouldSuppressEmail({
   headers,
   to,
   userEmail,
-  userName
+  userName,
+  forwardingWrapper
 }) {
   const sender = parseSenderParts(from);
+  const wrapperDetected = Boolean(forwardingWrapper?.detected);
+  const wrapperOriginalFrom = normalizeEmail(forwardingWrapper?.originalFromEmail || '');
+  const normalizedUserEmail = normalizeEmail(userEmail);
+  const forwardedExternalSource = Boolean(
+    wrapperDetected &&
+      wrapperOriginalFrom &&
+      normalizedUserEmail &&
+      wrapperOriginalFrom !== normalizedUserEmail
+  );
 
-  if (isOutboundUserMessage({ from, userEmail, userName })) {
+  if (!forwardedExternalSource && isOutboundUserMessage({ from, userEmail, userName })) {
     return { suppress: true, reason: 'outbound_user' };
   }
 

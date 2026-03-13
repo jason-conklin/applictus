@@ -23,6 +23,7 @@ const { getEmailEventColumns } = require('./db');
 const normalizeJobFields = require('./normalizeJobFields');
 const { shouldSuppressEmail } = require('./suppressEmail');
 const { parseJobEmail } = require('./parseJobEmail');
+const { extractForwardedOriginalMessage } = require('./forwardedMessage');
 const { buildApplicationKey: buildDeterministicApplicationKey } = require('./applicationKey');
 const {
   normalizeCompany: normalizeValidatedCompany,
@@ -2516,13 +2517,40 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
     try {
       const rawPayload = parseInboundRawPayload(row.raw_payload);
       const headers = Array.isArray(rawPayload?.Headers) ? rawPayload.Headers : [];
-      const sender = String(row.from_email || rawPayload?.From || '').trim();
-      const subject = String(row.subject || rawPayload?.Subject || '').trim();
+      const wrapperSender = String(row.from_email || rawPayload?.From || '').trim();
+      const wrapperSubject = String(row.subject || rawPayload?.Subject || '').trim();
       const fromTextBody = truncateBodyText(row.body_text || rawPayload?.TextBody || '');
       const fromHtmlBody = fromTextBody
         ? ''
         : truncateBodyText(stripHtml(row.body_html || rawPayload?.HtmlBody || ''));
-      const bodyText = fromTextBody || fromHtmlBody;
+      const wrapperBodyText = fromTextBody || fromHtmlBody;
+      const forwardedWrapper = extractForwardedOriginalMessage({
+        subject: wrapperSubject,
+        text: wrapperBodyText,
+        html: row.body_html || rawPayload?.HtmlBody || '',
+        fromEmail: wrapperSender
+      });
+      const originalTextCandidate =
+        forwardedWrapper.isForwarded && forwardedWrapper.originalText
+          ? truncateBodyText(forwardedWrapper.originalText)
+          : '';
+      const sender =
+        forwardedWrapper.isForwarded && forwardedWrapper.originalFromEmail
+          ? String(forwardedWrapper.originalFromEmail).trim()
+          : wrapperSender;
+      const subject =
+        forwardedWrapper.isForwarded && forwardedWrapper.originalSubject
+          ? String(forwardedWrapper.originalSubject).trim()
+          : wrapperSubject;
+      const bodyText = originalTextCandidate || wrapperBodyText;
+      const usedOriginalForParsing = Boolean(
+        forwardedWrapper.isForwarded &&
+          (
+            String(sender || '').toLowerCase() !== String(wrapperSender || '').toLowerCase() ||
+            String(subject || '').trim() !== String(wrapperSubject || '').trim() ||
+            Boolean(originalTextCandidate)
+          )
+      );
       const snippet = truncateSnippet(bodyText || subject || '', 180) || '';
       const senderLower = String(sender || '').toLowerCase();
       const senderDomain = senderLower.includes('@') ? senderLower.split('@')[1] : '';
@@ -2580,6 +2608,14 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
         signals: {
           interview: { score: 0, phrases_hit: [], time_slot_evidence: false },
           offer: { score: 0, phrases_hit: [] }
+        },
+        forwarding_wrapper: {
+          detected: Boolean(forwardedWrapper.isForwarded),
+          wrapper_subject: wrapperSubject || null,
+          original_subject: forwardedWrapper.originalSubject || null,
+          original_from_email: forwardedWrapper.originalFromEmail || null,
+          original_from_name: forwardedWrapper.originalFromName || null,
+          used_original_for_parsing: usedOriginalForParsing
         }
       };
 
@@ -2628,7 +2664,11 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
         headers,
         to: row.to_email || rawPayload?.To || '',
         userEmail,
-        userName
+        userName,
+        forwardingWrapper: {
+          detected: Boolean(forwardedWrapper.isForwarded),
+          originalFromEmail: forwardedWrapper.originalFromEmail || null
+        }
       });
       if (suppression?.suppress) {
         ignored += 1;
@@ -2669,7 +2709,7 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
         fromDomain: senderDomain,
         subject,
         text: bodyText,
-        html: row.body_html || rawPayload?.HtmlBody || '',
+        html: usedOriginalForParsing ? '' : row.body_html || rawPayload?.HtmlBody || '',
         headers,
         db,
         userId
