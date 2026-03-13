@@ -64,6 +64,19 @@ const API_BASE_URL = (() => {
   if (isLocal) return 'http://localhost:3000';
   return '';
 })();
+const INBOUND_DOMAIN_FALLBACK = 'mail.applictus.com';
+const RESERVED_INBOX_USERNAMES = new Set([
+  'support',
+  'admin',
+  'hello',
+  'postmaster',
+  'root',
+  'mail',
+  'noreply',
+  'no-reply',
+  'security',
+  'billing'
+]);
 
 function apiUrl(path) {
   if (!path) return API_BASE_URL || '';
@@ -224,6 +237,10 @@ const avatarInitials = document.getElementById('avatar-initials');
 
 const loginForm = document.getElementById('login-form');
 const signupForm = document.getElementById('signup-form');
+const signupInboxUsernameInput = document.getElementById('signup-inbox-username');
+const signupInboxPreview = document.getElementById('signup-inbox-preview');
+const signupInboxHint = document.getElementById('signup-inbox-hint');
+const signupInboxSuggestions = document.getElementById('signup-inbox-suggestions');
 const googleAuth = document.getElementById('google-auth');
 const accountLogout = document.getElementById('account-logout');
 const accountEmail = document.getElementById('account-email');
@@ -246,6 +263,11 @@ const inboundWhyToggle = document.getElementById('inbound-why-toggle');
 const inboundWhyPanel = document.getElementById('inbound-why-panel');
 const inboundDiagnosticsWrap = document.getElementById('inbound-diagnostics-wrap');
 const inboundDiagnosticsLink = document.getElementById('inbound-diagnostics-link');
+const accountInboxUsernamePrompt = document.getElementById('account-inbox-username-prompt');
+const accountInboxUsernameInput = document.getElementById('account-inbox-username-input');
+const accountInboxUsernameSave = document.getElementById('account-inbox-username-save');
+const accountInboxUsernameHint = document.getElementById('account-inbox-username-hint');
+const accountInboxUsernameSuggestions = document.getElementById('account-inbox-username-suggestions');
 const contactForm = document.getElementById('contact-form');
 const contactError = document.getElementById('contact-error');
 const contactSuccess = document.getElementById('contact-success');
@@ -514,6 +536,8 @@ const emailState = {
 };
 const inboundState = {
   addressEmail: null,
+  preferredAddressEmail: null,
+  inboxUsername: null,
   isActive: false,
   confirmedAt: null,
   lastReceivedAt: null,
@@ -555,6 +579,14 @@ const inboundAutoSyncState = {
   lastTriggeredSignalAt: null,
   lastToastAt: 0,
   lastAutoSyncAt: 0
+};
+const signupUsernameState = {
+  debounceTimer: null,
+  requestToken: 0
+};
+const accountUsernameState = {
+  debounceTimer: null,
+  requestToken: 0
 };
 const INBOUND_AUTO_SYNC_INTERVAL_MS = 9000;
 const INBOUND_AUTO_SYNC_DEBOUNCE_MS = 15000;
@@ -885,6 +917,188 @@ function resolveInboundSetupState(
   return reportedSetupState || 'not_started';
 }
 
+function setInlineHintState(element, message, state = null) {
+  if (!element) {
+    return;
+  }
+  element.textContent = message || '';
+  if (state) {
+    element.dataset.state = state;
+  } else {
+    element.removeAttribute('data-state');
+  }
+}
+
+function deriveDefaultInboxUsernameSeed() {
+  if (!sessionUser) {
+    return '';
+  }
+  const fromName = normalizeInboxUsernameInput(sessionUser.name || '');
+  if (fromName) {
+    return fromName;
+  }
+  const fromEmail = String(sessionUser.email || '').split('@')[0] || '';
+  return normalizeInboxUsernameInput(fromEmail);
+}
+
+function renderSignupInboxUsernameUi({ checkAvailability = true } = {}) {
+  if (!signupInboxUsernameInput) {
+    return;
+  }
+  const normalized = normalizeInboxUsernameInput(signupInboxUsernameInput.value);
+  if (signupInboxUsernameInput.value !== normalized) {
+    signupInboxUsernameInput.value = normalized;
+  }
+  const previewAddress = buildInboxAddressPreview(normalized);
+  if (signupInboxPreview) {
+    signupInboxPreview.textContent = previewAddress || '—';
+  }
+
+  const emailInput = signupForm?.querySelector('input[name="email"]');
+  const nameInput = signupForm?.querySelector('input[name="name"]');
+  const suggestions = buildInboxUsernameSuggestions({
+    name: nameInput?.value || '',
+    email: emailInput?.value || '',
+    currentValue: normalized
+  });
+  renderInboxSuggestionButtons(signupInboxSuggestions, suggestions, (value) => {
+    signupInboxUsernameInput.value = value;
+    renderSignupInboxUsernameUi({ checkAvailability: true });
+    signupInboxUsernameInput.focus();
+  });
+
+  const validation = validateInboxUsernameInput(normalized, { allowEmpty: true });
+  if (!normalized) {
+    setInlineHintState(signupInboxHint, 'Optional. You can set this later from Account.', null);
+    return;
+  }
+  if (!validation.ok) {
+    setInlineHintState(signupInboxHint, authErrorMessage(validation.code), 'error');
+    return;
+  }
+  if (!checkAvailability) {
+    setInlineHintState(signupInboxHint, `Inbox address preview: ${previewAddress}`, null);
+    return;
+  }
+
+  if (signupUsernameState.debounceTimer) {
+    window.clearTimeout(signupUsernameState.debounceTimer);
+    signupUsernameState.debounceTimer = null;
+  }
+  const expectedToken = ++signupUsernameState.requestToken;
+  setInlineHintState(signupInboxHint, 'Checking availability…', null);
+  signupUsernameState.debounceTimer = window.setTimeout(async () => {
+    const availability = await checkInboxUsernameAvailability(normalized, {
+      currentToken: signupUsernameState.requestToken,
+      expectedToken
+    }).catch(() => null);
+    if (!availability || expectedToken !== signupUsernameState.requestToken) {
+      return;
+    }
+    if (!availability.valid) {
+      setInlineHintState(signupInboxHint, authErrorMessage(availability.error), 'error');
+      return;
+    }
+    if (!availability.available) {
+      setInlineHintState(signupInboxHint, 'That username is already taken.', 'error');
+      return;
+    }
+    setInlineHintState(signupInboxHint, `${previewAddress} is available`, 'ok');
+  }, 220);
+}
+
+function renderAccountInboxUsernamePrompt({ checkAvailability = true } = {}) {
+  const showPrompt = Boolean(sessionUser && !sessionUser.inbox_username);
+  if (!accountInboxUsernamePrompt) {
+    return;
+  }
+  accountInboxUsernamePrompt.classList.toggle('hidden', !showPrompt);
+  if (!showPrompt) {
+    return;
+  }
+
+  if (accountInboxUsernameInput && !accountInboxUsernameInput.value.trim()) {
+    accountInboxUsernameInput.value = deriveDefaultInboxUsernameSeed();
+  }
+  const normalized = normalizeInboxUsernameInput(accountInboxUsernameInput?.value || '');
+  if (accountInboxUsernameInput && accountInboxUsernameInput.value !== normalized) {
+    accountInboxUsernameInput.value = normalized;
+  }
+
+  const suggestions = buildInboxUsernameSuggestions({
+    name: sessionUser?.name || '',
+    email: sessionUser?.email || '',
+    currentValue: normalized
+  });
+  renderInboxSuggestionButtons(accountInboxUsernameSuggestions, suggestions, (value) => {
+    if (!accountInboxUsernameInput) {
+      return;
+    }
+    accountInboxUsernameInput.value = value;
+    renderAccountInboxUsernamePrompt({ checkAvailability: true });
+    accountInboxUsernameInput.focus();
+  });
+
+  const validation = validateInboxUsernameInput(normalized, { allowEmpty: false });
+  const previewAddress = buildInboxAddressPreview(normalized);
+  if (!validation.ok) {
+    setInlineHintState(
+      accountInboxUsernameHint,
+      authErrorMessage(validation.code) ||
+        'Pick a unique username. Your inbox address will be username@mail.applictus.com.',
+      'error'
+    );
+    if (accountInboxUsernameSave) {
+      accountInboxUsernameSave.disabled = true;
+    }
+    return;
+  }
+  if (!checkAvailability) {
+    setInlineHintState(accountInboxUsernameHint, `Inbox address: ${previewAddress}`, null);
+    if (accountInboxUsernameSave) {
+      accountInboxUsernameSave.disabled = false;
+    }
+    return;
+  }
+
+  if (accountUsernameState.debounceTimer) {
+    window.clearTimeout(accountUsernameState.debounceTimer);
+    accountUsernameState.debounceTimer = null;
+  }
+  const expectedToken = ++accountUsernameState.requestToken;
+  setInlineHintState(accountInboxUsernameHint, 'Checking availability…', null);
+  if (accountInboxUsernameSave) {
+    accountInboxUsernameSave.disabled = true;
+  }
+  accountUsernameState.debounceTimer = window.setTimeout(async () => {
+    const availability = await checkInboxUsernameAvailability(normalized, {
+      currentToken: accountUsernameState.requestToken,
+      expectedToken
+    }).catch(() => null);
+    if (!availability || expectedToken !== accountUsernameState.requestToken) {
+      return;
+    }
+    if (!availability.valid) {
+      setInlineHintState(accountInboxUsernameHint, authErrorMessage(availability.error), 'error');
+      if (accountInboxUsernameSave) {
+        accountInboxUsernameSave.disabled = true;
+      }
+      return;
+    }
+    if (!availability.available) {
+      setInlineHintState(accountInboxUsernameHint, 'That username is already taken.', 'error');
+      if (accountInboxUsernameSave) {
+        accountInboxUsernameSave.disabled = true;
+      }
+      return;
+    }
+    setInlineHintState(accountInboxUsernameHint, `Inbox address: ${previewAddress}`, 'ok');
+    if (accountInboxUsernameSave) {
+      accountInboxUsernameSave.disabled = false;
+    }
+  }, 220);
+}
+
 function setDashboardScanButtonLabel(label) {
   if (!emailSync) {
     return;
@@ -1091,6 +1305,7 @@ function updateInboundStatusPresentation() {
   }
   renderForwardingSummary();
   updateDashboardPrimarySyncUI();
+  renderAccountInboxUsernamePrompt({ checkAvailability: false });
 }
 
 function setSyncRangeMenuOpen(open) {
@@ -2261,9 +2476,140 @@ function authErrorMessage(code) {
     GMAIL_NOT_CONFIGURED: 'Gmail connect is not configured yet.',
     TOKEN_ENC_KEY_REQUIRED: 'Token encryption is not configured yet.',
     GMAIL_CONNECT_FAILED: 'Google sign-in worked, but Gmail connection could not be completed.',
+    INBOX_USERNAME_REQUIRED: 'Choose an inbox username.',
+    INBOX_USERNAME_INVALID:
+      'Use 3-30 characters: lowercase letters, numbers, and hyphens (no leading/trailing or doubled hyphens).',
+    INBOX_USERNAME_RESERVED: 'That inbox username is reserved. Please choose another.',
+    INBOX_USERNAME_TAKEN: 'That inbox username is already taken.',
+    INBOX_USERNAME_IMMUTABLE:
+      'Your inbox username is locked after setup. Contact support if you need to change it.',
     DB_UNAVAILABLE: 'Service temporarily unavailable. Please retry in a moment.'
   };
   return messages[code] || 'Unable to sign in. Please try again.';
+}
+
+function getInboundDomainForDisplay() {
+  const candidate = String(inboundState.addressEmail || '')
+    .trim()
+    .toLowerCase();
+  const atIndex = candidate.lastIndexOf('@');
+  if (atIndex > 0 && atIndex < candidate.length - 1) {
+    return candidate.slice(atIndex + 1);
+  }
+  return INBOUND_DOMAIN_FALLBACK;
+}
+
+function normalizeInboxUsernameInput(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '');
+  return normalized.slice(0, 30);
+}
+
+function validateInboxUsernameInput(value, { allowEmpty = true } = {}) {
+  const normalized = normalizeInboxUsernameInput(value);
+  if (!normalized) {
+    if (allowEmpty) {
+      return { ok: true, value: '', code: null };
+    }
+    return { ok: false, value: '', code: 'INBOX_USERNAME_REQUIRED' };
+  }
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalized) || normalized.length < 3 || normalized.length > 30) {
+    return { ok: false, value: normalized, code: 'INBOX_USERNAME_INVALID' };
+  }
+  if (RESERVED_INBOX_USERNAMES.has(normalized)) {
+    return { ok: false, value: normalized, code: 'INBOX_USERNAME_RESERVED' };
+  }
+  return { ok: true, value: normalized, code: null };
+}
+
+function buildInboxAddressPreview(username) {
+  const normalized = normalizeInboxUsernameInput(username);
+  if (!normalized) {
+    return null;
+  }
+  return `${normalized}@${getInboundDomainForDisplay()}`;
+}
+
+function slugifyInboxSuggestion(value) {
+  return normalizeInboxUsernameInput(value);
+}
+
+function buildInboxUsernameSuggestions({ name = '', email = '', currentValue = '' } = {}) {
+  const suggestions = [];
+  const normalizedCurrent = normalizeInboxUsernameInput(currentValue);
+  const trimmedName = String(name || '').trim();
+  const trimmedEmail = String(email || '').trim().toLowerCase();
+  const emailLocal = trimmedEmail.includes('@') ? trimmedEmail.split('@')[0] : trimmedEmail;
+  const baseName = slugifyInboxSuggestion(trimmedName);
+  const compactName = slugifyInboxSuggestion(trimmedName.replace(/\s+/g, ''));
+  const emailSlug = slugifyInboxSuggestion(emailLocal);
+  const emailCompact = slugifyInboxSuggestion(emailLocal.replace(/[._-]+/g, ''));
+
+  [normalizedCurrent, baseName, compactName, emailCompact, emailSlug].forEach((candidate) => {
+    if (!candidate || suggestions.includes(candidate)) {
+      return;
+    }
+    const validation = validateInboxUsernameInput(candidate, { allowEmpty: false });
+    if (!validation.ok) {
+      return;
+    }
+    suggestions.push(candidate);
+  });
+
+  if (suggestions.length < 3) {
+    const fallbackSeed = suggestions[0] || emailCompact || compactName || 'applicant';
+    for (let suffix = 1; suffix <= 12 && suggestions.length < 3; suffix += 1) {
+      const candidate = slugifyInboxSuggestion(`${fallbackSeed}${suffix}`);
+      if (!candidate || suggestions.includes(candidate)) {
+        continue;
+      }
+      const validation = validateInboxUsernameInput(candidate, { allowEmpty: false });
+      if (!validation.ok) {
+        continue;
+      }
+      suggestions.push(candidate);
+    }
+  }
+
+  return suggestions.slice(0, 3);
+}
+
+function renderInboxSuggestionButtons(container, suggestions, onPick) {
+  if (!container) {
+    return;
+  }
+  container.innerHTML = '';
+  const values = Array.isArray(suggestions) ? suggestions.filter(Boolean) : [];
+  if (!values.length) {
+    container.classList.add('hidden');
+    return;
+  }
+  values.forEach((value) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'signup-inbox-suggestion';
+    button.textContent = value;
+    button.addEventListener('click', () => onPick(value));
+    container.appendChild(button);
+  });
+  container.classList.remove('hidden');
+}
+
+async function checkInboxUsernameAvailability(username, tokenRef) {
+  const normalized = normalizeInboxUsernameInput(username);
+  if (!normalized) {
+    return { available: true, valid: true, inbox_username: '' };
+  }
+  const result = await api(`/api/inbound/username/availability?username=${encodeURIComponent(normalized)}`);
+  if (tokenRef && tokenRef.currentToken !== tokenRef.expectedToken) {
+    return null;
+  }
+  return result;
 }
 
 function consumeAuthRedirectError() {
@@ -3101,6 +3447,9 @@ function setAuthPanel(panel) {
   if (document?.body?.classList.contains('animated-bg-auth')) {
     ensureAnimatedBackgroundLayout({ variant: 'auth' });
   }
+  if (panel === 'signup') {
+    renderSignupInboxUsernameUi({ checkAvailability: true });
+  }
 }
 
 function renderAccountPanel(user = sessionUser) {
@@ -3154,6 +3503,7 @@ function renderAccountPanel(user = sessionUser) {
       ? 'Update your password to keep your account secure.'
       : 'Set a password to sign in without Google.';
   }
+  renderAccountInboxUsernamePrompt({ checkAvailability: true });
 }
 
 let accountPasswordHintTimer = null;
@@ -3496,6 +3846,8 @@ async function refreshUnsortedEvents() {
 
 function applyInboundStatusPayload(data = {}) {
   inboundState.addressEmail = data.address_email || null;
+  inboundState.preferredAddressEmail = data.preferred_address_email || null;
+  inboundState.inboxUsername = data.inbox_username || sessionUser?.inbox_username || null;
   inboundState.isActive = Boolean(data.is_active);
   inboundState.confirmedAt = data.confirmed_at || null;
   inboundState.lastReceivedAt = data.last_received_at || null;
@@ -3520,6 +3872,9 @@ function applyInboundStatusPayload(data = {}) {
   inboundState.effectiveConnected = Boolean(data.effective_connected);
   inboundState.lastInboundSyncAt = data.last_inbound_sync_at || null;
   inboundState.lastInboundSync = data.last_inbound_sync || null;
+  if (sessionUser && inboundState.inboxUsername && !sessionUser.inbox_username) {
+    sessionUser.inbox_username = inboundState.inboxUsername;
+  }
   updateInboundStatusPresentation();
   updateSyncHelperText();
   updateInboundDiagnosticsVisibility();
@@ -3532,6 +3887,8 @@ async function refreshInboundStatus({ ensureAddress = true } = {}) {
     applyInboundStatusPayload(data || {});
   } catch (err) {
     inboundState.addressEmail = null;
+    inboundState.preferredAddressEmail = null;
+    inboundState.inboxUsername = sessionUser?.inbox_username || null;
     inboundState.isActive = false;
     inboundState.confirmedAt = null;
     inboundState.lastReceivedAt = null;
@@ -4111,6 +4468,48 @@ async function rotateInboundAddressFlow() {
     if (inboundRotateAddress) {
       inboundRotateAddress.disabled = false;
     }
+  }
+}
+
+async function saveAccountInboxUsername() {
+  if (!sessionUser || !accountInboxUsernameInput) {
+    return;
+  }
+  const validation = validateInboxUsernameInput(accountInboxUsernameInput.value, { allowEmpty: false });
+  if (!validation.ok) {
+    setInlineHintState(accountInboxUsernameHint, authErrorMessage(validation.code), 'error');
+    if (accountInboxUsernameSave) {
+      accountInboxUsernameSave.disabled = false;
+    }
+    return;
+  }
+
+  if (accountInboxUsernameSave) {
+    accountInboxUsernameSave.disabled = true;
+  }
+  accountInboxUsernameInput.disabled = true;
+
+  try {
+    const payload = await api('/api/account/inbox-username', {
+      method: 'POST',
+      body: JSON.stringify({ inbox_username: validation.value })
+    });
+    if (payload?.user) {
+      sessionUser = payload.user;
+      renderAccountPanel(sessionUser);
+      syncAccountAvatarIdentity(sessionUser);
+    }
+    if (payload?.inbound_status) {
+      applyInboundStatusPayload(payload.inbound_status);
+    } else {
+      await refreshInboundStatus({ ensureAddress: true });
+    }
+    showToast('Inbox username saved.', { tone: 'success' });
+  } catch (err) {
+    setInlineHintState(accountInboxUsernameHint, authErrorMessage(err?.message || err?.code), 'error');
+  } finally {
+    accountInboxUsernameInput.disabled = false;
+    renderAccountInboxUsernamePrompt({ checkAvailability: true });
   }
 }
 
@@ -6628,6 +7027,21 @@ if (signupForm && !signupForm.dataset.bound) {
     if (submitBtn) submitBtn.disabled = true;
     const formData = new FormData(signupForm);
     const payload = Object.fromEntries(formData.entries());
+    const inboxValidation = validateInboxUsernameInput(payload.inbox_username, { allowEmpty: true });
+    if (!inboxValidation.ok) {
+      showNotice(authErrorMessage(inboxValidation.code), 'Sign up failed');
+      if (signupInboxUsernameInput) {
+        signupInboxUsernameInput.focus();
+      }
+      signupForm.__submitting = false;
+      if (submitBtn) submitBtn.disabled = false;
+      return;
+    }
+    if (inboxValidation.value) {
+      payload.inbox_username = inboxValidation.value;
+    } else {
+      delete payload.inbox_username;
+    }
     try {
       if (DEBUG_AUTH) {
         // eslint-disable-next-line no-console
@@ -7396,6 +7810,34 @@ syncMenuButton?.addEventListener('click', (event) => {
 accountEmailSync?.addEventListener('click', async () => {
   updateAccountSyncOptionSelection('since_last');
   await runAccountSyncOption('since_last');
+});
+
+signupInboxUsernameInput?.addEventListener('input', () => {
+  renderSignupInboxUsernameUi({ checkAvailability: true });
+});
+
+signupForm?.querySelector('input[name="name"]')?.addEventListener('input', () => {
+  renderSignupInboxUsernameUi({ checkAvailability: false });
+});
+
+signupForm?.querySelector('input[name="email"]')?.addEventListener('input', () => {
+  renderSignupInboxUsernameUi({ checkAvailability: false });
+});
+
+accountInboxUsernameInput?.addEventListener('input', () => {
+  renderAccountInboxUsernamePrompt({ checkAvailability: true });
+});
+
+accountInboxUsernameInput?.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter') {
+    return;
+  }
+  event.preventDefault();
+  void saveAccountInboxUsername();
+});
+
+accountInboxUsernameSave?.addEventListener('click', async () => {
+  await saveAccountInboxUsername();
 });
 
 inboundOpenSetup?.addEventListener('click', () => {

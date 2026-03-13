@@ -36,6 +36,7 @@ const {
   normalizeText: normalizeInboundText,
   toIsoDate,
   getActiveInboundAddress,
+  getInboundAddressByLocal,
   getOrCreateInboundAddress,
   rotateInboundAddress
 } = require('./inbound');
@@ -59,6 +60,7 @@ const { pgMigrate, assertPgSchema } = require('./pgMigrate');
 const { getRuntimeDatabaseUrl } = require('./dbConfig');
 const { buildApplicationKey } = require('./normalizeJobFields');
 const { buildHintFingerprintFromEmail, upsertUserHint } = require('./hints');
+const { validateInboxUsername, normalizeInboxUsername } = require('./inboxUsername');
 
 function isProd() {
   return process.env.NODE_ENV === 'production';
@@ -519,6 +521,132 @@ async function getUserByEmail(email) {
   });
 }
 
+async function getUserByInboxUsername(username) {
+  const normalized = normalizeInboxUsername(username);
+  if (!normalized) {
+    return null;
+  }
+  return dbTimed(async () => {
+    const res = db
+      .prepare('SELECT * FROM users WHERE lower(inbox_username) = ? LIMIT 1')
+      .get(normalized);
+    return res && typeof res.then === 'function' ? await res : res;
+  });
+}
+
+function buildInboxAddressEmailFromUsername(username, inboundDomain = process.env.INBOUND_DOMAIN) {
+  const normalizedUsername = normalizeInboxUsername(username);
+  const normalizedDomain = String(inboundDomain || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, '');
+  if (!normalizedUsername || !normalizedDomain) {
+    return null;
+  }
+  return `${normalizedUsername}@${normalizedDomain}`;
+}
+
+function buildInboxUsernameSuggestionCandidates(base) {
+  const normalizedBase = normalizeInboxUsername(base) || 'applicant';
+  const out = [];
+  for (let i = 1; i <= 12 && out.length < 5; i += 1) {
+    const suffix = String(i);
+    const raw =
+      normalizedBase.length + suffix.length + 1 <= 30
+        ? `${normalizedBase}-${suffix}`
+        : `${normalizedBase.slice(0, Math.max(3, 30 - suffix.length))}${suffix}`;
+    const validation = validateInboxUsername(raw, { allowEmpty: false });
+    if (!validation.ok) {
+      continue;
+    }
+    if (out.includes(validation.value)) {
+      continue;
+    }
+    out.push(validation.value);
+  }
+  return out;
+}
+
+async function getInboundAddressRowByEmail(addressEmail) {
+  const normalized = normalizeEmail(addressEmail);
+  if (!normalized) {
+    return null;
+  }
+  return dbTimed(async () => {
+    const res = db
+      .prepare(
+        `SELECT id, user_id, address_email
+         FROM inbound_addresses
+         WHERE lower(address_email) = ?
+         LIMIT 1`
+      )
+      .get(normalized);
+    return res && typeof res.then === 'function' ? await res : res;
+  });
+}
+
+async function checkInboxUsernameAvailability(username, { excludeUserId = null } = {}) {
+  const validation = validateInboxUsername(username, { allowEmpty: false });
+  if (!validation.ok) {
+    return {
+      available: false,
+      valid: false,
+      error: validation.code || 'INBOX_USERNAME_INVALID',
+      inbox_username: validation.value || null,
+      address_email: null,
+      suggestions: []
+    };
+  }
+
+  const normalizedUsername = validation.value;
+  const addressEmail = buildInboxAddressEmailFromUsername(normalizedUsername);
+  const userConflict = await getUserByInboxUsername(normalizedUsername);
+  const inboundAddressConflict = addressEmail ? await getInboundAddressRowByEmail(addressEmail) : null;
+  const normalizedExclude = excludeUserId ? String(excludeUserId) : null;
+  const hasUserConflict = Boolean(userConflict && (!normalizedExclude || userConflict.id !== normalizedExclude));
+  const hasAddressConflict = Boolean(
+    inboundAddressConflict && (!normalizedExclude || inboundAddressConflict.user_id !== normalizedExclude)
+  );
+  if (!hasUserConflict && !hasAddressConflict) {
+    return {
+      available: true,
+      valid: true,
+      error: null,
+      inbox_username: normalizedUsername,
+      address_email: addressEmail,
+      suggestions: []
+    };
+  }
+
+  const suggestions = [];
+  for (const candidate of buildInboxUsernameSuggestionCandidates(normalizedUsername)) {
+    const candidateAddress = buildInboxAddressEmailFromUsername(candidate);
+    const [candidateUser, candidateAddressRow] = await Promise.all([
+      getUserByInboxUsername(candidate),
+      candidateAddress ? getInboundAddressRowByEmail(candidateAddress) : Promise.resolve(null)
+    ]);
+    const userTaken = Boolean(candidateUser && (!normalizedExclude || candidateUser.id !== normalizedExclude));
+    const addrTaken = Boolean(
+      candidateAddressRow && (!normalizedExclude || candidateAddressRow.user_id !== normalizedExclude)
+    );
+    if (!userTaken && !addrTaken) {
+      suggestions.push(candidate);
+    }
+    if (suggestions.length >= 3) {
+      break;
+    }
+  }
+
+  return {
+    available: false,
+    valid: true,
+    error: 'INBOX_USERNAME_TAKEN',
+    inbox_username: normalizedUsername,
+    address_email: addressEmail,
+    suggestions
+  };
+}
+
 async function getUserById(id) {
   return dbTimed(async () => {
     const res = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
@@ -526,20 +654,44 @@ async function getUserById(id) {
   });
 }
 
-async function createUser({ email, name, passwordHash, authProvider }) {
+async function createUser({ email, name, passwordHash, authProvider, inboxUsername = null }) {
   const id = crypto.randomUUID();
   const createdAt = nowIso();
   const provider = authProvider || 'password';
+  const normalizedInboxUsername = normalizeInboxUsername(inboxUsername);
   await dbTimed(async () => {
     const runRes = db.prepare(
-      `INSERT INTO users (id, email, name, password_hash, auth_provider, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, email, name || null, passwordHash || null, provider, createdAt, createdAt);
+      `INSERT INTO users (id, email, name, password_hash, auth_provider, inbox_username, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id,
+      email,
+      name || null,
+      passwordHash || null,
+      provider,
+      normalizedInboxUsername,
+      createdAt,
+      createdAt
+    );
     if (runRes && typeof runRes.then === 'function') {
       await runRes;
     }
   });
   return getUserById(id);
+}
+
+function toSessionUserPayload(user) {
+  if (!user) {
+    return null;
+  }
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    auth_provider: user.auth_provider || 'password',
+    has_password: Boolean(user.password_hash),
+    inbox_username: user.inbox_username || null
+  };
 }
 
 async function updateUser(userId, fields) {
@@ -1081,6 +1233,9 @@ async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) 
     .trim()
     .toLowerCase()
     .replace(/^@+/, '');
+  const userRow = await dbGet('SELECT inbox_username FROM users WHERE id = ? LIMIT 1', userId);
+  const inboxUsername = normalizeInboxUsername(userRow?.inbox_username);
+  const preferredAddressEmail = inboxUsername && inboundDomain ? `${inboxUsername}@${inboundDomain}` : null;
 
   const address = ensureAddress
     ? await getOrCreateInboundAddress(db, userId, { inboundDomain })
@@ -1109,6 +1264,8 @@ async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) 
     const pendingCount = signalRow ? Number(signalRow.pending_count || 0) : 0;
     return {
       address_email: null,
+      preferred_address_email: preferredAddressEmail,
+      inbox_username: inboxUsername,
       is_active: false,
       confirmed_at: null,
       last_received_at: null,
@@ -1175,6 +1332,8 @@ async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) 
 
   return {
     address_email: address.address_email || null,
+    preferred_address_email: preferredAddressEmail,
+    inbox_username: inboxUsername,
     is_active: normalizeDbBool(address.is_active),
     confirmed_at: address.confirmed_at || null,
     last_received_at: lastReceivedAt,
@@ -1927,15 +2086,7 @@ app.get('/api/auth/session', (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'NO_SESSION' });
   }
-  return res.json({
-    user: {
-      id: req.user.id,
-      email: req.user.email,
-      name: req.user.name,
-      auth_provider: req.user.auth_provider || 'password',
-      has_password: Boolean(req.user.password_hash)
-    }
-  });
+  return res.json({ user: toSessionUserPayload(req.user) });
 });
 
 app.post('/api/auth/login', authIpLimiter, authEmailLimiter, async (req, res) => {
@@ -1967,7 +2118,13 @@ app.post('/api/auth/login', authIpLimiter, authEmailLimiter, async (req, res) =>
     clearCsrfCookie(res);
 
     return res.json({
-      user: { id: user.id, email: user.email, name: user.name, auth_provider: user.auth_provider }
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        auth_provider: user.auth_provider,
+        inbox_username: user.inbox_username || null
+      }
     });
   } catch (err) {
     if (isDbUnavailableError(err)) {
@@ -1985,6 +2142,7 @@ app.post('/api/auth/signup', authIpLimiter, authEmailLimiter, async (req, res) =
   const email = normalizeEmail(req.body.email);
   const name = req.body.name ? String(req.body.name).trim() : null;
   const password = req.body.password ? String(req.body.password) : '';
+  const inboxValidation = validateInboxUsername(req.body.inbox_username, { allowEmpty: true });
 
   // Validation must short-circuit before any session logic runs
   if (!email) {
@@ -1996,9 +2154,29 @@ app.post('/api/auth/signup', authIpLimiter, authEmailLimiter, async (req, res) =
   if (!isPasswordValid(password)) {
     return res.status(400).json({ error: 'PASSWORD_TOO_SHORT', minLength: PASSWORD_MIN_LENGTH });
   }
+  if (!inboxValidation.ok) {
+    return res.status(400).json({ error: inboxValidation.code || 'INBOX_USERNAME_INVALID' });
+  }
 
   try {
     let user = await getUserByEmail(email);
+    const inboxUsername = inboxValidation.value;
+    if (inboxUsername) {
+      const currentUsername = normalizeInboxUsername(user?.inbox_username);
+      if (currentUsername && currentUsername !== inboxUsername) {
+        return res.status(409).json({ error: 'INBOX_USERNAME_IMMUTABLE' });
+      }
+
+      const availability = await checkInboxUsernameAvailability(inboxUsername, {
+        excludeUserId: user?.id || null
+      });
+      if (!availability.available) {
+        return res.status(409).json({
+          error: availability.error || 'INBOX_USERNAME_TAKEN',
+          suggestions: Array.isArray(availability.suggestions) ? availability.suggestions : []
+        });
+      }
+    }
     const passwordHash = hashPassword(password);
 
     if (user) {
@@ -2012,10 +2190,19 @@ app.post('/api/auth/signup', authIpLimiter, authEmailLimiter, async (req, res) =
       if (!user.name && name) {
         updates.name = name;
       }
+      if (inboxUsername && (!user.inbox_username || normalizeInboxUsername(user.inbox_username) !== inboxUsername)) {
+        updates.inbox_username = inboxUsername;
+      }
       await updateUser(user.id, updates);
       user = await getUserById(user.id);
     } else {
-      user = await createUser({ email, name, passwordHash, authProvider: 'password' });
+      user = await createUser({
+        email,
+        name,
+        passwordHash,
+        authProvider: 'password',
+        inboxUsername
+      });
     }
 
     if (!user || !user.id) {
@@ -2038,17 +2225,44 @@ app.post('/api/auth/signup', authIpLimiter, authEmailLimiter, async (req, res) =
 
     return res.json({
       ok: true,
-      user: { id: user.id, email: user.email, name: user.name, auth_provider: user.auth_provider }
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        auth_provider: user.auth_provider,
+        inbox_username: user.inbox_username || null
+      }
     });
   } catch (err) {
     if (isDbUnavailableError(err)) {
       return respondDbUnavailable(res, err, 'auth.signup');
+    }
+    if (isUniqueConstraintError(err) && /inbox_username/i.test(String(err?.message || ''))) {
+      return res.status(409).json({ error: 'INBOX_USERNAME_TAKEN' });
     }
     if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
       // eslint-disable-next-line no-console
       console.error('signup failed', err);
     }
     return res.status(500).json({ error: err.code || 'SIGNUP_FAILED' });
+  }
+});
+
+app.get('/api/inbound/username/availability', authIpLimiter, async (req, res) => {
+  try {
+    const availability = await checkInboxUsernameAvailability(req.query.username, {
+      excludeUserId: req.user?.id || null
+    });
+    return res.json(availability);
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'inbound.username_availability');
+    }
+    logError('inbound.username_availability.failed', {
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+    return res.status(500).json({ error: 'INBOX_USERNAME_AVAILABILITY_FAILED' });
   }
 });
 
@@ -2268,6 +2482,67 @@ app.post('/api/account/password', requireAuth, async (req, res) => {
   }
 });
 
+app.post('/api/account/inbox-username', requireAuth, async (req, res) => {
+  const validation = validateInboxUsername(req.body?.inbox_username, { allowEmpty: false });
+  if (!validation.ok) {
+    return res.status(400).json({ error: validation.code || 'INBOX_USERNAME_INVALID' });
+  }
+
+  try {
+    const desiredUsername = validation.value;
+    const user = await getUserById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'USER_NOT_FOUND' });
+    }
+
+    const currentUsername = normalizeInboxUsername(user.inbox_username);
+    if (currentUsername && currentUsername !== desiredUsername) {
+      return res.status(409).json({ error: 'INBOX_USERNAME_IMMUTABLE' });
+    }
+
+    if (!currentUsername) {
+      const availability = await checkInboxUsernameAvailability(desiredUsername, {
+        excludeUserId: req.user.id
+      });
+      if (!availability.available) {
+        return res.status(409).json({
+          error: availability.error || 'INBOX_USERNAME_TAKEN',
+          suggestions: Array.isArray(availability.suggestions) ? availability.suggestions : []
+        });
+      }
+      await updateUser(req.user.id, { inbox_username: desiredUsername });
+    }
+
+    const inboundDomain = String(process.env.INBOUND_DOMAIN || '')
+      .trim()
+      .toLowerCase()
+      .replace(/^@+/, '');
+    await getOrCreateInboundAddress(db, req.user.id, { inboundDomain });
+
+    const updatedUser = await getUserById(req.user.id);
+    const inboundStatus = await buildInboundAddressStatus(req.user.id, { ensureAddress: true });
+
+    return res.json({
+      ok: true,
+      user: toSessionUserPayload(updatedUser),
+      inbound_status: inboundStatus
+    });
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'account.inbox_username');
+    }
+    if (isUniqueConstraintError(err) && /inbox_username/i.test(String(err?.message || ''))) {
+      return res.status(409).json({ error: 'INBOX_USERNAME_TAKEN' });
+    }
+    logError('account.inbox_username.failed', {
+      userId: req.user?.id || null,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+    return res.status(500).json({ error: 'INBOX_USERNAME_UPDATE_FAILED' });
+  }
+});
+
 app.post('/api/contact', contactIpLimiter, async (req, res) => {
   try {
     const name = normalizeContactField(req.body?.name);
@@ -2379,7 +2654,10 @@ app.post('/api/inbound/address/rotate', requireAuth, async (req, res) => {
       .toLowerCase()
       .replace(/^@+/, '');
     const previous = await buildInboundAddressStatus(req.user.id, { ensureAddress: true });
-    await rotateInboundAddress(db, req.user.id, { inboundDomain });
+    await rotateInboundAddress(db, req.user.id, {
+      inboundDomain,
+      preferredLocal: normalizeInboxUsername(req.user?.inbox_username)
+    });
     const status = await buildInboundAddressStatus(req.user.id, { ensureAddress: false });
     return res.json({
       ...status,

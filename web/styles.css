@@ -2094,6 +2094,62 @@ p {
   gap: 12px;
 }
 
+.signup-inbox-meta {
+  margin-top: -4px;
+  display: grid;
+  gap: 7px;
+}
+
+.signup-inbox-preview code {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(43, 82, 145, 0.18);
+  background: rgba(239, 246, 255, 0.88);
+  color: #153a6f;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 11px;
+}
+
+.signup-inbox-hint[data-state='error'] {
+  color: #b12c2c;
+}
+
+.signup-inbox-hint[data-state='ok'] {
+  color: #1f7a3e;
+}
+
+.signup-inbox-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.signup-inbox-suggestion {
+  appearance: none;
+  border: 1px solid rgba(42, 82, 142, 0.22);
+  background: rgba(243, 248, 255, 0.9);
+  color: #1f467f;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.signup-inbox-suggestion:hover {
+  border-color: rgba(42, 82, 142, 0.34);
+  background: rgba(236, 244, 255, 0.96);
+}
+
+.signup-inbox-suggestion:focus-visible {
+  outline: 2px solid rgba(60, 120, 220, 0.4);
+  outline-offset: 1px;
+}
+
 label {
   display: grid;
   gap: 6px;
@@ -5755,6 +5811,50 @@ details summary {
   margin-top: 10px;
   line-height: 1.45;
   color: #4b6387;
+}
+
+.account-inbox-username-prompt {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px dashed rgba(37, 72, 128, 0.24);
+  background: linear-gradient(180deg, rgba(250, 253, 255, 0.9), rgba(244, 249, 255, 0.86));
+}
+
+.account-inbox-username-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-inbox-username-row input {
+  flex: 1 1 240px;
+  min-width: 180px;
+}
+
+.account-inbox-username-hint code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.account-inbox-username-hint[data-state='error'] {
+  color: #b12c2c;
+}
+
+.account-inbox-username-hint[data-state='ok'] {
+  color: #1f7a3e;
+}
+
+.account-inbox-username-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.account-inbox-username-suggestions .signup-inbox-suggestion {
+  font-size: 10.5px;
 }
 
 #inbound-old-address-warning {

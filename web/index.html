@@ -439,6 +439,29 @@
               <input type="email" name="email" required placeholder="you@domain.com" />
             </label>
             <label>
+              Inbox username
+              <input
+                type="text"
+                name="inbox_username"
+                id="signup-inbox-username"
+                placeholder="jasonconklin"
+                autocapitalize="off"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <span class="muted small">Used for your Applictus forwarding address.</span>
+            </label>
+            <div class="signup-inbox-meta" id="signup-inbox-meta">
+              <div class="signup-inbox-preview muted small">
+                Preview:
+                <code id="signup-inbox-preview">—</code>
+              </div>
+              <div class="signup-inbox-hint muted small" id="signup-inbox-hint">
+                Optional. You can set this later from Account.
+              </div>
+              <div class="signup-inbox-suggestions hidden" id="signup-inbox-suggestions"></div>
+            </div>
+            <label>
               Password
               <div class="input-with-toggle">
                 <input
@@ -534,6 +557,29 @@
               <code class="account-inbox-address" id="inbound-address-email">—</code>
               <button class="btn btn--ghost btn--sm" type="button" id="inbound-copy-address">Copy</button>
             </div>
+          </div>
+          <div class="account-inbox-username-prompt hidden" id="account-inbox-username-prompt">
+            <div class="muted small account-inbox-label">Choose your Applictus inbox username</div>
+            <div class="account-inbox-username-row">
+              <input
+                type="text"
+                id="account-inbox-username-input"
+                placeholder="jasonconklin"
+                autocapitalize="off"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button class="btn btn--primary btn--sm" type="button" id="account-inbox-username-save">
+                Save
+              </button>
+            </div>
+            <div class="muted small account-inbox-username-hint" id="account-inbox-username-hint">
+              Pick a unique username. Your inbox address will be <code>&lt;username&gt;@mail.applictus.com</code>.
+            </div>
+            <div
+              class="account-inbox-username-suggestions hidden"
+              id="account-inbox-username-suggestions"
+            ></div>
           </div>
           <div class="muted small account-inbox-meta" id="inbound-meta-line">Not connected yet.</div>
           <div class="callout callout-warning hidden" id="inbound-old-address-warning">

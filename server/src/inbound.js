@@ -161,6 +161,13 @@ function generateInboundAddressLocal() {
   return `u_${crypto.randomBytes(10).toString('hex')}`;
 }
 
+function normalizeInboundAddressLocal(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  return normalized || null;
+}
+
 function boolBind(db, value, isAsyncMode = null) {
   const asyncMode = typeof isAsyncMode === 'boolean' ? isAsyncMode : Boolean(db && db.isAsync);
   if (asyncMode) {
@@ -213,7 +220,87 @@ async function getActiveInboundAddress(db, userId, { includeInactive = false, is
   return normalizeInboundAddressRow(row);
 }
 
-async function createInboundAddress(db, userId, { inboundDomain = process.env.INBOUND_DOMAIN, isAsyncMode } = {}) {
+async function getInboundAddressByLocal(
+  db,
+  userId,
+  addressLocal,
+  { includeInactive = true, isAsyncMode } = {}
+) {
+  const normalizedLocal = normalizeInboundAddressLocal(addressLocal);
+  if (!normalizedLocal) {
+    return null;
+  }
+  const activeBind = boolBind(db, true, isAsyncMode);
+  const row = await awaitMaybe(
+    db
+      .prepare(
+        includeInactive
+          ? `SELECT id, user_id, address_local, address_email, is_active, created_at, rotated_at, confirmed_at, last_received_at
+             FROM inbound_addresses
+             WHERE user_id = ? AND lower(address_local) = ?
+             ORDER BY is_active DESC, created_at DESC
+             LIMIT 1`
+          : `SELECT id, user_id, address_local, address_email, is_active, created_at, rotated_at, confirmed_at, last_received_at
+             FROM inbound_addresses
+             WHERE user_id = ? AND lower(address_local) = ? AND is_active = ?
+             ORDER BY created_at DESC
+             LIMIT 1`
+      )
+      .get(...(includeInactive ? [userId, normalizedLocal] : [userId, normalizedLocal, activeBind]))
+  );
+  return normalizeInboundAddressRow(row);
+}
+
+async function getUserInboxUsername(db, userId) {
+  if (!db || typeof db.prepare !== 'function' || !userId) {
+    return null;
+  }
+  const row = await awaitMaybe(
+    db
+      .prepare(
+        `SELECT inbox_username
+         FROM users
+         WHERE id = ?
+         LIMIT 1`
+      )
+      .get(userId)
+  );
+  return normalizeInboundAddressLocal(row?.inbox_username);
+}
+
+async function setActiveInboundAddressById(db, userId, addressId, { isAsyncMode } = {}) {
+  if (!userId || !addressId) {
+    return null;
+  }
+  const activeTrue = boolBind(db, true, isAsyncMode);
+  await awaitMaybe(
+    db
+      .prepare('UPDATE inbound_addresses SET is_active = ?, rotated_at = NULL WHERE id = ?')
+      .run(activeTrue, addressId)
+  );
+  const row = await awaitMaybe(
+    db
+      .prepare(
+        `SELECT id, user_id, address_local, address_email, is_active, created_at, rotated_at, confirmed_at, last_received_at
+         FROM inbound_addresses
+         WHERE id = ? AND user_id = ?
+         LIMIT 1`
+      )
+      .get(addressId, userId)
+  );
+  return normalizeInboundAddressRow(row);
+}
+
+async function createInboundAddress(
+  db,
+  userId,
+  {
+    inboundDomain = process.env.INBOUND_DOMAIN,
+    isAsyncMode,
+    preferredLocal = null,
+    allowFallbackRandom = true
+  } = {}
+) {
   const domain = formatInboundDomain(inboundDomain);
   if (!domain) {
     const err = new Error('INBOUND_DOMAIN_REQUIRED');
@@ -222,11 +309,17 @@ async function createInboundAddress(db, userId, { inboundDomain = process.env.IN
   }
 
   const activeBind = boolBind(db, true, isAsyncMode);
+  const preferred = normalizeInboundAddressLocal(preferredLocal);
+  const candidateLocals = preferred ? [preferred] : [];
   let lastErr = null;
-  for (let attempt = 0; attempt < 6; attempt += 1) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
-    const addressLocal = generateInboundAddressLocal();
+    const addressLocal =
+      candidateLocals.length > 0 ? candidateLocals.shift() : generateInboundAddressLocal();
+    if (!addressLocal) {
+      continue;
+    }
     const addressEmail = `${addressLocal}@${domain}`;
     try {
       await awaitMaybe(
@@ -252,6 +345,10 @@ async function createInboundAddress(db, userId, { inboundDomain = process.env.IN
     } catch (err) {
       if (isUniqueViolation(err)) {
         lastErr = err;
+        if (!allowFallbackRandom && preferred && addressLocal === preferred) {
+          err.code = 'INBOUND_ADDRESS_LOCAL_CONFLICT';
+          throw err;
+        }
         continue;
       }
       throw err;
@@ -270,14 +367,42 @@ async function getOrCreateInboundAddress(db, userId, { inboundDomain = process.e
   if (!userId) {
     throw new Error('USER_ID_REQUIRED');
   }
+  const preferredLocal = await getUserInboxUsername(db, userId);
+  if (preferredLocal) {
+    const existingPreferred = await getInboundAddressByLocal(db, userId, preferredLocal, {
+      includeInactive: true
+    });
+    if (existingPreferred) {
+      if (existingPreferred.is_active) {
+        return existingPreferred;
+      }
+      return setActiveInboundAddressById(db, userId, existingPreferred.id, {});
+    }
+    return createInboundAddress(db, userId, {
+      inboundDomain,
+      preferredLocal,
+      allowFallbackRandom: false
+    });
+  }
+
   const existing = await getActiveInboundAddress(db, userId, { includeInactive: false });
   if (existing) {
     return existing;
   }
-  return createInboundAddress(db, userId, { inboundDomain });
+  return createInboundAddress(db, userId, {
+    inboundDomain
+  });
 }
 
-async function rotateInboundAddress(db, userId, { inboundDomain = process.env.INBOUND_DOMAIN } = {}) {
+async function rotateInboundAddress(
+  db,
+  userId,
+  {
+    inboundDomain = process.env.INBOUND_DOMAIN,
+    preferredLocal = null,
+    allowFallbackRandom = true
+  } = {}
+) {
   if (!db || typeof db.prepare !== 'function') {
     throw new Error('DB_REQUIRED');
   }
@@ -295,6 +420,19 @@ async function rotateInboundAddress(db, userId, { inboundDomain = process.env.IN
   const activeTrue = boolBind(db, true, isAsyncMode);
   const activeFalse = boolBind(db, false, isAsyncMode);
   const rotatedAt = new Date().toISOString();
+  const normalizedPreferredLocal = normalizeInboundAddressLocal(preferredLocal);
+
+  const currentActive = await getActiveInboundAddress(db, userId, {
+    includeInactive: false,
+    isAsyncMode
+  });
+  if (
+    currentActive &&
+    normalizedPreferredLocal &&
+    normalizeInboundAddressLocal(currentActive.address_local) === normalizedPreferredLocal
+  ) {
+    return currentActive;
+  }
 
   if (isAsyncMode && typeof db.transaction === 'function') {
     return db.transaction(async (tx) => {
@@ -307,27 +445,84 @@ async function rotateInboundAddress(db, userId, { inboundDomain = process.env.IN
           )
           .run(activeFalse, rotatedAt, userId, activeTrue)
       );
+      if (normalizedPreferredLocal) {
+        const existingPreferred = await awaitMaybe(
+          tx
+            .prepare(
+              `SELECT id, user_id, address_local, address_email, is_active, created_at, rotated_at, confirmed_at, last_received_at
+               FROM inbound_addresses
+               WHERE user_id = ? AND lower(address_local) = ?
+               ORDER BY created_at DESC
+               LIMIT 1`
+            )
+            .get(userId, normalizedPreferredLocal)
+        );
+        if (existingPreferred) {
+          await awaitMaybe(
+            tx
+              .prepare('UPDATE inbound_addresses SET is_active = ?, rotated_at = NULL WHERE id = ?')
+              .run(activeTrue, existingPreferred.id)
+          );
+          return {
+            ...existingPreferred,
+            is_active: true,
+            rotated_at: null
+          };
+        }
+      }
       return createInboundAddress(tx, userId, {
         inboundDomain: normalizedDomain,
-        isAsyncMode: true
+        isAsyncMode: true,
+        preferredLocal: normalizedPreferredLocal,
+        allowFallbackRandom
       });
     });
   }
 
   if (!isAsyncMode && typeof db.transaction === 'function') {
-    const tx = db.transaction((targetUserId, domain) => {
+    const tx = db.transaction((targetUserId, domain, preferredLocalInput, fallbackRandom) => {
       db.prepare(
         `UPDATE inbound_addresses
          SET is_active = ?, rotated_at = ?
          WHERE user_id = ? AND is_active = ?`
       ).run(activeFalse, rotatedAt, targetUserId, activeTrue);
 
+      const preferredExisting = preferredLocalInput
+        ? normalizeInboundAddressRow(
+            db
+              .prepare(
+                `SELECT id, user_id, address_local, address_email, is_active, created_at, rotated_at, confirmed_at, last_received_at
+                 FROM inbound_addresses
+                 WHERE user_id = ? AND lower(address_local) = ?
+                 ORDER BY created_at DESC
+                 LIMIT 1`
+              )
+              .get(targetUserId, preferredLocalInput)
+          )
+        : null;
+      if (preferredExisting) {
+        db.prepare('UPDATE inbound_addresses SET is_active = ?, rotated_at = NULL WHERE id = ?').run(
+          activeTrue,
+          preferredExisting.id
+        );
+        return {
+          ...preferredExisting,
+          is_active: true,
+          rotated_at: null
+        };
+      }
+
       const activeBind = boolBind(db, true, false);
       let lastErr = null;
-      for (let attempt = 0; attempt < 6; attempt += 1) {
+      const candidateLocals = preferredLocalInput ? [preferredLocalInput] : [];
+      for (let attempt = 0; attempt < 8; attempt += 1) {
         const id = crypto.randomUUID();
         const createdAt = new Date().toISOString();
-        const addressLocal = generateInboundAddressLocal();
+        const addressLocal =
+          candidateLocals.length > 0 ? candidateLocals.shift() : generateInboundAddressLocal();
+        if (!addressLocal) {
+          continue;
+        }
         const addressEmail = `${addressLocal}@${domain}`;
         try {
           db.prepare(
@@ -349,6 +544,10 @@ async function rotateInboundAddress(db, userId, { inboundDomain = process.env.IN
         } catch (err) {
           if (isUniqueViolation(err)) {
             lastErr = err;
+            if (!fallbackRandom && preferredLocalInput && addressLocal === preferredLocalInput) {
+              err.code = 'INBOUND_ADDRESS_LOCAL_CONFLICT';
+              throw err;
+            }
             continue;
           }
           throw err;
@@ -359,7 +558,7 @@ async function rotateInboundAddress(db, userId, { inboundDomain = process.env.IN
       }
       throw new Error('INBOUND_ADDRESS_CREATE_FAILED');
     });
-    return tx(userId, normalizedDomain);
+    return tx(userId, normalizedDomain, normalizedPreferredLocal, allowFallbackRandom);
   }
 
   await awaitMaybe(
@@ -371,7 +570,30 @@ async function rotateInboundAddress(db, userId, { inboundDomain = process.env.IN
       )
       .run(activeFalse, rotatedAt, userId, activeTrue)
   );
-  return createInboundAddress(db, userId, { inboundDomain: normalizedDomain, isAsyncMode });
+  if (normalizedPreferredLocal) {
+    const preferredExisting = await getInboundAddressByLocal(db, userId, normalizedPreferredLocal, {
+      includeInactive: true,
+      isAsyncMode
+    });
+    if (preferredExisting) {
+      await awaitMaybe(
+        db
+          .prepare('UPDATE inbound_addresses SET is_active = ?, rotated_at = NULL WHERE id = ?')
+          .run(activeTrue, preferredExisting.id)
+      );
+      return {
+        ...preferredExisting,
+        is_active: true,
+        rotated_at: null
+      };
+    }
+  }
+  return createInboundAddress(db, userId, {
+    inboundDomain: normalizedDomain,
+    isAsyncMode,
+    preferredLocal: normalizedPreferredLocal,
+    allowFallbackRandom
+  });
 }
 
 module.exports = {
@@ -386,7 +608,10 @@ module.exports = {
   stripHtml,
   buildInboundMessageSha256,
   generateInboundAddressLocal,
+  normalizeInboundAddressLocal,
+  getUserInboxUsername,
   getActiveInboundAddress,
+  getInboundAddressByLocal,
   createInboundAddress,
   getOrCreateInboundAddress,
   rotateInboundAddress
