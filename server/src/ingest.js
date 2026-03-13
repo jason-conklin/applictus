@@ -2733,6 +2733,11 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
       debugMeta.normalization.parser_company_in = parsedEmail?.company || null;
       debugMeta.normalization.parser_role_in = parsedEmail?.role || null;
       debugMeta.hints = parsedEmail?.hints || debugMeta.hints;
+      if (String(parsedEmail?.providerId || '') === 'linkedin_jobs' && parsedEmail?.parserDebug) {
+        debugMeta.linkedin_role_line_detected = parsedEmail.parserDebug.linkedin_role_line_detected || null;
+        debugMeta.linkedin_role_cleaned = parsedEmail.parserDebug.linkedin_role_cleaned || null;
+        debugMeta.role_source = parsedEmail.parserDebug.role_source || null;
+      }
 
       const parsedDetectedType = mapParsedStatusToDetectedType(parsedEmail?.status);
       const parserHasHighSignal = Boolean(

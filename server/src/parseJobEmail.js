@@ -206,6 +206,7 @@ async function parseJobEmail(payload = {}) {
       role: Array.from(new Set([...(parsed?.candidates?.role || []), parsed?.role].filter(Boolean)))
     },
     notes,
+    parserDebug: parsed?.debug && typeof parsed.debug === 'object' ? parsed.debug : null,
     hints: {
       applied: Boolean(matchedHint),
       reason: hintResult?.match_reason || (matchedHint ? 'matched' : 'none'),

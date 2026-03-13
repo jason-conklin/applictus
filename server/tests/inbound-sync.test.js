@@ -481,6 +481,9 @@ test('inbound sync unwraps manually forwarded LinkedIn confirmations and creates
   assert.equal(debug?.forwarding_wrapper?.used_original_for_parsing, true);
   assert.equal(debug?.forwarding_wrapper?.original_from_email, 'jobs-noreply@linkedin.com');
   assert.equal(String(debug?.provider_id || ''), 'linkedin_jobs');
+  assert.equal(debug?.linkedin_role_line_detected, 'Software Engineer');
+  assert.equal(debug?.linkedin_role_cleaned, 'Software Engineer');
+  assert.equal(debug?.role_source, 'line_above_company');
 
   const applications = await db
     .prepare(
