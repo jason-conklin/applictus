@@ -1,14 +1,15 @@
 const { google } = require('googleapis');
 
-const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
-
-const GOOGLE_SIGNIN_SCOPES = [
+const GOOGLE_SIGNIN_SCOPES = Object.freeze([
   'openid',
   'email',
   'profile'
-];
-const GOOGLE_GMAIL_SCOPES = [GMAIL_READONLY_SCOPE];
+]);
 const DEFAULT_REDIRECT = `${process.env.APP_API_BASE_URL || 'http://localhost:3000'}/api/auth/google/callback`;
+
+function getIdentityScopes() {
+  return [...GOOGLE_SIGNIN_SCOPES];
+}
 
 function getGoogleAuthConfig() {
   const clientId = process.env.GOOGLE_AUTH_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
@@ -32,13 +33,10 @@ function getGoogleOAuthClient() {
 function getGoogleAuthUrl(oAuthClient, state, options = {}) {
   const prompt = options.prompt || 'select_account';
   const accessType = options.accessType || 'online';
-  const scopes =
-    Array.isArray(options.scopes) && options.scopes.length
-      ? options.scopes
-      : GOOGLE_SIGNIN_SCOPES;
+  const scopes = getIdentityScopes();
   return oAuthClient.generateAuthUrl({
     access_type: accessType,
-    include_granted_scopes: true,
+    include_granted_scopes: false,
     scope: scopes,
     state,
     prompt
@@ -80,7 +78,5 @@ module.exports = {
   getGoogleOAuthClient,
   getGoogleAuthUrl,
   getGoogleProfileFromCode,
-  GOOGLE_SIGNIN_SCOPES,
-  GOOGLE_GMAIL_SCOPES,
-  GMAIL_READONLY_SCOPE
+  GOOGLE_SIGNIN_SCOPES
 };

@@ -1,4 +1,5 @@
 const { normalizeCompany, normalizeRole } = require('../validateJobFields');
+const { detectStatusSignal } = require('./common');
 
 const COMPANY_LEGAL_SUFFIXES = new Set([
   'llc',
@@ -569,11 +570,50 @@ function parse({ subject, text }) {
     source: candidate.source || null
   }));
   debug.linkedin_role_selected = role || null;
+  const statusSignal = detectStatusSignal({
+    subject: subjectText,
+    text: body,
+    company,
+    role,
+    defaultStatus: 'applied'
+  });
+  const status = statusSignal.status || 'applied';
+  const statusConfidence =
+    status === 'applied'
+      ? Math.max(Number(statusSignal.confidence || 0), 92)
+      : Number(statusSignal.confidence || 0);
+  const companySource = subjectCompanyMatch
+    ? 'subject_anchor'
+    : debug.linkedin_company_line_detected
+      ? 'company_location_line'
+      : anchorLine?.company
+        ? 'anchor_line'
+        : null;
+  const rejectedCandidates = scoredCandidates
+    .filter((candidate) => candidate && candidate.rejected)
+    .map((candidate) => ({
+      field: 'role',
+      value: candidate.raw || null,
+      reason: candidate.reason || null,
+      source: candidate.source || null
+    }));
+  debug.provider = 'linkedin_jobs';
+  debug.parser_strategy = 'anchor_then_nearby_window';
+  debug.company_source = companySource;
+  debug.role_source = debug.linkedin_role_source || null;
+  debug.status_source = statusSignal.source || null;
+  debug.ignored_sections = [];
+  debug.rejected_candidates = rejectedCandidates;
+  debug.chosen_fields = {
+    company: company || null,
+    role: role || null,
+    status
+  };
 
   return {
     company,
     role,
-    status: 'applied',
+    status,
     confidence: {
       company: company ? (subjectCompanyMatch ? 96 : 78) : 0,
       role: role
@@ -583,7 +623,7 @@ function parse({ subject, text }) {
             ? 88
             : 80
         : 0,
-      status: 92,
+      status: statusConfidence,
       key: company && role ? 90 : 0
     },
     candidates,

@@ -5,6 +5,8 @@ const FORBIDDEN_COMPANY_VALUES = new Set([
   'linkedin',
   'workday',
   'workable',
+  'greenhouse',
+  'lever',
   'glassdoor',
   'recruitingteam',
   'talentacquisitionteam',

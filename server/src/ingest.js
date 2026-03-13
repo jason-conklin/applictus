@@ -2740,6 +2740,9 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
       debugMeta.normalization.parser_company_in = parsedEmail?.company || null;
       debugMeta.normalization.parser_role_in = parsedEmail?.role || null;
       debugMeta.hints = parsedEmail?.hints || debugMeta.hints;
+      if (parsedEmail?.parserDebug && typeof parsedEmail.parserDebug === 'object') {
+        debugMeta.parser_debug = parsedEmail.parserDebug;
+      }
       if (String(parsedEmail?.providerId || '') === 'linkedin_jobs' && parsedEmail?.parserDebug) {
         debugMeta.linkedin_company_line = parsedEmail.parserDebug.linkedin_company_line || null;
         debugMeta.linkedin_company_line_detected = parsedEmail.parserDebug.linkedin_company_line_detected || null;
@@ -2762,6 +2765,14 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
         debugMeta.linkedin_role_line_detected = parsedEmail.parserDebug.linkedin_role_line_detected || null;
         debugMeta.linkedin_role_cleaned = parsedEmail.parserDebug.linkedin_role_cleaned || null;
         debugMeta.role_source = parsedEmail.parserDebug.role_source || null;
+      }
+      if (String(parsedEmail?.providerId || '') === 'workday' && parsedEmail?.parserDebug) {
+        debugMeta.rejection_phrase_detected = parsedEmail.parserDebug.rejection_phrase_detected || null;
+        debugMeta.company_source = parsedEmail.parserDebug.company_source || null;
+        debugMeta.role_source = parsedEmail.parserDebug.role_source || null;
+        debugMeta.ignored_metadata_lines = Array.isArray(parsedEmail.parserDebug.ignored_metadata_lines)
+          ? parsedEmail.parserDebug.ignored_metadata_lines
+          : [];
       }
 
       const parsedDetectedType = mapParsedStatusToDetectedType(parsedEmail?.status);

@@ -9,19 +9,15 @@ process.env.JOBTRACK_TOKEN_ENC_KEY = crypto.randomBytes(32).toString('base64');
 process.env.GOOGLE_AUTH_CLIENT_ID = 'test-google-auth-client';
 process.env.GOOGLE_AUTH_CLIENT_SECRET = 'test-google-auth-secret';
 process.env.GOOGLE_AUTH_REDIRECT_URI = 'http://localhost:3000/api/auth/google/callback';
-process.env.GMAIL_CLIENT_ID = 'test-gmail-client';
-process.env.GMAIL_CLIENT_SECRET = 'test-gmail-secret';
-process.env.GMAIL_REDIRECT_URI = 'http://localhost:3000/api/email/callback';
 
 const { startServer, stopServer, db } = require('../src/index');
-const { upsertTokens, getStoredTokens } = require('../src/email');
 
 function getCookieMap(response) {
   const setCookies = response.headers.getSetCookie
     ? response.headers.getSetCookie()
     : response.headers.get('set-cookie')
-    ? [response.headers.get('set-cookie')]
-    : [];
+      ? [response.headers.get('set-cookie')]
+      : [];
   const map = new Map();
   for (const entry of setCookies) {
     const token = entry.split(';')[0];
@@ -60,24 +56,12 @@ async function beginGoogleOAuth(baseUrl) {
   };
 }
 
-function assertGoogleScope(location, expectedScopes = []) {
+function getScopesFromLocation(location) {
   const target = new URL(location);
-  const rawScope = target.searchParams.get('scope') || '';
-  const scopes = rawScope.split(/\s+/).filter(Boolean);
-  expectedScopes.forEach((scope) => assert.ok(scopes.includes(scope)));
-  return scopes;
-}
-
-async function completeAutoGmailConnect(baseUrl, sessionCookie, tokens = {}) {
-  const response = await fetch(
-    `${baseUrl}/api/email/callback?state=auto_connect&test_access_token=${encodeURIComponent(tokens.accessToken || 'auto-access')}&test_refresh_token=${encodeURIComponent(tokens.refreshToken || 'auto-refresh')}`,
-    {
-      headers: { Cookie: sessionCookie },
-      redirect: 'manual'
-    }
-  );
-  assert.equal(response.status, 302);
-  return response.headers.get('location') || '';
+  return (target.searchParams.get('scope') || '')
+    .split(/\s+/)
+    .map((scope) => scope.trim())
+    .filter(Boolean);
 }
 
 test('google start returns GOOGLE_NOT_CONFIGURED only when oauth env is missing', async (t) => {
@@ -104,22 +88,28 @@ test('google start returns GOOGLE_NOT_CONFIGURED only when oauth env is missing'
   delete process.env.GOOGLE_CLIENT_ID;
   delete process.env.GOOGLE_CLIENT_SECRET;
   delete process.env.GOOGLE_REDIRECT_URI;
+
   try {
     const response = await fetch(`${baseUrl}/api/auth/google/start`, { redirect: 'manual' });
     assert.equal(response.status, 302);
     assert.match(response.headers.get('location') || '', /auth_error=GOOGLE_NOT_CONFIGURED/);
   } finally {
-    process.env.GOOGLE_AUTH_CLIENT_ID = saved.GOOGLE_AUTH_CLIENT_ID || '';
-    process.env.GOOGLE_AUTH_CLIENT_SECRET = saved.GOOGLE_AUTH_CLIENT_SECRET || '';
-    process.env.GOOGLE_AUTH_REDIRECT_URI = saved.GOOGLE_AUTH_REDIRECT_URI || '';
-    if (saved.GOOGLE_CLIENT_ID !== undefined) process.env.GOOGLE_CLIENT_ID = saved.GOOGLE_CLIENT_ID;
-    if (saved.GOOGLE_CLIENT_SECRET !== undefined)
-      process.env.GOOGLE_CLIENT_SECRET = saved.GOOGLE_CLIENT_SECRET;
-    if (saved.GOOGLE_REDIRECT_URI !== undefined) process.env.GOOGLE_REDIRECT_URI = saved.GOOGLE_REDIRECT_URI;
+    if (saved.GOOGLE_AUTH_CLIENT_ID === undefined) delete process.env.GOOGLE_AUTH_CLIENT_ID;
+    else process.env.GOOGLE_AUTH_CLIENT_ID = saved.GOOGLE_AUTH_CLIENT_ID;
+    if (saved.GOOGLE_AUTH_CLIENT_SECRET === undefined) delete process.env.GOOGLE_AUTH_CLIENT_SECRET;
+    else process.env.GOOGLE_AUTH_CLIENT_SECRET = saved.GOOGLE_AUTH_CLIENT_SECRET;
+    if (saved.GOOGLE_AUTH_REDIRECT_URI === undefined) delete process.env.GOOGLE_AUTH_REDIRECT_URI;
+    else process.env.GOOGLE_AUTH_REDIRECT_URI = saved.GOOGLE_AUTH_REDIRECT_URI;
+    if (saved.GOOGLE_CLIENT_ID === undefined) delete process.env.GOOGLE_CLIENT_ID;
+    else process.env.GOOGLE_CLIENT_ID = saved.GOOGLE_CLIENT_ID;
+    if (saved.GOOGLE_CLIENT_SECRET === undefined) delete process.env.GOOGLE_CLIENT_SECRET;
+    else process.env.GOOGLE_CLIENT_SECRET = saved.GOOGLE_CLIENT_SECRET;
+    if (saved.GOOGLE_REDIRECT_URI === undefined) delete process.env.GOOGLE_REDIRECT_URI;
+    else process.env.GOOGLE_REDIRECT_URI = saved.GOOGLE_REDIRECT_URI;
   }
 });
 
-test('google start requests identity scopes only (no gmail.readonly)', async (t) => {
+test('google start requests only identity scopes', async (t) => {
   const server = await startServer(0, { log: false, host: '127.0.0.1' });
   t.after(async () => {
     await stopServer();
@@ -129,11 +119,14 @@ test('google start requests identity scopes only (no gmail.readonly)', async (t)
     address && typeof address === 'object' ? `http://localhost:${address.port}` : 'http://localhost';
 
   const flow = await beginGoogleOAuth(baseUrl);
-  const scopes = assertGoogleScope(flow.location, ['openid', 'email', 'profile']);
-  assert.ok(!scopes.includes('https://www.googleapis.com/auth/gmail.readonly'));
+  const scopes = getScopesFromLocation(flow.location);
+  assert.deepEqual(scopes, ['openid', 'email', 'profile']);
+  assert.ok(
+    !scopes.some((scope) => /gmail|mail\.google\.com|googleapis\.com\/auth\/gmail/i.test(scope))
+  );
 });
 
-test('new user google signup creates account and chains to gmail connect without storing tokens in auth callback', async (t) => {
+test('google callback signs in new user and redirects to app (no gmail auto-chain)', async (t) => {
   const server = await startServer(0, { log: false, host: '127.0.0.1' });
   t.after(async () => {
     await stopServer();
@@ -152,41 +145,13 @@ test('new user google signup creates account and chains to gmail connect without
     }
   );
   assert.equal(callback.status, 302);
-  assert.match(callback.headers.get('location') || '', /^\/api\/email\/connect\/start\?mode=auto/);
+  assert.equal(callback.headers.get('location'), 'http://localhost:3000/app');
   const callbackCookies = getCookieMap(callback);
   const sessionCookie = callbackCookies.get('jt_session');
   assert.ok(sessionCookie);
-
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-  assert.ok(user);
-  assert.equal(user.auth_provider, 'google');
-
-  const tokens = await getStoredTokens(db, user.id);
-  assert.equal(tokens, null);
-
-  const connectStart = await fetch(`${baseUrl}/api/email/connect/start?mode=auto`, {
-    headers: { Cookie: sessionCookie },
-    redirect: 'manual'
-  });
-  assert.equal(connectStart.status, 302);
-  const gmailScopes = assertGoogleScope(connectStart.headers.get('location') || '', [
-    'https://www.googleapis.com/auth/gmail.readonly'
-  ]);
-  assert.equal(gmailScopes.includes('openid'), false);
-
-  const doneLocation = await completeAutoGmailConnect(baseUrl, sessionCookie, {
-    accessToken: 'new-access',
-    refreshToken: 'new-refresh'
-  });
-  assert.match(doneLocation, /gmail_connected=1/);
-
-  const storedTokens = await getStoredTokens(db, user.id);
-  assert.equal(storedTokens?.access_token, 'new-access');
-  assert.equal(storedTokens?.refresh_token, 'new-refresh');
-  assert.equal(storedTokens?.connected_email, email);
 });
 
-test('existing user with connected gmail is not overwritten by google sign-in', async (t) => {
+test('existing user google sign-in merges provider without gmail token flow', async (t) => {
   const server = await startServer(0, { log: false, host: '127.0.0.1' });
   t.after(async () => {
     await stopServer();
@@ -197,16 +162,6 @@ test('existing user with connected gmail is not overwritten by google sign-in', 
 
   const email = `google-existing-${crypto.randomUUID()}@example.com`;
   const userId = insertUser(email, 'password');
-  await upsertTokens(
-    db,
-    userId,
-    {
-      access_token: 'existing-access',
-      refresh_token: 'existing-refresh',
-      scope: 'https://www.googleapis.com/auth/gmail.readonly'
-    },
-    email
-  );
 
   const flow = await beginGoogleOAuth(baseUrl);
   const callback = await fetch(
@@ -219,13 +174,11 @@ test('existing user with connected gmail is not overwritten by google sign-in', 
   assert.equal(callback.status, 302);
   assert.equal(callback.headers.get('location'), 'http://localhost:3000/app');
 
-  const stored = await getStoredTokens(db, userId);
-  assert.equal(stored?.access_token, 'existing-access');
-  assert.equal(stored?.refresh_token, 'existing-refresh');
-  assert.equal(stored?.connected_email, email);
+  const updated = db.prepare('SELECT auth_provider FROM users WHERE id = ?').get(userId);
+  assert.equal(updated.auth_provider, 'password+google');
 });
 
-test('existing user without gmail connection is chained to connect and can be attached', async (t) => {
+test('legacy gmail oauth endpoints are disabled', async (t) => {
   const server = await startServer(0, { log: false, host: '127.0.0.1' });
   t.after(async () => {
     await stopServer();
@@ -234,10 +187,8 @@ test('existing user without gmail connection is chained to connect and can be at
   const baseUrl =
     address && typeof address === 'object' ? `http://localhost:${address.port}` : 'http://localhost';
 
-  const email = `google-attach-${crypto.randomUUID()}@example.com`;
-  const userId = insertUser(email, 'password');
-
   const flow = await beginGoogleOAuth(baseUrl);
+  const email = `google-legacy-${crypto.randomUUID()}@example.com`;
   const callback = await fetch(
     `${baseUrl}/api/auth/google/callback?state=${encodeURIComponent(flow.state)}&test_email=${encodeURIComponent(email)}`,
     {
@@ -245,23 +196,14 @@ test('existing user without gmail connection is chained to connect and can be at
       redirect: 'manual'
     }
   );
-  assert.equal(callback.status, 302);
-  assert.match(callback.headers.get('location') || '', /^\/api\/email\/connect\/start\?mode=auto/);
   const callbackCookies = getCookieMap(callback);
   const sessionCookie = callbackCookies.get('jt_session');
   assert.ok(sessionCookie);
 
-  const beforeConnect = await getStoredTokens(db, userId);
-  assert.equal(beforeConnect, null);
-
-  const doneLocation = await completeAutoGmailConnect(baseUrl, sessionCookie, {
-    accessToken: 'attach-access',
-    refreshToken: 'attach-refresh'
+  const connectStart = await fetch(`${baseUrl}/api/email/connect/start`, {
+    headers: { Cookie: sessionCookie.split(';')[0] }
   });
-  assert.match(doneLocation, /gmail_connected=1/);
-
-  const afterConnect = await getStoredTokens(db, userId);
-  assert.equal(afterConnect?.access_token, 'attach-access');
-  assert.equal(afterConnect?.refresh_token, 'attach-refresh');
-  assert.equal(afterConnect?.connected_email, email);
+  assert.equal(connectStart.status, 410);
+  const body = await connectStart.json();
+  assert.equal(body.error, 'GMAIL_LEGACY_DISABLED');
 });

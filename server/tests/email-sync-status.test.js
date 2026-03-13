@@ -70,7 +70,7 @@ async function createClient(baseUrl) {
   };
 }
 
-test('email sync status returns unknown_sync_id instead of 404', async (t) => {
+test('email sync status reports gmail legacy disabled', async (t) => {
   const server = await startServer(0, { log: false, host: '127.0.0.1' });
   const address = server.address();
   const baseUrl =
@@ -89,6 +89,5 @@ test('email sync status returns unknown_sync_id instead of 404', async (t) => {
 
   const { body } = await request(`/api/email/sync/status?sync_id=${encodeURIComponent('missing')}`);
   assert.equal(body.ok, false);
-  assert.equal(body.status, 'unknown_sync_id');
+  assert.equal(body.status, 'gmail_legacy_disabled');
 });
-

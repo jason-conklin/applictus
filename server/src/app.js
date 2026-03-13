@@ -10,23 +10,13 @@ const { openDb, migrate } = require('./db');
 const { ApplicationStatus } = require('../../shared/types');
 const { createRateLimiter } = require('./rateLimiter');
 const {
-  getOAuthClientConfig,
-  getOAuthClient,
-  getAuthUrl,
-  GMAIL_SCOPES,
-  upsertTokens,
-  getStoredTokens,
-  fetchConnectedEmail,
-  isEncryptionReady
-} = require('./email');
-const {
   getGoogleAuthConfig,
   getGoogleOAuthClient,
   getGoogleAuthUrl,
   getGoogleProfileFromCode,
   GOOGLE_SIGNIN_SCOPES
 } = require('./googleAuth');
-const { syncGmailMessages, syncInboundForwardedMessages, getSyncProgress } = require('./ingest');
+const { syncInboundForwardedMessages } = require('./ingest');
 const { logInfo, logWarn, logError } = require('./logger');
 const {
   extractInboundRecipient,
@@ -140,10 +130,7 @@ const CONTACT_EMAIL_MAX = 254;
 const CONTACT_MESSAGE_MAX = 4000;
 const GOOGLE_STATE_COOKIE = 'jt_google_state';
 const GOOGLE_STATE_TTL_MS = 10 * 60 * 1000;
-const GMAIL_AUTO_CONNECT_STATE = 'auto_connect';
-const GMAIL_SYNC_ACTION_TYPE = 'GMAIL_SYNC';
 const INBOUND_SYNC_ACTION_TYPE = 'INBOUND_SYNC';
-const FIRST_SYNC_DAYS = 30;
 const INBOUND_CONNECTED_WINDOW_DAYS = 30;
 const INBOUND_MESSAGE_COUNT_WINDOW_DAYS = 7;
 const INBOUND_INACTIVE_WARNING_WINDOW_DAYS = 7;
@@ -974,36 +961,6 @@ function getWebRedirectWithParams(params = {}) {
   return target.toString();
 }
 
-async function getStoredGmailTokenRow(userId) {
-  const rowOrPromise = db
-    .prepare('SELECT * FROM oauth_tokens WHERE provider = ? AND user_id = ?')
-    .get('gmail', userId);
-  return rowOrPromise && typeof rowOrPromise.then === 'function' ? await rowOrPromise : rowOrPromise;
-}
-
-async function clearStoredGmailConnection(userId) {
-  const resultOrPromise = db
-    .prepare('DELETE FROM oauth_tokens WHERE provider = ? AND user_id = ?')
-    .run('gmail', userId);
-  if (resultOrPromise && typeof resultOrPromise.then === 'function') {
-    await resultOrPromise;
-  }
-}
-
-async function hasStoredGmailConnection(userId) {
-  const row = await getStoredGmailTokenRow(userId);
-  if (!row) {
-    return false;
-  }
-  return Boolean(
-    row.connected_email ||
-      row.access_token_enc ||
-      row.refresh_token_enc ||
-      row.access_token ||
-      row.refresh_token
-  );
-}
-
 function parseIsoDate(value) {
   if (!value) {
     return null;
@@ -1013,106 +970,6 @@ function parseIsoDate(value) {
     return null;
   }
   return date;
-}
-
-function clampSyncDays(value, fallback = FIRST_SYNC_DAYS) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-  return Math.max(1, Math.min(365, Math.floor(parsed)));
-}
-
-function computeApplicationsUpdated(result = {}) {
-  const explicit = Number(result.applications_updated);
-  if (Number.isFinite(explicit)) {
-    return explicit;
-  }
-  const updatedRejected = Number(result.updated_status_to_rejected_total || 0);
-  const updatedApplied = Number(result.updated_status_to_applied_total || 0);
-  const createdApps = Number(
-    result.createdApplications || result.created_apps_total || result.created_apps_confirmation_total || 0
-  );
-  return createdApps || updatedRejected + updatedApplied;
-}
-
-function normalizeSyncMeta(raw, fallbackCreatedAt = null) {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-  const lastSyncedAt =
-    raw.last_synced_at ||
-    raw.synced_at ||
-    raw.time_window_end ||
-    fallbackCreatedAt ||
-    null;
-  const parsedLastSynced = parseIsoDate(lastSyncedAt);
-  if (!parsedLastSynced) {
-    return null;
-  }
-  const parsedWindowStart = parseIsoDate(raw.time_window_start);
-  const parsedWindowEnd = parseIsoDate(raw.time_window_end);
-  const scanned = Number(raw.message_count_scanned);
-  const updated = Number(raw.applications_updated);
-  const days = Number(raw.days);
-  return {
-    mode: raw.mode === 'days' ? 'days' : 'since_last',
-    days: Number.isFinite(days) ? days : null,
-    last_synced_at: parsedLastSynced.toISOString(),
-    time_window_start: parsedWindowStart ? parsedWindowStart.toISOString() : null,
-    time_window_end: parsedWindowEnd ? parsedWindowEnd.toISOString() : null,
-    message_count_scanned: Number.isFinite(scanned) ? scanned : null,
-    applications_updated: Number.isFinite(updated) ? updated : null
-  };
-}
-
-async function getLatestGmailSyncMeta(userId) {
-  const rowOrPromise = db
-    .prepare(
-      `SELECT action_payload, created_at
-       FROM user_actions
-       WHERE user_id = ? AND action_type = ?
-       ORDER BY created_at DESC
-       LIMIT 1`
-    )
-    .get(userId, GMAIL_SYNC_ACTION_TYPE);
-  const row = rowOrPromise && typeof rowOrPromise.then === 'function' ? await rowOrPromise : rowOrPromise;
-  if (!row?.action_payload) {
-    return null;
-  }
-  let parsed = null;
-  try {
-    parsed = JSON.parse(row.action_payload);
-  } catch (_) {
-    parsed = null;
-  }
-  return normalizeSyncMeta(parsed, row.created_at);
-}
-
-async function storeGmailSyncMeta(userId, payload) {
-  if (!userId || !payload) {
-    return;
-  }
-  const normalized = normalizeSyncMeta(payload);
-  if (!normalized) {
-    return;
-  }
-  const resultOrPromise = db
-    .prepare(
-      `INSERT INTO user_actions (id, user_id, application_id, action_type, action_payload, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    )
-    .run(
-      crypto.randomUUID(),
-      userId,
-      null,
-      GMAIL_SYNC_ACTION_TYPE,
-      JSON.stringify(normalized),
-      nowIso()
-    );
-  if (resultOrPromise && typeof resultOrPromise.then === 'function') {
-    await resultOrPromise;
-  }
 }
 
 function normalizeInboundSyncMeta(raw, fallbackCreatedAt = null) {
@@ -2445,6 +2302,9 @@ app.get('/api/auth/google/start', authIpLimiter, (req, res) => {
     ...cookieDomainOptions()
   });
   if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+    logInfo('google.oauth.scopes_requested', {
+      scopes: GOOGLE_SIGNIN_SCOPES
+    });
     // eslint-disable-next-line no-console
     console.debug('[google-auth] start', {
       redirect_uri: authConfig.redirectUri,
@@ -2453,7 +2313,6 @@ app.get('/api/auth/google/start', authIpLimiter, (req, res) => {
     });
   }
   const url = getGoogleAuthUrl(oAuthClient, state, {
-    scopes: GOOGLE_SIGNIN_SCOPES,
     accessType: 'online',
     prompt: 'select_account'
   });
@@ -2537,21 +2396,6 @@ app.get('/api/auth/google/callback', authIpLimiter, async (req, res) => {
     }
   }
 
-  let shouldAutoConnectGmail = false;
-  if (user?.id) {
-    try {
-      const alreadyConnected = await hasStoredGmailConnection(user.id);
-      shouldAutoConnectGmail = !alreadyConnected && Boolean(getOAuthClient()) && isEncryptionReady();
-    } catch (err) {
-      logError('google-auth.auto-connect-check-failed', {
-        userId: user.id,
-        code: err && err.code ? String(err.code) : null,
-        message: err && err.message ? String(err.message) : String(err)
-      });
-      shouldAutoConnectGmail = false;
-    }
-  }
-
   // Guard against missing user id before session creation (dialect-safe)
   if (!user || !user.id) {
     if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
@@ -2574,9 +2418,6 @@ app.get('/api/auth/google/callback', authIpLimiter, async (req, res) => {
   const session = await createSession(user.id);
   setSessionCookie(res, session.token);
   clearCsrfCookie(res);
-  if (shouldAutoConnectGmail) {
-    return res.redirect('/api/email/connect/start?mode=auto');
-  }
   return res.redirect(`${WEB_BASE_URL}/app`);
 });
 
@@ -3101,356 +2942,50 @@ app.post('/api/inbound/sync', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/email/status', requireAuth, async (req, res) => {
-  const configured = Boolean(getOAuthClient());
-  const encryptionReady = isEncryptionReady();
-  let tokens = null;
-  let lastSync = null;
-  if (encryptionReady) {
-    try {
-      tokens = await getStoredTokens(db, req.user.id);
-    } catch (err) {
-      return res.json({
-        configured,
-        encryptionReady: false,
-        connected: false,
-        email: null,
-        error: 'TOKEN_ENC_KEY_INVALID'
-      });
-    }
-  }
-  try {
-    lastSync = await getLatestGmailSyncMeta(req.user.id);
-  } catch (err) {
-    lastSync = null;
-  }
+app.get('/api/email/status', requireAuth, (_req, res) => {
   return res.json({
-    configured,
-    encryptionReady,
-    connected: Boolean(tokens),
-    email: tokens?.connected_email || null,
-    last_synced_at: lastSync?.last_synced_at || null,
-    last_sync: lastSync
+    configured: false,
+    encryptionReady: false,
+    connected: false,
+    email: null,
+    legacy_disabled: true
   });
 });
 
-app.post('/api/email/disconnect', requireAuth, async (req, res) => {
-  try {
-    await clearStoredGmailConnection(req.user.id);
-    return res.json({ ok: true });
-  } catch (err) {
-    logError('gmail.disconnect.failed', {
-      userId: req.user?.id || null,
-      code: err && err.code ? String(err.code) : null,
-      message: err && err.message ? String(err.message) : String(err)
-    });
-    return res.status(500).json({ error: 'GMAIL_DISCONNECT_FAILED' });
-  }
+app.post('/api/email/disconnect', requireAuth, (_req, res) => {
+  return res.json({ ok: true, legacy_disabled: true });
 });
 
-app.get('/api/email/connect/start', requireAuth, (req, res) => {
-  const oauthConfig = getOAuthClientConfig();
-  const oAuthClient = getOAuthClient();
-  if (!oAuthClient) {
-    return res.redirect(getWebRedirectWithParams({ auth_error: 'GMAIL_NOT_CONFIGURED' }));
-  }
-  if (!isEncryptionReady()) {
-    return res.redirect(getWebRedirectWithParams({ auth_error: 'TOKEN_ENC_KEY_REQUIRED' }));
-  }
-  const mode = req.query.mode === 'auto' ? 'auto' : 'manual';
-  const url = getAuthUrl(oAuthClient, {
-    state: mode === 'auto' ? GMAIL_AUTO_CONNECT_STATE : undefined,
-    accessType: 'offline',
-    prompt: 'consent'
+app.get('/api/email/connect/start', requireAuth, (_req, res) => {
+  return res.status(410).json({
+    error: 'GMAIL_LEGACY_DISABLED',
+    message: 'Legacy Gmail API connect has been disabled. Use forwarding-based inbox setup.'
   });
-  if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
-    const clientId = oauthConfig?.clientId ? `${String(oauthConfig.clientId).slice(0, 12)}...` : null;
-    // eslint-disable-next-line no-console
-    console.debug('[gmail-connect] oauth', {
-      clientId,
-      projectHint: oauthConfig?.source || 'unknown',
-      redirectUri: oauthConfig?.redirectUri || null,
-      scopes: GMAIL_SCOPES
-    });
-    try {
-      const parsed = new URL(url);
-      const scopes = (parsed.searchParams.get('scope') || '')
-        .split(/\s+/)
-        .map((item) => item.trim())
-        .filter(Boolean);
-      // eslint-disable-next-line no-console
-      console.debug('[gmail-oauth] start', {
-        mode,
-        client_id: parsed.searchParams.get('client_id'),
-        scopes
-      });
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.debug('[gmail-oauth] start', { mode, parse_error: String(err && err.message ? err.message : err) });
-    }
-  }
-  return res.redirect(url);
 });
 
-app.post('/api/email/connect', requireAuth, (req, res) => {
-  // eslint-disable-next-line no-console
-  console.log('[gmail-connect] hit', { method: req.method, path: req.originalUrl || req.path });
-  const oauthConfig = getOAuthClientConfig();
-  const oAuthClient = getOAuthClient();
-  if (!oAuthClient) {
-    return res.status(400).json({ error: 'GMAIL_NOT_CONFIGURED' });
-  }
-  if (!isEncryptionReady()) {
-    return res.status(400).json({ error: 'TOKEN_ENC_KEY_REQUIRED' });
-  }
-  const url = getAuthUrl(oAuthClient);
-  let clientId = oauthConfig?.clientId || null;
-  let redirectUri = oauthConfig?.redirectUri || null;
-  let scopes = Array.isArray(GMAIL_SCOPES) ? GMAIL_SCOPES : [];
-  let authUrlHost = null;
-  let scopeStringLength = scopes.join(' ').length;
-  let projectHint = oauthConfig?.source || 'unknown';
-
-  try {
-    const parsed = new URL(url);
-    const queryClientId = parsed.searchParams.get('client_id') || clientId;
-    const queryRedirectUri = parsed.searchParams.get('redirect_uri') || redirectUri;
-    const scopeString = parsed.searchParams.get('scope') || '';
-    const queryScopes = scopeString
-      .split(/\s+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-    clientId = queryClientId;
-    redirectUri = queryRedirectUri;
-    scopes = queryScopes.length ? queryScopes : scopes;
-    authUrlHost = parsed.host || null;
-    scopeStringLength = scopeString.length || scopeStringLength;
-  } catch (_) {
-    // Keep fallbacks from env + configured scopes if URL parsing fails.
-  }
-
-  const clientIdPrefix = clientId ? `${String(clientId).slice(0, 12)}…` : null;
-  // eslint-disable-next-line no-console
-  console.log('[gmail-connect] oauth', {
-    clientIdPrefix,
-    projectHint,
-    redirectUri,
-    scopes,
-    authUrlHost,
-    scopeStringLength
+app.post('/api/email/connect', requireAuth, (_req, res) => {
+  return res.status(410).json({
+    error: 'GMAIL_LEGACY_DISABLED',
+    message: 'Legacy Gmail API connect has been disabled. Use forwarding-based inbox setup.'
   });
-
-  if (process.env.NODE_ENV !== 'production') {
-    return res.json({
-      url,
-      debug: {
-        clientIdPrefix,
-        projectHint,
-        redirectUri,
-        scopes,
-        authUrlHost,
-        scopeStringLength
-      }
-    });
-  }
-
-  return res.json({ url });
 });
 
-app.get('/api/email/callback', requireAuth, async (req, res) => {
-  const mode = String(req.query.state || '') === GMAIL_AUTO_CONNECT_STATE ? 'auto' : 'manual';
-  const oAuthClient = getOAuthClient();
-  if (!oAuthClient) {
-    if (mode === 'auto') {
-      return res.redirect(getWebRedirectWithParams({ auth_error: 'GMAIL_NOT_CONFIGURED' }));
-    }
-    return res.status(400).send('Gmail OAuth not configured.');
-  }
-  if (!isEncryptionReady()) {
-    if (mode === 'auto') {
-      return res.redirect(getWebRedirectWithParams({ auth_error: 'TOKEN_ENC_KEY_REQUIRED' }));
-    }
-    return res.status(400).send('Missing token encryption key.');
-  }
-  let tokens = null;
-  if (process.env.NODE_ENV === 'test' && (req.query.test_access_token || req.query.test_refresh_token)) {
-    tokens = {
-      access_token: req.query.test_access_token ? String(req.query.test_access_token) : null,
-      refresh_token: req.query.test_refresh_token ? String(req.query.test_refresh_token) : null,
-      scope: req.query.test_scope ? String(req.query.test_scope) : undefined,
-      expiry_date: req.query.test_expiry_date ? Number(req.query.test_expiry_date) : undefined
-    };
-    oAuthClient.setCredentials(tokens);
-  } else {
-    const code = req.query.code;
-    if (!code) {
-      if (mode === 'auto') {
-        return res.redirect(getWebRedirectWithParams({ auth_error: 'OAUTH_CODE_MISSING' }));
-      }
-      return res.status(400).send('Missing OAuth code.');
-    }
-    try {
-      const tokenResponse = await oAuthClient.getToken(code);
-      tokens = tokenResponse?.tokens || null;
-      oAuthClient.setCredentials(tokens || {});
-    } catch (err) {
-      if (mode === 'auto') {
-        return res.redirect(getWebRedirectWithParams({ auth_error: 'GMAIL_CONNECT_FAILED' }));
-      }
-      return res.status(500).send('Failed to connect Gmail.');
-    }
-  }
-
-  if (!tokens || (!tokens.access_token && !tokens.refresh_token)) {
-    if (mode === 'auto') {
-      return res.redirect(getWebRedirectWithParams({ auth_error: 'GMAIL_CONNECT_FAILED' }));
-    }
-    return res.status(400).send('Missing OAuth code.');
-  }
-
-  try {
-    let connectedEmail = null;
-    try {
-      connectedEmail = await fetchConnectedEmail(oAuthClient);
-    } catch (err) {
-      connectedEmail = null;
-    }
-    if (!connectedEmail && mode === 'auto' && req.user?.email) {
-      connectedEmail = normalizeEmail(req.user.email);
-    }
-    await upsertTokens(db, req.user.id, tokens, connectedEmail);
-    if (mode === 'auto') {
-      return res.redirect(getWebRedirectWithParams({ gmail_connected: '1' }));
-    }
-    return res.redirect(`${WEB_BASE_URL}/app#account`);
-  } catch (err) {
-    if (mode === 'auto') {
-      return res.redirect(getWebRedirectWithParams({ auth_error: 'GMAIL_CONNECT_FAILED' }));
-    }
-    return res.status(500).send('Failed to connect Gmail.');
-  }
+app.get('/api/email/callback', requireAuth, (_req, res) => {
+  return res.redirect(getWebRedirectWithParams({ auth_error: 'GMAIL_LEGACY_DISABLED' }));
 });
 
-app.post('/api/email/sync', requireAuth, async (req, res) => {
-  const mode = req.body.mode === 'days' ? 'days' : 'since_last';
-  const requestedDays = clampSyncDays(req.body.days, FIRST_SYNC_DAYS);
-  const maxResults = Number(req.body.maxResults) || 500;
-  const syncId = req.body.sync_id || crypto.randomUUID();
-  if (!isEncryptionReady()) {
-    return res.status(400).json({ error: 'TOKEN_ENC_KEY_REQUIRED' });
-  }
-  try {
-    const syncEnd = new Date();
-    let syncStart = null;
-    let effectiveDays = requestedDays;
-    if (mode === 'since_last') {
-      const lastSync = await getLatestGmailSyncMeta(req.user.id);
-      const lastSyncedDate = parseIsoDate(lastSync?.last_synced_at);
-      if (lastSyncedDate && lastSyncedDate.getTime() < syncEnd.getTime()) {
-        syncStart = lastSyncedDate;
-      } else {
-        syncStart = new Date(syncEnd.getTime() - FIRST_SYNC_DAYS * 24 * 60 * 60 * 1000);
-      }
-      effectiveDays = Math.max(
-        1,
-        Math.round((syncEnd.getTime() - syncStart.getTime()) / (24 * 60 * 60 * 1000))
-      );
-    } else {
-      syncStart = new Date(syncEnd.getTime() - requestedDays * 24 * 60 * 60 * 1000);
-      effectiveDays = requestedDays;
-    }
-
-    migrate(db);
-    const result = await syncGmailMessages({
-      db,
-      userId: req.user.id,
-      days: effectiveDays,
-      maxResults,
-      syncId,
-      mode,
-      timeWindowStart: syncStart,
-      timeWindowEnd: syncEnd
-    });
-    if ((result?.status || 'ok') !== 'not_connected') {
-      const syncMeta = normalizeSyncMeta({
-        mode,
-        days: effectiveDays,
-        last_synced_at: syncEnd.toISOString(),
-        time_window_start: result.time_window_start || syncStart.toISOString(),
-        time_window_end: result.time_window_end || syncEnd.toISOString(),
-        message_count_scanned:
-          result.total_messages_listed ?? result.fetched_total ?? result.fetched ?? 0,
-        applications_updated: computeApplicationsUpdated(result)
-      });
-      if (syncMeta) {
-        await storeGmailSyncMeta(req.user.id, syncMeta);
-      }
-      return res.json({
-        ...result,
-        sync_id: syncId,
-        mode,
-        days: effectiveDays,
-        last_synced_at: syncMeta?.last_synced_at || syncEnd.toISOString(),
-        message_count_scanned: syncMeta?.message_count_scanned ?? null,
-        applications_updated: syncMeta?.applications_updated ?? null,
-        last_sync: syncMeta || null
-      });
-    }
-    return res.json({ ...result, sync_id: syncId, mode, days: effectiveDays });
-  } catch (err) {
-    if (isGoogleInvalidGrantError(err)) {
-      let providerEmail = null;
-      try {
-        const row = await getStoredGmailTokenRow(req.user.id);
-        providerEmail = row?.connected_email || null;
-      } catch (_) {
-        providerEmail = null;
-      }
-      try {
-        await clearStoredGmailConnection(req.user.id);
-      } catch (clearErr) {
-        logError('gmail.refresh.invalid_grant.clear_failed', {
-          userId: req.user.id,
-          code: clearErr && clearErr.code ? String(clearErr.code) : null,
-          detail:
-            clearErr && clearErr.message
-              ? String(clearErr.message).slice(0, 240)
-              : String(clearErr)
-        });
-      }
-      logError('gmail.refresh.invalid_grant', {
-        userId: req.user.id,
-        providerEmail
-      });
-      return res.status(401).json({ error: 'GMAIL_RECONNECT_REQUIRED' });
-    }
-    const code = err && typeof err === 'object' ? err.code || err.name : null;
-    const message = err && typeof err === 'object' ? err.message : null;
-    const detail = message ? String(message).replace(/(access_token|refresh_token|authorization)=\S+/gi, '$1=[REDACTED]') : null;
-    logError('sync.failed', {
-      userId: req.user.id,
-      code: code || 'UNKNOWN',
-      detail: detail || 'Unknown error',
-      stack: err && err.stack ? String(err.stack) : null
-    });
-    return res.status(500).json({
-      error: 'SYNC_FAILED',
-      code: code || 'UNKNOWN',
-      detail: detail || 'Sync failed unexpectedly.'
-    });
-  }
+app.post('/api/email/sync', requireAuth, (_req, res) => {
+  return res.status(410).json({
+    error: 'GMAIL_LEGACY_DISABLED',
+    message: 'Legacy Gmail sync has been disabled. Use forwarding-based inbox sync.'
+  });
 });
 
-app.get('/api/email/sync/status', requireAuth, (req, res) => {
-  const syncId = req.query.sync_id;
-  if (!syncId) {
-    return res.status(400).json({ error: 'MISSING_SYNC_ID' });
-  }
-  const progress = getSyncProgress(syncId);
-  if (!progress) {
-    return res.json({ ok: false, status: 'unknown_sync_id', syncId });
-  }
-  return res.json(progress);
+app.get('/api/email/sync/status', requireAuth, (_req, res) => {
+  return res.json({
+    ok: false,
+    status: 'gmail_legacy_disabled'
+  });
 });
 
 app.get('/api/email/unsorted', requireAuth, (req, res) => {

@@ -3,6 +3,7 @@ const { validateJobFields } = require('./validateJobFields');
 const { buildApplicationKey } = require('./applicationKey');
 const { extractExternalReqId } = require('../../shared/matching');
 const { buildHintFingerprintFromEmail, findBestHint } = require('./hints');
+const { detectStatusSignal } = require('./parsers/common');
 
 const linkedinParser = require('./parsers/linkedin_jobs');
 const workableParser = require('./parsers/workable_candidates');
@@ -86,18 +87,40 @@ function parseGeneric({ subject, text }) {
     }
   }
 
+  const statusSignal = detectStatusSignal({
+    subject: subj,
+    text: body,
+    company: companyRaw,
+    role: roleRaw,
+    defaultStatus: 'applied'
+  });
   const normalized = validateJobFields({ company: companyRaw, role: roleRaw, notes });
   return {
     company: normalized.company,
     role: normalized.role,
+    status: statusSignal.status,
     confidence: {
       company: normalized.company ? 74 : 0,
       role: normalized.role ? 74 : 0,
-      status: 70,
+      status: Number(statusSignal.confidence || 70),
       key: normalized.company && normalized.role ? 82 : 0
     },
     candidates,
-    notes
+    notes,
+    debug: {
+      provider: 'generic',
+      parser_strategy: 'generic_subject_body_heuristics',
+      company_source: normalized.company ? 'heuristic' : null,
+      role_source: normalized.role ? 'heuristic' : null,
+      status_source: statusSignal.source || null,
+      ignored_sections: [],
+      rejected_candidates: [],
+      chosen_fields: {
+        company: normalized.company || null,
+        role: normalized.role || null,
+        status: statusSignal.status || null
+      }
+    }
   };
 }
 
@@ -141,9 +164,18 @@ async function parseJobEmail(payload = {}) {
   }
 
   if (!parsed?.status) {
-    if (/thank you for (?:your )?application|thanks for applying|application submitted|your application was sent/i.test(input.subject + '\n' + input.text)) {
-      parsed.status = 'applied';
+    const fallbackStatus = detectStatusSignal({
+      subject: input.subject,
+      text: input.text,
+      company: companyCandidate,
+      role: roleCandidate,
+      defaultStatus: 'applied'
+    });
+    parsed.status = fallbackStatus.status;
+    if (!parsed?.debug || typeof parsed.debug !== 'object') {
+      parsed.debug = {};
     }
+    parsed.debug.status_source = parsed.debug.status_source || fallbackStatus.source || 'fallback';
   }
 
   if (matchedHint?.company_override) {
@@ -164,6 +196,14 @@ async function parseJobEmail(payload = {}) {
     role: roleCandidate,
     notes
   });
+  if (
+    validation.company &&
+    validation.role &&
+    String(validation.company).toLowerCase() === String(validation.role).toLowerCase()
+  ) {
+    validation.role = undefined;
+    notes.push('role_rejected:matches_company');
+  }
 
   const locationMatch = input.text.match(/\b([A-Z][A-Za-z .'-]+,\s*[A-Z]{2}(?:\s+\d{5}(?:-\d{4})?)?)\b/);
 

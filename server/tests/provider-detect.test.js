@@ -13,6 +13,24 @@ test('detectProvider identifies linkedin jobs confirmations', () => {
   assert.equal(detected.providerId, 'linkedin_jobs');
 });
 
+test('detectProvider identifies linkedin lifecycle rejection updates and ignores social noise', () => {
+  const lifecycle = detectProvider({
+    fromEmail: 'jobs-noreply@linkedin.com',
+    fromDomain: 'linkedin.com',
+    subject: 'Update on your application',
+    text: 'After careful consideration, we will not be moving forward with your application.'
+  });
+  assert.equal(lifecycle.providerId, 'linkedin_jobs');
+
+  const socialNoise = detectProvider({
+    fromEmail: 'updates@linkedin.com',
+    fromDomain: 'linkedin.com',
+    subject: 'Top job picks for you',
+    text: 'New jobs for you this week'
+  });
+  assert.notEqual(socialNoise.providerId, 'linkedin_jobs');
+});
+
 test('detectProvider identifies workable confirmations', () => {
   const detected = detectProvider({
     fromEmail: 'noreply@candidates.workablemail.com',
@@ -31,6 +49,14 @@ test('detectProvider identifies indeed apply and workday', () => {
     text: ''
   });
   assert.equal(indeed.providerId, 'indeed_apply');
+
+  const indeedLifecycle = detectProvider({
+    fromEmail: 'alerts@indeed.com',
+    fromDomain: 'indeed.com',
+    subject: 'Application update',
+    text: 'After careful consideration, we will not be moving forward with your application.'
+  });
+  assert.equal(indeedLifecycle.providerId, 'indeed_apply');
 
   const workday = detectProvider({
     fromEmail: 'noreply@myworkday.com',

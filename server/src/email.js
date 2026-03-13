@@ -1,9 +1,9 @@
 const { google } = require('googleapis');
 const { encryptText, decryptText, isEncryptionReady } = require('./crypto');
-const { GOOGLE_GMAIL_SCOPES, getGoogleAuthConfig } = require('./googleAuth');
+const { GOOGLE_SIGNIN_SCOPES, getGoogleAuthConfig } = require('./googleAuth');
 
 const DEFAULT_REDIRECT = `${process.env.APP_API_BASE_URL || 'http://localhost:3000'}/api/email/callback`;
-const GMAIL_SCOPES = GOOGLE_GMAIL_SCOPES;
+const GMAIL_SCOPES = GOOGLE_SIGNIN_SCOPES;
 let loggedLegacyGmailClientWarning = false;
 
 function getOAuthClientConfig() {

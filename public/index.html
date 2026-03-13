@@ -172,7 +172,7 @@
                     <p class="info-section__lead">Applictus keeps your search organized by reading job-related inbox events and mapping each one to the right application.</p>
                     <span class="info-time-pill">Time to set up: ~2 minutes</span>
                     <ul class="info-bullets">
-                      <li>Read-only Gmail scope with strict permission boundaries.</li>
+                      <li>Google sign-in uses identity scopes only.</li>
                       <li>Automatic status detection with clear event history.</li>
                     </ul>
                   </div>
@@ -260,19 +260,19 @@
                   </svg>
                 </span>
                 <div class="home-panel-copy">
-                  <h2>Read-Only Gmail Access</h2>
-                  <p>Built with data minimization and clear permission boundaries from day one.</p>
+                  <h2>Google Identity Sign-In</h2>
+                  <p>Built with minimal permissions and clear boundaries from day one.</p>
                 </div>
               </header>
               <p class="home-scope-label">Scope requested</p>
-              <p class="home-scope-badge"><code>https://www.googleapis.com/auth/gmail.readonly</code></p>
+              <p class="home-scope-badge"><code>openid email profile</code></p>
               <ul class="home-check-list">
-                <li><span class="home-check" aria-hidden="true">✓</span><span>We do not send/modify/delete email.</span></li>
+                <li><span class="home-check" aria-hidden="true">✓</span><span>No Gmail API scopes are requested.</span></li>
                 <li>
                   <span class="home-check" aria-hidden="true">✓</span>
-                  <span>Applictus automatically analyzes sender/subject/date/snippet; body only when needed for classification.</span>
+                  <span>Google auth is only used for account identity.</span>
                 </li>
-                <li><span class="home-check" aria-hidden="true">✓</span><span>Users can disconnect anytime.</span></li>
+                <li><span class="home-check" aria-hidden="true">✓</span><span>Forwarding remains the primary inbox ingestion path.</span></li>
               </ul>
             </section>
 

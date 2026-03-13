@@ -126,3 +126,42 @@ test('linkedin parser leaves role empty when line above company is invalid', asy
   assert.equal(parsed.parserDebug?.linkedin_role_candidate_raw, 'View application');
   assert.equal(parsed.parserDebug?.linkedin_role_rejected_reason, 'metadata_line');
 });
+
+test('linkedin parser marks rejection when clear rejection phrase exists', async () => {
+  const parsed = await parseJobEmail({
+    fromEmail: 'jobs-noreply@linkedin.com',
+    fromDomain: 'linkedin.com',
+    subject: 'Jason, your application was sent to Dexian',
+    text: [
+      'Your application was sent to Dexian',
+      'Python Developer',
+      'Dexian - Jersey City, NJ (Hybrid)',
+      'After careful consideration, we will not be moving forward with your application.'
+    ].join('\n')
+  });
+
+  assert.equal(parsed.providerId, 'linkedin_jobs');
+  assert.equal(parsed.company, 'Dexian');
+  assert.equal(parsed.role, 'Python Developer');
+  assert.equal(parsed.status, 'rejected');
+  assert.equal(parsed.parserDebug?.provider, 'linkedin_jobs');
+  assert.equal(parsed.parserDebug?.status_source?.startsWith('rejection_phrase:'), true);
+});
+
+test('linkedin parser detects interview requested from scheduling phrases', async () => {
+  const parsed = await parseJobEmail({
+    fromEmail: 'jobs-noreply@linkedin.com',
+    fromDomain: 'linkedin.com',
+    subject: 'Jason, your application was sent to Dexian',
+    text: [
+      'Your application was sent to Dexian',
+      'Python Developer',
+      'Dexian - Jersey City, NJ (Hybrid)',
+      "We'd like to schedule an interview. Are you available this week?"
+    ].join('\n')
+  });
+
+  assert.equal(parsed.providerId, 'linkedin_jobs');
+  assert.equal(parsed.status, 'interview_requested');
+  assert.ok(parsed.confidence.status >= 80);
+});

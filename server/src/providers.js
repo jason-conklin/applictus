@@ -29,17 +29,25 @@ function buildDetection(id, matches, reason) {
 const PROVIDERS = [
   {
     id: 'linkedin_jobs',
-    detect({ fromEmail, fromDomain, subject }) {
+    detect({ fromEmail, fromDomain, subject, text }) {
       const sender = normalize(fromEmail);
       const domain = normalize(fromDomain);
       const subj = String(subject || '');
+      const body = String(text || '');
       const directSender = sender === 'jobs-noreply@linkedin.com';
+      const lifecycleSignal = /your application was sent to|update on your application|application update|thanks for applying|not moving forward|regret to inform|interview|phone screen/i.test(
+        `${subj}\n${body}`
+      );
+      const socialNoise =
+        /jobs recommended|top job picks|job alert|new jobs for you|share their thoughts|reacted to your/i.test(
+          `${subj}\n${body}`
+        );
       const subjectMatch = /your application was sent to/i.test(subj);
       if (directSender && subjectMatch) {
         return buildDetection(this.id, true, 'linkedin jobs sender + application sent subject');
       }
-      if (domain.endsWith('linkedin.com') && subjectMatch) {
-        return buildDetection(this.id, true, 'linkedin domain + application sent subject');
+      if (domain.endsWith('linkedin.com') && lifecycleSignal && !socialNoise) {
+        return buildDetection(this.id, true, 'linkedin domain + lifecycle signal');
       }
       return null;
     }
@@ -60,15 +68,24 @@ const PROVIDERS = [
   },
   {
     id: 'indeed_apply',
-    detect({ fromEmail, fromDomain, subject }) {
+    detect({ fromEmail, fromDomain, subject, text }) {
       const sender = normalize(fromEmail);
       const domain = normalize(fromDomain);
       const subj = String(subject || '');
+      const body = String(text || '');
       if (sender === 'indeedapply@indeed.com') {
         return buildDetection(this.id, true, 'indeed apply sender');
       }
-      if (domain.endsWith('indeed.com') && /indeed application:/i.test(subj)) {
-        return buildDetection(this.id, true, 'indeed domain + subject');
+      if (
+        domain.endsWith('indeed.com') &&
+        (
+          /indeed application:/i.test(subj) ||
+          /application submitted|thank you for applying|application update|interview|not moving forward|regret to inform/i.test(
+            `${subj}\n${body}`
+          )
+        )
+      ) {
+        return buildDetection(this.id, true, 'indeed domain + lifecycle signal');
       }
       return null;
     }
@@ -103,7 +120,10 @@ const PROVIDERS = [
         /your application was submitted/i.test(subj) ||
         /thank you for applying to/i.test(subj) ||
         /your application has been received/i.test(subj) ||
-        /your application was submitted/i.test(body);
+        /your application was submitted/i.test(body) ||
+        /application update/i.test(subj) ||
+        /not moving forward|regret to inform|after careful consideration/i.test(`${subj}\n${body}`) ||
+        /interview|phone screen|schedule/i.test(`${subj}\n${body}`);
       if (senderMatch && phraseMatch) {
         return buildDetection(this.id, true, 'greenhouse sender/domain + application confirmation phrase');
       }
@@ -122,7 +142,10 @@ const PROVIDERS = [
         /thanks for applying to/i.test(subj) ||
         /application received/i.test(subj) ||
         /application confirmation/i.test(body) ||
-        /thanks for applying to/i.test(body);
+        /thanks for applying to/i.test(body) ||
+        /application update/i.test(subj) ||
+        /not moving forward|regret to inform|after careful consideration/i.test(`${subj}\n${body}`) ||
+        /interview|phone screen|schedule/i.test(`${subj}\n${body}`);
       if (domainMatch && phraseMatch) {
         return buildDetection(this.id, true, 'lever sender domain + application confirmation phrase');
       }

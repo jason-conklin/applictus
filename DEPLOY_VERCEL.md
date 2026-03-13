@@ -21,9 +21,6 @@ Set these in the Vercel project:
 - `GOOGLE_AUTH_CLIENT_ID=...`
 - `GOOGLE_AUTH_CLIENT_SECRET=...`
 - `GOOGLE_AUTH_REDIRECT_URI=https://applictus.com/api/auth/google/callback`
-- `GMAIL_CLIENT_ID=...`
-- `GMAIL_CLIENT_SECRET=...`
-- `GMAIL_REDIRECT_URI=https://applictus.com/api/email/callback`
 - Backward-compatible fallback envs are still accepted:
   - `GOOGLE_CLIENT_ID`
   - `GOOGLE_CLIENT_SECRET`
@@ -34,8 +31,6 @@ Set these in the Vercel project:
   - `openid`
   - `email`
   - `profile`
-- **Connect Gmail** scope:
-  - `https://www.googleapis.com/auth/gmail.readonly`
 
 ### Security
 - `JOBTRACK_ENC_KEY=...` (token encryption)
@@ -48,7 +43,6 @@ Set these in the Vercel project:
 ## Google OAuth Console
 Authorized Redirect URIs:
 - `https://applictus.com/api/auth/google/callback` (Google sign-in)
-- `https://applictus.com/api/email/callback` (Gmail connect)
 
 
 ## Quick Smoke Checks

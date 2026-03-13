@@ -4255,14 +4255,14 @@ function buildInboundSetupStep(step, setStep, setupContext) {
     list.className = 'forwarding-steps-list';
     list.innerHTML = `
       <li>Open Gmail Settings → Forwarding and POP/IMAP</li>
-      <li>Add a forwarding address and paste your Applictus address</li>
+      <li>Add a forwarding address and paste your Applictus address (or confirm the existing “Forward a copy to …” target is your Applictus address)</li>
       <li>Complete Gmail’s one-time verification from the confirmation email</li>
     `;
     const gmailActions = document.createElement('div');
     gmailActions.className = 'forwarding-step-actions';
     const openSettings = document.createElement('a');
     openSettings.className = 'btn btn--secondary btn--sm';
-    openSettings.href = 'https://mail.google.com/mail/u/0/#settings/fwdandpop';
+    openSettings.href = 'https://mail.google.com/mail/#settings/fwdandpop';
     openSettings.target = '_blank';
     openSettings.rel = 'noopener noreferrer';
     openSettings.textContent = 'Open Gmail forwarding settings';

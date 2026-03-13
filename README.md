@@ -63,15 +63,8 @@ GOOGLE_AUTH_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
 Scopes: `openid`, `email`, `profile`.
 Backward-compatible fallback envs are also accepted: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`.
 
-## Gmail OAuth (read-only)
-Create OAuth credentials in Google Cloud and set:
-```bash
-GMAIL_CLIENT_ID=...
-GMAIL_CLIENT_SECRET=...
-GMAIL_REDIRECT_URI=http://localhost:3000/api/email/callback
-```
-Scope: `https://www.googleapis.com/auth/gmail.readonly`.
-This is separate from Google Sign-In (identity) credentials.
+## Legacy Gmail OAuth
+Legacy Gmail API scanning is disabled. Google auth is used for identity sign-in only (`openid`, `email`, `profile`).
 
 Tokens are encrypted at rest using `JOBTRACK_TOKEN_ENC_KEY` (base64 32-byte key):
 ```bash
@@ -122,9 +115,6 @@ JOBTRACK_DB_PATH=/var/data/applictus.sqlite
 Required env vars:
 - `JOBTRACK_TOKEN_ENC_KEY=...` (base64 32-byte key)
 - `JOBTRACK_DB_PATH=/var/data/applictus.sqlite`
-- `GMAIL_CLIENT_ID=...` (if Gmail sync is enabled)
-- `GMAIL_CLIENT_SECRET=...`
-- `GMAIL_REDIRECT_URI=https://<your-render-url>/api/email/callback`
 
 If you use Google Sign-In:
 - `GOOGLE_CLIENT_ID=...`
@@ -135,13 +125,11 @@ Notes:
 - The app listens on `process.env.PORT` (Render-provided).
 - The local default DB path is used when `JOBTRACK_DB_PATH` is not set.
 
-### Gmail sync
-Use the Gmail screen in the UI to run "Scan emails", or call:
+### Inbound sync (forwarding-first)
+Use forwarding-based ingestion and trigger:
 ```
-POST /api/email/sync
+POST /api/inbound/sync
 ```
-with JSON `{ "days": 30 }` (defaults to 30 days, max 365).
-Sync uses a high-recall classifier while keeping auto-create thresholds conservative.
 
 ### Optional LLM-assisted enrichment (disabled by default)
 Set env vars to enable:
@@ -242,7 +230,7 @@ Tests live in `server/tests` and are run with Node's built-in test runner.
 
 ## Known limitations
 - Conservative filtering can miss some job-related emails.
-- Gmail-only ingestion; no other providers yet.
+- Forwarding setup still depends on mailbox-provider forwarding UX.
 - Email bodies are not stored; only minimal metadata.
 
 ## Status enum
