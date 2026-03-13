@@ -3,6 +3,39 @@ const assert = require('node:assert/strict');
 
 const { parseJobEmail } = require('../src/parseJobEmail');
 
+test('linkedin parser selects best role from nearby window when alias lines are present', async () => {
+  const parsed = await parseJobEmail({
+    fromEmail: 'jobs-noreply@linkedin.com',
+    fromDomain: 'linkedin.com',
+    subject: 'Jason, your application was sent to HMG AMERICA LLC',
+    text: [
+      'Your application was sent to',
+      'HMG AMERICA LLC',
+      '',
+      'HMG America',
+      'Reactjs developer',
+      'HMG AMERICA LLC • New Jersey, United States (Hybrid)',
+      'Applied on March 13, 2026'
+    ].join('\n')
+  });
+
+  assert.equal(parsed.providerId, 'linkedin_jobs');
+  assert.equal(parsed.company, 'HMG AMERICA LLC');
+  assert.equal(parsed.role, 'Reactjs developer');
+  assert.ok(parsed.confidence.role >= 80);
+  assert.equal(parsed.parserDebug?.linkedin_role_source, 'line_above_company');
+  assert.ok(Array.isArray(parsed.parserDebug?.linkedin_role_window));
+  assert.ok(parsed.parserDebug.linkedin_role_window.includes('HMG America'));
+  assert.ok(parsed.parserDebug.linkedin_role_window.includes('Reactjs developer'));
+  assert.equal(parsed.parserDebug?.linkedin_role_selected, 'Reactjs developer');
+  assert.ok(Array.isArray(parsed.parserDebug?.linkedin_role_candidates_scored));
+  const aliasCandidate = parsed.parserDebug.linkedin_role_candidates_scored.find(
+    (candidate) => candidate.raw === 'HMG America'
+  );
+  assert.equal(aliasCandidate?.rejected, true);
+  assert.equal(aliasCandidate?.reason, 'company_like_alias');
+});
+
 test('linkedin parser extracts Node.js role from line above company/location', async () => {
   const parsed = await parseJobEmail({
     fromEmail: 'jobs-noreply@linkedin.com',

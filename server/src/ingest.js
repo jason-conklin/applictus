@@ -2742,6 +2742,13 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
       debugMeta.hints = parsedEmail?.hints || debugMeta.hints;
       if (String(parsedEmail?.providerId || '') === 'linkedin_jobs' && parsedEmail?.parserDebug) {
         debugMeta.linkedin_company_line = parsedEmail.parserDebug.linkedin_company_line || null;
+        debugMeta.linkedin_role_window = Array.isArray(parsedEmail.parserDebug.linkedin_role_window)
+          ? parsedEmail.parserDebug.linkedin_role_window
+          : [];
+        debugMeta.linkedin_role_candidates_scored = Array.isArray(parsedEmail.parserDebug.linkedin_role_candidates_scored)
+          ? parsedEmail.parserDebug.linkedin_role_candidates_scored
+          : [];
+        debugMeta.linkedin_role_selected = parsedEmail.parserDebug.linkedin_role_selected || null;
         debugMeta.linkedin_role_candidate_raw = parsedEmail.parserDebug.linkedin_role_candidate_raw || null;
         debugMeta.linkedin_role_candidate_cleaned = parsedEmail.parserDebug.linkedin_role_candidate_cleaned || null;
         debugMeta.linkedin_role_rejected_reason = parsedEmail.parserDebug.linkedin_role_rejected_reason || null;
