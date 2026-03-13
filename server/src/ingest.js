@@ -1891,6 +1891,13 @@ function normalizeDerivedRole(value) {
   return normalizeValidatedRole(value) || null;
 }
 
+function normalizeIdentityToken(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
 function isLikelyLocationText(value) {
   return normalizeJobFields.isLikelyLocationRole(value);
 }
@@ -2734,6 +2741,11 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
       debugMeta.normalization.parser_role_in = parsedEmail?.role || null;
       debugMeta.hints = parsedEmail?.hints || debugMeta.hints;
       if (String(parsedEmail?.providerId || '') === 'linkedin_jobs' && parsedEmail?.parserDebug) {
+        debugMeta.linkedin_company_line = parsedEmail.parserDebug.linkedin_company_line || null;
+        debugMeta.linkedin_role_candidate_raw = parsedEmail.parserDebug.linkedin_role_candidate_raw || null;
+        debugMeta.linkedin_role_candidate_cleaned = parsedEmail.parserDebug.linkedin_role_candidate_cleaned || null;
+        debugMeta.linkedin_role_rejected_reason = parsedEmail.parserDebug.linkedin_role_rejected_reason || null;
+        debugMeta.linkedin_role_source = parsedEmail.parserDebug.linkedin_role_source || null;
         debugMeta.linkedin_role_line_detected = parsedEmail.parserDebug.linkedin_role_line_detected || null;
         debugMeta.linkedin_role_cleaned = parsedEmail.parserDebug.linkedin_role_cleaned || null;
         debugMeta.role_source = parsedEmail.parserDebug.role_source || null;
@@ -2832,7 +2844,19 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
       debugMeta.normalization.role_in = bestRoleCandidate;
 
       const derivedCompany = normalizeDerivedCompany(bestCompanyCandidate);
-      const derivedRole = normalizeDerivedRole(bestRoleCandidate);
+      let derivedRole = normalizeDerivedRole(bestRoleCandidate);
+      if (
+        derivedCompany &&
+        derivedRole &&
+        normalizeIdentityToken(derivedCompany) &&
+        normalizeIdentityToken(derivedCompany) === normalizeIdentityToken(derivedRole)
+      ) {
+        derivedRole = null;
+        if (!Array.isArray(debugMeta.validation.notes)) {
+          debugMeta.validation.notes = [];
+        }
+        debugMeta.validation.notes.push('role_rejected:matches_company');
+      }
       debugMeta.normalization.company_out = derivedCompany;
       debugMeta.normalization.role_out = derivedRole;
       const externalReqId = extractExternalReqId({ subject, snippet, bodyText })?.externalReqId || null;

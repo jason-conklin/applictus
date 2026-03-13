@@ -5370,7 +5370,7 @@ details summary {
   inset: 0;
   display: grid;
   grid-template-columns: 1fr minmax(320px, 520px);
-  z-index: 20;
+  z-index: 1400;
 }
 
 .drawer.hidden {

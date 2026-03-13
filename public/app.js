@@ -2197,7 +2197,26 @@ function getConfidence(application) {
   if (value === null || value === undefined) {
     return null;
   }
-  return Number(value);
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  // Support both legacy 0..1 and new 0..100 confidence scales.
+  const normalized = numeric > 1 ? numeric / 100 : numeric;
+  return Math.max(0, Math.min(1, normalized));
+}
+
+function formatConfidencePercent(value) {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return '—';
+  }
+  const normalized = numeric > 1 ? numeric / 100 : numeric;
+  const clamped = Math.max(0, Math.min(1, normalized));
+  return `${Math.round(clamped * 100)}%`;
 }
 
 function getStatusSource(application) {
@@ -5634,7 +5653,7 @@ function renderArchivedApplications(applications) {
       const statusValue = normalizeStatusValue(app.current_status || 'UNKNOWN');
       const statusPill = renderStatusPill(statusValue);
       const confidenceValue = getConfidence(app);
-      const confidence = confidenceValue !== null ? `${Math.round(confidenceValue * 100)}%` : '—';
+      const confidence = formatConfidencePercent(confidenceValue);
       const activity = formatDate(getActivityDate(app));
       const sourceLabel = statusSourceLabel(getStatusSource(app));
       return `
@@ -5780,9 +5799,7 @@ function renderUnsortedEvents(events) {
     .map((event, index) => {
       const classificationConfidence =
         event.classification_confidence ?? event.confidence_score ?? null;
-      const confidence = classificationConfidence
-        ? Math.round(classificationConfidence * 100) + '%'
-        : '—';
+      const confidence = formatConfidencePercent(classificationConfidence);
       const companyPrefill = event.identity_company_name || '';
       const titlePrefill =
         event.role_title || event.identity_job_title || (companyPrefill ? 'Unknown role' : '');
@@ -5828,9 +5845,7 @@ function renderEmailEvents(events) {
     .map((event, index) => {
       const classificationConfidence =
         event.classification_confidence ?? event.confidence_score ?? null;
-      const confidence = classificationConfidence
-        ? Math.round(classificationConfidence * 100) + '%'
-        : '—';
+      const confidence = formatConfidencePercent(classificationConfidence);
       return `
         <div class=\"table-row\" style=\"--stagger: ${index}\">
           <div>${event.sender || '—'}</div>
@@ -5893,7 +5908,7 @@ function renderDetail(application, events) {
   const statusValue = application.current_status || 'UNKNOWN';
   const statusLabel = STATUS_LABELS[statusValue] || statusValue;
   const confidenceValue = getConfidence(application);
-  const confidenceLabel = confidenceValue !== null ? `${Math.round(confidenceValue * 100)}%` : '—';
+  const confidenceLabel = formatConfidencePercent(confidenceValue);
   const sourceLabel = statusSourceLabel(getStatusSource(application));
   if (detailPanel) {
     detailPanel.dataset.status = statusValue.toLowerCase();
@@ -5940,11 +5955,9 @@ function renderDetail(application, events) {
   if (detailSuggestion) {
     if (application.suggested_status) {
       const suggestionLabel = STATUS_LABELS[application.suggested_status] || application.suggested_status;
-      const suggestionConfidence =
-        application.suggested_confidence !== null && application.suggested_confidence !== undefined
-          ? `${Math.round(application.suggested_confidence * 100)}%`
-          : null;
+      const suggestionConfidence = formatConfidencePercent(application.suggested_confidence);
       detailSuggestionLabel.textContent = suggestionConfidence
+        && suggestionConfidence !== '—'
         ? `Suggestion: ${suggestionLabel} (${suggestionConfidence})`
         : `Suggestion: ${suggestionLabel}`;
       detailSuggestionExplanation.textContent =
@@ -6052,10 +6065,7 @@ function renderDetail(application, events) {
           const eventDate = eventItem.internal_date || eventItem.created_at || null;
           const classificationConfidence =
             eventItem.classification_confidence ?? eventItem.confidence_score ?? null;
-          const confidence =
-            classificationConfidence !== null && classificationConfidence !== undefined
-              ? `${Math.round(classificationConfidence * 100)}%`
-              : '—';
+          const confidence = formatConfidencePercent(classificationConfidence);
           const typeLabel = formatTypeLabel(eventItem.detected_type || 'other');
           return `
             <div class="timeline-card">

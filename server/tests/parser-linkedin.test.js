@@ -3,16 +3,39 @@ const assert = require('node:assert/strict');
 
 const { parseJobEmail } = require('../src/parseJobEmail');
 
-test('linkedin parser extracts role from line above company/location and strips numeric id suffix', async () => {
+test('linkedin parser extracts Node.js role from line above company/location', async () => {
   const parsed = await parseJobEmail({
     fromEmail: 'jobs-noreply@linkedin.com',
     fromDomain: 'linkedin.com',
-    subject: 'Jason, your application was sent to Orion Innovation',
+    subject: 'Jason, your application was sent to Iris Software Inc.',
     text: [
-      'Your application was sent to Orion Innovation',
+      'Your application was sent to Iris Software Inc.',
       '',
+      'Node.js Developer',
+      'Iris Software Inc. • Princeton, NJ',
+      '(On-site)',
+      'Applied on March 13, 2026'
+    ].join('\n')
+  });
+
+  assert.equal(parsed.providerId, 'linkedin_jobs');
+  assert.equal(parsed.company, 'Iris Software Inc');
+  assert.equal(parsed.role, 'Node.js Developer');
+  assert.ok(parsed.confidence.role >= 80);
+  assert.equal(parsed.parserDebug?.linkedin_company_line, 'Iris Software Inc. • Princeton, NJ');
+  assert.equal(parsed.parserDebug?.linkedin_role_candidate_raw, 'Node.js Developer');
+  assert.equal(parsed.parserDebug?.linkedin_role_candidate_cleaned, 'Node.js Developer');
+  assert.equal(parsed.parserDebug?.linkedin_role_source, 'line_above_company');
+});
+
+test('linkedin parser strips numeric id suffix from role above company/location', async () => {
+  const parsed = await parseJobEmail({
+    fromEmail: 'jobs-noreply@linkedin.com',
+    fromDomain: 'linkedin.com',
+    subject: 'Your application was sent to Orion Innovation',
+    text: [
       'Programmer Analyst (21243)',
-      'Orion Innovation · Edison, NJ (On-site)'
+      'Orion Innovation • Edison, NJ (On-site)'
     ].join('\n')
   });
 
@@ -20,42 +43,24 @@ test('linkedin parser extracts role from line above company/location and strips 
   assert.equal(parsed.company, 'Orion Innovation');
   assert.equal(parsed.role, 'Programmer Analyst');
   assert.ok(parsed.confidence.role >= 80);
-  assert.equal(parsed.parserDebug?.role_source, 'line_above_company');
-  assert.equal(parsed.parserDebug?.linkedin_role_line_detected, 'Programmer Analyst (21243)');
-  assert.equal(parsed.parserDebug?.linkedin_role_cleaned, 'Programmer Analyst');
+  assert.equal(parsed.parserDebug?.linkedin_role_source, 'line_above_company');
 });
 
-test('linkedin parser extracts role from line above company/location without id suffix', async () => {
-  const parsed = await parseJobEmail({
-    fromEmail: 'jobs-noreply@linkedin.com',
-    fromDomain: 'linkedin.com',
-    subject: 'Your application was sent to CompanyName',
-    text: [
-      'Software Engineer',
-      'CompanyName · New York, NY'
-    ].join('\n')
-  });
-
-  assert.equal(parsed.providerId, 'linkedin_jobs');
-  assert.equal(parsed.company, 'CompanyName');
-  assert.equal(parsed.role, 'Software Engineer');
-  assert.ok(parsed.confidence.role >= 80);
-  assert.equal(parsed.parserDebug?.role_source, 'line_above_company');
-});
-
-test('linkedin parser does not treat company location line as role', async () => {
+test('linkedin parser leaves role empty when line above company is invalid', async () => {
   const parsed = await parseJobEmail({
     fromEmail: 'jobs-noreply@linkedin.com',
     fromDomain: 'linkedin.com',
     subject: 'Your application was sent to Orion Innovation',
     text: [
-      'Your application was sent to Orion Innovation',
-      'Orion Innovation · Edison, NJ (On-site)',
-      'View application'
+      'View application',
+      'Orion Innovation • Edison, NJ (On-site)',
+      'Applied on March 13, 2026'
     ].join('\n')
   });
 
   assert.equal(parsed.providerId, 'linkedin_jobs');
   assert.equal(parsed.company, 'Orion Innovation');
-  assert.ok(!parsed.role || parsed.role !== 'Orion Innovation');
+  assert.equal(parsed.role, undefined);
+  assert.equal(parsed.parserDebug?.linkedin_role_candidate_raw, 'View application');
+  assert.equal(parsed.parserDebug?.linkedin_role_rejected_reason, 'metadata_line');
 });
