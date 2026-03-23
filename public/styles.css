@@ -7814,7 +7814,7 @@ body.home-page .hero-banner {
 }
 
 body.home-page .hero-value {
-  width: min(94vw, 860px);
+  width: min(97vw, 1280px);
   display: grid;
   justify-items: center;
   gap: clamp(6px, 1.1vh, 10px);
@@ -7823,9 +7823,9 @@ body.home-page .hero-value {
 
 body.home-page .hero-value__title {
   margin: 0;
-  max-width: 26ch;
+  max-width: none;
   color: #132a51;
-  font-size: clamp(1.52rem, 2.5vw, 2.2rem);
+  font-size: clamp(1.42rem, 2.05vw, 1.96rem);
   font-weight: 700;
   line-height: 1.12;
   letter-spacing: -0.018em;
@@ -7834,12 +7834,19 @@ body.home-page .hero-value__title {
 
 body.home-page .hero-value__subtitle {
   margin: 0;
-  max-width: 64ch;
+  max-width: none;
   color: rgba(20, 48, 92, 0.78);
-  font-size: clamp(0.98rem, 1.16vw, 1.08rem);
+  font-size: clamp(0.95rem, 1.02vw, 1.04rem);
   line-height: 1.42;
   letter-spacing: 0;
   text-wrap: pretty;
+}
+
+@media (min-width: 1100px) {
+  body.home-page .hero-value__title,
+  body.home-page .hero-value__subtitle {
+    white-space: nowrap;
+  }
 }
 
 body.home-page .hero-banner__intro {
@@ -8225,12 +8232,12 @@ body.home-page.animate-ready.home-loaded .home-hero-trust {
 
   body.home-page .hero-value__title {
     font-size: clamp(1.42rem, 2.15vw, 1.92rem);
-    max-width: 24ch;
+    max-width: none;
   }
 
   body.home-page .hero-value__subtitle {
     font-size: clamp(0.93rem, 1vw, 1rem);
-    max-width: 58ch;
+    max-width: none;
   }
 
   body.home-page .home-billboard-cta {
@@ -8264,11 +8271,13 @@ body.home-page.animate-ready.home-loaded .home-hero-trust {
 
   body.home-page .hero-value__title {
     font-size: clamp(1.26rem, 1.95vw, 1.68rem);
+    white-space: normal;
   }
 
   body.home-page .hero-value__subtitle {
     font-size: clamp(0.88rem, 0.95vw, 0.96rem);
-    max-width: 54ch;
+    max-width: none;
+    white-space: normal;
   }
 
   body.home-page .home-billboard-cta {
@@ -8331,11 +8340,13 @@ body.home-page.animate-ready.home-loaded .home-hero-trust {
   body.home-page .hero-value__title {
     font-size: clamp(1.26rem, 3.6vw, 1.78rem);
     max-width: 24ch;
+    white-space: normal;
   }
 
   body.home-page .hero-value__subtitle {
     font-size: clamp(0.9rem, 2.1vw, 1rem);
     max-width: 50ch;
+    white-space: normal;
   }
 
   body.home-page .home-hero-trust {
