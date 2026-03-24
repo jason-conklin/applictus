@@ -4471,27 +4471,34 @@ function buildInboundSetupStep(step, setStep, setupContext) {
     const navigationHeading = document.createElement('div');
     navigationHeading.className = 'forwarding-gmail-substep-title';
     navigationHeading.textContent = '1) Navigate to forwarding settings';
-    const navigationGrid = document.createElement('div');
-    navigationGrid.className = 'forwarding-tutorial-grid';
-    navigationGrid.append(
+    navigationBlock.append(
+      navigationHeading,
       buildForwardingTutorialFrame({
         imageSrc: GMAIL_SETUP_SCREENSHOTS.sc1,
         imageAlt: 'Open Gmail settings from quick settings menu.',
         caption: 'Open Gmail settings'
-      }),
+      })
+    );
+
+    const forwardingTabBlock = document.createElement('div');
+    forwardingTabBlock.className = 'forwarding-gmail-substep';
+    const forwardingTabHeading = document.createElement('div');
+    forwardingTabHeading.className = 'forwarding-gmail-substep-title';
+    forwardingTabHeading.textContent = '2) Go to Forwarding and POP/IMAP and click Add a forwarding address.';
+    forwardingTabBlock.append(
+      forwardingTabHeading,
       buildForwardingTutorialFrame({
         imageSrc: GMAIL_SETUP_SCREENSHOTS.sc2,
         imageAlt: 'Go to Forwarding and POP/IMAP and click Add a forwarding address.',
         caption: 'Go to Forwarding and click Add a forwarding address'
       })
     );
-    navigationBlock.append(navigationHeading, navigationGrid);
 
     const addAddressBlock = document.createElement('div');
     addAddressBlock.className = 'forwarding-gmail-substep';
     const addAddressHeading = document.createElement('div');
     addAddressHeading.className = 'forwarding-gmail-substep-title';
-    addAddressHeading.textContent = '2) Add your Applictus address';
+    addAddressHeading.textContent = 'Add your Applictus address';
     addAddressBlock.appendChild(addAddressHeading);
     addAddressBlock.appendChild(
       buildForwardingAnimatedTutorial({
@@ -4514,7 +4521,7 @@ function buildInboundSetupStep(step, setStep, setupContext) {
       })
     );
 
-    tutorial.append(navigationBlock, addAddressBlock);
+    tutorial.append(navigationBlock, forwardingTabBlock, addAddressBlock);
     appendForwardingVerificationHelper(tutorial);
 
     container.append(title, note, addressCard, actions, tutorial);
