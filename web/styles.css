@@ -5337,6 +5337,15 @@ details summary {
   object-position: center top;
 }
 
+.forwarding-tutorial-frame--trim-bottom .forwarding-tutorial-frame-image {
+  height: clamp(140px, 18vw, 190px);
+}
+
+.forwarding-tutorial-frame--trim-bottom .forwarding-tutorial-frame-image img {
+  object-fit: cover;
+  object-position: center top;
+}
+
 .forwarding-tutorial-sequence {
   display: grid;
   gap: 6px;
@@ -5353,6 +5362,7 @@ details summary {
   background: #f5f8fe;
   overflow: hidden;
   height: clamp(170px, 22vw, 250px);
+  cursor: pointer;
 }
 
 .forwarding-tutorial-sequence-frame {

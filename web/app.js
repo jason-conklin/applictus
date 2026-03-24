@@ -4229,9 +4229,12 @@ function registerInboundSetupCleanup(setupContext, cleanupFn) {
   setupContext.cleanupFns.push(cleanupFn);
 }
 
-function buildForwardingTutorialFrame({ imageSrc, imageAlt, caption } = {}) {
+function buildForwardingTutorialFrame({ imageSrc, imageAlt, caption, trimBottom = false } = {}) {
   const frame = document.createElement('figure');
   frame.className = 'forwarding-tutorial-frame';
+  if (trimBottom) {
+    frame.classList.add('forwarding-tutorial-frame--trim-bottom');
+  }
 
   const imageWrap = document.createElement('div');
   imageWrap.className = 'forwarding-tutorial-frame-image';
@@ -4330,13 +4333,22 @@ function buildForwardingAnimatedTutorial({ frames = [], caption = '', setupConte
   const onMouseLeave = () => {
     paused = false;
   };
+  const onClickAdvance = () => {
+    if (frameNodes.length < 2) {
+      return;
+    }
+    activeIndex = (activeIndex + 1) % frameNodes.length;
+    applyFrameState();
+  };
 
   viewport.addEventListener('mouseenter', onMouseEnter);
   viewport.addEventListener('mouseleave', onMouseLeave);
+  viewport.addEventListener('click', onClickAdvance);
   registerInboundSetupCleanup(setupContext, () => {
     stop();
     viewport.removeEventListener('mouseenter', onMouseEnter);
     viewport.removeEventListener('mouseleave', onMouseLeave);
+    viewport.removeEventListener('click', onClickAdvance);
   });
 
   applyFrameState();
@@ -4476,7 +4488,8 @@ function buildInboundSetupStep(step, setStep, setupContext) {
       buildForwardingTutorialFrame({
         imageSrc: GMAIL_SETUP_SCREENSHOTS.sc1,
         imageAlt: 'Open Gmail settings from quick settings menu.',
-        caption: 'Open Gmail settings'
+        caption: 'Open Gmail settings',
+        trimBottom: true
       })
     );
 
@@ -4490,7 +4503,8 @@ function buildInboundSetupStep(step, setStep, setupContext) {
       buildForwardingTutorialFrame({
         imageSrc: GMAIL_SETUP_SCREENSHOTS.sc2,
         imageAlt: 'Go to Forwarding and POP/IMAP and click Add a forwarding address.',
-        caption: 'Go to Forwarding and click Add a forwarding address'
+        caption: 'Go to Forwarding and click Add a forwarding address',
+        trimBottom: true
       })
     );
 
@@ -4772,7 +4786,7 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
     body.appendChild(trustNote);
     backBtn.textContent = currentStep === 0 ? 'Close' : 'Back';
     nextBtn.textContent = currentStep >= 1 ? 'Done' : 'Next';
-    nextBtn.className = 'btn btn--ghost btn--sm';
+    nextBtn.className = 'btn btn--primary btn--md';
     nextBtn.disabled = Boolean(setupContext.verifying);
   };
 
