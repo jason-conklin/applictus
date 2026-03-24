@@ -4472,34 +4472,6 @@ function buildInboundSetupStep(step, setStep, setupContext) {
     note.className = 'muted small';
     note.textContent = 'This is a one-time setup. After that, Applictus stays up to date automatically.';
 
-    const actions = document.createElement('div');
-    actions.className = 'forwarding-step-actions';
-    const openSettings = document.createElement('a');
-    openSettings.className = 'btn btn--primary btn--sm';
-    openSettings.href = 'https://mail.google.com/mail/u/0/#settings/fwdandpop';
-    openSettings.target = '_blank';
-    openSettings.rel = 'noopener noreferrer';
-    openSettings.textContent = 'Open Gmail forwarding settings';
-
-    const addedButton = document.createElement('button');
-    addedButton.type = 'button';
-    addedButton.className = 'btn btn--secondary btn--sm';
-    addedButton.textContent = 'I’ve added the forwarding address';
-    addedButton.addEventListener('click', async () => {
-      addedButton.disabled = true;
-      if (!inboundState.confirmedAt) {
-        addedButton.textContent = 'Saving…';
-        try {
-          const data = await api('/api/inbound/address/confirm', { method: 'POST' });
-          applyInboundStatusPayload(data || {});
-        } catch (err) {
-          showToast('Saved step progress locally. You can still continue to verification.', { tone: 'info' });
-        }
-      }
-      setStep(1);
-    });
-    actions.append(openSettings, addedButton);
-
     const tutorial = document.createElement('section');
     tutorial.className = 'forwarding-gmail-tutorial';
     const tutorialTitle = document.createElement('h5');
@@ -4567,7 +4539,7 @@ function buildInboundSetupStep(step, setStep, setupContext) {
     tutorial.append(navigationBlock, forwardingTabBlock, addAddressBlock);
     appendForwardingVerificationHelper(tutorial);
 
-    container.append(title, note, actions, tutorial);
+    container.append(title, note, tutorial);
     return container;
   }
 
