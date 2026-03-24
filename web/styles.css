@@ -5214,7 +5214,7 @@ details summary {
 }
 
 .modal--inbound-setup .modal-dialog {
-  width: min(860px, 96vw);
+  width: min(940px, 97vw);
 }
 
 .forwarding-setup-body {
@@ -5338,12 +5338,13 @@ details summary {
 }
 
 .forwarding-tutorial-frame--trim-bottom .forwarding-tutorial-frame-image {
-  height: clamp(140px, 18vw, 190px);
+  height: clamp(155px, 17vw, 210px);
 }
 
 .forwarding-tutorial-frame--trim-bottom .forwarding-tutorial-frame-image img {
-  object-fit: cover;
+  object-fit: contain;
   object-position: center top;
+  clip-path: inset(0 0 13% 0);
 }
 
 .forwarding-tutorial-sequence {
