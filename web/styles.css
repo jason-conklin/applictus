@@ -7866,20 +7866,7 @@ body.home-page .hero-value::before {
 }
 
 body.home-page .hero-value::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: -10px;
-  width: min(64%, 560px);
-  height: 1px;
-  transform: translateX(-50%);
-  background: linear-gradient(
-    90deg,
-    rgba(36, 82, 157, 0),
-    rgba(36, 82, 157, 0.15),
-    rgba(36, 82, 157, 0)
-  );
-  pointer-events: none;
+  content: none;
 }
 
 @media (min-width: 1100px) {
