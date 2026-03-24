@@ -387,6 +387,7 @@ let deleteError = null;
 let bulkActionBusy = false;
 const detailActions = document.getElementById('detail-actions');
 const modalRoot = document.getElementById('modal-root');
+const modalHeader = modalRoot ? modalRoot.querySelector('.modal-header') : null;
 const modalTitle = document.getElementById('modal-title');
 const modalDescription = document.getElementById('modal-description');
 const modalBody = document.getElementById('modal-body');
@@ -1580,6 +1581,11 @@ function openModal({
   const normalizedVariantClass = typeof variantClass === 'string' ? variantClass.trim() : '';
   if (normalizedVariantClass) {
     modalRoot.classList.add(normalizedVariantClass);
+  }
+  if (modalHeader) {
+    Array.from(modalHeader.querySelectorAll('[data-modal-transient="true"]')).forEach((node) => {
+      node.remove();
+    });
   }
   if (modalTitle) {
     modalTitle.textContent = title || 'Notice';
@@ -4219,6 +4225,49 @@ async function copyTextToClipboard(text, successMessage) {
   }
 }
 
+function renderInboundSetupHeaderAddressPanel() {
+  if (!modalRoot || !modalHeader || !modalRoot.classList.contains('modal--inbound-setup')) {
+    return;
+  }
+  let panel = modalHeader.querySelector('.inbound-setup-header-address');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.className = 'inbound-setup-header-address';
+    panel.dataset.modalTransient = 'true';
+
+    const label = document.createElement('div');
+    label.className = 'inbound-setup-header-label muted small';
+    label.textContent = 'Your Applictus inbox address';
+
+    const row = document.createElement('div');
+    row.className = 'inbound-setup-header-row';
+
+    const code = document.createElement('code');
+    code.className = 'inbound-setup-header-code';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'btn btn--ghost btn--sm inbound-setup-header-copy';
+    copyBtn.textContent = 'Copy';
+    copyBtn.addEventListener('click', () => {
+      void copyTextToClipboard(inboundState.addressEmail, 'Copied forwarding address');
+    });
+
+    row.append(code, copyBtn);
+    panel.append(label, row);
+    modalHeader.appendChild(panel);
+  }
+
+  const code = panel.querySelector('.inbound-setup-header-code');
+  const copyBtn = panel.querySelector('.inbound-setup-header-copy');
+  if (code) {
+    code.textContent = inboundState.addressEmail || 'Loading…';
+  }
+  if (copyBtn) {
+    copyBtn.disabled = !inboundState.addressEmail;
+  }
+}
+
 function registerInboundSetupCleanup(setupContext, cleanupFn) {
   if (!setupContext || typeof cleanupFn !== 'function') {
     return;
@@ -4423,27 +4472,6 @@ function buildInboundSetupStep(step, setStep, setupContext) {
     note.className = 'muted small';
     note.textContent = 'This is a one-time setup. After that, Applictus stays up to date automatically.';
 
-    const addressCard = document.createElement('section');
-    addressCard.className = 'forwarding-address-panel';
-    const addressLabel = document.createElement('div');
-    addressLabel.className = 'muted small';
-    addressLabel.textContent = 'Your Applictus inbox address';
-    const row = document.createElement('div');
-    row.className = 'forwarding-address-row';
-    const code = document.createElement('code');
-    code.className = 'forwarding-address-code';
-    code.textContent = inboundState.addressEmail || 'Loading…';
-    const copyBtn = document.createElement('button');
-    copyBtn.type = 'button';
-    copyBtn.className = 'btn btn--ghost btn--sm';
-    copyBtn.textContent = 'Copy';
-    copyBtn.disabled = !inboundState.addressEmail;
-    copyBtn.addEventListener('click', () => {
-      void copyTextToClipboard(inboundState.addressEmail, 'Copied forwarding address');
-    });
-    row.append(code, copyBtn);
-    addressCard.append(addressLabel, row);
-
     const actions = document.createElement('div');
     actions.className = 'forwarding-step-actions';
     const openSettings = document.createElement('a');
@@ -4539,7 +4567,7 @@ function buildInboundSetupStep(step, setStep, setupContext) {
     tutorial.append(navigationBlock, forwardingTabBlock, addAddressBlock);
     appendForwardingVerificationHelper(tutorial);
 
-    container.append(title, note, addressCard, actions, tutorial);
+    container.append(title, note, actions, tutorial);
     return container;
   }
 
@@ -4784,6 +4812,7 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
       <span>Rotate anytime</span>
     `;
     body.appendChild(trustNote);
+    renderInboundSetupHeaderAddressPanel();
     backBtn.textContent = currentStep === 0 ? 'Close' : 'Back';
     nextBtn.textContent = currentStep >= 1 ? 'Done' : 'Next';
     nextBtn.className = 'btn btn--primary btn--md';
