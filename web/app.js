@@ -4740,14 +4740,14 @@ function buildInboundSetupStep(step, setStep, setupContext) {
         completionLabel: 'Address added',
         frames: [
           {
-            src: GMAIL_SETUP_SCREENSHOTS.sc35,
-            alt: 'Forwarding modal ready for entering an inbox address.',
-            caption: 'Open the add forwarding address dialog.'
-          },
-          {
             src: GMAIL_SETUP_SCREENSHOTS.sc3,
             alt: 'Forwarding modal with the Applictus inbox address entered.',
             caption: 'Paste your Applictus inbox address.'
+          },
+          {
+            src: GMAIL_SETUP_SCREENSHOTS.sc35,
+            alt: 'Forwarding modal ready for entering an inbox address.',
+            caption: 'Open the add forwarding address dialog.'
           },
           {
             src: GMAIL_SETUP_SCREENSHOTS.sc4,
@@ -4780,8 +4780,8 @@ function buildInboundSetupStep(step, setStep, setupContext) {
 
   const forwardingSelectionBlock = buildForwardingTutorialStepCard({
     stepNumber: 4,
-    title: 'Select it in forwarding',
-    description: 'After Gmail confirms it, choose your Applictus inbox in the forwarding dropdown.',
+    title: 'Paste it in forwarding',
+    description: 'After Gmail confirms it, paste your Applictus inbox in the forwarding entry box.',
     mediaNode: buildForwardingAnimatedTutorial({
       setupContext,
       frameDurationMs: 1850,
@@ -4796,7 +4796,7 @@ function buildInboundSetupStep(step, setStep, setupContext) {
         {
           src: GMAIL_SETUP_SCREENSHOTS.sc6,
           alt: 'Forwarding settings with Applictus inbox selected.',
-          caption: 'Select your Applictus inbox in the forwarding field.'
+          caption: 'Paste your Applictus inbox in the forwarding field.'
         }
       ]
     })
