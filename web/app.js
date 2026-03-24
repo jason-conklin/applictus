@@ -4742,20 +4742,17 @@ function buildInboundSetupStep(step, setStep, setupContext) {
           {
             src: GMAIL_SETUP_SCREENSHOTS.sc35,
             alt: 'Forwarding modal ready for entering an inbox address.',
-            caption: 'Open the add forwarding address dialog.',
-            highlight: { x: 18, y: 47, w: 64, h: 18, shape: 'pill' }
+            caption: 'Open the add forwarding address dialog.'
           },
           {
             src: GMAIL_SETUP_SCREENSHOTS.sc3,
             alt: 'Forwarding modal with the Applictus inbox address entered.',
-            caption: 'Paste your Applictus inbox address.',
-            highlight: { x: 18, y: 47, w: 64, h: 18, shape: 'pill' }
+            caption: 'Paste your Applictus inbox address.'
           },
           {
             src: GMAIL_SETUP_SCREENSHOTS.sc4,
             alt: 'Gmail confirmation sent dialog after adding forwarding address.',
-            caption: 'Gmail sends a one-time confirmation.',
-            highlight: { x: 10, y: 33, w: 78, h: 30, shape: 'soft' }
+            caption: 'Gmail sends a one-time confirmation.'
           }
         ]
       })
@@ -4794,14 +4791,12 @@ function buildInboundSetupStep(step, setStep, setupContext) {
         {
           src: GMAIL_SETUP_SCREENSHOTS.sc5,
           alt: 'Forwarding settings before selecting Applictus inbox address.',
-          caption: 'Open Forwarding and choose “Forward a copy of incoming mail to”.',
-          highlight: { x: 34, y: 21, w: 58, h: 28, shape: 'pill' }
+          caption: 'Open Forwarding and choose “Forward a copy of incoming mail to”.'
         },
         {
           src: GMAIL_SETUP_SCREENSHOTS.sc6,
           alt: 'Forwarding settings with Applictus inbox selected.',
-          caption: 'Select your Applictus inbox in the forwarding field.',
-          highlight: { x: 34, y: 21, w: 58, h: 28, shape: 'pill' }
+          caption: 'Select your Applictus inbox in the forwarding field.'
         }
       ]
     })
