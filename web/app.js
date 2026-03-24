@@ -4576,7 +4576,7 @@ function buildInboundSetupStep(step, setStep, setupContext) {
           alt: 'Forwarding settings with Applictus inbox selected.'
         }
       ],
-      caption: 'After Gmail confirms it, choose your Applictus inbox in the forwarding dropdown.'
+      caption: 'After Gmail confirms it, paste your Applictus inbox in the forwarding entry field.'
     })
   );
 

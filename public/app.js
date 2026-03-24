@@ -4560,7 +4560,7 @@ function buildInboundSetupStep(step, setStep, setupContext) {
   forwardingSelectionBlock.className = 'forwarding-gmail-substep';
   const forwardingSelectionHeading = document.createElement('div');
   forwardingSelectionHeading.className = 'forwarding-gmail-substep-title';
-  forwardingSelectionHeading.textContent = '3) Select it in forwarding';
+  forwardingSelectionHeading.textContent = '3) Paste it in forwarding';
   forwardingSelectionBlock.appendChild(forwardingSelectionHeading);
   forwardingSelectionBlock.appendChild(
     buildForwardingAnimatedTutorial({
@@ -4576,7 +4576,7 @@ function buildInboundSetupStep(step, setStep, setupContext) {
           alt: 'Forwarding settings with Applictus inbox selected.'
         }
       ],
-      caption: 'After Gmail confirms it, choose your Applictus inbox in the forwarding dropdown.'
+      caption: 'After Gmail confirms it, paste your Applictus inbox in the forwarding entry field.'
     })
   );
 
