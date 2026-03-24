@@ -16,7 +16,14 @@ const files = [
   { src: 'favicon.png', dest: 'favicon.png' },
   { src: 'Applictus_logo.png', dest: 'Applictus_logo.png' },
   { src: 'jason.png', dest: 'jason.png' },
-  { src: 'shane.png', dest: 'shane.png' }
+  { src: 'shane.png', dest: 'shane.png' },
+  { src: 'applictus_setup_sc1.png', dest: 'applictus_setup_sc1.png' },
+  { src: 'applictus_setup_sc2.png', dest: 'applictus_setup_sc2.png' },
+  { src: 'applictus_setup_sc3.png', dest: 'applictus_setup_sc3.png' },
+  { src: 'applictus_setup_sc3.5.png', dest: 'applictus_setup_sc3.5.png' },
+  { src: 'applictus_setup_sc4.png', dest: 'applictus_setup_sc4.png' },
+  { src: 'applictus_setup_sc5.png', dest: 'applictus_setup_sc5.png' },
+  { src: 'applictus_setup_sc6.png', dest: 'applictus_setup_sc6.png' }
 ];
 
 fs.mkdirSync(publicDir, { recursive: true });

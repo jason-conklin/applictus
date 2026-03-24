@@ -5214,12 +5214,17 @@ details summary {
 }
 
 .modal--inbound-setup .modal-dialog {
-  width: min(700px, 94vw);
+  width: min(760px, 95vw);
 }
 
 .forwarding-setup-body {
   display: grid;
-  gap: 14px;
+  gap: 12px;
+}
+
+.forwarding-setup-step {
+  display: grid;
+  gap: 12px;
 }
 
 .forwarding-setup-progress {
@@ -5238,8 +5243,16 @@ details summary {
   margin: 0;
 }
 
+.forwarding-address-panel {
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(40, 80, 160, 0.14);
+  background: linear-gradient(180deg, rgba(252, 253, 255, 0.98), rgba(244, 248, 255, 0.94));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+}
+
 .forwarding-address-row {
-  margin-top: 10px;
+  margin-top: 8px;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -5260,8 +5273,125 @@ details summary {
   font-weight: 600;
 }
 
+.forwarding-gmail-tutorial {
+  display: grid;
+  gap: 10px;
+  padding: 11px 12px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(36, 76, 146, 0.14);
+  background:
+    linear-gradient(180deg, rgba(251, 253, 255, 0.98), rgba(242, 247, 255, 0.95)),
+    radial-gradient(125% 140% at 0% 0%, rgba(85, 128, 214, 0.08), rgba(85, 128, 214, 0) 55%);
+  box-shadow:
+    0 8px 20px rgba(33, 64, 120, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.forwarding-gmail-tutorial h5 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #1c3e6f;
+}
+
+.forwarding-gmail-substep {
+  display: grid;
+  gap: 8px;
+}
+
+.forwarding-gmail-substep-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #28508c;
+}
+
+.forwarding-tutorial-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.forwarding-tutorial-frame {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(40, 80, 160, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(245, 249, 255, 0.9));
+}
+
+.forwarding-tutorial-frame-image {
+  border-radius: 10px;
+  border: 1px solid rgba(40, 80, 160, 0.12);
+  background: #f5f8fe;
+  overflow: hidden;
+}
+
+.forwarding-tutorial-frame-image img {
+  width: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.forwarding-tutorial-sequence {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(40, 80, 160, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(245, 249, 255, 0.9));
+}
+
+.forwarding-tutorial-sequence-viewport {
+  position: relative;
+  border-radius: 10px;
+  border: 1px solid rgba(40, 80, 160, 0.12);
+  background: #f5f8fe;
+  overflow: hidden;
+  min-height: 120px;
+}
+
+.forwarding-tutorial-sequence-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.forwarding-tutorial-sequence-frame.is-active {
+  opacity: 1;
+}
+
+.forwarding-tutorial-sequence-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.forwarding-tutorial-sequence-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(62, 92, 145, 0.25);
+}
+
+.forwarding-tutorial-sequence-dot.is-active {
+  background: rgba(42, 88, 162, 0.72);
+}
+
+.forwarding-tutorial-caption {
+  margin: 0;
+  line-height: 1.35;
+}
+
 .forwarding-steps-list {
-  margin: 10px 0 0;
+  margin: 0;
   padding-left: 20px;
   color: #2d466a;
   display: grid;
@@ -5270,15 +5400,23 @@ details summary {
 }
 
 .forwarding-step-actions {
-  margin-top: 12px;
+  margin-top: 0;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
 }
 
+.forwarding-verify-actions {
+  align-items: stretch;
+}
+
+.forwarding-verify-message {
+  margin-top: -2px;
+}
+
 .forwarding-collapsible {
-  margin-top: 12px;
+  margin-top: 2px;
   border: 1px solid rgba(40, 80, 160, 0.14);
   border-radius: 12px;
   background: linear-gradient(180deg, rgba(252, 253, 255, 0.98), rgba(244, 248, 255, 0.94));
@@ -5318,7 +5456,7 @@ details summary {
 }
 
 .forwarding-filter-snippet {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   padding: 12px;
   border-radius: 12px;
   border: 1px solid rgba(40, 80, 160, 0.14);
@@ -5344,7 +5482,7 @@ details summary {
 }
 
 .forwarding-verification-helper {
-  margin-top: 10px;
+  margin-top: 2px;
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid rgba(37, 99, 235, 0.2);
@@ -5359,25 +5497,31 @@ details summary {
 }
 
 .forwarding-trust-note {
-  margin-top: 6px;
-  padding-top: 10px;
+  margin-top: 2px;
+  padding-top: 8px;
   border-top: 1px solid rgba(33, 66, 120, 0.12);
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px 10px;
+  color: #4b6288;
+  font-size: 11px;
 }
 
 .forwarding-trust-note span {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(33, 66, 120, 0.12);
-  background: rgba(242, 248, 255, 0.8);
-  color: #445d82;
-  font-size: 11px;
-  letter-spacing: 0.01em;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.forwarding-trust-note span + span::before {
+  content: '•';
+  margin-right: 10px;
+  opacity: 0.6;
 }
 
 @media (max-width: 720px) {
@@ -5401,6 +5545,14 @@ details summary {
   .modal--add-application .modal-footer,
   .modal--inbound-setup .modal-footer {
     gap: 8px;
+  }
+
+  .forwarding-tutorial-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .forwarding-tutorial-sequence-viewport {
+    min-height: 110px;
   }
 
   .forwarding-step-actions {

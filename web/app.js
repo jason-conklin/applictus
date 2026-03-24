@@ -4152,6 +4152,16 @@ const OUTLOOK_FORWARDING_HELP = [
   'You can add a rule later to narrow to job updates.'
 ].join('\n');
 
+const GMAIL_SETUP_SCREENSHOTS = {
+  sc1: '/applictus_setup_sc1.png',
+  sc2: '/applictus_setup_sc2.png',
+  sc3: '/applictus_setup_sc3.png',
+  sc35: '/applictus_setup_sc3.5.png',
+  sc4: '/applictus_setup_sc4.png',
+  sc5: '/applictus_setup_sc5.png',
+  sc6: '/applictus_setup_sc6.png'
+};
+
 function waitForMs(durationMs) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, Math.max(0, Number(durationMs) || 0));
@@ -4209,20 +4219,203 @@ async function copyTextToClipboard(text, successMessage) {
   }
 }
 
+function registerInboundSetupCleanup(setupContext, cleanupFn) {
+  if (!setupContext || typeof cleanupFn !== 'function') {
+    return;
+  }
+  if (!Array.isArray(setupContext.cleanupFns)) {
+    setupContext.cleanupFns = [];
+  }
+  setupContext.cleanupFns.push(cleanupFn);
+}
+
+function buildForwardingTutorialFrame({ imageSrc, imageAlt, caption } = {}) {
+  const frame = document.createElement('figure');
+  frame.className = 'forwarding-tutorial-frame';
+
+  const imageWrap = document.createElement('div');
+  imageWrap.className = 'forwarding-tutorial-frame-image';
+  const image = document.createElement('img');
+  image.src = imageSrc || '';
+  image.alt = imageAlt || 'Gmail setup screenshot';
+  image.loading = 'lazy';
+  image.decoding = 'async';
+  imageWrap.appendChild(image);
+
+  const captionNode = document.createElement('figcaption');
+  captionNode.className = 'forwarding-tutorial-caption muted small';
+  captionNode.textContent = caption || '';
+
+  frame.append(imageWrap, captionNode);
+  return frame;
+}
+
+function buildForwardingAnimatedTutorial({ frames = [], caption = '', setupContext, intervalMs = 1600 } = {}) {
+  const card = document.createElement('div');
+  card.className = 'forwarding-tutorial-sequence';
+
+  const viewport = document.createElement('div');
+  viewport.className = 'forwarding-tutorial-sequence-viewport';
+
+  const frameNodes = frames
+    .map((frame, index) => {
+      const node = document.createElement('img');
+      node.className = 'forwarding-tutorial-sequence-frame';
+      node.src = frame?.src || '';
+      node.alt = frame?.alt || `Gmail setup step ${index + 1}`;
+      node.loading = index === 0 ? 'eager' : 'lazy';
+      node.decoding = 'async';
+      viewport.appendChild(node);
+      return node;
+    })
+    .filter(Boolean);
+
+  const dots = document.createElement('div');
+  dots.className = 'forwarding-tutorial-sequence-dots';
+  const dotNodes = frameNodes.map((_, index) => {
+    const dot = document.createElement('span');
+    dot.className = 'forwarding-tutorial-sequence-dot';
+    dot.setAttribute('aria-hidden', 'true');
+    dot.dataset.index = String(index);
+    dots.appendChild(dot);
+    return dot;
+  });
+
+  const captionNode = document.createElement('p');
+  captionNode.className = 'forwarding-tutorial-caption muted small';
+  captionNode.textContent = caption;
+
+  card.append(viewport);
+  if (dotNodes.length > 1) {
+    card.appendChild(dots);
+  }
+  card.appendChild(captionNode);
+
+  let activeIndex = 0;
+  let paused = false;
+  let timer = null;
+
+  const applyFrameState = () => {
+    frameNodes.forEach((node, index) => {
+      node.classList.toggle('is-active', index === activeIndex);
+    });
+    dotNodes.forEach((node, index) => {
+      node.classList.toggle('is-active', index === activeIndex);
+    });
+  };
+
+  const stop = () => {
+    if (timer) {
+      window.clearInterval(timer);
+      timer = null;
+    }
+  };
+
+  const start = () => {
+    if (frameNodes.length < 2 || timer) {
+      return;
+    }
+    timer = window.setInterval(() => {
+      if (paused) {
+        return;
+      }
+      activeIndex = (activeIndex + 1) % frameNodes.length;
+      applyFrameState();
+    }, Math.max(1200, Number(intervalMs) || 1600));
+  };
+
+  const onMouseEnter = () => {
+    paused = true;
+  };
+  const onMouseLeave = () => {
+    paused = false;
+  };
+
+  viewport.addEventListener('mouseenter', onMouseEnter);
+  viewport.addEventListener('mouseleave', onMouseLeave);
+  registerInboundSetupCleanup(setupContext, () => {
+    stop();
+    viewport.removeEventListener('mouseenter', onMouseEnter);
+    viewport.removeEventListener('mouseleave', onMouseLeave);
+  });
+
+  applyFrameState();
+  start();
+  return card;
+}
+
+function appendForwardingVerificationHelper(target) {
+  if (!target) {
+    return false;
+  }
+  const verificationData = inboundState.gmailVerification || null;
+  const hasVerificationEmail =
+    Boolean(verificationData?.receivedAt) ||
+    /gmail forwarding confirmation/i.test(String(inboundState.lastReceivedSubject || ''));
+  if (!hasVerificationEmail) {
+    return false;
+  }
+  const helper = document.createElement('div');
+  helper.className = 'forwarding-verification-helper';
+
+  const verifiedNote = document.createElement('div');
+  verifiedNote.className = 'forwarding-connected-note';
+  verifiedNote.textContent = 'We received a forwarding confirmation email ✓';
+  helper.appendChild(verifiedNote);
+
+  const helperTitle = document.createElement('div');
+  helperTitle.className = 'muted small';
+  helperTitle.textContent = 'Finish Gmail verification from the message Gmail sent to your Applictus address.';
+  helper.appendChild(helperTitle);
+
+  const helperActions = document.createElement('div');
+  helperActions.className = 'forwarding-step-actions';
+  if (verificationData?.confirmationUrl) {
+    const openVerification = document.createElement('a');
+    openVerification.className = 'btn btn--secondary btn--sm';
+    openVerification.href = verificationData.confirmationUrl;
+    openVerification.target = '_blank';
+    openVerification.rel = 'noopener noreferrer';
+    openVerification.textContent = 'Open verification link';
+    helperActions.appendChild(openVerification);
+  }
+  if (verificationData?.confirmationCode) {
+    const copyCode = document.createElement('button');
+    copyCode.type = 'button';
+    copyCode.className = 'btn btn--ghost btn--sm';
+    copyCode.textContent = 'Copy confirmation code';
+    copyCode.addEventListener('click', () => {
+      void copyTextToClipboard(verificationData.confirmationCode, 'Copied confirmation code');
+    });
+    helperActions.appendChild(copyCode);
+  }
+  if (helperActions.children.length) {
+    helper.appendChild(helperActions);
+  }
+  target.appendChild(helper);
+  return true;
+}
+
 function buildInboundSetupStep(step, setStep, setupContext) {
   const container = document.createElement('div');
   container.className = 'forwarding-setup-step';
   const progress = document.createElement('div');
   progress.className = 'forwarding-setup-progress muted small';
-  progress.textContent = `Step ${step + 1} of 3`;
+  progress.textContent = `Step ${step + 1} of 2`;
   container.appendChild(progress);
 
   if (step === 0) {
     const title = document.createElement('h4');
-    title.textContent = 'Your Applictus inbox address';
+    title.textContent = 'Add your Applictus inbox to Gmail';
     const note = document.createElement('p');
     note.className = 'muted small';
-    note.textContent = 'Emails forwarded here are used only to detect job-application updates.';
+    note.textContent = 'This is a one-time setup. After that, Applictus stays up to date automatically.';
+
+    const addressCard = document.createElement('section');
+    addressCard.className = 'forwarding-address-panel';
+    const addressLabel = document.createElement('div');
+    addressLabel.className = 'muted small';
+    addressLabel.textContent = 'Your Applictus inbox address';
     const row = document.createElement('div');
     row.className = 'forwarding-address-row';
     const code = document.createElement('code');
@@ -4237,187 +4430,135 @@ function buildInboundSetupStep(step, setStep, setupContext) {
       void copyTextToClipboard(inboundState.addressEmail, 'Copied forwarding address');
     });
     row.append(code, copyBtn);
-    container.append(title, note, row);
-    return container;
-  }
+    addressCard.append(addressLabel, row);
 
-  if (step === 1) {
-    const title = document.createElement('h4');
-    title.textContent = 'Enable forwarding in Gmail';
-    const subtitle = document.createElement('p');
-    subtitle.className = 'muted small';
-    subtitle.textContent = 'Google requires a one-time forwarding confirmation.';
-    const gmailSetup = createForwardingCollapsible({
-      title: 'Enable forwarding in Gmail',
-      open: true
-    });
-    const list = document.createElement('ol');
-    list.className = 'forwarding-steps-list';
-    list.innerHTML = `
-      <li>Open Gmail Settings → Forwarding and POP/IMAP</li>
-      <li>Add a forwarding address and paste your Applictus address (or confirm the existing “Forward a copy to …” target is your Applictus address)</li>
-      <li>Complete Gmail’s one-time verification from the confirmation email</li>
-    `;
-    const gmailActions = document.createElement('div');
-    gmailActions.className = 'forwarding-step-actions';
+    const actions = document.createElement('div');
+    actions.className = 'forwarding-step-actions';
     const openSettings = document.createElement('a');
-    openSettings.className = 'btn btn--secondary btn--sm';
-    openSettings.href = 'https://mail.google.com/mail/#settings/fwdandpop';
+    openSettings.className = 'btn btn--primary btn--sm';
+    openSettings.href = 'https://mail.google.com/mail/u/0/#settings/fwdandpop';
     openSettings.target = '_blank';
     openSettings.rel = 'noopener noreferrer';
     openSettings.textContent = 'Open Gmail forwarding settings';
-    const confirmBtn = document.createElement('button');
-    confirmBtn.type = 'button';
-    confirmBtn.className = 'btn btn--primary btn--sm';
-    confirmBtn.textContent = inboundState.confirmedAt ? 'Forwarding confirmed' : 'I confirmed forwarding';
-    confirmBtn.disabled = Boolean(inboundState.confirmedAt);
-    confirmBtn.addEventListener('click', async () => {
-      confirmBtn.disabled = true;
-      confirmBtn.textContent = 'Saving…';
-      try {
-        const data = await api('/api/inbound/address/confirm', { method: 'POST' });
-        applyInboundStatusPayload(data || {});
-        showToast('Forwarding confirmation saved.', { tone: 'success' });
-        setStep(2);
-      } catch (err) {
-        showNotice(err.message || 'Unable to confirm forwarding.', 'Forwarding setup');
-        confirmBtn.disabled = false;
-        confirmBtn.textContent = 'I confirmed forwarding';
-      }
-    });
-    gmailActions.append(openSettings, confirmBtn);
-    gmailSetup.body.append(list, gmailActions);
-    const verificationData = inboundState.gmailVerification || null;
-    const hasVerificationEmail =
-      Boolean(verificationData?.receivedAt) ||
-      /gmail forwarding confirmation/i.test(String(inboundState.lastReceivedSubject || ''));
-    if (hasVerificationEmail) {
-      const verifiedNote = document.createElement('div');
-      verifiedNote.className = 'forwarding-connected-note';
-      verifiedNote.textContent = 'We received a forwarding confirmation email ✓';
-      gmailSetup.body.appendChild(verifiedNote);
 
-      const helper = document.createElement('div');
-      helper.className = 'forwarding-verification-helper';
-      const helperTitle = document.createElement('div');
-      helperTitle.className = 'muted small';
-      helperTitle.textContent = 'Use this to finish Gmail verification:';
-      helper.appendChild(helperTitle);
-
-      const helperActions = document.createElement('div');
-      helperActions.className = 'forwarding-step-actions';
-      if (verificationData?.confirmationUrl) {
-        const openVerification = document.createElement('a');
-        openVerification.className = 'btn btn--primary btn--sm';
-        openVerification.href = verificationData.confirmationUrl;
-        openVerification.target = '_blank';
-        openVerification.rel = 'noopener noreferrer';
-        openVerification.textContent = 'Open verification link';
-        helperActions.appendChild(openVerification);
-      }
-      if (verificationData?.confirmationCode) {
-        const copyCode = document.createElement('button');
-        copyCode.type = 'button';
-        copyCode.className = 'btn btn--secondary btn--sm';
-        copyCode.textContent = 'Copy confirmation code';
-        copyCode.addEventListener('click', () => {
-          void copyTextToClipboard(verificationData.confirmationCode, 'Copied confirmation code');
-        });
-        helperActions.appendChild(copyCode);
-      }
-      if (!verificationData?.confirmationUrl && !verificationData?.confirmationCode) {
-        const noData = document.createElement('p');
-        noData.className = 'muted small';
-        noData.textContent =
-          'Confirmation email detected. If Gmail still says pending, click “Re-send email” and reopen setup.';
-        helper.appendChild(noData);
-      }
-      if (helperActions.children.length) {
-        helper.appendChild(helperActions);
-      }
-      if (verificationData?.confirmationCode) {
-        const codeLine = document.createElement('p');
-        codeLine.className = 'muted small';
-        const codeLabel = document.createElement('span');
-        codeLabel.textContent = 'Confirmation code: ';
-        const codeValue = document.createElement('code');
-        codeValue.textContent = verificationData.confirmationCode;
-        codeLine.append(codeLabel, codeValue);
-        helper.appendChild(codeLine);
-      }
-      if (verificationData?.receivedAt) {
-        const receivedLine = document.createElement('p');
-        receivedLine.className = 'muted small';
-        const receivedAtLabel = formatSyncDateTime(verificationData.receivedAt);
-        if (receivedAtLabel) {
-          receivedLine.textContent = `Received: ${receivedAtLabel}`;
-          helper.appendChild(receivedLine);
+    const addedButton = document.createElement('button');
+    addedButton.type = 'button';
+    addedButton.className = 'btn btn--secondary btn--sm';
+    addedButton.textContent = 'I’ve added the forwarding address';
+    addedButton.addEventListener('click', async () => {
+      addedButton.disabled = true;
+      if (!inboundState.confirmedAt) {
+        addedButton.textContent = 'Saving…';
+        try {
+          const data = await api('/api/inbound/address/confirm', { method: 'POST' });
+          applyInboundStatusPayload(data || {});
+        } catch (err) {
+          showToast('Saved step progress locally. You can still continue to verification.', { tone: 'info' });
         }
       }
-      gmailSetup.body.appendChild(helper);
-    }
-    const note = document.createElement('p');
-    note.className = 'muted small';
-    note.textContent = hasVerificationEmail
-      ? 'Address reachable. Finish Gmail verification, then move to Step 3 and click Verify setup.'
-      : 'After confirming forwarding, move to Step 3 and click Verify setup. We mark Active once the first forwarded email arrives.';
-    container.append(title, subtitle, gmailSetup.details, note);
+      setStep(1);
+    });
+    actions.append(openSettings, addedButton);
+
+    const tutorial = document.createElement('section');
+    tutorial.className = 'forwarding-gmail-tutorial';
+    const tutorialTitle = document.createElement('h5');
+    tutorialTitle.textContent = 'What this looks like in Gmail';
+    tutorial.appendChild(tutorialTitle);
+
+    const navigationBlock = document.createElement('div');
+    navigationBlock.className = 'forwarding-gmail-substep';
+    const navigationHeading = document.createElement('div');
+    navigationHeading.className = 'forwarding-gmail-substep-title';
+    navigationHeading.textContent = '1) Navigate to forwarding settings';
+    const navigationGrid = document.createElement('div');
+    navigationGrid.className = 'forwarding-tutorial-grid';
+    navigationGrid.append(
+      buildForwardingTutorialFrame({
+        imageSrc: GMAIL_SETUP_SCREENSHOTS.sc1,
+        imageAlt: 'Open Gmail settings from quick settings menu.',
+        caption: 'Open Gmail settings'
+      }),
+      buildForwardingTutorialFrame({
+        imageSrc: GMAIL_SETUP_SCREENSHOTS.sc2,
+        imageAlt: 'Go to Forwarding and POP/IMAP and click Add a forwarding address.',
+        caption: 'Go to Forwarding and click Add a forwarding address'
+      })
+    );
+    navigationBlock.append(navigationHeading, navigationGrid);
+
+    const addAddressBlock = document.createElement('div');
+    addAddressBlock.className = 'forwarding-gmail-substep';
+    const addAddressHeading = document.createElement('div');
+    addAddressHeading.className = 'forwarding-gmail-substep-title';
+    addAddressHeading.textContent = '2) Add your Applictus address';
+    addAddressBlock.appendChild(addAddressHeading);
+    addAddressBlock.appendChild(
+      buildForwardingAnimatedTutorial({
+        setupContext,
+        frames: [
+          {
+            src: GMAIL_SETUP_SCREENSHOTS.sc3,
+            alt: 'Forwarding modal with the Applictus inbox address entered.'
+          },
+          {
+            src: GMAIL_SETUP_SCREENSHOTS.sc35,
+            alt: 'Forwarding modal ready for entering an inbox address.'
+          },
+          {
+            src: GMAIL_SETUP_SCREENSHOTS.sc4,
+            alt: 'Gmail confirmation sent dialog after adding forwarding address.'
+          }
+        ],
+        caption: 'Paste your Applictus inbox address and continue. Gmail sends a one-time confirmation.'
+      })
+    );
+
+    const enabledBlock = document.createElement('div');
+    enabledBlock.className = 'forwarding-gmail-substep';
+    const enabledHeading = document.createElement('div');
+    enabledHeading.className = 'forwarding-gmail-substep-title';
+    enabledHeading.textContent = '3) Select it in forwarding';
+    enabledBlock.appendChild(enabledHeading);
+    enabledBlock.appendChild(
+      buildForwardingAnimatedTutorial({
+        setupContext,
+        frames: [
+          {
+            src: GMAIL_SETUP_SCREENSHOTS.sc5,
+            alt: 'Forwarding settings before selecting Applictus inbox address.'
+          },
+          {
+            src: GMAIL_SETUP_SCREENSHOTS.sc6,
+            alt: 'Forwarding settings with Applictus inbox selected.'
+          }
+        ],
+        caption: 'After Gmail confirms it, choose your Applictus inbox in the forwarding dropdown.'
+      })
+    );
+
+    tutorial.append(navigationBlock, addAddressBlock, enabledBlock);
+    appendForwardingVerificationHelper(tutorial);
+
+    container.append(title, note, addressCard, actions, tutorial);
     return container;
   }
 
   const title = document.createElement('h4');
-  title.textContent = 'Optional: add a job-email filter';
+  title.textContent = 'Verify your setup';
   const note = document.createElement('p');
   note.className = 'muted small';
-  note.textContent = 'Recommended so Applictus only receives application-related messages.';
-  const filterSnippet = document.createElement('pre');
-  filterSnippet.className = 'forwarding-filter-snippet';
-  filterSnippet.textContent = FORWARDING_FILTER_QUERY;
-  const filterActions = document.createElement('div');
-  filterActions.className = 'forwarding-step-actions';
-  const copyFilterBtn = document.createElement('button');
-  copyFilterBtn.type = 'button';
-  copyFilterBtn.className = 'btn btn--secondary btn--sm';
-  copyFilterBtn.textContent = 'Copy recommended filter';
-  copyFilterBtn.addEventListener('click', () => {
-    void copyTextToClipboard(FORWARDING_FILTER_QUERY, 'Copied filter query');
-  });
-  filterActions.append(copyFilterBtn);
+  note.textContent = 'Forward one recent job email or send a quick test email, then verify.';
 
-  const outlookPanel = createForwardingCollapsible({
-    title: 'Outlook setup (optional)',
-    open: false
-  });
-  const outlookSnippet = document.createElement('pre');
-  outlookSnippet.className = 'forwarding-filter-snippet';
-  outlookSnippet.textContent = OUTLOOK_FORWARDING_HELP;
-  outlookPanel.body.append(outlookSnippet);
-
-  const verifyHeading = document.createElement('p');
-  verifyHeading.className = 'muted small';
-  verifyHeading.textContent = 'Verify setup after forwarding one test or real application email.';
   const checklist = document.createElement('ol');
   checklist.className = 'forwarding-steps-list';
   checklist.innerHTML = `
-    <li>Send yourself a test email with subject “Applictus test” or forward any recent job email.</li>
+    <li>Forward a real application update or send a test email to your Applictus inbox.</li>
     <li>Click Verify setup. We check for new forwarded mail automatically.</li>
-    <li>When received, status changes to Active and setup is complete.</li>
   `;
-  const actions = document.createElement('div');
-  actions.className = 'forwarding-step-actions';
-  const sendTestBtn = document.createElement('button');
-  sendTestBtn.type = 'button';
-  sendTestBtn.className = 'btn btn--secondary btn--sm';
-  sendTestBtn.textContent = 'Send test email';
-  sendTestBtn.disabled = !inboundState.addressEmail || setupContext?.verifying;
-  sendTestBtn.addEventListener('click', () => {
-    const mailto = buildForwardingTestMailto(inboundState.addressEmail);
-    if (!mailto) {
-      return;
-    }
-    window.location.href = mailto;
-  });
 
+  const actions = document.createElement('div');
+  actions.className = 'forwarding-step-actions forwarding-verify-actions';
   const verifyBtn = document.createElement('button');
   verifyBtn.type = 'button';
   verifyBtn.className = 'btn btn--primary btn--sm';
@@ -4434,12 +4575,25 @@ function buildInboundSetupStep(step, setStep, setupContext) {
     void setupContext.runVerificationCheck();
   });
 
-  actions.append(sendTestBtn, verifyBtn);
-  container.append(title, note, filterSnippet, filterActions, outlookPanel.details, verifyHeading, checklist, actions);
+  const sendTestBtn = document.createElement('button');
+  sendTestBtn.type = 'button';
+  sendTestBtn.className = 'btn btn--secondary btn--sm';
+  sendTestBtn.textContent = 'Send test email';
+  sendTestBtn.disabled = !inboundState.addressEmail || setupContext?.verifying;
+  sendTestBtn.addEventListener('click', () => {
+    const mailto = buildForwardingTestMailto(inboundState.addressEmail);
+    if (!mailto) {
+      return;
+    }
+    window.location.href = mailto;
+  });
+  actions.append(verifyBtn, sendTestBtn);
+
+  container.append(title, note, checklist, actions);
 
   if (setupContext?.verifyMessage) {
     const verifyMessage = document.createElement('p');
-    verifyMessage.className = 'muted small';
+    verifyMessage.className = 'forwarding-verify-message muted small';
     verifyMessage.textContent = setupContext.verifyMessage;
     container.appendChild(verifyMessage);
   }
@@ -4447,14 +4601,48 @@ function buildInboundSetupStep(step, setStep, setupContext) {
   if (setupContext?.verified || isForwardingActive()) {
     const connected = document.createElement('div');
     connected.className = 'forwarding-connected-note';
-    connected.textContent = 'Connected ✓';
+    connected.textContent = 'Connected ✓ Your Applictus inbox is ready.';
     container.appendChild(connected);
   }
+
+  const filterPanel = createForwardingCollapsible({
+    title: 'Optional: forward only job emails',
+    open: false
+  });
+  const filterIntro = document.createElement('p');
+  filterIntro.className = 'muted small';
+  filterIntro.textContent = 'Recommended so Applictus only receives application-related messages.';
+  const filterSnippet = document.createElement('pre');
+  filterSnippet.className = 'forwarding-filter-snippet';
+  filterSnippet.textContent = FORWARDING_FILTER_QUERY;
+  const filterActions = document.createElement('div');
+  filterActions.className = 'forwarding-step-actions';
+  const copyFilterBtn = document.createElement('button');
+  copyFilterBtn.type = 'button';
+  copyFilterBtn.className = 'btn btn--ghost btn--sm';
+  copyFilterBtn.textContent = 'Copy filter query';
+  copyFilterBtn.addEventListener('click', () => {
+    void copyTextToClipboard(FORWARDING_FILTER_QUERY, 'Copied filter query');
+  });
+  filterActions.append(copyFilterBtn);
+  filterPanel.body.append(filterIntro, filterSnippet, filterActions);
+  container.appendChild(filterPanel.details);
+
+  const outlookPanel = createForwardingCollapsible({
+    title: 'Using Outlook instead?',
+    open: false
+  });
+  const outlookSnippet = document.createElement('pre');
+  outlookSnippet.className = 'forwarding-filter-snippet';
+  outlookSnippet.textContent = OUTLOOK_FORWARDING_HELP;
+  outlookPanel.body.append(outlookSnippet);
+  container.appendChild(outlookPanel.details);
+
   return container;
 }
 
 function openInboundSetupModal({ startStep = 0 } = {}) {
-  let currentStep = Math.max(0, Math.min(2, Number(startStep) || 0));
+  let currentStep = Math.max(0, Math.min(1, Number(startStep) || 0));
   const initialReadiness = resolveForwardingReadiness();
   const initialVerifyMessage =
     initialReadiness === 'forwarding_active'
@@ -4470,7 +4658,8 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
     verifyMessage: initialVerifyMessage,
     closed: false,
     closeTimer: null,
-    runVerificationCheck: null
+    runVerificationCheck: null,
+    cleanupFns: []
   };
 
   const safeRender = () => {
@@ -4525,7 +4714,7 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
     setupContext.verifying = false;
     const readiness = resolveForwardingReadiness();
     if (readiness === 'gmail_verification_pending') {
-      setupContext.verifyMessage = 'Address reachable, but Gmail verification is still pending in Step 2.';
+      setupContext.verifyMessage = 'Address reachable, but Gmail verification is still pending in Gmail.';
       showToast('Address reachable. Finish Gmail verification to complete setup.', { tone: 'info' });
     } else {
       setupContext.verifyMessage = 'No forwarded email detected yet. Forward one email, then try Verify setup again.';
@@ -4547,23 +4736,34 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
   footer.append(backBtn, nextBtn);
 
   const render = () => {
+    if (Array.isArray(setupContext.cleanupFns)) {
+      setupContext.cleanupFns.forEach((cleanup) => {
+        try {
+          cleanup();
+        } catch (_) {
+          // no-op
+        }
+      });
+      setupContext.cleanupFns = [];
+    }
     body.innerHTML = '';
     body.appendChild(
       buildInboundSetupStep(currentStep, (nextStep) => {
-        currentStep = Math.max(0, Math.min(2, Number(nextStep) || 0));
+        currentStep = Math.max(0, Math.min(1, Number(nextStep) || 0));
         render();
       }, setupContext)
     );
     const trustNote = document.createElement('div');
     trustNote.className = 'forwarding-trust-note muted small';
     trustNote.innerHTML = `
-      <span>No Google sign-in required</span>
+      <span>No inbox access required</span>
       <span>You control what gets forwarded</span>
-      <span>You can rotate this address anytime</span>
+      <span>Rotate anytime</span>
     `;
     body.appendChild(trustNote);
     backBtn.textContent = currentStep === 0 ? 'Close' : 'Back';
-    nextBtn.textContent = currentStep >= 2 ? 'Done' : 'Next';
+    nextBtn.textContent = currentStep >= 1 ? 'Done' : 'Next';
+    nextBtn.className = 'btn btn--ghost btn--sm';
     nextBtn.disabled = Boolean(setupContext.verifying);
   };
 
@@ -4580,7 +4780,7 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
     if (setupContext.verifying) {
       return;
     }
-    if (currentStep >= 2) {
+    if (currentStep >= 1) {
       closeModal('done');
       return;
     }
@@ -4589,14 +4789,24 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
   });
 
   openModal({
-    title: 'Connect inbox with forwarding',
-    description: 'Forward application emails once, then Applictus keeps your timeline up to date automatically.',
+    title: 'Set up your Applictus inbox',
+    description: 'A one-time setup that keeps your timeline updated automatically.',
     body,
     footer,
     allowBackdropClose: true,
     variantClass: 'modal--inbound-setup',
     onClose: () => {
       setupContext.closed = true;
+      if (Array.isArray(setupContext.cleanupFns)) {
+        setupContext.cleanupFns.forEach((cleanup) => {
+          try {
+            cleanup();
+          } catch (_) {
+            // no-op
+          }
+        });
+        setupContext.cleanupFns = [];
+      }
       if (setupContext.closeTimer) {
         window.clearTimeout(setupContext.closeTimer);
         setupContext.closeTimer = null;
