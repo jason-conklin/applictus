@@ -230,7 +230,7 @@
               </span>
               <span class="acct-menu-label">Account</span>
             </a>
-            <a class="profile-menu-item acct-menu-item" href="#account" role="menuitem" data-menu-action="gmail">
+            <a class="profile-menu-item acct-menu-item" href="#account" role="menuitem" data-menu-action="inbox">
               <span class="acct-menu-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="3" y="5" width="18" height="14" rx="2"></rect>
@@ -539,20 +539,20 @@
       <section class="view" id="account-view" hidden>
         <div class="page-header">
           <h2>Account</h2>
-          <p class="muted">Manage your workspace and connected services.</p>
+          <p class="muted">Manage your Applictus inbox and account security.</p>
         </div>
         <div class="card account-inbox-card surface-raised">
           <div class="account-inbox-head">
             <div class="account-inbox-head-main">
-              <h3>Connect Inbox (Recommended)</h3>
+              <h3>Your Applictus inbox</h3>
               <p class="muted small">
-                Enable automatic scanning without Google login. Applictus processes only emails you forward.
+                Forwarding keeps your timeline updated automatically. Applictus processes only emails you forward.
               </p>
             </div>
             <div class="pill" id="inbound-status-pill" data-state="idle">Not connected</div>
           </div>
           <div class="account-inbox-address-block">
-            <div class="muted small account-inbox-label">Your forwarding address</div>
+            <div class="muted small account-inbox-label">Your Applictus inbox address</div>
             <div class="account-inbox-address-row">
               <code class="account-inbox-address" id="inbound-address-email">—</code>
               <button class="btn btn--ghost btn--sm" type="button" id="inbound-copy-address">Copy</button>
@@ -605,12 +605,12 @@
             the forwarding rule at any time.
           </div>
         </div>
-		        <div class="account-grid">
-		          <div class="card account-panel account-info-card surface-raised">
-	            <div class="account-card-header">
-	              <h3>Account information</h3>
+			        <div class="account-grid">
+			          <div class="card account-panel account-info-card surface-raised">
+		            <div class="account-card-header">
+		              <h3>Account & Security</h3>
                 <p class="muted small">Security & sign-in settings</p>
-	            </div>
+		            </div>
 	            <div class="account-panel-body">
                 <div class="account-row account-row--identity">
                   <div class="account-row-label muted small">Email</div>
@@ -650,63 +650,36 @@
                     Diagnostics
                   </button>
                 </div>
-	            </div>
-	          </div>
-	          <div class="card account-gmail-card surface-raised">
-              <details class="account-legacy-accordion" id="account-legacy-gmail">
-                <summary class="account-legacy-summary">
-                  <span class="account-legacy-summary-title">Legacy Gmail API (Advanced)</span>
-                  <span class="account-legacy-summary-note">Legacy integration. Forwarding is the recommended setup.</span>
-                </summary>
-                <div class="account-legacy-body">
-                  <div class="account-gmail-head">
-                    <div class="account-gmail-head-main">
-                      <h3>Legacy Gmail API</h3>
-                      <div class="account-gmail-identity">
-                        <div class="pill" id="account-gmail-status">Not connected</div>
-                        <div class="muted small account-gmail-email" id="account-gmail-email">—</div>
-                      </div>
-                    </div>
-                    <button class="btn btn--danger btn--md hidden account-gmail-disconnect" type="button" id="email-disconnect">
-                      Disconnect
-                    </button>
-                  </div>
-                  <div class="account-gmail-body">
-                    <div class="account-gmail-connect-row">
-                      <button class="btn btn--primary btn--md" type="button" id="email-connect">Connect Gmail</button>
-                    </div>
-                    <div class="callout hidden" id="gmail-hint">
-                      <div class="callout-title">Why is this disabled?</div>
-                      <div class="muted small" id="gmail-hint-text">Add Gmail OAuth env vars to enable.</div>
-                    </div>
-                    <div class="muted small account-gmail-copy">
-                      Legacy path that uses Google permission screens. Keep this only if forwarding cannot be used.
-                    </div>
-                    <div class="gmail-verification-note">
-                      Google verification in progress—only approved users may connect during testing.
-                    </div>
-                  </div>
-                  <div class="account-sync-block">
-                    <div class="muted small account-sync-meta" id="account-sync-result"></div>
-                    <div class="account-sync-controls">
-                      <div class="sync-action-group scan-actions account-sync-action-group" id="account-sync-action-group">
-                        <button class="btn btn--primary btn--md btn-scan account-btn-scan" type="button" id="account-email-sync">
-                          <span class="btn-icon-left" aria-hidden="true">⟳</span>
-                          <span class="btn-label scan-label">
-                            <span class="scan-text">Sync inbox</span>
-                            <span class="scan-dots" aria-hidden="true"></span>
-                          </span>
-                        </button>
-                      </div>
-                      <div class="account-sync-text">
-                        <span class="muted small sync-helper-text account-sync-helper" id="account-sync-helper-text">Legacy: requires Google permission screens.</span>
-                        <span class="muted small account-sync-status" id="account-sync-status">Ready</span>
-                      </div>
-                    </div>
-                  </div>
+		            </div>
+		          </div>
+	          <div class="card account-panel account-help-card surface-raised">
+              <div class="account-card-header">
+                <h3>Forwarding & Help</h3>
+                <p class="muted small">Setup, status, and support for your forwarding-based inbox.</p>
+              </div>
+              <div class="account-panel-body account-help-body">
+                <div class="account-help-row">
+                  <div class="account-row-label muted small">Inbox status</div>
+                  <div class="account-help-value" id="account-help-status">Not connected</div>
                 </div>
-              </details>
-          </div>
+                <div class="account-help-row">
+                  <div class="account-row-label muted small">Last email received</div>
+                  <div class="account-help-value muted small" id="account-help-last-email">—</div>
+                </div>
+                <div class="account-help-row">
+                  <div class="account-row-label muted small">Setup type</div>
+                  <div class="account-help-value">Forwarding-based</div>
+                </div>
+                <div class="muted small account-help-note" id="account-help-note">
+                  Applictus only processes emails you forward.
+                </div>
+                <div class="account-help-actions">
+                  <button class="btn btn--secondary btn--sm" type="button" id="inbound-help-open-setup">View setup guide</button>
+                  <button class="btn btn--ghost btn--sm" type="button" id="inbound-help-send-test">Send test email</button>
+                  <button class="btn btn--ghost btn--sm" type="button" id="inbound-help-why">Why forwarding?</button>
+                </div>
+              </div>
+	          </div>
         </div>
       </section>
 
@@ -725,8 +698,8 @@
             <div class="sync-strip scan-card" id="sync-strip">
               <div class="scan-card__left">
                 <div class="scan-top">
-                  <button class="btn btn--secondary btn--md manage-gmail-btn" type="button" data-action="manage-gmail">
-                    <span class="manage-gmail-icon" aria-hidden="true">
+                  <button class="btn btn--secondary btn--md manage-inbox-btn" type="button" data-action="manage-inbox">
+                    <span class="manage-inbox-icon" aria-hidden="true">
                       <svg
                         viewBox="0 0 24 24"
                         width="20"
@@ -746,8 +719,8 @@
                     <span class="btn-label">Inbox setup</span>
                   </button>
                   <div class="sync-strip-status">
-                    <div class="pill" id="dashboard-gmail-status">Not connected</div>
-                    <div class="muted small" id="dashboard-gmail-email">—</div>
+                    <div class="pill" id="dashboard-inbox-status">Not connected</div>
+                    <div class="muted small" id="dashboard-inbox-email">—</div>
                     <span class="muted" id="sync-status">Setup needed</span>
                   </div>
                 </div>
@@ -784,17 +757,6 @@
                     <button class="link-button sync-manual-process" type="button" id="sync-process-now">
                       Process inbox now
                     </button>
-                    <details class="legacy-sync-details" id="legacy-sync-details">
-                      <summary>Legacy Gmail sync (Advanced)</summary>
-                      <div class="legacy-sync-content">
-                        <p class="muted small">
-                          Legacy integration. Forwarding is the recommended setup.
-                        </p>
-                        <button class="btn btn--ghost btn--sm" type="button" data-action="manage-gmail">
-                          Open Gmail tools
-                        </button>
-                      </div>
-                    </details>
                   </div>
                 </div>
                 <div class="sync-connect-cta hidden" id="sync-connect-cta">

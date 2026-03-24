@@ -2470,17 +2470,17 @@ textarea:focus-visible {
   min-width: 260px;
 }
 
-.sync-strip [data-action='manage-gmail'].btn--secondary {
+.sync-strip [data-action='manage-inbox'].btn--secondary {
   background:
     radial-gradient(120% 140% at 20% 10%, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0) 56%),
     linear-gradient(180deg, #ffffff, #f1f7ff);
 }
 
-.sync-strip .manage-gmail-btn {
+.sync-strip .manage-inbox-btn {
   gap: 9px;
 }
 
-.sync-strip .manage-gmail-btn .manage-gmail-icon {
+.sync-strip .manage-inbox-btn .manage-inbox-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2496,11 +2496,11 @@ textarea:focus-visible {
   transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease, color 150ms ease;
 }
 
-.sync-strip .manage-gmail-btn .manage-gmail-icon svg {
+.sync-strip .manage-inbox-btn .manage-inbox-icon svg {
   display: block;
 }
 
-.sync-strip [data-action='manage-gmail'].btn--secondary:hover {
+.sync-strip [data-action='manage-inbox'].btn--secondary:hover {
   color: #123a74;
   border-color: rgba(80, 131, 214, 0.32);
   background:
@@ -2510,7 +2510,7 @@ textarea:focus-visible {
   filter: none;
 }
 
-.sync-strip .manage-gmail-btn:hover .manage-gmail-icon {
+.sync-strip .manage-inbox-btn:hover .manage-inbox-icon {
   background: linear-gradient(180deg, rgba(225, 239, 255, 0.58), rgba(214, 229, 252, 0.35));
   border-color: rgba(63, 122, 201, 0.23);
   box-shadow:
@@ -2519,7 +2519,7 @@ textarea:focus-visible {
   color: rgba(28, 55, 95, 0.9);
 }
 
-.sync-strip .manage-gmail-btn:focus-visible {
+.sync-strip .manage-inbox-btn:focus-visible {
   outline: 2px solid rgba(60, 120, 255, 0.42);
   outline-offset: 2px;
 }
@@ -6517,6 +6517,36 @@ button.inbound-diagnostics-row:hover {
   -webkit-backdrop-filter: none;
 }
 
+.account-help-card {
+  position: relative;
+  border-radius: 20px;
+  border: 1px solid rgba(20, 40, 80, 0.12);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow:
+    0 20px 46px rgba(15, 35, 80, 0.12),
+    0 6px 16px rgba(15, 35, 80, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(20, 40, 80, 0.06);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.account-help-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.66) 0%, rgba(255, 255, 255, 0) 42%);
+  opacity: 0.55;
+  z-index: 0;
+}
+
+.account-help-card > * {
+  position: relative;
+  z-index: 1;
+}
+
 .account-info-card::before {
   content: '';
   position: absolute;
@@ -6552,6 +6582,37 @@ button.inbound-diagnostics-row:hover {
 .account-panel-body {
   display: grid;
   gap: 14px;
+}
+
+.account-help-body {
+  gap: 12px;
+}
+
+.account-help-row {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.account-help-value {
+  color: #1f3f72;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.account-help-note {
+  padding-top: 8px;
+  border-top: 1px solid rgba(25, 55, 103, 0.1);
+  line-height: 1.45;
+}
+
+.account-help-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .account-row--identity {
@@ -7063,6 +7124,15 @@ button.inbound-diagnostics-row:hover {
   }
 
   .account-inbox-actions {
+    align-items: stretch;
+  }
+
+  .account-help-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .account-help-actions {
     align-items: stretch;
   }
 

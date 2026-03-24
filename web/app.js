@@ -248,8 +248,9 @@ const accountMethods = document.getElementById('account-methods');
 const accountPasswordButton = document.getElementById('account-password-button');
 const accountPasswordButtonLabel = document.getElementById('account-password-button-label');
 const accountPasswordHint = document.getElementById('account-password-hint');
-const accountGmailStatus = document.getElementById('account-gmail-status');
-const accountGmailEmail = document.getElementById('account-gmail-email');
+const accountHelpStatus = document.getElementById('account-help-status');
+const accountHelpLastEmail = document.getElementById('account-help-last-email');
+const accountHelpNote = document.getElementById('account-help-note');
 const inboundStatusPill = document.getElementById('inbound-status-pill');
 const inboundAddressEmail = document.getElementById('inbound-address-email');
 const inboundMetaLine = document.getElementById('inbound-meta-line');
@@ -261,6 +262,9 @@ const inboundSendTest = document.getElementById('inbound-send-test');
 const inboundProcessNow = document.getElementById('inbound-process-now');
 const inboundWhyToggle = document.getElementById('inbound-why-toggle');
 const inboundWhyPanel = document.getElementById('inbound-why-panel');
+const inboundHelpOpenSetup = document.getElementById('inbound-help-open-setup');
+const inboundHelpSendTest = document.getElementById('inbound-help-send-test');
+const inboundHelpWhy = document.getElementById('inbound-help-why');
 const inboundDiagnosticsWrap = document.getElementById('inbound-diagnostics-wrap');
 const inboundDiagnosticsLink = document.getElementById('inbound-diagnostics-link');
 const accountInboxUsernamePrompt = document.getElementById('account-inbox-username-prompt');
@@ -329,8 +333,8 @@ const syncErrorBanner = document.getElementById('sync-error-banner');
 const syncErrorMessage = document.getElementById('sync-error-message');
 const syncErrorDetail = document.getElementById('sync-error-detail');
 const syncErrorToggle = document.getElementById('sync-error-toggle');
-const dashboardGmailStatus = document.getElementById('dashboard-gmail-status');
-const dashboardGmailEmail = document.getElementById('dashboard-gmail-email');
+const dashboardInboxStatus = document.getElementById('dashboard-inbox-status');
+const dashboardInboxEmail = document.getElementById('dashboard-inbox-email');
 const syncControls = document.getElementById('sync-controls');
 const syncConnectCta = document.getElementById('sync-connect-cta');
 const syncProgress = document.getElementById('sync-progress');
@@ -1304,6 +1308,8 @@ function updateInboundStatusPresentation() {
   let dashboardText = 'Not connected';
   let dashboardState = 'idle';
   let syncText = 'Setup needed';
+  let helpStatusText = 'Not connected';
+  let helpNoteText = 'Applictus only processes emails you forward.';
 
   if (readiness === 'forwarding_active') {
     pillText = 'Receiving forwarded emails';
@@ -1311,36 +1317,46 @@ function updateInboundStatusPresentation() {
     dashboardText = 'Connected';
     dashboardState = 'connected';
     syncText = 'Forwarding active';
+    helpStatusText = 'Connected · Receiving forwarded emails';
+    helpNoteText = 'Forwarding is active. New job-email updates are processed automatically.';
   } else if (readiness === 'gmail_verification_pending') {
     pillText = 'Address reachable — Gmail verification pending';
     pillState = 'info';
     dashboardText = 'Gmail verification pending';
     dashboardState = 'info';
     syncText = 'Address reachable';
+    helpStatusText = 'Address reachable · Gmail verification pending';
+    helpNoteText = 'Your inbox is reachable. Complete Gmail verification to finish setup.';
   } else if (readiness === 'address_reachable') {
     pillText = 'Address reachable';
     pillState = 'info';
     dashboardText = 'Address reachable';
     dashboardState = 'info';
     syncText = 'Address reachable';
+    helpStatusText = 'Address reachable';
+    helpNoteText = 'Applictus can receive forwarded mail. Forward one application email to activate full tracking.';
   } else if (readiness === 'awaiting_first_email') {
     pillText = 'Forwarding enabled — waiting for first email';
     pillState = 'info';
     dashboardText = 'Setup complete';
     dashboardState = 'info';
     syncText = 'Waiting for first email';
+    helpStatusText = 'Waiting for first forwarded email';
+    helpNoteText = 'Setup is complete. Forward one application email to activate tracking.';
   } else if (readiness === 'awaiting_confirmation') {
     pillText = 'Waiting for forwarding verification';
     pillState = 'idle';
     dashboardText = 'Waiting for verification';
     dashboardState = 'idle';
     syncText = 'Waiting for verification';
+    helpStatusText = 'Waiting for forwarding verification';
+    helpNoteText = 'Follow the setup guide to add and verify your Applictus inbox address.';
   }
 
   setPillState(inboundStatusPill, pillText, pillState);
-  setPillState(dashboardGmailStatus, dashboardText, dashboardState);
-  if (dashboardGmailEmail) {
-    dashboardGmailEmail.textContent = inboundState.addressEmail
+  setPillState(dashboardInboxStatus, dashboardText, dashboardState);
+  if (dashboardInboxEmail) {
+    dashboardInboxEmail.textContent = inboundState.addressEmail
       ? `Forwarding to ${inboundState.addressEmail}`
       : 'Forwarding address not ready';
   }
@@ -1367,6 +1383,24 @@ function updateInboundStatusPresentation() {
   }
   if (inboundOpenSetup) {
     inboundOpenSetup.textContent = setupState === 'active' ? 'View setup' : 'Open setup';
+  }
+  if (accountHelpStatus) {
+    accountHelpStatus.textContent = helpStatusText;
+  }
+  if (accountHelpNote) {
+    accountHelpNote.textContent = helpNoteText;
+  }
+  if (accountHelpLastEmail) {
+    const lastSeen = formatSyncDateTime(inboundState.lastReceivedAt);
+    if (!lastSeen) {
+      accountHelpLastEmail.textContent = '—';
+    } else {
+      const subject = String(inboundState.lastReceivedSubject || '').trim();
+      accountHelpLastEmail.textContent = subject ? `${lastSeen} · ${subject}` : lastSeen;
+    }
+  }
+  if (inboundHelpSendTest) {
+    inboundHelpSendTest.disabled = !inboundState.addressEmail;
   }
   if (inboundOldAddressWarning) {
     const showWarning = Boolean(inboundState.inactiveAddressWarning);
@@ -1478,14 +1512,7 @@ function updateSyncHelperText() {
   if (!accountSyncHelperText) {
     return;
   }
-  if (!emailState.connected) {
-    accountSyncHelperText.textContent = 'Legacy: requires Google permission screens.';
-    return;
-  }
-  const label = formatSyncDateTime(emailState.lastSyncedAt);
-  accountSyncHelperText.textContent = label
-    ? `Legacy Gmail last sync • ${label}`
-    : 'Legacy: requires Google permission screens.';
+  accountSyncHelperText.textContent = formatInboundMetaText();
 }
 
 function updateAccountSyncResultLine() {
@@ -3795,7 +3822,6 @@ async function loadSession() {
     showNotice('Unable to load applications.', 'Dashboard');
   }
 
-  await refreshEmailStatus();
   await refreshInboundStatus({ ensureAddress: true });
   return true;
 }
@@ -5219,130 +5245,12 @@ async function runManualInboundProcessNow() {
 }
 
 async function refreshEmailStatus() {
-  if (!accountGmailStatus && !accountGmailEmail && !accountEmailSync) {
-    return;
-  }
-  try {
-    const data = await api('/api/email/status');
-    emailState.configured = Boolean(data.configured);
-    emailState.encryptionReady = Boolean(data.encryptionReady);
-    emailState.connected = Boolean(data.connected);
-    emailState.email = data.email || null;
-    emailState.lastSyncedAt = data.last_synced_at || data.lastSync?.last_synced_at || null;
-    emailState.lastSyncStats = data.last_sync || data.lastSync || null;
-    if (!data.configured) {
-      emailState.lastSyncedAt = null;
-      emailState.lastSyncStats = null;
-      setPillState(accountGmailStatus, 'Not configured', 'warning');
-      if (emailConnect) {
-        emailConnect.disabled = true;
-      }
-      if (emailDisconnect) {
-        emailDisconnect.classList.add('hidden');
-        emailDisconnect.disabled = true;
-      }
-      setSyncDisabled(true);
-      if (accountSyncStatus) {
-        accountSyncStatus.textContent = 'Disabled';
-      }
-      if (accountGmailEmail) {
-        accountGmailEmail.textContent = 'Gmail OAuth is not configured.';
-      }
-      if (gmailHint) {
-        gmailHint.classList.remove('hidden');
-      }
-      if (gmailHintText) {
-        gmailHintText.textContent =
-          'Add GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REDIRECT_URI in .env to enable Gmail.';
-      }
-      updateSyncHelperText();
-      updateAccountSyncResultLine();
-      return;
-    }
-    if (!data.encryptionReady) {
-      emailState.lastSyncedAt = null;
-      emailState.lastSyncStats = null;
-      setPillState(accountGmailStatus, 'Encryption required', 'warning');
-      if (emailConnect) {
-        emailConnect.disabled = true;
-      }
-      if (emailDisconnect) {
-        emailDisconnect.classList.add('hidden');
-        emailDisconnect.disabled = true;
-      }
-      setSyncDisabled(true);
-      if (accountSyncStatus) {
-        accountSyncStatus.textContent = 'Disabled';
-      }
-      if (accountGmailEmail) {
-        accountGmailEmail.textContent = 'Token encryption key is missing.';
-      }
-      if (gmailHint) {
-        gmailHint.classList.remove('hidden');
-      }
-      if (gmailHintText) {
-        gmailHintText.textContent =
-          'Set JOBTRACK_TOKEN_ENC_KEY to enable encrypted Gmail tokens.';
-      }
-      updateSyncHelperText();
-      updateAccountSyncResultLine();
-      return;
-    }
-    if (gmailHint) {
-      gmailHint.classList.add('hidden');
-    }
-    if (emailConnect) {
-      emailConnect.disabled = false;
-    }
-    if (emailDisconnect) {
-      emailDisconnect.classList.toggle('hidden', !data.connected);
-      emailDisconnect.disabled = !data.connected;
-    }
-    setSyncDisabled(!data.connected);
-    if (data.connected) {
-      setPillState(accountGmailStatus, 'Connected', 'connected');
-      if (accountGmailEmail) {
-        accountGmailEmail.textContent = data.email ? `Connected as ${data.email}` : 'Connected';
-      }
-      if (accountSyncStatus) {
-        accountSyncStatus.textContent = 'Ready';
-      }
-      updateAccountSyncResultLine();
-    } else {
-      emailState.lastSyncedAt = null;
-      emailState.lastSyncStats = null;
-      setPillState(accountGmailStatus, 'Not connected', 'idle');
-      if (accountGmailEmail) {
-        accountGmailEmail.textContent = 'Not connected.';
-      }
-      if (accountSyncStatus) {
-        accountSyncStatus.textContent = '';
-      }
-      updateAccountSyncResultLine();
-    }
-    updateSyncHelperText();
-    refreshDashboardEmptyStateIfNeeded();
-  } catch (err) {
-    emailState.connected = false;
-    emailState.email = null;
-    emailState.lastSyncedAt = null;
-    emailState.lastSyncStats = null;
-    setPillState(accountGmailStatus, 'Not connected', 'idle');
-    if (emailDisconnect) {
-      emailDisconnect.classList.add('hidden');
-      emailDisconnect.disabled = true;
-    }
-    setSyncDisabled(true);
-    if (accountSyncStatus) {
-      accountSyncStatus.textContent = 'Not connected';
-    }
-    if (gmailHint) {
-      gmailHint.classList.add('hidden');
-    }
-    updateSyncHelperText();
-    updateAccountSyncResultLine();
-    refreshDashboardEmptyStateIfNeeded();
-  }
+  emailState.configured = false;
+  emailState.encryptionReady = false;
+  emailState.connected = false;
+  emailState.email = null;
+  emailState.lastSyncedAt = null;
+  emailState.lastSyncStats = null;
 }
 
 async function refreshEmailEvents() {
@@ -5685,7 +5593,7 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
       emailState.lastSyncStats = result.last_sync || result;
       updateSyncHelperText();
     }
-    const rawDetails = status === 'not_connected' ? 'Connect Legacy Gmail first.' : formatSyncSummary(result);
+    const rawDetails = status === 'not_connected' ? 'Connect inbox first.' : formatSyncSummary(result);
     renderSyncSummary({
       status: status === 'not_connected' ? 'not_connected' : 'success',
       result,
@@ -7268,7 +7176,6 @@ function route() {
   if (routeKey === 'gmail') {
     setView('account');
     renderAccountPanel();
-    void refreshEmailStatus();
     void refreshInboundStatus({ ensureAddress: true });
     void refreshInboundDiagnosticsAccess();
   } else if (routeKey === 'privacy') {
@@ -7292,7 +7199,6 @@ function route() {
   } else if (routeKey === 'account') {
     setView('account');
     renderAccountPanel();
-    void refreshEmailStatus();
     void refreshInboundStatus({ ensureAddress: true });
     void refreshInboundDiagnosticsAccess();
   } else if (routeKey === 'resume-curator') {
@@ -7643,7 +7549,7 @@ profileMenuPanel?.addEventListener('click', async (event) => {
   }
   event.preventDefault();
   const action = actionTarget.dataset.menuAction;
-  if (action === 'account' || action === 'gmail') {
+  if (action === 'account' || action === 'gmail' || action === 'inbox') {
     closeProfileMenu();
     window.location.hash = '#account';
     return;
@@ -7770,7 +7676,7 @@ dashboardView?.addEventListener('click', async (event) => {
     }
     return;
   }
-  if (action === 'manage-gmail') {
+  if (action === 'manage-inbox') {
     window.location.hash = '#account';
     return;
   }
@@ -8268,17 +8174,29 @@ inboundOpenSetup?.addEventListener('click', () => {
   openInboundSetupModal({ startStep: 0 });
 });
 
+inboundHelpOpenSetup?.addEventListener('click', () => {
+  openInboundSetupModal({ startStep: 0 });
+});
+
 inboundCopyAddress?.addEventListener('click', () => {
   void copyTextToClipboard(inboundState.addressEmail, 'Copied forwarding address');
 });
 
-inboundSendTest?.addEventListener('click', () => {
+function sendInboundTestEmail() {
   if (!inboundState.addressEmail) {
     return;
   }
   const subject = encodeURIComponent('Applictus test');
   const body = encodeURIComponent('This is a forwarding test email for Applictus.');
   window.location.href = `mailto:${encodeURIComponent(inboundState.addressEmail)}?subject=${subject}&body=${body}`;
+}
+
+inboundSendTest?.addEventListener('click', () => {
+  sendInboundTestEmail();
+});
+
+inboundHelpSendTest?.addEventListener('click', () => {
+  sendInboundTestEmail();
 });
 
 inboundProcessNow?.addEventListener('click', async () => {
@@ -8296,6 +8214,15 @@ inboundWhyToggle?.addEventListener('click', () => {
   const next = inboundWhyPanel.classList.contains('hidden');
   inboundWhyPanel.classList.toggle('hidden', !next);
   inboundWhyToggle.setAttribute('aria-expanded', next ? 'true' : 'false');
+});
+
+inboundHelpWhy?.addEventListener('click', () => {
+  if (!inboundWhyPanel || !inboundWhyToggle) {
+    return;
+  }
+  inboundWhyPanel.classList.remove('hidden');
+  inboundWhyToggle.setAttribute('aria-expanded', 'true');
+  inboundWhyPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 });
 
 inboundDiagnosticsLink?.addEventListener('click', () => {
