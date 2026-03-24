@@ -4514,30 +4514,7 @@ function buildInboundSetupStep(step, setStep, setupContext) {
       })
     );
 
-    const enabledBlock = document.createElement('div');
-    enabledBlock.className = 'forwarding-gmail-substep';
-    const enabledHeading = document.createElement('div');
-    enabledHeading.className = 'forwarding-gmail-substep-title';
-    enabledHeading.textContent = '3) Select it in forwarding';
-    enabledBlock.appendChild(enabledHeading);
-    enabledBlock.appendChild(
-      buildForwardingAnimatedTutorial({
-        setupContext,
-        frames: [
-          {
-            src: GMAIL_SETUP_SCREENSHOTS.sc5,
-            alt: 'Forwarding settings before selecting Applictus inbox address.'
-          },
-          {
-            src: GMAIL_SETUP_SCREENSHOTS.sc6,
-            alt: 'Forwarding settings with Applictus inbox selected.'
-          }
-        ],
-        caption: 'After Gmail confirms it, choose your Applictus inbox in the forwarding dropdown.'
-      })
-    );
-
-    tutorial.append(navigationBlock, addAddressBlock, enabledBlock);
+    tutorial.append(navigationBlock, addAddressBlock);
     appendForwardingVerificationHelper(tutorial);
 
     container.append(title, note, addressCard, actions, tutorial);
@@ -4556,6 +4533,29 @@ function buildInboundSetupStep(step, setStep, setupContext) {
     <li>Forward a real application update or send a test email to your Applictus inbox.</li>
     <li>Click Verify setup. We check for new forwarded mail automatically.</li>
   `;
+
+  const forwardingSelectionBlock = document.createElement('div');
+  forwardingSelectionBlock.className = 'forwarding-gmail-substep';
+  const forwardingSelectionHeading = document.createElement('div');
+  forwardingSelectionHeading.className = 'forwarding-gmail-substep-title';
+  forwardingSelectionHeading.textContent = '3) Select it in forwarding';
+  forwardingSelectionBlock.appendChild(forwardingSelectionHeading);
+  forwardingSelectionBlock.appendChild(
+    buildForwardingAnimatedTutorial({
+      setupContext,
+      frames: [
+        {
+          src: GMAIL_SETUP_SCREENSHOTS.sc5,
+          alt: 'Forwarding settings before selecting Applictus inbox address.'
+        },
+        {
+          src: GMAIL_SETUP_SCREENSHOTS.sc6,
+          alt: 'Forwarding settings with Applictus inbox selected.'
+        }
+      ],
+      caption: 'After Gmail confirms it, choose your Applictus inbox in the forwarding dropdown.'
+    })
+  );
 
   const actions = document.createElement('div');
   actions.className = 'forwarding-step-actions forwarding-verify-actions';
@@ -4589,7 +4589,7 @@ function buildInboundSetupStep(step, setStep, setupContext) {
   });
   actions.append(verifyBtn, sendTestBtn);
 
-  container.append(title, note, checklist, actions);
+  container.append(title, note, checklist, forwardingSelectionBlock, actions);
 
   if (setupContext?.verifyMessage) {
     const verifyMessage = document.createElement('p');
