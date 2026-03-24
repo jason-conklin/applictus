@@ -4320,15 +4320,25 @@ function buildForwardingTutorialFrame({ imageSrc, imageAlt, caption, trimBottom 
   image.decoding = 'async';
   imageWrap.appendChild(image);
 
-  const captionNode = document.createElement('figcaption');
-  captionNode.className = 'forwarding-tutorial-caption muted small';
-  captionNode.textContent = caption || '';
-
-  frame.append(imageWrap, captionNode);
+  frame.append(imageWrap);
+  if (caption) {
+    const captionNode = document.createElement('figcaption');
+    captionNode.className = 'forwarding-tutorial-caption muted small';
+    captionNode.textContent = caption;
+    frame.appendChild(captionNode);
+  }
   return frame;
 }
 
-function buildForwardingAnimatedTutorial({ frames = [], caption = '', setupContext, intervalMs = 1600 } = {}) {
+function buildForwardingAnimatedTutorial({
+  frames = [],
+  caption = '',
+  setupContext,
+  intervalMs = 1600,
+  frameDurationMs = null,
+  finalPauseMs = 2500,
+  completionLabel = 'Done'
+} = {}) {
   const card = document.createElement('div');
   card.className = 'forwarding-tutorial-sequence';
 
@@ -4348,86 +4358,279 @@ function buildForwardingAnimatedTutorial({ frames = [], caption = '', setupConte
     })
     .filter(Boolean);
 
+  const highlightNodes = frames.map((frame) => {
+    const highlight = frame?.highlight;
+    if (!highlight || !Number.isFinite(highlight.x) || !Number.isFinite(highlight.y)) {
+      return null;
+    }
+    const node = document.createElement('span');
+    node.className = 'forwarding-tutorial-sequence-highlight';
+    node.style.left = `${highlight.x}%`;
+    node.style.top = `${highlight.y}%`;
+    node.style.width = `${Math.max(8, Number(highlight.w) || 22)}%`;
+    node.style.height = `${Math.max(8, Number(highlight.h) || 14)}%`;
+    if (highlight.shape) {
+      node.dataset.shape = String(highlight.shape);
+    }
+    viewport.appendChild(node);
+    return node;
+  });
+
+  const completeBadge = document.createElement('div');
+  completeBadge.className = 'forwarding-tutorial-sequence-complete';
+  completeBadge.innerHTML = '<span aria-hidden="true">✓</span><span></span>';
+  const completeLabel = completeBadge.querySelector('span:last-child');
+  if (completeLabel) {
+    completeLabel.textContent = String(completionLabel || 'Done');
+  }
+  viewport.appendChild(completeBadge);
+
+  const meta = document.createElement('div');
+  meta.className = 'forwarding-tutorial-sequence-meta';
+
   const dots = document.createElement('div');
   dots.className = 'forwarding-tutorial-sequence-dots';
   const dotNodes = frameNodes.map((_, index) => {
-    const dot = document.createElement('span');
+    const dot = document.createElement('button');
+    dot.type = 'button';
     dot.className = 'forwarding-tutorial-sequence-dot';
-    dot.setAttribute('aria-hidden', 'true');
+    dot.setAttribute('aria-label', `Show step ${index + 1}`);
+    dot.setAttribute('title', `Step ${index + 1}`);
     dot.dataset.index = String(index);
     dots.appendChild(dot);
     return dot;
   });
+  if (dotNodes.length > 1) {
+    meta.appendChild(dots);
+  }
+
+  const counter = document.createElement('span');
+  counter.className = 'forwarding-tutorial-sequence-counter muted small';
+  counter.textContent = frameNodes.length > 0 ? `1 / ${frameNodes.length}` : '';
+  meta.appendChild(counter);
 
   const captionNode = document.createElement('p');
-  captionNode.className = 'forwarding-tutorial-caption muted small';
-  captionNode.textContent = caption;
+  captionNode.className = 'forwarding-tutorial-caption forwarding-tutorial-caption--frame muted small';
+  captionNode.setAttribute('aria-live', 'polite');
 
   card.append(viewport);
-  if (dotNodes.length > 1) {
-    card.appendChild(dots);
+  if (frameNodes.length > 1) {
+    card.appendChild(meta);
   }
-  card.appendChild(captionNode);
+  if (caption || frames.some((frame) => frame?.caption)) {
+    card.appendChild(captionNode);
+  }
 
   let activeIndex = 0;
   let paused = false;
+  let complete = false;
   let timer = null;
+  let transitionTimer = null;
+
+  const baseFrameDurationMs = Math.max(1600, Number(frameDurationMs ?? intervalMs) || 1850);
+  const finalFramePauseMs = Math.max(2300, Number(finalPauseMs) || 2500);
+
+  const getFrameCaption = (index) => {
+    const frameCaption = frames[index]?.caption;
+    return String(frameCaption || caption || '').trim();
+  };
+
+  const setCaption = (text) => {
+    if (!captionNode) {
+      return;
+    }
+    const nextText = String(text || '').trim();
+    if (captionNode.textContent === nextText && captionNode.classList.contains('is-visible')) {
+      return;
+    }
+    if (transitionTimer) {
+      window.clearTimeout(transitionTimer);
+      transitionTimer = null;
+    }
+    captionNode.classList.remove('is-visible');
+    transitionTimer = window.setTimeout(() => {
+      captionNode.textContent = nextText;
+      captionNode.classList.add('is-visible');
+      transitionTimer = null;
+    }, 120);
+  };
 
   const applyFrameState = () => {
     frameNodes.forEach((node, index) => {
       node.classList.toggle('is-active', index === activeIndex);
     });
-    dotNodes.forEach((node, index) => {
+    highlightNodes.forEach((node, index) => {
+      if (!node) {
+        return;
+      }
       node.classList.toggle('is-active', index === activeIndex);
     });
+    dotNodes.forEach((node, index) => {
+      node.classList.toggle('is-active', index === activeIndex);
+      node.setAttribute('aria-pressed', index === activeIndex ? 'true' : 'false');
+    });
+    if (counter) {
+      counter.textContent = frameNodes.length ? `${activeIndex + 1} / ${frameNodes.length}` : '';
+    }
+    setCaption(getFrameCaption(activeIndex));
+    completeBadge.classList.toggle('is-visible', complete && activeIndex === frameNodes.length - 1);
+    card.classList.toggle('is-complete', complete);
   };
 
-  const stop = () => {
+  const clearPlaybackTimer = () => {
     if (timer) {
-      window.clearInterval(timer);
+      window.clearTimeout(timer);
       timer = null;
     }
   };
 
-  const start = () => {
-    if (frameNodes.length < 2 || timer) {
+  const stop = () => {
+    clearPlaybackTimer();
+    if (transitionTimer) {
+      window.clearTimeout(transitionTimer);
+      transitionTimer = null;
+    }
+  };
+
+  const scheduleNext = () => {
+    clearPlaybackTimer();
+    if (paused || complete || frameNodes.length < 2) {
       return;
     }
-    timer = window.setInterval(() => {
-      if (paused) {
+    const delayMs = activeIndex >= frameNodes.length - 1 ? finalFramePauseMs : baseFrameDurationMs;
+    timer = window.setTimeout(() => {
+      if (paused || complete) {
         return;
       }
-      activeIndex = (activeIndex + 1) % frameNodes.length;
+      if (activeIndex >= frameNodes.length - 1) {
+        complete = true;
+        applyFrameState();
+        return;
+      }
+      activeIndex += 1;
       applyFrameState();
-    }, Math.max(900, Number(intervalMs) || 1600));
+      scheduleNext();
+    }, delayMs);
+  };
+
+  const start = (restart = false) => {
+    if (frameNodes.length < 2) {
+      return;
+    }
+    if (restart) {
+      activeIndex = 0;
+      complete = false;
+      applyFrameState();
+    }
+    scheduleNext();
   };
 
   const onMouseEnter = () => {
     paused = true;
+    clearPlaybackTimer();
   };
   const onMouseLeave = () => {
     paused = false;
+    scheduleNext();
   };
   const onClickAdvance = () => {
     if (frameNodes.length < 2) {
       return;
     }
-    activeIndex = (activeIndex + 1) % frameNodes.length;
+    if (activeIndex >= frameNodes.length - 1) {
+      start(true);
+      return;
+    }
+    complete = false;
+    activeIndex += 1;
     applyFrameState();
+    scheduleNext();
   };
 
   viewport.addEventListener('mouseenter', onMouseEnter);
   viewport.addEventListener('mouseleave', onMouseLeave);
   viewport.addEventListener('click', onClickAdvance);
+  const dotClickHandlers = [];
+  dotNodes.forEach((dot) => {
+    const handleDotClick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const index = Number(dot.dataset.index);
+      if (!Number.isFinite(index) || index < 0 || index >= frameNodes.length) {
+        return;
+      }
+      activeIndex = index;
+      complete = activeIndex >= frameNodes.length - 1;
+      applyFrameState();
+      if (!complete) {
+        scheduleNext();
+      } else {
+        clearPlaybackTimer();
+      }
+    };
+    dotClickHandlers.push(handleDotClick);
+    dot.addEventListener('click', handleDotClick);
+  });
+
   registerInboundSetupCleanup(setupContext, () => {
     stop();
     viewport.removeEventListener('mouseenter', onMouseEnter);
     viewport.removeEventListener('mouseleave', onMouseLeave);
     viewport.removeEventListener('click', onClickAdvance);
+    dotNodes.forEach((dot, index) => {
+      const handler = dotClickHandlers[index];
+      if (handler) {
+        dot.removeEventListener('click', handler);
+      }
+    });
   });
 
+  complete = false;
   applyFrameState();
   start();
+  return card;
+}
+
+function buildForwardingTutorialStepCard({ stepNumber, title, description, mediaNode } = {}) {
+  const card = document.createElement('article');
+  card.className = 'forwarding-tutorial-step-card';
+
+  const header = document.createElement('div');
+  header.className = 'forwarding-tutorial-step-head';
+
+  const badge = document.createElement('span');
+  badge.className = 'forwarding-tutorial-step-badge';
+  badge.textContent = Number.isFinite(Number(stepNumber)) ? String(stepNumber) : '•';
+
+  const meta = document.createElement('div');
+  meta.className = 'forwarding-tutorial-step-meta';
+
+  const label = document.createElement('div');
+  label.className = 'forwarding-tutorial-step-label';
+  label.textContent = Number.isFinite(Number(stepNumber)) ? `STEP ${stepNumber}` : 'STEP';
+
+  const heading = document.createElement('h6');
+  heading.className = 'forwarding-tutorial-step-title';
+  heading.textContent = title || 'Next step';
+
+  meta.append(label, heading);
+  if (description) {
+    const desc = document.createElement('p');
+    desc.className = 'forwarding-tutorial-step-desc muted small';
+    desc.textContent = description;
+    meta.appendChild(desc);
+  }
+
+  header.append(badge, meta);
+  card.appendChild(header);
+
+  if (mediaNode) {
+    const mediaWrap = document.createElement('div');
+    mediaWrap.className = 'forwarding-tutorial-step-media';
+    mediaWrap.appendChild(mediaNode);
+    card.appendChild(mediaWrap);
+  }
+
   return card;
 }
 
@@ -4504,65 +4707,61 @@ function buildInboundSetupStep(step, setStep, setupContext) {
     tutorialTitle.textContent = 'What this looks like in Gmail';
     tutorial.appendChild(tutorialTitle);
 
-    const navigationBlock = document.createElement('div');
-    navigationBlock.className = 'forwarding-gmail-substep';
-    const navigationHeading = document.createElement('div');
-    navigationHeading.className = 'forwarding-gmail-substep-title';
-    navigationHeading.textContent = '1) Navigate to forwarding settings';
-    navigationBlock.append(
-      navigationHeading,
-      buildForwardingTutorialFrame({
+    const navigationCard = buildForwardingTutorialStepCard({
+      stepNumber: 1,
+      title: 'Open Gmail settings',
+      description: "Click the settings icon and select 'See all settings'.",
+      mediaNode: buildForwardingTutorialFrame({
         imageSrc: GMAIL_SETUP_SCREENSHOTS.sc1,
         imageAlt: 'Open Gmail settings from quick settings menu.',
-        caption: 'Open Gmail settings',
         trimBottom: true
       })
-    );
+    });
 
-    const forwardingTabBlock = document.createElement('div');
-    forwardingTabBlock.className = 'forwarding-gmail-substep';
-    const forwardingTabHeading = document.createElement('div');
-    forwardingTabHeading.className = 'forwarding-gmail-substep-title';
-    forwardingTabHeading.textContent = '2) Go to Forwarding and POP/IMAP and click Add a forwarding address.';
-    forwardingTabBlock.append(
-      forwardingTabHeading,
-      buildForwardingTutorialFrame({
+    const forwardingTabCard = buildForwardingTutorialStepCard({
+      stepNumber: 2,
+      title: 'Go to Forwarding and POP/IMAP',
+      description: "Click 'Add a forwarding address'.",
+      mediaNode: buildForwardingTutorialFrame({
         imageSrc: GMAIL_SETUP_SCREENSHOTS.sc2,
         imageAlt: 'Go to Forwarding and POP/IMAP and click Add a forwarding address.',
-        caption: 'Go to Forwarding and click Add a forwarding address',
         trimBottom: true
       })
-    );
+    });
 
-    const addAddressBlock = document.createElement('div');
-    addAddressBlock.className = 'forwarding-gmail-substep';
-    const addAddressHeading = document.createElement('div');
-    addAddressHeading.className = 'forwarding-gmail-substep-title';
-    addAddressHeading.textContent = 'Add your Applictus address';
-    addAddressBlock.appendChild(addAddressHeading);
-    addAddressBlock.appendChild(
-      buildForwardingAnimatedTutorial({
+    const addAddressCard = buildForwardingTutorialStepCard({
+      stepNumber: 3,
+      title: 'Add your Applictus inbox address',
+      description: 'Paste your address and continue. Gmail sends a one-time confirmation.',
+      mediaNode: buildForwardingAnimatedTutorial({
         setupContext,
-        intervalMs: 1050,
+        frameDurationMs: 1850,
+        finalPauseMs: 2600,
+        completionLabel: 'Address added',
         frames: [
           {
-            src: GMAIL_SETUP_SCREENSHOTS.sc3,
-            alt: 'Forwarding modal with the Applictus inbox address entered.'
+            src: GMAIL_SETUP_SCREENSHOTS.sc35,
+            alt: 'Forwarding modal ready for entering an inbox address.',
+            caption: 'Open the add forwarding address dialog.',
+            highlight: { x: 18, y: 47, w: 64, h: 18, shape: 'pill' }
           },
           {
-            src: GMAIL_SETUP_SCREENSHOTS.sc35,
-            alt: 'Forwarding modal ready for entering an inbox address.'
+            src: GMAIL_SETUP_SCREENSHOTS.sc3,
+            alt: 'Forwarding modal with the Applictus inbox address entered.',
+            caption: 'Paste your Applictus inbox address.',
+            highlight: { x: 18, y: 47, w: 64, h: 18, shape: 'pill' }
           },
           {
             src: GMAIL_SETUP_SCREENSHOTS.sc4,
-            alt: 'Gmail confirmation sent dialog after adding forwarding address.'
+            alt: 'Gmail confirmation sent dialog after adding forwarding address.',
+            caption: 'Gmail sends a one-time confirmation.',
+            highlight: { x: 10, y: 33, w: 78, h: 30, shape: 'soft' }
           }
-        ],
-        caption: 'Paste your Applictus inbox address and continue. Gmail sends a one-time confirmation.'
+        ]
       })
-    );
+    });
 
-    tutorial.append(navigationBlock, forwardingTabBlock, addAddressBlock);
+    tutorial.append(navigationCard, forwardingTabCard, addAddressCard);
     appendForwardingVerificationHelper(tutorial);
 
     container.append(title, note, tutorial);
@@ -4582,29 +4781,31 @@ function buildInboundSetupStep(step, setStep, setupContext) {
     <li>Click Verify setup. We check for new forwarded mail automatically.</li>
   `;
 
-  const forwardingSelectionBlock = document.createElement('div');
-  forwardingSelectionBlock.className = 'forwarding-gmail-substep';
-  const forwardingSelectionHeading = document.createElement('div');
-  forwardingSelectionHeading.className = 'forwarding-gmail-substep-title';
-  forwardingSelectionHeading.textContent = '3) Select it in forwarding';
-  forwardingSelectionBlock.appendChild(forwardingSelectionHeading);
-  forwardingSelectionBlock.appendChild(
-    buildForwardingAnimatedTutorial({
+  const forwardingSelectionBlock = buildForwardingTutorialStepCard({
+    stepNumber: 4,
+    title: 'Select it in forwarding',
+    description: 'After Gmail confirms it, choose your Applictus inbox in the forwarding dropdown.',
+    mediaNode: buildForwardingAnimatedTutorial({
       setupContext,
-      intervalMs: 950,
+      frameDurationMs: 1850,
+      finalPauseMs: 2500,
+      completionLabel: 'Forwarding selected',
       frames: [
         {
           src: GMAIL_SETUP_SCREENSHOTS.sc5,
-          alt: 'Forwarding settings before selecting Applictus inbox address.'
+          alt: 'Forwarding settings before selecting Applictus inbox address.',
+          caption: 'Open Forwarding and choose “Forward a copy of incoming mail to”.',
+          highlight: { x: 34, y: 21, w: 58, h: 28, shape: 'pill' }
         },
         {
           src: GMAIL_SETUP_SCREENSHOTS.sc6,
-          alt: 'Forwarding settings with Applictus inbox selected.'
+          alt: 'Forwarding settings with Applictus inbox selected.',
+          caption: 'Select your Applictus inbox in the forwarding field.',
+          highlight: { x: 34, y: 21, w: 58, h: 28, shape: 'pill' }
         }
-      ],
-      caption: 'After Gmail confirms it, paste your Applictus inbox in the forwarding entry field.'
+      ]
     })
-  );
+  });
 
   const actions = document.createElement('div');
   actions.className = 'forwarding-step-actions forwarding-verify-actions';
