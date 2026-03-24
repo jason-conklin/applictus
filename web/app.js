@@ -4741,13 +4741,13 @@ function buildInboundSetupStep(step, setStep, setupContext) {
         frames: [
           {
             src: GMAIL_SETUP_SCREENSHOTS.sc3,
-            alt: 'Forwarding modal with the Applictus inbox address entered.',
-            caption: 'Paste your Applictus inbox address.'
+            alt: 'Forwarding modal ready for entering an inbox address.',
+            caption: 'Open the add forwarding address dialog.'
           },
           {
             src: GMAIL_SETUP_SCREENSHOTS.sc35,
-            alt: 'Forwarding modal ready for entering an inbox address.',
-            caption: 'Open the add forwarding address dialog.'
+            alt: 'Forwarding modal with the Applictus inbox address entered.',
+            caption: 'Paste your Applictus inbox address.'
           },
           {
             src: GMAIL_SETUP_SCREENSHOTS.sc4,
@@ -7745,7 +7745,17 @@ profileMenuPanel?.addEventListener('click', async (event) => {
   }
   event.preventDefault();
   const action = actionTarget.dataset.menuAction;
-  if (action === 'account' || action === 'gmail' || action === 'inbox') {
+  if (action === 'inbox') {
+    closeProfileMenu();
+    try {
+      await refreshInboundStatus({ ensureAddress: true });
+    } catch (_) {
+      // keep modal accessible even if status refresh fails
+    }
+    openInboundSetupModal({ startStep: 0 });
+    return;
+  }
+  if (action === 'account' || action === 'gmail') {
     closeProfileMenu();
     window.location.hash = '#account';
     return;
