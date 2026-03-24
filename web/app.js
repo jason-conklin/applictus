@@ -4321,7 +4321,7 @@ function buildForwardingAnimatedTutorial({ frames = [], caption = '', setupConte
       }
       activeIndex = (activeIndex + 1) % frameNodes.length;
       applyFrameState();
-    }, Math.max(1200, Number(intervalMs) || 1600));
+    }, Math.max(900, Number(intervalMs) || 1600));
   };
 
   const onMouseEnter = () => {
@@ -4503,6 +4503,7 @@ function buildInboundSetupStep(step, setStep, setupContext) {
     addAddressBlock.appendChild(
       buildForwardingAnimatedTutorial({
         setupContext,
+        intervalMs: 1050,
         frames: [
           {
             src: GMAIL_SETUP_SCREENSHOTS.sc3,
@@ -4550,6 +4551,7 @@ function buildInboundSetupStep(step, setStep, setupContext) {
   forwardingSelectionBlock.appendChild(
     buildForwardingAnimatedTutorial({
       setupContext,
+      intervalMs: 950,
       frames: [
         {
           src: GMAIL_SETUP_SCREENSHOTS.sc5,

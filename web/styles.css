@@ -5214,7 +5214,7 @@ details summary {
 }
 
 .modal--inbound-setup .modal-dialog {
-  width: min(760px, 95vw);
+  width: min(860px, 96vw);
 }
 
 .forwarding-setup-body {
@@ -5326,12 +5326,15 @@ details summary {
   border: 1px solid rgba(40, 80, 160, 0.12);
   background: #f5f8fe;
   overflow: hidden;
+  height: clamp(170px, 22vw, 250px);
 }
 
 .forwarding-tutorial-frame-image img {
   width: 100%;
+  height: 100%;
   display: block;
   object-fit: contain;
+  object-position: center top;
 }
 
 .forwarding-tutorial-sequence {
@@ -5349,7 +5352,7 @@ details summary {
   border: 1px solid rgba(40, 80, 160, 0.12);
   background: #f5f8fe;
   overflow: hidden;
-  min-height: 120px;
+  height: clamp(170px, 22vw, 250px);
 }
 
 .forwarding-tutorial-sequence-frame {
@@ -5358,6 +5361,7 @@ details summary {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  object-position: center top;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.3s ease;
@@ -5552,7 +5556,7 @@ details summary {
   }
 
   .forwarding-tutorial-sequence-viewport {
-    min-height: 110px;
+    height: clamp(150px, 42vw, 210px);
   }
 
   .forwarding-step-actions {
