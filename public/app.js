@@ -4612,7 +4612,7 @@ function buildInboundSetupStep(step, setStep, setupContext) {
   });
   actions.append(verifyBtn, sendTestBtn);
 
-  container.append(title, note, checklist, forwardingSelectionBlock, actions);
+  container.append(title, note, checklist, actions, forwardingSelectionBlock);
 
   if (setupContext?.verifyMessage) {
     const verifyMessage = document.createElement('p');
