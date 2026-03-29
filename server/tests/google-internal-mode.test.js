@@ -142,8 +142,10 @@ test('internal users can start Gmail OAuth with gmail.readonly scope only on int
     .split(/\s+/)
     .map((scope) => scope.trim())
     .filter(Boolean);
+  const prompt = String(authUrl.searchParams.get('prompt') || '');
   assert.ok(scopes.includes('https://www.googleapis.com/auth/gmail.readonly'));
   assert.ok(scopes.includes('openid'));
   assert.ok(scopes.includes('email'));
   assert.ok(scopes.includes('profile'));
+  assert.ok(prompt.includes('select_account'));
 });

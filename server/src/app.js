@@ -859,7 +859,7 @@ function getInternalGoogleOAuthClient() {
 }
 
 function getInternalGoogleAuthUrl(oAuthClient, state, options = {}) {
-  const prompt = options.prompt || 'consent';
+  const prompt = options.prompt || 'select_account consent';
   const accessType = options.accessType || 'offline';
   return oAuthClient.generateAuthUrl({
     access_type: accessType,
@@ -2550,7 +2550,7 @@ app.get('/api/auth/google/internal/start', authIpLimiter, (req, res) => {
   }
   const url = getInternalGoogleAuthUrl(oAuthClient, state, {
     accessType: 'offline',
-    prompt: 'consent'
+    prompt: 'select_account consent'
   });
   return res.redirect(url);
 });
