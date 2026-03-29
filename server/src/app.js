@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const bcrypt = require('bcryptjs');
+const { google } = require('googleapis');
 
 const { openDb, migrate } = require('./db');
 const { ApplicationStatus } = require('../../shared/types');
@@ -16,8 +17,18 @@ const {
   getGoogleProfileFromCode,
   GOOGLE_SIGNIN_SCOPES
 } = require('./googleAuth');
-const { syncInboundForwardedMessages } = require('./ingest');
+const {
+  syncInboundForwardedMessages,
+  syncGmailMessages,
+  getSyncProgress
+} = require('./ingest');
 const { logInfo, logWarn, logError } = require('./logger');
+const {
+  getStoredTokens,
+  upsertTokens,
+  fetchConnectedEmail,
+  isEncryptionReady
+} = require('./email');
 const {
   extractInboundRecipient,
   extractSenderEmail: extractInboundSenderEmail,
@@ -129,6 +140,7 @@ const CONTACT_NAME_MAX = 120;
 const CONTACT_EMAIL_MAX = 254;
 const CONTACT_MESSAGE_MAX = 4000;
 const GOOGLE_STATE_COOKIE = 'jt_google_state';
+const GOOGLE_INTERNAL_STATE_COOKIE = 'jt_google_internal_state';
 const GOOGLE_STATE_TTL_MS = 10 * 60 * 1000;
 const INBOUND_SYNC_ACTION_TYPE = 'INBOUND_SYNC';
 const INBOUND_CONNECTED_WINDOW_DAYS = 30;
@@ -154,6 +166,16 @@ const DB_UNAVAILABLE_CODES = new Set([
   '53300'
 ]);
 const inboundSyncLocks = new Map();
+const INTERNAL_GMAIL_DEFAULT_USERS = Object.freeze([
+  'jasonconklin.dev@gmail.com',
+  'shaneconklin14@gmail.com'
+]);
+const INTERNAL_GMAIL_SCOPES = Object.freeze([
+  'openid',
+  'email',
+  'profile',
+  'https://www.googleapis.com/auth/gmail.readonly'
+]);
 
 function nowIso() {
   return new Date().toISOString();
@@ -778,17 +800,99 @@ async function createUser({ email, name, passwordHash, authProvider, inboxUserna
   return getUserById(id);
 }
 
+function getInternalGmailUsersAllowlist() {
+  const configured = String(process.env.INTERNAL_GMAIL_USERS || '')
+    .split(',')
+    .map((value) => normalizeEmail(value))
+    .filter(Boolean);
+  const merged = new Set([...INTERNAL_GMAIL_DEFAULT_USERS.map((value) => normalizeEmail(value)), ...configured]);
+  return merged;
+}
+
+function resolveInboxModeForUser(user) {
+  if (!user) {
+    return 'forwarding';
+  }
+  const explicitMode = String(user.inbox_mode || '')
+    .trim()
+    .toLowerCase();
+  if (explicitMode === 'gmail' || explicitMode === 'forwarding') {
+    return explicitMode;
+  }
+  const email = normalizeEmail(user.email);
+  if (!email) {
+    return 'forwarding';
+  }
+  return getInternalGmailUsersAllowlist().has(email) ? 'gmail' : 'forwarding';
+}
+
+function isInternalGmailUser(userOrEmail) {
+  if (!userOrEmail) {
+    return false;
+  }
+  const email =
+    typeof userOrEmail === 'string' ? normalizeEmail(userOrEmail) : normalizeEmail(userOrEmail.email);
+  if (!email) {
+    return false;
+  }
+  return getInternalGmailUsersAllowlist().has(email);
+}
+
+function getInternalGoogleAuthConfig() {
+  const clientId = process.env.GOOGLE_CLIENT_ID_INTERNAL;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET_INTERNAL;
+  if (!clientId || !clientSecret) {
+    return null;
+  }
+  const redirectUri =
+    process.env.GOOGLE_REDIRECT_URI_INTERNAL ||
+    `${process.env.APP_API_BASE_URL || 'http://localhost:3000'}/api/auth/google/internal/callback`;
+  return { clientId, clientSecret, redirectUri };
+}
+
+function getInternalGoogleOAuthClient() {
+  const config = getInternalGoogleAuthConfig();
+  if (!config) {
+    return null;
+  }
+  return new google.auth.OAuth2(config.clientId, config.clientSecret, config.redirectUri);
+}
+
+function getInternalGoogleAuthUrl(oAuthClient, state, options = {}) {
+  const prompt = options.prompt || 'consent';
+  const accessType = options.accessType || 'offline';
+  return oAuthClient.generateAuthUrl({
+    access_type: accessType,
+    include_granted_scopes: false,
+    scope: [...INTERNAL_GMAIL_SCOPES],
+    state,
+    prompt
+  });
+}
+
+function clearOAuthStateCookie(res, cookieName) {
+  res.clearCookie(cookieName, {
+    httpOnly: true,
+    sameSite: isCrossSiteAuth() ? 'none' : 'lax',
+    secure: isCrossSiteAuth() || isProd(),
+    ...cookieDomainOptions()
+  });
+}
+
 function toSessionUserPayload(user) {
   if (!user) {
     return null;
   }
+  const inboxMode = resolveInboxModeForUser(user);
   return {
     id: user.id,
     email: user.email,
     name: user.name,
     auth_provider: user.auth_provider || 'password',
     has_password: Boolean(user.password_hash),
-    inbox_username: user.inbox_username || null
+    inbox_username: user.inbox_username || null,
+    inbox_mode: inboxMode,
+    gmail_internal_enabled: inboxMode === 'gmail'
   };
 }
 
@@ -959,6 +1063,22 @@ function getWebRedirectWithParams(params = {}) {
     target.searchParams.set(key, String(value));
   });
   return target.toString();
+}
+
+function getRequestBaseUrl(req) {
+  const forwardedProto = String(req.get('x-forwarded-proto') || '')
+    .split(',')[0]
+    .trim()
+    .toLowerCase();
+  const protocol = forwardedProto || req.protocol || 'http';
+  const forwardedHost = String(req.get('x-forwarded-host') || '')
+    .split(',')[0]
+    .trim();
+  const host = forwardedHost || req.get('host');
+  if (!host) {
+    return API_BASE_URL;
+  }
+  return `${protocol}://${host}`;
 }
 
 function parseIsoDate(value) {
@@ -2139,13 +2259,7 @@ app.post('/api/auth/login', authIpLimiter, authEmailLimiter, async (req, res) =>
     clearCsrfCookie(res);
 
     return res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        auth_provider: user.auth_provider,
-        inbox_username: user.inbox_username || null
-      }
+      user: toSessionUserPayload(user)
     });
   } catch (err) {
     if (isDbUnavailableError(err)) {
@@ -2246,13 +2360,7 @@ app.post('/api/auth/signup', authIpLimiter, authEmailLimiter, async (req, res) =
 
     return res.json({
       ok: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        auth_provider: user.auth_provider,
-        inbox_username: user.inbox_username || null
-      }
+      user: toSessionUserPayload(user)
     });
   } catch (err) {
     if (isDbUnavailableError(err)) {
@@ -2328,20 +2436,10 @@ app.get('/api/auth/google/callback', authIpLimiter, async (req, res) => {
   const state = String(req.query.state || '');
   const storedState = req.cookies[GOOGLE_STATE_COOKIE];
   if (!state || !storedState || state !== storedState) {
-    res.clearCookie(GOOGLE_STATE_COOKIE, {
-      httpOnly: true,
-      sameSite: isCrossSiteAuth() ? 'none' : 'lax',
-      secure: isCrossSiteAuth() || isProd(),
-      ...cookieDomainOptions()
-    });
+    clearOAuthStateCookie(res, GOOGLE_STATE_COOKIE);
     return res.redirect(getWebAuthErrorRedirect('OAUTH_STATE_INVALID'));
   }
-  res.clearCookie(GOOGLE_STATE_COOKIE, {
-    httpOnly: true,
-    sameSite: isCrossSiteAuth() ? 'none' : 'lax',
-    secure: isCrossSiteAuth() || isProd(),
-    ...cookieDomainOptions()
-  });
+  clearOAuthStateCookie(res, GOOGLE_STATE_COOKIE);
 
   let profile = null;
   if (process.env.NODE_ENV === 'test' && req.query.test_email) {
@@ -2419,6 +2517,121 @@ app.get('/api/auth/google/callback', authIpLimiter, async (req, res) => {
   setSessionCookie(res, session.token);
   clearCsrfCookie(res);
   return res.redirect(`${WEB_BASE_URL}/app`);
+});
+
+app.get('/api/auth/google/internal/start', authIpLimiter, (req, res) => {
+  if (!req.user) {
+    return res.redirect(getWebAuthErrorRedirect('NO_SESSION'));
+  }
+  if (!isInternalGmailUser(req.user)) {
+    return res.redirect(getWebAuthErrorRedirect('INTERNAL_GMAIL_FORBIDDEN'));
+  }
+  if (!isEncryptionReady()) {
+    return res.redirect(getWebAuthErrorRedirect('TOKEN_ENC_KEY_REQUIRED'));
+  }
+  const oAuthClient = getInternalGoogleOAuthClient();
+  const authConfig = getInternalGoogleAuthConfig();
+  if (!oAuthClient || !authConfig) {
+    return res.redirect(getWebAuthErrorRedirect('GMAIL_NOT_CONFIGURED'));
+  }
+  const state = crypto.randomBytes(16).toString('hex');
+  res.cookie(GOOGLE_INTERNAL_STATE_COOKIE, state, {
+    httpOnly: true,
+    sameSite: isCrossSiteAuth() ? 'none' : 'lax',
+    secure: isCrossSiteAuth() || isProd(),
+    maxAge: GOOGLE_STATE_TTL_MS,
+    ...cookieDomainOptions()
+  });
+  if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+    logInfo('google.internal.oauth.scopes_requested', {
+      userId: req.user.id,
+      scopes: INTERNAL_GMAIL_SCOPES
+    });
+  }
+  const url = getInternalGoogleAuthUrl(oAuthClient, state, {
+    accessType: 'offline',
+    prompt: 'consent'
+  });
+  return res.redirect(url);
+});
+
+app.get('/api/auth/google/internal/callback', authIpLimiter, async (req, res) => {
+  if (!req.user) {
+    return res.redirect(getWebAuthErrorRedirect('NO_SESSION'));
+  }
+  if (!isInternalGmailUser(req.user)) {
+    return res.redirect(getWebAuthErrorRedirect('INTERNAL_GMAIL_FORBIDDEN'));
+  }
+  if (!isEncryptionReady()) {
+    return res.redirect(getWebAuthErrorRedirect('TOKEN_ENC_KEY_REQUIRED'));
+  }
+
+  const oAuthClient = getInternalGoogleOAuthClient();
+  if (!oAuthClient) {
+    return res.redirect(getWebAuthErrorRedirect('GMAIL_NOT_CONFIGURED'));
+  }
+
+  const state = String(req.query.state || '');
+  const storedState = req.cookies[GOOGLE_INTERNAL_STATE_COOKIE];
+  if (!state || !storedState || state !== storedState) {
+    clearOAuthStateCookie(res, GOOGLE_INTERNAL_STATE_COOKIE);
+    return res.redirect(getWebAuthErrorRedirect('OAUTH_STATE_INVALID'));
+  }
+  clearOAuthStateCookie(res, GOOGLE_INTERNAL_STATE_COOKIE);
+
+  let connectedEmail = null;
+  let exchangedTokens = null;
+
+  if (process.env.NODE_ENV === 'test' && req.query.test_email) {
+    connectedEmail = normalizeEmail(req.query.test_email);
+    exchangedTokens = {
+      access_token: 'test-internal-access-token',
+      refresh_token: 'test-internal-refresh-token',
+      scope: INTERNAL_GMAIL_SCOPES.join(' '),
+      expiry_date: Date.now() + 60 * 60 * 1000
+    };
+  } else {
+    const code = req.query.code ? String(req.query.code) : '';
+    if (!code) {
+      return res.redirect(getWebAuthErrorRedirect('OAUTH_CODE_MISSING'));
+    }
+    try {
+      const tokenResponse = await oAuthClient.getToken(code);
+      exchangedTokens = tokenResponse?.tokens || null;
+      if (!exchangedTokens) {
+        return res.redirect(getWebAuthErrorRedirect('GMAIL_CONNECT_FAILED'));
+      }
+      oAuthClient.setCredentials(exchangedTokens);
+      connectedEmail = normalizeEmail(await fetchConnectedEmail(oAuthClient));
+    } catch (err) {
+      logError('google.internal.callback.failed', {
+        userId: req.user.id,
+        code: err?.code || null,
+        detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+      });
+      return res.redirect(getWebAuthErrorRedirect('GMAIL_CONNECT_FAILED'));
+    }
+  }
+
+  if (connectedEmail && connectedEmail !== normalizeEmail(req.user.email)) {
+    return res.redirect(getWebAuthErrorRedirect('GMAIL_ACCOUNT_MISMATCH'));
+  }
+
+  try {
+    await upsertTokens(db, req.user.id, exchangedTokens || {}, connectedEmail || req.user.email);
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'google.internal.callback');
+    }
+    logError('google.internal.tokens.persist_failed', {
+      userId: req.user.id,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+    return res.redirect(getWebAuthErrorRedirect('GMAIL_CONNECT_FAILED'));
+  }
+
+  return res.redirect(getWebRedirectWithParams({ gmail_connected: '1' }));
 });
 
 app.post('/api/auth/logout', requireAuth, async (req, res) => {
@@ -2864,6 +3077,12 @@ app.delete('/api/inbound/hints/:id', requireAuth, async (req, res) => {
 });
 
 app.post('/api/inbound/sync', requireAuth, async (req, res) => {
+  if (isInternalGmailUser(req.user)) {
+    return res.status(409).json({
+      error: 'INBOX_MODE_GMAIL_INTERNAL',
+      message: 'This account uses internal Gmail ingestion mode.'
+    });
+  }
   const lockToken = acquireInboundSyncLock(req.user?.id || null);
   if (!lockToken) {
     return res.status(409).json({ error: 'SYNC_IN_PROGRESS' });
@@ -2942,49 +3161,193 @@ app.post('/api/inbound/sync', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/email/status', requireAuth, (_req, res) => {
+app.get('/api/email/status', requireAuth, async (req, res) => {
+  if (!isInternalGmailUser(req.user)) {
+    return res.json({
+      configured: false,
+      encryptionReady: false,
+      connected: false,
+      email: null,
+      legacy_disabled: true
+    });
+  }
+  const internalConfig = getInternalGoogleAuthConfig();
+  const encryptionReady = isEncryptionReady();
+  let connectedEmail = null;
+  let connected = false;
+  try {
+    const stored = await getStoredTokens(db, req.user.id);
+    connectedEmail = stored?.connected_email || null;
+    connected = Boolean(stored?.refresh_token || stored?.access_token);
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'gmail.internal.status');
+    }
+    logError('gmail.internal.status.failed', {
+      userId: req.user?.id || null,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+    return res.status(500).json({ error: 'GMAIL_STATUS_FAILED' });
+  }
   return res.json({
-    configured: false,
-    encryptionReady: false,
-    connected: false,
-    email: null,
-    legacy_disabled: true
+    configured: Boolean(internalConfig),
+    encryptionReady,
+    connected: Boolean(Boolean(internalConfig) && encryptionReady && connected),
+    email: connectedEmail,
+    legacy_disabled: false,
+    internal_mode: true
   });
 });
 
-app.post('/api/email/disconnect', requireAuth, (_req, res) => {
-  return res.json({ ok: true, legacy_disabled: true });
+app.post('/api/email/disconnect', requireAuth, async (req, res) => {
+  if (!isInternalGmailUser(req.user)) {
+    return res.json({ ok: true, legacy_disabled: true });
+  }
+  try {
+    await dbRun('DELETE FROM oauth_tokens WHERE provider = ? AND user_id = ?', 'gmail', req.user.id);
+    return res.json({ ok: true, legacy_disabled: false, internal_mode: true });
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'gmail.internal.disconnect');
+    }
+    logError('gmail.internal.disconnect.failed', {
+      userId: req.user?.id || null,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+    return res.status(500).json({ error: 'GMAIL_DISCONNECT_FAILED' });
+  }
 });
 
-app.get('/api/email/connect/start', requireAuth, (_req, res) => {
-  return res.status(410).json({
-    error: 'GMAIL_LEGACY_DISABLED',
-    message: 'Legacy Gmail API connect has been disabled. Use forwarding-based inbox setup.'
-  });
+app.get('/api/email/connect/start', requireAuth, (req, res) => {
+  if (!isInternalGmailUser(req.user)) {
+    return res.status(410).json({
+      error: 'GMAIL_LEGACY_DISABLED',
+      message: 'Legacy Gmail API connect has been disabled. Use forwarding-based inbox setup.'
+    });
+  }
+  if (!getInternalGoogleAuthConfig()) {
+    return res.status(503).json({ error: 'GMAIL_NOT_CONFIGURED' });
+  }
+  if (!isEncryptionReady()) {
+    return res.status(503).json({ error: 'TOKEN_ENC_KEY_REQUIRED' });
+  }
+  const url = new URL('/api/auth/google/internal/start', getRequestBaseUrl(req)).toString();
+  return res.json({ ok: true, url, internal_mode: true });
 });
 
-app.post('/api/email/connect', requireAuth, (_req, res) => {
-  return res.status(410).json({
-    error: 'GMAIL_LEGACY_DISABLED',
-    message: 'Legacy Gmail API connect has been disabled. Use forwarding-based inbox setup.'
-  });
+app.post('/api/email/connect', requireAuth, (req, res) => {
+  if (!isInternalGmailUser(req.user)) {
+    return res.status(410).json({
+      error: 'GMAIL_LEGACY_DISABLED',
+      message: 'Legacy Gmail API connect has been disabled. Use forwarding-based inbox setup.'
+    });
+  }
+  if (!getInternalGoogleAuthConfig()) {
+    return res.status(503).json({ error: 'GMAIL_NOT_CONFIGURED' });
+  }
+  if (!isEncryptionReady()) {
+    return res.status(503).json({ error: 'TOKEN_ENC_KEY_REQUIRED' });
+  }
+  const url = new URL('/api/auth/google/internal/start', getRequestBaseUrl(req)).toString();
+  return res.json({ ok: true, url, internal_mode: true });
 });
 
-app.get('/api/email/callback', requireAuth, (_req, res) => {
+app.get('/api/email/callback', requireAuth, (req, res) => {
+  if (isInternalGmailUser(req.user)) {
+    return res.redirect(getWebRedirectWithParams({ auth_error: 'USE_INTERNAL_GMAIL_CALLBACK' }));
+  }
   return res.redirect(getWebRedirectWithParams({ auth_error: 'GMAIL_LEGACY_DISABLED' }));
 });
 
-app.post('/api/email/sync', requireAuth, (_req, res) => {
-  return res.status(410).json({
-    error: 'GMAIL_LEGACY_DISABLED',
-    message: 'Legacy Gmail sync has been disabled. Use forwarding-based inbox sync.'
-  });
+app.post('/api/email/sync', requireAuth, async (req, res) => {
+  if (!isInternalGmailUser(req.user)) {
+    return res.status(410).json({
+      error: 'GMAIL_LEGACY_DISABLED',
+      message: 'Legacy Gmail sync has been disabled. Use forwarding-based inbox sync.'
+    });
+  }
+  const oAuthClient = getInternalGoogleOAuthClient();
+  if (!oAuthClient) {
+    return res.status(503).json({ error: 'GMAIL_NOT_CONFIGURED' });
+  }
+  if (!isEncryptionReady()) {
+    return res.status(503).json({ error: 'TOKEN_ENC_KEY_REQUIRED' });
+  }
+  try {
+    const stored = await getStoredTokens(db, req.user.id);
+    if (!stored?.access_token && !stored?.refresh_token) {
+      return res.json({ status: 'not_connected' });
+    }
+    oAuthClient.setCredentials({
+      access_token: stored.access_token || undefined,
+      refresh_token: stored.refresh_token || undefined,
+      scope: stored.scope || undefined,
+      expiry_date: stored.expiry_date || undefined
+    });
+
+    const mode = req.body?.mode === 'days' ? 'days' : 'since_last';
+    const days = clampNumber(Number(req.body?.days) || 30, 1, 365);
+    const maxResults = clampNumber(Number(req.body?.max_results) || 100, 1, 500);
+    const syncId = req.body?.sync_id ? String(req.body.sync_id) : null;
+
+    const result = await syncGmailMessages({
+      db,
+      userId: req.user.id,
+      days,
+      maxResults,
+      syncId,
+      mode,
+      authClientOverride: oAuthClient,
+      authenticatedUserEmailOverride: stored.connected_email || req.user.email || null
+    });
+
+    if (result?.status === 'not_connected') {
+      return res.json({ status: 'not_connected' });
+    }
+    return res.json({
+      status: 'success',
+      ...result
+    });
+  } catch (err) {
+    if (isGoogleInvalidGrantError(err)) {
+      await dbRun('DELETE FROM oauth_tokens WHERE provider = ? AND user_id = ?', 'gmail', req.user.id);
+      return res.status(401).json({
+        error: 'GMAIL_RECONNECT_REQUIRED',
+        message: 'Gmail authorization expired. Reconnect Gmail to continue.'
+      });
+    }
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'gmail.internal.sync');
+    }
+    logError('gmail.internal.sync.failed', {
+      userId: req.user?.id || null,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+    return res.status(500).json({ error: 'GMAIL_SYNC_FAILED' });
+  }
 });
 
-app.get('/api/email/sync/status', requireAuth, (_req, res) => {
+app.get('/api/email/sync/status', requireAuth, (req, res) => {
+  if (!isInternalGmailUser(req.user)) {
+    return res.json({
+      ok: false,
+      status: 'gmail_legacy_disabled'
+    });
+  }
+  const syncId = req.query.sync_id ? String(req.query.sync_id).trim() : '';
+  if (!syncId) {
+    return res.json({ ok: false, status: 'missing_sync_id' });
+  }
+  const progress = getSyncProgress(syncId);
+  if (!progress) {
+    return res.json({ ok: false, status: 'unknown_sync_id' });
+  }
   return res.json({
-    ok: false,
-    status: 'gmail_legacy_disabled'
+    ok: true,
+    ...progress
   });
 });
 

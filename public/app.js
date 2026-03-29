@@ -251,7 +251,9 @@ const accountPasswordHint = document.getElementById('account-password-hint');
 const accountHelpStatus = document.getElementById('account-help-status');
 const accountHelpLastEmail = document.getElementById('account-help-last-email');
 const accountHelpNote = document.getElementById('account-help-note');
+const accountHelpSetupType = document.getElementById('account-help-setup-type');
 const inboundStatusPill = document.getElementById('inbound-status-pill');
+const inboundAddressLabel = document.getElementById('inbound-address-label');
 const inboundAddressEmail = document.getElementById('inbound-address-email');
 const inboundMetaLine = document.getElementById('inbound-meta-line');
 const inboundOldAddressWarning = document.getElementById('inbound-old-address-warning');
@@ -601,6 +603,16 @@ const accountUsernameState = {
 const INBOUND_AUTO_SYNC_INTERVAL_MS = 9000;
 const INBOUND_AUTO_SYNC_DEBOUNCE_MS = 15000;
 renderSyncSummary({ status: 'idle', rawDetails: '' });
+
+function isInternalGmailMode(user = sessionUser) {
+  if (!user) {
+    return false;
+  }
+  if (user.gmail_internal_enabled === true) {
+    return true;
+  }
+  return String(user.inbox_mode || '').trim().toLowerCase() === 'gmail';
+}
 
 let syncRangeMenuOpen = false;
 let lastSyncOption = 'since_last';
@@ -1057,7 +1069,7 @@ function renderSignupInboxUsernameUi({ checkAvailability = true } = {}) {
 }
 
 function renderAccountInboxUsernamePrompt({ checkAvailability = true } = {}) {
-  const showPrompt = Boolean(sessionUser && !sessionUser.inbox_username);
+  const showPrompt = Boolean(!isInternalGmailMode() && sessionUser && !sessionUser.inbox_username);
   if (!accountInboxUsernamePrompt) {
     return;
   }
@@ -1161,6 +1173,26 @@ function setDashboardScanButtonLabel(label) {
 }
 
 function formatInboundMetaText() {
+  if (isInternalGmailMode()) {
+    const parts = [];
+    const lastSync =
+      emailState.lastSyncStats?.last_synced_at ||
+      emailState.lastSyncedAt ||
+      emailState.lastSyncStats?.time_window_end ||
+      null;
+    const lastSyncedAt = formatSyncDateTime(lastSync);
+    if (lastSyncedAt) {
+      parts.push(`Last inbox sync • ${lastSyncedAt}`);
+    }
+    if (emailState.email) {
+      parts.push(`Connected Gmail • ${emailState.email}`);
+    } else if (emailState.connected) {
+      parts.push('Connected Gmail');
+    } else {
+      parts.push('Connect Gmail to start internal ingestion.');
+    }
+    return parts.join(' • ');
+  }
   const readiness = resolveForwardingReadiness();
   const syncMeta = inboundState.lastInboundSync || null;
   const syncParts = [];
@@ -1243,6 +1275,18 @@ function renderForwardingSummary() {
   if (!syncSummary || !syncSummaryStatus || !syncSummaryMetrics) {
     return;
   }
+  if (isInternalGmailMode()) {
+    syncSummaryStatus.textContent = emailState.connected
+      ? '✅ Gmail Connected (Internal Mode)'
+      : 'Internal Gmail mode not connected';
+    syncSummaryMetrics.textContent = formatInboundMetaText();
+    syncSummary.classList.remove('hidden');
+    if (syncResult) {
+      syncResult.textContent = '';
+    }
+    applySyncDetailsVisibility(false, false, false);
+    return;
+  }
   const setupState = inboundState.setupState || 'not_started';
   const readiness = resolveForwardingReadiness();
   let statusText = 'Inbox not connected';
@@ -1276,6 +1320,30 @@ function updateDashboardPrimarySyncUI() {
   if (!emailSync) {
     return;
   }
+  if (isInternalGmailMode()) {
+    setDashboardScanButtonLabel(emailState.connected ? 'Sync inbox' : 'Connect Gmail');
+    emailSync.dataset.forwardingMode = 'gmail_internal';
+    emailSync.disabled = false;
+    emailSync.setAttribute('aria-busy', 'false');
+    if (syncMenuButton) {
+      syncMenuButton.classList.add('hidden');
+      syncMenuButton.disabled = true;
+      syncMenuButton.setAttribute('aria-hidden', 'true');
+    }
+    if (syncRangeMenuOpen) {
+      closeSyncRangeMenu();
+    }
+    if (syncConnectCta) {
+      syncConnectCta.classList.add('hidden');
+    }
+    if (syncControls) {
+      syncControls.classList.remove('hidden');
+    }
+    if (syncProcessNow) {
+      syncProcessNow.classList.add('hidden');
+    }
+    return;
+  }
   const active = isForwardingActive();
   setDashboardScanButtonLabel(active ? 'Sync inbox' : 'Connect inbox');
   emailSync.dataset.forwardingMode = active ? 'sync' : 'connect';
@@ -1295,12 +1363,95 @@ function updateDashboardPrimarySyncUI() {
   if (syncControls) {
     syncControls.classList.remove('hidden');
   }
+  if (syncProcessNow) {
+    syncProcessNow.classList.remove('hidden');
+  }
   if (legacySyncDetails) {
     legacySyncDetails.classList.toggle('legacy-sync-details--disabled', !emailState.connected);
   }
 }
 
 function updateInboundStatusPresentation() {
+  if (isInternalGmailMode()) {
+    const connected = Boolean(emailState.connected);
+    const connectedEmail = emailState.email || sessionUser?.email || null;
+    const statusText = connected ? 'Gmail Connected (Internal Mode)' : 'Internal Gmail not connected';
+    const helpText = connected
+      ? `Connected via Gmail API${connectedEmail ? ` · ${connectedEmail}` : ''}`
+      : 'Internal mode uses Gmail API ingestion for allowlisted users only.';
+    setPillState(inboundStatusPill, statusText, connected ? 'connected' : 'idle');
+    setPillState(dashboardInboxStatus, statusText, connected ? 'connected' : 'idle');
+    if (dashboardInboxEmail) {
+      dashboardInboxEmail.textContent = connectedEmail || 'Connect Gmail to begin ingestion';
+    }
+    if (syncStatus) {
+      syncStatus.textContent = connected ? 'Ready to sync' : 'Connect Gmail';
+    }
+    if (inboundAddressLabel) {
+      inboundAddressLabel.textContent = 'Connected Gmail account';
+    }
+    if (inboundAddressEmail) {
+      inboundAddressEmail.textContent = connectedEmail || '—';
+    }
+    if (inboundMetaLine) {
+      inboundMetaLine.textContent = formatInboundMetaText();
+    }
+    if (inboundCopyAddress) {
+      inboundCopyAddress.disabled = !connectedEmail;
+      inboundCopyAddress.textContent = 'Copy';
+    }
+    if (inboundSendTest) {
+      inboundSendTest.classList.add('hidden');
+      inboundSendTest.disabled = true;
+    }
+    if (inboundProcessNow) {
+      inboundProcessNow.classList.add('hidden');
+      inboundProcessNow.disabled = !connected;
+    }
+    if (inboundRotateAddress) {
+      inboundRotateAddress.classList.add('hidden');
+      inboundRotateAddress.disabled = true;
+    }
+    if (inboundWhyToggle) {
+      inboundWhyToggle.classList.add('hidden');
+      inboundWhyToggle.setAttribute('aria-expanded', 'false');
+    }
+    if (inboundWhyPanel) {
+      inboundWhyPanel.classList.add('hidden');
+    }
+    if (inboundOpenSetup) {
+      inboundOpenSetup.textContent = connected ? 'Reconnect Gmail' : 'Connect Gmail';
+    }
+    if (accountHelpStatus) {
+      accountHelpStatus.textContent = statusText;
+    }
+    if (accountHelpNote) {
+      accountHelpNote.textContent = helpText;
+    }
+    if (accountHelpSetupType) {
+      accountHelpSetupType.textContent = 'Internal Gmail API';
+    }
+    if (accountHelpLastEmail) {
+      accountHelpLastEmail.textContent = connectedEmail || '—';
+    }
+    if (inboundHelpOpenSetup) {
+      inboundHelpOpenSetup.textContent = connected ? 'Reconnect Gmail' : 'Connect Gmail';
+    }
+    if (inboundHelpSendTest) {
+      inboundHelpSendTest.classList.add('hidden');
+      inboundHelpSendTest.disabled = true;
+    }
+    if (inboundHelpWhy) {
+      inboundHelpWhy.classList.add('hidden');
+    }
+    if (inboundOldAddressWarning) {
+      inboundOldAddressWarning.classList.add('hidden');
+    }
+    renderForwardingSummary();
+    updateDashboardPrimarySyncUI();
+    renderAccountInboxUsernamePrompt({ checkAvailability: false });
+    return;
+  }
   const setupState = inboundState.setupState || 'not_started';
   const readiness = resolveForwardingReadiness();
   let pillText = 'Not connected';
@@ -1371,15 +1522,31 @@ function updateInboundStatusPresentation() {
   }
   if (inboundCopyAddress) {
     inboundCopyAddress.disabled = !inboundState.addressEmail;
+    inboundCopyAddress.textContent = 'Copy';
   }
   if (inboundSendTest) {
+    inboundSendTest.classList.remove('hidden');
     inboundSendTest.disabled = !inboundState.addressEmail;
   }
   if (inboundProcessNow) {
+    inboundProcessNow.classList.remove('hidden');
     inboundProcessNow.disabled = !inboundState.addressEmail;
   }
   if (inboundRotateAddress) {
+    inboundRotateAddress.classList.remove('hidden');
     inboundRotateAddress.disabled = !inboundState.addressEmail;
+  }
+  if (inboundWhyToggle) {
+    inboundWhyToggle.classList.remove('hidden');
+  }
+  if (inboundHelpSendTest) {
+    inboundHelpSendTest.classList.remove('hidden');
+  }
+  if (inboundHelpWhy) {
+    inboundHelpWhy.classList.remove('hidden');
+  }
+  if (inboundAddressLabel) {
+    inboundAddressLabel.textContent = 'Your Applictus inbox address';
   }
   if (inboundOpenSetup) {
     inboundOpenSetup.textContent = setupState === 'active' ? 'View setup' : 'Open setup';
@@ -1389,6 +1556,9 @@ function updateInboundStatusPresentation() {
   }
   if (accountHelpNote) {
     accountHelpNote.textContent = helpNoteText;
+  }
+  if (accountHelpSetupType) {
+    accountHelpSetupType.textContent = 'Forwarding-based';
   }
   if (accountHelpLastEmail) {
     const lastSeen = formatSyncDateTime(inboundState.lastReceivedAt);
@@ -1492,6 +1662,17 @@ function updateAccountSyncOptionSelection(option) {
 }
 
 function updateSyncHelperText() {
+  if (isInternalGmailMode()) {
+    if (syncHelperText) {
+      syncHelperText.textContent = emailState.connected
+        ? 'Internal Gmail mode is active for this account.'
+        : 'Connect Gmail to enable internal ingestion mode.';
+    }
+    if (accountSyncHelperText) {
+      accountSyncHelperText.textContent = formatInboundMetaText();
+    }
+    return;
+  }
   const readiness = resolveForwardingReadiness();
   if (syncHelperText) {
     if (readiness === 'forwarding_active') {
@@ -2595,6 +2776,9 @@ function authErrorMessage(code) {
     GOOGLE_AUTH_VERIFY_FAILED: 'We could not verify your Google sign-in. Please try again.',
     GOOGLE_EMAIL_UNVERIFIED: 'Your Google account email must be verified before signing in.',
     OAUTH_USER_CREATE_FAILED: 'We could not finish Google sign-in. Please try again.',
+    INTERNAL_GMAIL_FORBIDDEN: 'This account is not allowed to use internal Gmail mode.',
+    GMAIL_ACCOUNT_MISMATCH: 'Sign in to the same Gmail account as your Applictus account and try again.',
+    USE_INTERNAL_GMAIL_CALLBACK: 'Internal Gmail connect uses a different callback path.',
     GMAIL_NOT_CONFIGURED: 'Gmail connect is not configured yet.',
     TOKEN_ENC_KEY_REQUIRED: 'Token encryption is not configured yet.',
     GMAIL_CONNECT_FAILED: 'Google sign-in worked, but Gmail connection could not be completed.',
@@ -3822,7 +4006,15 @@ async function loadSession() {
     showNotice('Unable to load applications.', 'Dashboard');
   }
 
-  await refreshInboundStatus({ ensureAddress: true });
+  await refreshEmailStatus();
+  if (!isInternalGmailMode()) {
+    await refreshInboundStatus({ ensureAddress: true });
+  } else {
+    inboundState.diagnosticsAdmin = false;
+    updateInboundDiagnosticsVisibility();
+    updateInboundStatusPresentation();
+    updateSyncHelperText();
+  }
   return true;
 }
 
@@ -4019,6 +4211,12 @@ function applyInboundStatusPayload(data = {}) {
 }
 
 async function refreshInboundStatus({ ensureAddress = true } = {}) {
+  if (isInternalGmailMode()) {
+    clearInboundAutoSyncPolling();
+    updateInboundStatusPresentation();
+    updateSyncHelperText();
+    return;
+  }
   const endpoint = ensureAddress ? '/api/inbound/address' : '/api/inbound/status';
   try {
     const data = await api(endpoint);
@@ -4062,6 +4260,11 @@ function updateInboundDiagnosticsVisibility() {
 }
 
 async function refreshInboundDiagnosticsAccess() {
+  if (isInternalGmailMode()) {
+    inboundState.diagnosticsAdmin = false;
+    updateInboundDiagnosticsVisibility();
+    return;
+  }
   if (!sessionUser) {
     inboundState.diagnosticsAdmin = false;
     updateInboundDiagnosticsVisibility();
@@ -4105,6 +4308,10 @@ function hasNewInboundSinceLastSync() {
 
 async function pollInboundStatusForAutoSync() {
   if (!routeIsDashboard() || !sessionUser) {
+    clearInboundAutoSyncPolling();
+    return;
+  }
+  if (isInternalGmailMode()) {
     clearInboundAutoSyncPolling();
     return;
   }
@@ -4157,6 +4364,10 @@ async function pollInboundStatusForAutoSync() {
 }
 
 function syncInboundAutoPolling() {
+  if (isInternalGmailMode()) {
+    clearInboundAutoSyncPolling();
+    return;
+  }
   const shouldPoll =
     Boolean(sessionUser) &&
     routeIsDashboard() &&
@@ -4887,6 +5098,12 @@ function buildInboundSetupStep(step, setStep, setupContext) {
 }
 
 function openInboundSetupModal({ startStep = 0 } = {}) {
+  if (isInternalGmailMode()) {
+    void startGmailConnectFlow().catch((err) => {
+      showNotice(err.message || 'Unable to connect Gmail', 'Connect Gmail');
+    });
+    return;
+  }
   let currentStep = Math.max(0, Math.min(1, Number(startStep) || 0));
   const initialReadiness = resolveForwardingReadiness();
   const initialVerifyMessage =
@@ -5293,6 +5510,10 @@ async function refreshForwardingInbox({
   pendingCountHint = 0,
   suppressSetupModalOnNotConnected = false
 } = {}) {
+  if (isInternalGmailMode()) {
+    await runDashboardSyncOption('since_last');
+    return;
+  }
   if (!emailSync || emailSync.disabled || inboundAutoSyncState.inFlight) {
     return;
   }
@@ -5428,6 +5649,14 @@ async function refreshForwardingInbox({
 }
 
 async function runManualInboundProcessNow() {
+  if (isInternalGmailMode()) {
+    if (!emailState.connected) {
+      await startGmailConnectFlow();
+      return;
+    }
+    await runDashboardSyncOption('since_last');
+    return;
+  }
   await refreshInboundStatus({ ensureAddress: true });
   if (!hasForwardingAddress()) {
     openInboundSetupModal({ startStep: 0 });
@@ -5441,12 +5670,36 @@ async function runManualInboundProcessNow() {
 }
 
 async function refreshEmailStatus() {
-  emailState.configured = false;
-  emailState.encryptionReady = false;
-  emailState.connected = false;
-  emailState.email = null;
-  emailState.lastSyncedAt = null;
-  emailState.lastSyncStats = null;
+  if (!isInternalGmailMode()) {
+    emailState.configured = false;
+    emailState.encryptionReady = false;
+    emailState.connected = false;
+    emailState.email = null;
+    emailState.lastSyncedAt = null;
+    emailState.lastSyncStats = null;
+    return;
+  }
+  try {
+    const data = await api('/api/email/status');
+    emailState.configured = Boolean(data?.configured);
+    emailState.encryptionReady = Boolean(data?.encryptionReady);
+    emailState.connected = Boolean(data?.connected);
+    emailState.email = data?.email || null;
+    if (!emailState.connected) {
+      emailState.lastSyncedAt = null;
+      emailState.lastSyncStats = null;
+    }
+  } catch (err) {
+    emailState.configured = false;
+    emailState.encryptionReady = false;
+    emailState.connected = false;
+    emailState.email = null;
+    emailState.lastSyncedAt = null;
+    emailState.lastSyncStats = null;
+  } finally {
+    updateInboundStatusPresentation();
+    updateSyncHelperText();
+  }
 }
 
 async function refreshEmailEvents() {
@@ -5655,7 +5908,9 @@ function renderSyncSummary({ status = 'idle', result = null, rawDetails = '', la
       break;
     case 'not_connected':
       statusText = 'Not connected';
-      metricsText = 'Connect inbox to start syncing';
+      metricsText = isInternalGmailMode()
+        ? 'Connect Gmail to start syncing'
+        : 'Connect inbox to start syncing';
       break;
     default:
       statusText = 'Last scan not run';
@@ -5789,7 +6044,12 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
       emailState.lastSyncStats = result.last_sync || result;
       updateSyncHelperText();
     }
-    const rawDetails = status === 'not_connected' ? 'Connect inbox first.' : formatSyncSummary(result);
+    const rawDetails =
+      status === 'not_connected'
+        ? isInternalGmailMode()
+          ? 'Connect Gmail first.'
+          : 'Connect inbox first.'
+        : formatSyncSummary(result);
     renderSyncSummary({
       status: status === 'not_connected' ? 'not_connected' : 'success',
       result,
@@ -5873,8 +6133,40 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
 }
 
 async function runDashboardSyncOption(option) {
+  if (!isInternalGmailMode()) {
+    if (!emailState.connected) {
+      window.location.hash = '#account';
+      return;
+    }
+    const value = String(option || 'since_last');
+    if (value === 'since_last') {
+      await runEmailSync({
+        mode: 'since_last',
+        statusEl: syncStatus,
+        resultEl: syncResult,
+        buttonEl: emailSync
+      });
+      return;
+    }
+    const days = Number(value);
+    if (Number.isFinite(days) && days > 0) {
+      await runEmailSync({
+        mode: 'days',
+        days,
+        statusEl: syncStatus,
+        resultEl: syncResult,
+        buttonEl: emailSync
+      });
+    }
+    return;
+  }
+
   if (!emailState.connected) {
-    window.location.hash = '#account';
+    try {
+      await startGmailConnectFlow();
+    } catch (err) {
+      showNotice(err.message || 'Unable to connect Gmail', 'Connect Gmail');
+    }
     return;
   }
   const value = String(option || 'since_last');
@@ -5901,6 +6193,9 @@ async function runDashboardSyncOption(option) {
 
 async function runAccountSyncOption(option) {
   if (!emailState.connected) {
+    if (isInternalGmailMode()) {
+      await startGmailConnectFlow();
+    }
     return;
   }
   const value = String(option || 'since_last');
@@ -5930,6 +6225,10 @@ async function runAccountSyncOption(option) {
 }
 
 async function runQuickSync() {
+  if (isInternalGmailMode()) {
+    await runDashboardSyncOption('since_last');
+    return;
+  }
   if (!isForwardingActive()) {
     openInboundSetupModal({ startStep: 0 });
     return;
@@ -7372,8 +7671,12 @@ function route() {
   if (routeKey === 'gmail') {
     setView('account');
     renderAccountPanel();
-    void refreshInboundStatus({ ensureAddress: true });
-    void refreshInboundDiagnosticsAccess();
+    if (isInternalGmailMode()) {
+      void refreshEmailStatus();
+    } else {
+      void refreshInboundStatus({ ensureAddress: true });
+      void refreshInboundDiagnosticsAccess();
+    }
   } else if (routeKey === 'privacy') {
     setView('privacy');
   } else if (routeKey === 'terms') {
@@ -7395,8 +7698,12 @@ function route() {
   } else if (routeKey === 'account') {
     setView('account');
     renderAccountPanel();
-    void refreshInboundStatus({ ensureAddress: true });
-    void refreshInboundDiagnosticsAccess();
+    if (isInternalGmailMode()) {
+      void refreshEmailStatus();
+    } else {
+      void refreshInboundStatus({ ensureAddress: true });
+      void refreshInboundDiagnosticsAccess();
+    }
   } else if (routeKey === 'resume-curator') {
     setView('resume-curator');
     initResumeCurator();
@@ -7404,7 +7711,11 @@ function route() {
     clearKpiNewSignals();
     clearKpiDeltaSignals();
     setView('dashboard');
-    void refreshInboundStatus({ ensureAddress: true });
+    if (isInternalGmailMode()) {
+      void refreshEmailStatus();
+    } else {
+      void refreshInboundStatus({ ensureAddress: true });
+    }
     void loadActiveApplications().catch((err) => {
       const authFailure = err?.status === 401 || err?.message === 'AUTH_REQUIRED';
       if (authFailure) {
@@ -7717,6 +8028,12 @@ if (accountPasswordButton && !accountPasswordButton.dataset.bound) {
 async function performLogout() {
   await api('/api/auth/logout', { method: 'POST' });
   sessionUser = null;
+  emailState.configured = false;
+  emailState.encryptionReady = false;
+  emailState.connected = false;
+  emailState.email = null;
+  emailState.lastSyncedAt = null;
+  emailState.lastSyncStats = null;
   inboundState.diagnosticsAdmin = false;
   updateInboundDiagnosticsVisibility();
   closeProfileMenu();
@@ -7747,6 +8064,18 @@ profileMenuPanel?.addEventListener('click', async (event) => {
   const action = actionTarget.dataset.menuAction;
   if (action === 'inbox') {
     closeProfileMenu();
+    if (isInternalGmailMode()) {
+      if (!emailState.connected) {
+        try {
+          await startGmailConnectFlow();
+        } catch (err) {
+          showNotice(err.message || 'Unable to connect Gmail', 'Connect Gmail');
+        }
+      } else {
+        window.location.hash = '#account';
+      }
+      return;
+    }
     try {
       await refreshInboundStatus({ ensureAddress: true });
     } catch (_) {
@@ -7875,7 +8204,9 @@ dashboardView?.addEventListener('click', async (event) => {
     return;
   }
   if (action === 'sync-inbox') {
-    if (isForwardingActive()) {
+    if (isInternalGmailMode()) {
+      await runDashboardSyncOption('since_last');
+    } else if (isForwardingActive()) {
       await refreshForwardingInbox();
     } else {
       openInboundSetupModal({ startStep: 0 });
@@ -8321,6 +8652,10 @@ emailDisconnect?.addEventListener('click', async () => {
 });
 
 emailSync?.addEventListener('click', async () => {
+  if (isInternalGmailMode()) {
+    await runDashboardSyncOption('since_last');
+    return;
+  }
   if (isForwardingActive()) {
     await refreshForwardingInbox();
     return;
@@ -8377,24 +8712,43 @@ accountInboxUsernameSave?.addEventListener('click', async () => {
 });
 
 inboundOpenSetup?.addEventListener('click', () => {
+  if (isInternalGmailMode()) {
+    void startGmailConnectFlow().catch((err) => {
+      showNotice(err.message || 'Unable to connect Gmail', 'Connect Gmail');
+    });
+    return;
+  }
   openInboundSetupModal({ startStep: 0 });
 });
 
 inboundHelpOpenSetup?.addEventListener('click', () => {
+  if (isInternalGmailMode()) {
+    void startGmailConnectFlow().catch((err) => {
+      showNotice(err.message || 'Unable to connect Gmail', 'Connect Gmail');
+    });
+    return;
+  }
   openInboundSetupModal({ startStep: 0 });
 });
 
 inboundCopyAddress?.addEventListener('click', () => {
-  void copyTextToClipboard(inboundState.addressEmail, 'Copied forwarding address');
+  const target = isInternalGmailMode() ? emailState.email : inboundState.addressEmail;
+  const message = isInternalGmailMode() ? 'Copied Gmail address' : 'Copied forwarding address';
+  void copyTextToClipboard(target, message);
 });
 
 function sendInboundTestEmail() {
-  if (!inboundState.addressEmail) {
+  const target = isInternalGmailMode() ? emailState.email : inboundState.addressEmail;
+  if (!target) {
     return;
   }
   const subject = encodeURIComponent('Applictus test');
-  const body = encodeURIComponent('This is a forwarding test email for Applictus.');
-  window.location.href = `mailto:${encodeURIComponent(inboundState.addressEmail)}?subject=${subject}&body=${body}`;
+  const body = encodeURIComponent(
+    isInternalGmailMode()
+      ? 'This is a Gmail internal-mode test email for Applictus.'
+      : 'This is a forwarding test email for Applictus.'
+  );
+  window.location.href = `mailto:${encodeURIComponent(target)}?subject=${subject}&body=${body}`;
 }
 
 inboundSendTest?.addEventListener('click', () => {

@@ -5,311 +5,1789 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Applictus is a job application tracking dashboard that organizes job email updates into clear statuses and timelines."
+      content="Applictus helps you track job applications from forwarded inbox updates so you always know your application status."
     />
-    <title>Applictus | Application Status Tracker</title>
+    <meta name="app-api-base-url" content="" />
+    <title>Applictus</title>
     <link rel="icon" href="/Applictus_logo.png" type="image/png" />
-    <link rel="stylesheet" href="/styles.css?v=26" />
-  </head>
-  <body class="home home-page animated-bg-mode animated-bg-auth">
-    <div class="home-shell">
-      <header class="home-nav" aria-label="Main">
-        <a class="home-brand" href="/" aria-label="Applictus home">
-          <span class="home-brand-mark" aria-hidden="true">
-            <img src="/Applictus_logo.png" alt="" />
-          </span>
-          <span class="home-brand-copy">
-            <strong>Applictus</strong>
-            <small>Application Status Tracker</small>
-          </span>
-        </a>
-        <div class="home-nav-actions">
-          <a class="home-link" href="/privacy">Privacy</a>
-          <a class="home-link" href="/terms">Terms</a>
-          <a class="btn btn--secondary btn--sm" href="/app">Login</a>
-          <a class="btn btn--primary btn--sm" href="/app">Sign Up</a>
-        </div>
-      </header>
+    <link rel="stylesheet" href="/styles.css?v=24" />
+    <style>
+      body:not(.app-ready) #app {
+        opacity: 0;
+        pointer-events: none;
+      }
 
-      <main class="home-main">
-        <header class="home-billboard" data-animate="billboard" aria-label="Applictus introduction">
-          <div class="home-cap" aria-hidden="true">
-            <div class="cap-noise" aria-hidden="true"></div>
-            <div class="home-cap-sweep" aria-hidden="true"></div>
+      body.app-ready #app {
+        opacity: 1;
+        transition: opacity 150ms ease;
+      }
+
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background:
+          radial-gradient(circle at 20% 16%, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.82) 42%, rgba(225, 239, 255, 0.72) 100%),
+          linear-gradient(180deg, #f6faff 0%, #eaf2ff 52%, #d6e7ff 100%);
+        transition: opacity 250ms ease, filter 250ms ease;
+      }
+
+      #app-splash.splash-hide {
+        opacity: 0;
+        filter: blur(2px);
+        pointer-events: none;
+      }
+
+      #app-splash .splash-card {
+        width: min(420px, 100%);
+        padding: 34px 30px;
+        border-radius: 20px;
+        text-align: center;
+        border: 1px solid rgba(21, 61, 126, 0.1);
+        background: rgba(255, 255, 255, 0.9);
+        box-shadow:
+          0 22px 54px rgba(16, 57, 122, 0.16),
+          0 6px 18px rgba(16, 57, 122, 0.1);
+      }
+
+      #app-splash .splash-logo {
+        width: 66px;
+        height: 66px;
+        border-radius: 16px;
+        object-fit: cover;
+        border: 1px solid rgba(22, 75, 160, 0.16);
+        box-shadow: 0 10px 22px rgba(29, 82, 165, 0.18);
+      }
+
+      #app-splash .splash-title {
+        margin-top: 14px;
+        font-size: 1.4rem;
+        line-height: 1.2;
+        font-weight: 700;
+        color: #153d7e;
+        letter-spacing: 0.01em;
+      }
+
+      #app-splash .splash-subtitle {
+        margin-top: 7px;
+        font-size: 0.95rem;
+        color: #4f6382;
+      }
+
+      #app-splash .splash-loader {
+        margin-top: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      #app-splash .splash-loader span {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: #245cb7;
+        opacity: 0.35;
+        animation: splash-dot-pulse 1.25s ease-in-out infinite;
+      }
+
+      #app-splash .splash-loader span:nth-child(2) {
+        animation-delay: 0.16s;
+      }
+
+      #app-splash .splash-loader span:nth-child(3) {
+        animation-delay: 0.32s;
+      }
+
+      #app-splash .splash-still {
+        margin-top: 14px;
+        min-height: 1.1em;
+        font-size: 0.82rem;
+        color: #60789d;
+        opacity: 0;
+        animation: splash-still-reveal 0s linear 9s forwards;
+      }
+
+      @keyframes splash-dot-pulse {
+        0%,
+        80%,
+        100% {
+          transform: translateY(0);
+          opacity: 0.35;
+        }
+        40% {
+          transform: translateY(-4px);
+          opacity: 1;
+        }
+      }
+
+      @keyframes splash-still-reveal {
+        to {
+          opacity: 1;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #app-splash {
+          transition: none;
+        }
+
+        #app-splash.splash-hide {
+          filter: none;
+        }
+
+        #app-splash .splash-loader span {
+          animation: none;
+          opacity: 0.5;
+        }
+
+        #app-splash .splash-still {
+          animation: none;
+          opacity: 0.72;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+    <div class="noise"></div>
+    <header class="topbar hidden" id="topbar">
+      <a class="brand" id="brand-link" href="#dashboard" aria-label="Applictus dashboard">
+        <span class="logo-wrap brand-mark" aria-hidden="true">
+          <span class="logo-fallback">A</span>
+          <img
+            src="/Applictus_logo.png"
+            alt="Applictus logo"
+            class="brand-logo"
+            data-logo
+          />
+        </span>
+        <div>
+          <div class="brand-name">Applictus</div>
+          <div class="brand-sub">Application Status Tracker</div>
+        </div>
+      </a>
+      <div class="topbar-right">
+        <nav class="nav" id="nav">
+          <a href="#dashboard" class="nav-link">Dashboard</a>
+          <a href="#archive" class="nav-link">Archive</a>
+        </nav>
+        <div class="profile-menu" id="profile-menu">
+          <button
+            class="avatar account-menu-trigger nav-account hidden"
+            id="account-avatar"
+            type="button"
+            aria-label="Account menu"
+            aria-haspopup="menu"
+            aria-expanded="false"
+            aria-controls="profile-menu-panel"
+          >
+            <span class="avatar-mark nav-account__avatar" aria-hidden="true">
+              <span class="avatar-initials" id="avatar-initials" aria-hidden="true"></span>
+              <svg
+                class="avatar-icon nav-account__icon"
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.85"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                role="presentation"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="9"></circle>
+                <circle cx="12" cy="9.25" r="2.75"></circle>
+                <path d="M7.75 16.4c.92-1.62 2.46-2.52 4.25-2.52s3.33.9 4.25 2.52"></path>
+              </svg>
+            </span>
+            <span class="account-menu-caret nav-account__caret" aria-hidden="true">
+              <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+                <path
+                  d="M4 6.5L8 10.5L12 6.5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
+            <span class="sr-only">Open account menu</span>
+          </button>
+          <div class="profile-menu-panel hidden" id="profile-menu-panel" role="menu" aria-label="Account menu">
+            <a class="profile-menu-item acct-menu-item" href="#account" role="menuitem" data-menu-action="account">
+              <span class="acct-menu-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="3.5"></circle>
+                </svg>
+              </span>
+              <span class="acct-menu-label">Account</span>
+            </a>
+            <a class="profile-menu-item acct-menu-item" href="#account" role="menuitem" data-menu-action="inbox">
+              <span class="acct-menu-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                  <path d="m3 8 9 6 9-6"></path>
+                </svg>
+              </span>
+              <span class="acct-menu-label">Inbox setup</span>
+            </a>
+            <button
+              class="profile-menu-item acct-menu-item acct-menu-item--password"
+              type="button"
+              role="menuitem"
+              data-menu-action="password"
+            >
+              <span class="acct-menu-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="10" rx="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+              </span>
+              <span class="acct-menu-label">Change Password</span>
+            </button>
+            <a
+              class="profile-menu-item acct-menu-item profile-menu-mobile"
+              href="#dashboard"
+              role="menuitem"
+              data-menu-action="dashboard"
+              ><span class="acct-menu-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 12h18"></path>
+                  <path d="M12 3v18"></path>
+                </svg>
+              </span>
+              <span class="acct-menu-label">Dashboard</span></a
+            >
+            <a
+              class="profile-menu-item acct-menu-item profile-menu-mobile"
+              href="#archive"
+              role="menuitem"
+              data-menu-action="archive"
+              ><span class="acct-menu-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 5h16v14H4z"></path>
+                  <path d="M8 9h8"></path>
+                  <path d="M8 13h8"></path>
+                </svg>
+              </span>
+              <span class="acct-menu-label">Archive</span></a
+            >
+            <div class="acct-menu-divider" aria-hidden="true"></div>
+            <button class="profile-menu-item acct-menu-item logout danger" type="button" role="menuitem" data-menu-action="logout">
+              <span class="acct-menu-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <path d="M16 17l5-5-5-5"></path>
+                  <path d="M21 12H9"></path>
+                </svg>
+              </span>
+              <span class="acct-menu-label">Logout</span>
+            </button>
           </div>
-          <div class="home-billboard-inner page-wrap">
-            <div class="hero-banner hero-animate-logo" data-hero-banner>
-              <div class="hero-banner__intro">
-                <div class="hero-banner__float">
-                  <div class="hero-banner__tilt">
-                    <img class="hero-banner__img" src="/applictus-banner-no-background.png" alt="Applictus" draggable="false" />
-                  </div>
-                </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="card auth" id="auth-view">
+        <a class="auth-brand" href="/" aria-label="Go to Applictus home">
+          <span class="logo-wrap auth-logo" aria-hidden="true">
+            <span class="logo-fallback">A</span>
+            <img
+              src="/Applictus_logo.png"
+              alt="Applictus logo"
+              class="auth-logo-image"
+              data-logo
+            />
+          </span>
+          <div>
+            <div class="brand-name">Applictus</div>
+            <div class="brand-sub">Application Status Tracker</div>
+          </div>
+        </a>
+        <div class="auth-social">
+          <button class="btn btn--secondary btn--md google-btn" id="google-auth" type="button">
+            <span class="google-logo" aria-hidden="true">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 48 48"
+                focusable="false"
+                aria-hidden="true"
+              >
+                <path
+                  fill="#EA4335"
+                  d="M24 9.5c3.54 0 6.71 1.22 9.21 3.22l6.85-6.85C36.6 2.7 30.7 0 24 0 14.6 0 6.5 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+                />
+                <path
+                  fill="#4285F4"
+                  d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.36 0 20.12 0 24c0 3.88.92 7.64 2.56 10.78l7.97-6.19z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M24 48c6.48 0 11.93-2.13 15.91-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.18 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.5 42.62 14.6 48 24 48z"
+                />
+              </svg>
+            </span>
+            <span>Continue with Google</span>
+          </button>
+          <div class="auth-divider">or</div>
+        </div>
+        <div class="auth-panel" data-panel="signin">
+          <h2>Welcome back</h2>
+          <p class="muted">Sign in to your Applictus workspace.</p>
+          <form id="login-form" class="form-grid">
+            <label>
+              Email
+              <input type="email" name="email" required placeholder="you@domain.com" />
+            </label>
+            <label>
+              Password
+              <div class="input-with-toggle">
+                <input
+                  id="signin-password"
+                  type="password"
+                  name="password"
+                  required
+                  placeholder="Enter your password"
+                />
+                <button
+                  class="password-toggle"
+                  type="button"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                  aria-controls="signin-password"
+                  data-password-toggle="signin-password"
+                  data-password-visible="0"
+                >
+                  <span class="password-icon icon-eye" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                      <path
+                        d="M1.5 12s4-7.5 10.5-7.5S22.5 12 22.5 12s-4 7.5-10.5 7.5S1.5 12 1.5 12Z"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linejoin="round"
+                      />
+                      <circle
+                        cx="12"
+                        cy="12"
+                        r="3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                    </svg>
+                  </span>
+                  <span class="password-icon icon-eye-off" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                      <path
+                        d="M2.5 12s3.8-7.5 9.5-7.5S21.5 12 21.5 12s-3.8 7.5-9.5 7.5S2.5 12 2.5 12Z"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linejoin="round"
+                      />
+                      <path
+                        d="M9.5 9.5A3.5 3.5 0 0 1 14.5 14.5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                      />
+                      <path
+                        d="M4 4l16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                      />
+                    </svg>
+                  </span>
+                </button>
               </div>
+            </label>
+            <button class="btn btn--primary btn--md" type="submit">Sign in</button>
+            <div class="auth-switch">
+              New to Applictus?
+              <button type="button" class="link-button" data-auth-switch="signup">Create an account</button>
             </div>
-            <div class="hero-value hero-animate-headline" data-animate="billboard-headline">
-              <h1 class="hero-value__title">Turn your job application emails into <span class="hero-value__focus">one clean timeline</span></h1>
-              <p class="hero-value__subtitle">
-                Automatically organize confirmations, interviews, and rejections &mdash; without spreadsheets or manual tracking.
+          </form>
+        </div>
+        <div class="auth-panel hidden" data-panel="signup">
+          <h2>Create your workspace</h2>
+          <p class="muted">We only store the metadata needed to track applications.</p>
+          <form id="signup-form" class="form-grid">
+            <label>
+              Name
+              <input type="text" name="name" placeholder="Jane Doe" />
+            </label>
+            <label>
+              Email
+              <input type="email" name="email" required placeholder="you@domain.com" />
+            </label>
+            <label>
+              Inbox username
+              <input
+                type="text"
+                name="inbox_username"
+                id="signup-inbox-username"
+                placeholder="jasonconklin"
+                autocapitalize="off"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <span class="muted small">Used for your Applictus forwarding address.</span>
+            </label>
+            <div class="signup-inbox-meta" id="signup-inbox-meta">
+              <div class="signup-inbox-preview muted small">
+                Preview:
+                <code id="signup-inbox-preview">—</code>
+              </div>
+              <div class="signup-inbox-hint muted small" id="signup-inbox-hint">
+                Optional. You can set this later from Account.
+              </div>
+              <div class="signup-inbox-suggestions hidden" id="signup-inbox-suggestions"></div>
+            </div>
+            <label>
+              Password
+              <div class="input-with-toggle">
+                <input
+                  id="signup-password"
+                  type="password"
+                  name="password"
+                  required
+                  placeholder="Minimum 12 characters"
+                />
+                <button
+                  class="password-toggle"
+                  type="button"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                  aria-controls="signup-password"
+                  data-password-toggle="signup-password"
+                  data-password-visible="0"
+                >
+                  <span class="password-icon icon-eye" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                      <path
+                        d="M1.5 12s4-7.5 10.5-7.5S22.5 12 22.5 12s-4 7.5-10.5 7.5S1.5 12 1.5 12Z"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linejoin="round"
+                      />
+                      <circle
+                        cx="12"
+                        cy="12"
+                        r="3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                    </svg>
+                  </span>
+                  <span class="password-icon icon-eye-off" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                      <path
+                        d="M2.5 12s3.8-7.5 9.5-7.5S21.5 12 21.5 12s-3.8 7.5-9.5 7.5S2.5 12 2.5 12Z"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linejoin="round"
+                      />
+                      <path
+                        d="M9.5 9.5A3.5 3.5 0 0 1 14.5 14.5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                      />
+                      <path
+                        d="M4 4l16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                      />
+                    </svg>
+                  </span>
+                </button>
+              </div>
+            </label>
+            <button class="btn btn--primary btn--md" type="submit">Create account</button>
+            <div class="auth-switch">
+              Already have an account?
+              <button type="button" class="link-button" data-auth-switch="signin">Sign in here</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="view" id="account-view" hidden>
+        <div class="page-header">
+          <h2>Account</h2>
+          <p class="muted">Manage your Applictus inbox and account security.</p>
+        </div>
+        <div class="card account-inbox-card surface-raised">
+          <div class="account-inbox-head">
+            <div class="account-inbox-head-main">
+              <h3>Your Applictus inbox</h3>
+              <p class="muted small">
+                Forwarding keeps your timeline updated automatically. Applictus processes only emails you forward.
               </p>
             </div>
-            <div class="home-billboard-cta hero-animate-cta" data-animate="billboard-cta">
-              <a class="btn btn-bevel btn-primary" href="/app" data-cta-btn="primary">Start tracking your applications</a>
-              <button class="btn btn-bevel btn-secondary" type="button" data-scrollto="#how" data-cta-btn="secondary">
-                See how it works
+            <div class="pill" id="inbound-status-pill" data-state="idle">Not connected</div>
+          </div>
+          <div class="account-inbox-address-block">
+            <div class="muted small account-inbox-label" id="inbound-address-label">Your Applictus inbox address</div>
+            <div class="account-inbox-address-row">
+              <code class="account-inbox-address" id="inbound-address-email">—</code>
+              <button class="btn btn--ghost btn--sm" type="button" id="inbound-copy-address">Copy</button>
+            </div>
+          </div>
+          <div class="account-inbox-username-prompt hidden" id="account-inbox-username-prompt">
+            <div class="muted small account-inbox-label">Choose your Applictus inbox username</div>
+            <div class="account-inbox-username-row">
+              <input
+                type="text"
+                id="account-inbox-username-input"
+                placeholder="jasonconklin"
+                autocapitalize="off"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button class="btn btn--primary btn--sm" type="button" id="account-inbox-username-save">
+                Save
               </button>
             </div>
-            <div class="home-hero-trust" aria-label="Trust and privacy highlights">
-              <div class="home-hero-trust-item">
-                <span class="home-hero-trust-icon" aria-hidden="true">
-                  <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-                    <rect x="5.2" y="8.6" width="9.6" height="7.6" rx="2.1" fill="none" stroke="currentColor" stroke-width="1.4" />
-                    <path d="M7.2 8.4V6.9A2.8 2.8 0 0 1 10 4.1a2.8 2.8 0 0 1 2.8 2.8v1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-                  </svg>
-                </span>
-                <span>No inbox access required</span>
+            <div class="muted small account-inbox-username-hint" id="account-inbox-username-hint">
+              Pick a unique username. Your inbox address will be <code>&lt;username&gt;@mail.applictus.com</code>.
+            </div>
+            <div
+              class="account-inbox-username-suggestions hidden"
+              id="account-inbox-username-suggestions"
+            ></div>
+          </div>
+          <div class="muted small account-inbox-meta" id="inbound-meta-line">Not connected yet.</div>
+          <div class="callout callout-warning hidden" id="inbound-old-address-warning">
+            We detected mail arriving at an old forwarding address. Update your forwarding settings.
+          </div>
+          <div class="account-inbox-actions">
+            <button class="btn btn--primary btn--md" type="button" id="inbound-open-setup">Open setup</button>
+            <button class="btn btn--secondary btn--sm" type="button" id="inbound-send-test">Send test email</button>
+            <button class="btn btn--ghost btn--sm" type="button" id="inbound-process-now">Process inbox now</button>
+            <button class="btn btn--ghost btn--sm" type="button" id="inbound-rotate-address">Rotate address</button>
+            <button
+              class="btn btn--ghost btn--sm"
+              type="button"
+              id="inbound-why-toggle"
+              aria-expanded="false"
+              aria-controls="inbound-why-panel"
+            >
+              Why forwarding?
+            </button>
+          </div>
+          <div class="account-inbox-why muted small hidden" id="inbound-why-panel">
+            Forwarding keeps setup simple and secure. You can route only job-related emails to Applictus, and remove
+            the forwarding rule at any time.
+          </div>
+        </div>
+			        <div class="account-grid">
+			          <div class="card account-panel account-info-card surface-raised">
+		            <div class="account-card-header">
+		              <h3>Account & Security</h3>
+                <p class="muted small">Security & sign-in settings</p>
+		            </div>
+	            <div class="account-panel-body">
+                <div class="account-row account-row--identity">
+                  <div class="account-row-label muted small">Email</div>
+                  <div class="account-row-value account-email" id="account-email">—</div>
+                </div>
+                <div class="account-auth-section">
+                  <div class="account-section-heading muted small">Sign-in methods</div>
+	                <div class="account-methods auth-badges" id="account-methods">—</div>
+                </div>
+                <div class="account-actions-row">
+                  <div class="account-actions-primary">
+                    <button class="btn btn--primary btn--md account-password-btn" type="button" id="account-password-button">
+                      <span class="account-action-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M14 10h4a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h4"></path>
+                          <path d="M12 3v11"></path>
+                          <path d="m9 6 3-3 3 3"></path>
+                        </svg>
+                      </span>
+                      <span id="account-password-button-label">Change password</span>
+                    </button>
+	                <div class="muted small account-password-copy" id="account-password-hint"></div>
+                  </div>
+                  <button class="btn btn--danger btn--sm account-logout-btn" id="account-logout" type="button">
+                    <span class="account-action-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <path d="M16 17l5-5-5-5"></path>
+                        <path d="M21 12H9"></path>
+                      </svg>
+                    </span>
+                    <span>Log out</span>
+                  </button>
+                </div>
+                <div class="account-diagnostics hidden" id="inbound-diagnostics-wrap">
+                  <button class="link-button account-diagnostics-link" type="button" id="inbound-diagnostics-link">
+                    Diagnostics
+                  </button>
+                </div>
+		            </div>
+		          </div>
+	          <div class="card account-panel account-help-card surface-raised">
+              <div class="account-card-header">
+                <h3>Forwarding & Help</h3>
+                <p class="muted small">Setup, status, and support for your forwarding-based inbox.</p>
               </div>
-              <div class="home-hero-trust-item">
-                <span class="home-hero-trust-icon" aria-hidden="true">
-                  <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-                    <circle cx="10" cy="10" r="6.6" fill="none" stroke="currentColor" stroke-width="1.4" />
-                    <path d="M7.3 10.2 9.1 12l3.8-3.9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                </span>
-                <span>We never send or modify your email</span>
+              <div class="account-panel-body account-help-body">
+                <div class="account-help-row">
+                  <div class="account-row-label muted small">Inbox status</div>
+                  <div class="account-help-value" id="account-help-status">Not connected</div>
+                </div>
+                <div class="account-help-row">
+                  <div class="account-row-label muted small">Last email received</div>
+                  <div class="account-help-value muted small" id="account-help-last-email">—</div>
+                </div>
+                <div class="account-help-row">
+                  <div class="account-row-label muted small">Setup type</div>
+                  <div class="account-help-value" id="account-help-setup-type">Forwarding-based</div>
+                </div>
+                <div class="muted small account-help-note" id="account-help-note">
+                  Applictus only processes emails you forward.
+                </div>
+                <div class="account-help-actions">
+                  <button class="btn btn--secondary btn--sm" type="button" id="inbound-help-open-setup">View setup guide</button>
+                  <button class="btn btn--ghost btn--sm" type="button" id="inbound-help-send-test">Send test email</button>
+                  <button class="btn btn--ghost btn--sm" type="button" id="inbound-help-why">Why forwarding?</button>
+                </div>
               </div>
-              <div class="home-hero-trust-item">
-                <span class="home-hero-trust-icon" aria-hidden="true">
-                  <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-                    <path d="M7.1 12.9a2.6 2.6 0 0 1 0-3.7l2.3-2.3a2.6 2.6 0 0 1 3.7 3.7L12 11.7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M12.9 7.1a2.6 2.6 0 0 1 0 3.7l-2.3 2.3a2.6 2.6 0 0 1-3.7-3.7l1.1-1.1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+	          </div>
+        </div>
+      </section>
+
+      <section class="view" id="dashboard-view" hidden>
+        <div class="dashboard-header">
+          <div class="dash-header-row">
+            <div class="dash-title">
+              <h2>Dashboard</h2>
+              <p class="muted small">Automatically track job applications and hiring signals from your inbox.</p>
+            </div>
+            <div class="dash-actions"></div>
+          </div>
+        </div>
+        <div class="dashboard">
+          <div class="sync-band surface-raised">
+            <div class="sync-strip scan-card" id="sync-strip">
+              <div class="scan-card__left">
+                <div class="scan-top">
+                  <button class="btn btn--secondary btn--md manage-inbox-btn" type="button" data-action="manage-inbox">
+                    <span class="manage-inbox-icon" aria-hidden="true">
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="20"
+                        height="20"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.9"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        focusable="false"
+                        aria-hidden="true"
+                      >
+                        <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                        <path d="M3.8 7.2L12 13.4L20.2 7.2"></path>
+                      </svg>
+                    </span>
+                    <span class="btn-label">Inbox setup</span>
+                  </button>
+                  <div class="sync-strip-status">
+                    <div class="pill" id="dashboard-inbox-status">Not connected</div>
+                    <div class="muted small" id="dashboard-inbox-email">—</div>
+                    <span class="muted" id="sync-status">Setup needed</span>
+                  </div>
+                </div>
+                <div class="scan-bottom">
+                  <div class="sync-summary" id="sync-summary">
+                    <div
+                      class="sync-summary-main"
+                      id="sync-summary-main"
+                    >
+                      <span class="sync-summary-status" id="sync-summary-status">Inbox not connected</span>
+                      <span class="sync-summary-metrics muted" id="sync-summary-metrics"></span>
+                    </div>
+                  </div>
+                  <div class="sync-details hidden" id="sync-details-wrapper">
+                    <pre class="sync-details-block" id="sync-result"></pre>
+                  </div>
+                </div>
+              </div>
+              <div class="scan-card__right">
+                <div class="sync-inline-controls">
+                  <div class="sync-quick-controls" id="sync-controls">
+                    <div class="sync-action-group scan-actions" id="sync-action-group">
+                      <button class="btn btn--primary btn--md btn-scan" type="button" id="email-sync">
+                        <span class="btn-icon-left" aria-hidden="true">⟳</span>
+                        <span class="btn-label scan-label">
+                          <span class="scan-text">Sync inbox</span>
+                          <span class="scan-dots" aria-hidden="true"></span>
+                        </span>
+                      </button>
+                    </div>
+                    <div class="muted small sync-helper-text scan-helper" id="sync-helper-text">
+                      Set up automatic forwarding in about 2 minutes — no Google login required.
+                    </div>
+                    <button class="link-button sync-manual-process" type="button" id="sync-process-now">
+                      Process inbox now
+                    </button>
+                  </div>
+                </div>
+                <div class="sync-connect-cta hidden" id="sync-connect-cta">
+                  <div class="muted small">Inbox not connected</div>
+                </div>
+              </div>
+            </div>
+          <div class="sync-error hidden" id="sync-error-banner">
+            <div class="sync-error-message" id="sync-error-message">Scan failed.</div>
+            <button class="btn btn--ghost btn--sm icon" type="button" id="sync-error-toggle">Show details</button>
+            <pre class="sync-error-detail hidden" id="sync-error-detail"></pre>
+          </div>
+          <div class="scan-progress hidden" id="sync-progress">
+            <div class="scan-progress__meta">
+              <div class="scan-progress__label">
+                <span class="scan-progress__title" id="sync-progress-label">Classifying emails</span>
+                <span class="scan-progress__subtle">This may take a minute</span>
+              </div>
+              <div class="scan-progress__pct" id="sync-progress-value" aria-live="polite">0%</div>
+            </div>
+            <div
+              class="scan-progress__track"
+              id="sync-progress-track"
+              role="progressbar"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+            >
+              <div class="scan-progress__fill" id="sync-progress-fill" style="width: 0%"></div>
+            </div>
+          </div>
+	          </div>
+        <section class="kpi-row" aria-label="Application stats">
+          <div class="kpi-card status-total">
+            <div class="kpi-meta">
+              <span class="kpi-dot neutral"></span>
+              <span class="kpi-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="4" y="5" width="16" height="3" rx="1"></rect>
+                  <rect x="4" y="11" width="16" height="3" rx="1"></rect>
+                  <rect x="4" y="17" width="10" height="3" rx="1"></rect>
+                </svg>
+              </span>
+              <div class="kpi-label">Total tracked</div>
+            </div>
+            <div class="kpi-value" id="kpi-total">0</div>
+          </div>
+          <div class="kpi-card status-applied">
+            <div class="kpi-meta">
+              <span class="kpi-dot warning"></span>
+              <span class="kpi-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="9"></circle>
+                  <path d="M12 7v6l3 2"></path>
+                </svg>
+              </span>
+              <div class="kpi-label">Applied</div>
+            </div>
+            <div class="kpi-value-wrap">
+              <div class="kpi-value" id="kpi-applied">0</div>
+            </div>
+          </div>
+          <div class="kpi-card status-interview">
+            <div class="kpi-meta">
+              <span class="kpi-dot info"></span>
+              <span class="kpi-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="5" width="18" height="16" rx="2"></rect>
+                  <path d="M16 3v4"></path>
+                  <path d="M8 3v4"></path>
+                  <path d="M3 11h18"></path>
+                </svg>
+              </span>
+              <div class="kpi-label" title="Interview requested / interview scheduled">Interviews</div>
+            </div>
+            <div class="kpi-value-wrap">
+              <div class="kpi-value" id="kpi-interviews">0</div>
+            </div>
+          </div>
+          <div class="kpi-card status-offer">
+            <div class="kpi-meta">
+              <span class="kpi-dot success"></span>
+              <span class="kpi-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="12 2 15 8.5 22 9 17 13.8 18.5 20.8 12 17.4 5.5 20.8 7 13.8 2 9 9 8.5 12 2"></polygon>
+                </svg>
+              </span>
+              <div class="kpi-label" title="Offer received / offer extended">Offers</div>
+            </div>
+            <div class="kpi-value-wrap">
+              <div class="kpi-value" id="kpi-offers">0</div>
+            </div>
+          </div>
+          <div class="kpi-card status-rejected">
+            <div class="kpi-meta">
+              <span class="kpi-dot danger"></span>
+              <span class="kpi-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="9"></circle>
+                  <path d="M15 9l-6 6"></path>
+                  <path d="M9 9l6 6"></path>
+                </svg>
+              </span>
+              <div class="kpi-label">Rejected</div>
+            </div>
+            <div class="kpi-value" id="kpi-rejected">0</div>
+          </div>
+        </section>
+        <section class="card surface-raised surface-rim">
+          <div class="card-header">
+            <div class="header-left">
+              <div>
+                <h3>Applications</h3>
+                <div class="muted" id="app-count">0 tracked</div>
+              </div>
+              <div class="header-actions">
+                <div class="filter-inline" id="filters-inline">
+                  <label class="filter-field filter-field--status">
+                    <span class="filter-field__label">Status</span>
+                    <div class="filter-field__control">
+                      <span class="filter-field__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M3 5h18"></path>
+                          <path d="M6 12h12"></path>
+                          <path d="M10 19h4"></path>
+                        </svg>
+                      </span>
+                      <div class="status-select" id="filter-status-select">
+                        <button
+                          type="button"
+                          class="status-select__trigger"
+                          id="filter-status-trigger"
+                          aria-haspopup="listbox"
+                          aria-expanded="false"
+                          aria-controls="filter-status-menu"
+                        >
+                          <span class="status-select__dot" id="filter-status-dot" data-tone="any" aria-hidden="true"></span>
+                          <span class="status-select__label" id="filter-status-label">Any status</span>
+                          <span class="filter-field__chevron status-select__chevron" aria-hidden="true">
+                            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                              <path d="m6 8 4 4 4-4"></path>
+                            </svg>
+                          </span>
+                        </button>
+                        <div class="status-menu hidden" id="filter-status-menu" role="listbox" aria-labelledby="filter-status-trigger">
+                          <button type="button" id="status-option-any" class="status-menu__item is-selected" data-value="" role="option" aria-selected="true">
+                            <span class="status-menu__dot" data-tone="any" aria-hidden="true"></span>
+                            <span class="status-menu__label">Any status</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                          <button type="button" id="status-option-applied" class="status-menu__item" data-value="applied" role="option" aria-selected="false">
+                            <span class="status-menu__dot" data-tone="applied" aria-hidden="true"></span>
+                            <span class="status-menu__label">Applied</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                          <button type="button" id="status-option-interview-requested" class="status-menu__item" data-value="interview_requested" role="option" aria-selected="false">
+                            <span class="status-menu__dot" data-tone="interview_requested" aria-hidden="true"></span>
+                            <span class="status-menu__label">Interview requested</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                          <button type="button" id="status-option-offer-received" class="status-menu__item" data-value="offer_received" role="option" aria-selected="false">
+                            <span class="status-menu__dot" data-tone="offer_received" aria-hidden="true"></span>
+                            <span class="status-menu__label">Offer received</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                          <button type="button" id="status-option-rejected" class="status-menu__item" data-value="rejected" role="option" aria-selected="false">
+                            <span class="status-menu__dot" data-tone="rejected" aria-hidden="true"></span>
+                            <span class="status-menu__label">Rejected</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                          <button type="button" id="status-option-ghosted" class="status-menu__item" data-value="ghosted" role="option" aria-selected="false">
+                            <span class="status-menu__dot" data-tone="ghosted" aria-hidden="true"></span>
+                            <span class="status-menu__label">Ghosted</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                        </div>
+                        <input type="hidden" id="filter-status" value="" />
+                      </div>
+                    </div>
+                  </label>
+                  <label class="filter-field filter-field--company filter-company-inline">
+                    <span class="filter-field__label">Company</span>
+                    <div class="filter-field__control">
+                      <span class="filter-field__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M4 21h16"></path>
+                          <path d="M7 21V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v15"></path>
+                          <path d="M10 10h4"></path>
+                          <path d="M10 14h4"></path>
+                        </svg>
+                      </span>
+                      <div class="input-with-clear">
+                        <input type="text" id="filter-company" placeholder="Filter by company…" />
+                        <button type="button" class="clear-input hidden" id="filter-company-clear" aria-label="Clear company filter">×</button>
+                      </div>
+                    </div>
+                  </label>
+                  <label class="filter-field filter-field--role filter-role-inline">
+                    <span class="filter-field__label">Role</span>
+                    <div class="filter-field__control">
+                      <span class="filter-field__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="3" y="7" width="18" height="13" rx="2"></rect>
+                          <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </span>
+                      <div class="input-with-clear">
+                        <input type="text" id="filter-role" placeholder="Filter by role…" />
+                        <button type="button" class="clear-input hidden" id="filter-role-clear" aria-label="Clear role filter">×</button>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+                <button class="icon-btn-circle add-app-btn" id="add-toggle" type="button" aria-label="Add application">
+                  <span class="add-app-btn__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 5v14"></path>
+                      <path d="M5 12h14"></path>
+                    </svg>
+                  </span>
+                </button>
+              </div>
+            </div>
+            <div class="header-right">
+              <div class="pager-pill" id="table-pager-top" aria-label="Applications pagination">
+                <button class="pager-btn" type="button" id="table-prev-top" aria-label="Previous page">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">
+                    <path d="m15 18-6-6 6-6" />
                   </svg>
-                </span>
-                <span>Disconnect anytime</span>
+                </button>
+                <div class="pager-text" id="table-page-info-top">- / -</div>
+                <button class="pager-btn" type="button" id="table-next-top" aria-label="Next page">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
+                </button>
               </div>
             </div>
           </div>
-        </header>
-
-        <section id="how" class="home-below home-sections home-anchor" aria-label="Applictus overview">
-          <section class="home-stack page-wrap">
-            <section class="info-section info-section--what">
-              <div class="info-section__panel surface-card reveal" data-reveal>
-                <div class="info-section__grid">
-                  <div class="info-section__left">
-                    <p class="info-section__kicker">Product Overview</p>
-                    <h2>What Applictus is</h2>
-                    <p class="info-section__lead">A focused job-tracking workspace that turns your inbox into a clean, structured timeline of every application.</p>
-                    <ul class="info-bullets">
-                      <li>Automatically captures the updates that matter &mdash; confirmations, interviews, and rejections.</li>
-                      <li>Keeps every company and role organized in one searchable, continuously updated record.</li>
-                    </ul>
-                    <div class="info-badge-row info-badge-row--trust" aria-label="Applictus trust highlights">
-                      <span class="info-badge-pill">Inbox-powered tracking</span>
-                      <span class="info-badge-pill">No spreadsheets</span>
-                      <span class="info-badge-pill">Auto-organized timelines</span>
-                    </div>
-                  </div>
-                  <div class="info-section__right">
-                    <div class="info-feature-grid">
-                      <article class="info-feature tile">
-                        <div class="info-feature__head">
-                          <span class="info-feature__icon-chip" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                              <path d="M4 8h16v10H4z"></path>
-                              <path d="m4 9 8 5 8-5"></path>
-                              <path d="M20 4v5"></path>
-                              <path d="m18 7 2 2 2-2"></path>
-                            </svg>
-                          </span>
-                          <h3>Turn job emails into a timeline</h3>
-                        </div>
-                        <div class="info-feature__copy">
-                          <p>Transform incoming application updates into a single, continuous activity stream per role.</p>
-                          <p class="info-feature__proof">Inbox-powered signals &bull; Automatic grouping &bull; Timeline view</p>
-                        </div>
-                      </article>
-                      <article class="info-feature tile">
-                        <div class="info-feature__head">
-                          <span class="info-feature__icon-chip" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                              <path d="M3 6h6"></path>
-                              <path d="M3 12h6"></path>
-                              <path d="M3 18h6"></path>
-                              <path d="m13 6 2 2 4-4"></path>
-                              <path d="m13 12 2 2 4-4"></path>
-                              <path d="m13 18 2 2 4-4"></path>
-                            </svg>
-                          </span>
-                          <h3>See your status instantly</h3>
-                        </div>
-                        <div class="info-feature__copy">
-                          <p>Track applied &rarr; interview &rarr; offer &rarr; outcome without spreadsheets or manual updates.</p>
-                          <p class="info-feature__proof">Clear stages &bull; Fast triage &bull; Zero busywork</p>
-                        </div>
-                      </article>
-                      <article class="info-feature tile">
-                        <div class="info-feature__head">
-                          <span class="info-feature__icon-chip" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                              <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5"></path>
-                              <path d="M9.9 19a2.4 2.4 0 0 0 4.2 0"></path>
-                            </svg>
-                          </span>
-                          <h3>Stay ahead of follow-ups</h3>
-                        </div>
-                        <div class="info-feature__copy">
-                          <p>Every update is grouped by company and role, so you always know what&rsquo;s next.</p>
-                          <p class="info-feature__proof">Smart matching &bull; Next steps visible &bull; No missed updates</p>
-                        </div>
-                      </article>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section class="info-section info-section--how" id="how-it-works">
-              <div class="info-section__panel surface-card reveal" data-reveal>
-                <div class="info-section__grid info-section__grid--steps">
-                  <div class="info-section__left">
-                    <p class="info-section__kicker">Workflow</p>
-                    <h2>Set up your inbox in minutes</h2>
-                    <p class="info-section__lead">Set up your inbox once, and Applictus automatically tracks every application update going forward.</p>
-                    <span class="info-time-pill">Time to set up: ~2 minutes</span>
-                    <ul class="info-bullets">
-                      <li>No inbox access or Gmail permissions required.</li>
-                      <li>Works with Gmail and most email providers.</li>
-                      <li>Runs automatically after setup.</li>
-                    </ul>
-                  </div>
-                  <div class="info-section__right">
-                    <div class="how-stepper" aria-label="Applictus setup workflow">
-                      <ol class="info-stepper">
-                        <li class="info-step">
-                          <span class="info-step__node-col"><span class="info-step__node">1</span></span>
-                          <article class="info-step__card tile how-step-card">
-                            <div class="how-step-card__head">
-                              <span class="how-step-card__icon" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                  <path d="M12 22v-5" />
-                                  <path d="M9 8V2" />
-                                  <path d="M15 8V2" />
-                                  <path d="M18 8a6 6 0 0 1-12 0" />
-                                  <path d="M6 15h12" />
-                                  <path d="M6 11h12" />
-                                </svg>
-                              </span>
-                              <div class="how-step-card__titleWrap">
-                                <h3>Get your Applictus inbox</h3>
-                                <p>We generate a personal inbox address for you (e.g. yourname@mail.applictus.com).</p>
-                              </div>
-                            </div>
-                          </article>
-                        </li>
-                        <li class="info-step">
-                          <span class="info-step__node-col"><span class="info-step__node">2</span></span>
-                          <article class="info-step__card tile how-step-card">
-                            <div class="how-step-card__head">
-                              <span class="how-step-card__icon" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                  <circle cx="11" cy="11" r="8" />
-                                  <path d="m21 21-4.3-4.3" />
-                                </svg>
-                              </span>
-                              <div class="how-step-card__titleWrap">
-                                <h3>Add it to your email once</h3>
-                                <p>Add your Applictus address to your email forwarding settings or create a simple filter for job-related emails.</p>
-                              </div>
-                            </div>
-                          </article>
-                        </li>
-                        <li class="info-step">
-                          <span class="info-step__node-col"><span class="info-step__node">3</span></span>
-                          <article class="info-step__card tile how-step-card">
-                            <div class="how-step-card__head">
-                              <span class="how-step-card__icon" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                  <path d="M3 6h6" />
-                                  <path d="M3 12h6" />
-                                  <path d="M3 18h6" />
-                                  <path d="m13 6 2 2 4-4" />
-                                  <path d="m13 12 2 2 4-4" />
-                                  <path d="m13 18 2 2 4-4" />
-                                </svg>
-                              </span>
-                              <div class="how-step-card__titleWrap">
-                                <h3>Everything updates automatically</h3>
-                                <p>Application confirmations, interview requests, and rejections flow into Applictus and are organized into a timeline.</p>
-                              </div>
-                            </div>
-                          </article>
-                        </li>
-                      </ol>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section class="home-panel home-panel-permissions reveal" data-reveal>
-              <header class="home-panel-head">
-                <span class="home-panel-badge home-panel-badge-lock" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" role="img" aria-label="Lock">
-                    <path
-                      d="M7.5 10V8.2A4.5 4.5 0 0 1 12 3.7a4.5 4.5 0 0 1 4.5 4.5V10m-9 0h9a1.8 1.8 0 0 1 1.8 1.8v6.5A1.8 1.8 0 0 1 16.5 20h-9a1.8 1.8 0 0 1-1.8-1.8v-6.5A1.8 1.8 0 0 1 7.5 10Z"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.6"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
+          <div class="table" id="applications-table"></div>
+          <div class="table-bulk-bar hidden" id="table-bulk-bar" aria-live="polite">
+            <div class="table-bulk-count" id="table-bulk-count">0 selected</div>
+            <div class="table-bulk-actions">
+              <button class="btn btn--secondary btn--sm" type="button" id="bulk-archive-btn">
+                <span class="btn-icon-left" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 8v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8" />
+                    <path d="M1 3h22v5H1z" />
+                    <path d="M10 12h4" />
                   </svg>
                 </span>
-                <div class="home-panel-copy">
-                  <h2>Secure Google Sign-In</h2>
-                  <p>Built with minimal permissions and clear boundaries from day one.</p>
-                </div>
-              </header>
-              <p class="home-scope-label">Scope requested</p>
-              <p class="home-scope-badge"><code>openid email profile</code></p>
-              <ul class="home-check-list">
-                <li><span class="home-check" aria-hidden="true">✓</span><span>No Gmail access or inbox reading permissions.</span></li>
-                <li>
-                  <span class="home-check" aria-hidden="true">✓</span>
-                  <span>Google is used only for authentication.</span>
-                </li>
-                <li><span class="home-check" aria-hidden="true">✓</span><span>Your data flows in through controlled forwarding, not direct inbox access.</span></li>
-              </ul>
-            </section>
-
-            <section class="home-panel home-panel-cta reveal" data-reveal>
-              <h2>Stay organized without the overhead</h2>
-              <p>Set up your inbox once and let Applictus keep your entire job search up to date automatically.</p>
-              <div class="home-cta-row">
-                <a class="btn btn-bevel btn-secondary" href="/app">Login</a>
-                <a class="btn btn-bevel btn-primary" href="/app">Sign Up</a>
-              </div>
-            </section>
-          </section>
+                <span class="btn-label">Archive selected</span>
+              </button>
+              <button class="btn btn--danger btn--sm" type="button" id="bulk-delete-btn">
+                <span class="btn-icon-left" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18" />
+                    <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+                    <path d="M19 6v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6" />
+                    <path d="M10 11v6" />
+                    <path d="M14 11v6" />
+                  </svg>
+                </span>
+                <span class="btn-label">Delete selected</span>
+              </button>
+              <button class="btn btn--ghost btn--sm" type="button" id="bulk-clear-btn">
+                <span class="btn-icon-left" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </span>
+                <span class="btn-label">Clear</span>
+              </button>
+            </div>
+          </div>
+          <div class="pagination" id="table-pagination">
+            <button class="btn btn--ghost btn--sm" type="button" id="table-prev">Prev</button>
+            <div class="muted" id="table-page-info">Page 1</div>
+            <button class="btn btn--ghost btn--sm" type="button" id="table-next">Next</button>
+          </div>
         </section>
-      </main>
-
-      <footer class="app-footer" role="contentinfo" data-reveal>
-        <div class="app-footer-inner">
-          <div class="app-footer-copy">© 2026 Applictus</div>
-          <nav class="app-footer-links" aria-label="Legal and contact links">
-            <a class="app-footer-link" href="/privacy">PRIVACY</a>
-            <span class="app-footer-sep" aria-hidden="true">·</span>
-            <a class="app-footer-link" href="/terms">TERMS</a>
-            <span class="app-footer-sep" aria-hidden="true">·</span>
-            <a class="app-footer-link" href="/contact">CONTACT</a>
-            <span class="app-footer-sep" aria-hidden="true">·</span>
-            <a class="app-footer-link" href="/about">ABOUT US</a>
-          </nav>
         </div>
-      </footer>
+      </section>
+
+      <section class="view" id="archive-view" hidden>
+        <div class="page-header">
+          <h2>Archive</h2>
+          <p class="muted">Archived applications stay here until restored.</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="header-left">
+              <div>
+                <h3>Archived applications</h3>
+                <div class="muted" id="archived-count">0 archived</div>
+              </div>
+              <div class="header-actions">
+                <div class="filter-inline" id="archived-filters-inline">
+                  <label class="filter-field filter-field--status">
+                    <span class="filter-field__label">Status</span>
+                    <div class="filter-field__control">
+                      <span class="filter-field__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M3 5h18"></path>
+                          <path d="M6 12h12"></path>
+                          <path d="M10 19h4"></path>
+                        </svg>
+                      </span>
+                      <div class="status-select" id="archived-filter-status-select">
+                        <button
+                          type="button"
+                          class="status-select__trigger"
+                          id="archived-filter-status-trigger"
+                          aria-haspopup="listbox"
+                          aria-expanded="false"
+                          aria-controls="archived-filter-status-menu"
+                        >
+                          <span class="status-select__dot" id="archived-filter-status-dot" data-tone="any" aria-hidden="true"></span>
+                          <span class="status-select__label" id="archived-filter-status-label">Any status</span>
+                          <span class="filter-field__chevron status-select__chevron" aria-hidden="true">
+                            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                              <path d="m6 8 4 4 4-4"></path>
+                            </svg>
+                          </span>
+                        </button>
+                        <div class="status-menu hidden" id="archived-filter-status-menu" role="listbox" aria-labelledby="archived-filter-status-trigger">
+                          <button type="button" id="archived-status-option-any" class="status-menu__item is-selected" data-value="" role="option" aria-selected="true">
+                            <span class="status-menu__dot" data-tone="any" aria-hidden="true"></span>
+                            <span class="status-menu__label">Any status</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                          <button type="button" id="archived-status-option-applied" class="status-menu__item" data-value="applied" role="option" aria-selected="false">
+                            <span class="status-menu__dot" data-tone="applied" aria-hidden="true"></span>
+                            <span class="status-menu__label">Applied</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                          <button type="button" id="archived-status-option-interview-requested" class="status-menu__item" data-value="interview_requested" role="option" aria-selected="false">
+                            <span class="status-menu__dot" data-tone="interview_requested" aria-hidden="true"></span>
+                            <span class="status-menu__label">Interview requested</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                          <button type="button" id="archived-status-option-offer-received" class="status-menu__item" data-value="offer_received" role="option" aria-selected="false">
+                            <span class="status-menu__dot" data-tone="offer_received" aria-hidden="true"></span>
+                            <span class="status-menu__label">Offer received</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                          <button type="button" id="archived-status-option-rejected" class="status-menu__item" data-value="rejected" role="option" aria-selected="false">
+                            <span class="status-menu__dot" data-tone="rejected" aria-hidden="true"></span>
+                            <span class="status-menu__label">Rejected</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                          <button type="button" id="archived-status-option-ghosted" class="status-menu__item" data-value="ghosted" role="option" aria-selected="false">
+                            <span class="status-menu__dot" data-tone="ghosted" aria-hidden="true"></span>
+                            <span class="status-menu__label">Ghosted</span>
+                            <span class="status-menu__check" aria-hidden="true">✓</span>
+                          </button>
+                        </div>
+                        <input type="hidden" id="archived-filter-status" value="" />
+                      </div>
+                    </div>
+                  </label>
+                  <label class="filter-field filter-field--company">
+                    <span class="filter-field__label">Company</span>
+                    <div class="filter-field__control">
+                      <span class="filter-field__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M4 21h16"></path>
+                          <path d="M7 21V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v15"></path>
+                          <path d="M10 10h4"></path>
+                          <path d="M10 14h4"></path>
+                        </svg>
+                      </span>
+                      <div class="input-with-clear">
+                        <input type="text" id="archived-filter-company" placeholder="Filter by company…" />
+                        <button type="button" class="clear-input hidden" id="archived-filter-company-clear" aria-label="Clear archived company filter">×</button>
+                      </div>
+                    </div>
+                  </label>
+                  <label class="filter-field filter-field--role">
+                    <span class="filter-field__label">Role</span>
+                    <div class="filter-field__control">
+                      <span class="filter-field__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="3" y="7" width="18" height="13" rx="2"></rect>
+                          <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </span>
+                      <div class="input-with-clear">
+                        <input type="text" id="archived-filter-role" placeholder="Filter by role…" />
+                        <button type="button" class="clear-input hidden" id="archived-filter-role-clear" aria-label="Clear archived role filter">×</button>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="table" id="archived-table"></div>
+          <div class="pagination" id="archived-pagination">
+            <button class="btn btn--ghost btn--sm" type="button" id="archived-prev">Prev</button>
+            <div class="muted" id="archived-page-info">Page 1</div>
+            <button class="btn btn--ghost btn--sm" type="button" id="archived-next">Next</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="unsorted-view" hidden>
+        <div class="page-header">
+          <h2>Unsorted Events</h2>
+          <p class="muted">Review and attach job-related emails.</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3>Unsorted events</h3>
+              <div class="muted">Review and attach job-related emails.</div>
+            </div>
+          </div>
+          <div class="table" id="unsorted-table"></div>
+        </div>
+      </section>
+
+      <section class="view" id="resume-curator-view" hidden>
+        <div class="page-header">
+          <h2>Resume Curator</h2>
+          <p class="muted">Tailor a resume to a specific job description, then iterate and track versions.</p>
+        </div>
+
+        <section class="grid-2">
+          <div class="card stack" id="rc-inputs">
+            <h3>Inputs</h3>
+            <label>
+              Base resume
+              <select id="rc-resume-select"></select>
+            </label>
+            <button id="rc-new-resume" type="button" class="btn btn--ghost btn--sm">Upload Resume (PDF/DOCX)</button>
+
+            <label>
+              Company
+              <input type="text" id="rc-company" placeholder="Company name" />
+            </label>
+            <label>
+              Role title
+              <input type="text" id="rc-role" placeholder="Role title" />
+            </label>
+            <label>
+              Location (optional)
+              <input type="text" id="rc-location" placeholder="City, State" />
+            </label>
+            <label>
+              Job URL (optional)
+              <input type="url" id="rc-job-url" placeholder="https://…" />
+            </label>
+            <label>
+              Job description
+              <textarea id="rc-jd" rows="10" placeholder="Paste the job description"></textarea>
+            </label>
+
+            <div class="grid-3">
+              <label>
+                Tone
+                <select id="rc-tone">
+                  <option value="neutral">Neutral</option>
+                  <option value="confident">Confident</option>
+                  <option value="bold">Bold</option>
+                </select>
+              </label>
+              <label>
+                Focus
+                <select id="rc-focus">
+                  <option value="balanced">Balanced</option>
+                  <option value="ats">ATS</option>
+                  <option value="impact">Impact</option>
+                </select>
+              </label>
+              <label>
+                Length
+                <select id="rc-length">
+                  <option value="one_page">One page</option>
+                  <option value="one_to_two_pages">1-2 pages</option>
+                </select>
+              </label>
+            </div>
+            <label class="checkbox">
+              <input type="checkbox" id="rc-include-cover" /> Include cover letter
+            </label>
+            <label>
+              Target keywords (comma separated)
+              <input type="text" id="rc-keywords" placeholder="react, node, graphql" />
+            </label>
+
+            <button id="rc-generate" type="button" class="btn btn--primary btn--md">Generate Tailored Resume</button>
+            <div class="muted small" id="rc-status">Idle</div>
+          </div>
+
+          <div class="card stack" id="rc-output">
+            <h3>Output</h3>
+            <div class="ats-panel">
+              <div class="ats-score" id="rc-ats-score">ATS score: —</div>
+              <div class="ats-bar">
+                <div class="ats-fill" id="rc-ats-fill" style="width:0%"></div>
+              </div>
+              <div class="small">Matched: <span id="rc-ats-matched">—</span></div>
+              <div class="small">Missing: <span id="rc-ats-missing">—</span></div>
+            </div>
+            <div class="stack" id="rc-suggestions-block">
+              <div class="card-header">
+                <div>
+                  <h4>Suggested Changes</h4>
+                  <div class="muted small">Apply or dismiss to build a version.</div>
+                </div>
+                <button type="button" id="rc-create-version" class="btn btn--ghost btn--sm">Create Version</button>
+              </div>
+              <div id="rc-suggestions" class="stack"></div>
+            </div>
+            <div class="stack" id="rc-preview-block" hidden>
+              <div class="card-header">
+                <div>
+                  <h4>Preview</h4>
+                  <div class="muted small">Latest tailored version</div>
+                </div>
+                <button type="button" id="rc-mark-exported" class="btn btn--ghost btn--sm">Mark Exported</button>
+              </div>
+              <pre class="preview" id="rc-preview-text"></pre>
+            </div>
+            <div class="stack">
+              <h4>Versions</h4>
+              <div id="rc-versions" class="list"></div>
+            </div>
+	          </div>
+	        </section>
+	      </section>
+
+	      <section class="view" id="privacy-view" hidden>
+	        <header class="home-nav legal-home-nav" aria-label="Legal page navigation">
+	          <a class="home-brand" href="/" aria-label="Applictus home">
+	            <span class="home-brand-mark" aria-hidden="true">
+	              <img src="/Applictus_logo.png" alt="" />
+	            </span>
+	            <span class="home-brand-copy">
+	              <strong>Applictus</strong>
+	              <small>Application Status Tracker</small>
+	            </span>
+	          </a>
+	          <div class="home-nav-actions">
+	            <a class="home-link" href="/privacy">Privacy</a>
+	            <a class="home-link" href="/terms">Terms</a>
+	            <a class="btn btn--secondary btn--sm" href="/app">Login</a>
+	            <a class="btn btn--primary btn--sm" href="/app">Sign Up</a>
+	          </div>
+	        </header>
+	        <div class="page-header">
+	          <h2>Privacy Policy</h2>
+	          <div class="muted small">Last updated: Feb 2026</div>
+	        </div>
+	        <div class="card legal">
+	          <p class="muted small">
+	            This policy explains how Applictus handles your information. It may evolve as the product grows.
+	          </p>
+
+	          <h3>Overview</h3>
+	          <p>
+	            Applictus helps you track job applications by connecting Gmail and organizing job‑related updates. We
+	            access only what we need to deliver these features and keep your data confined to your account.
+	          </p>
+
+	          <h3>Gmail Read‑Only Access</h3>
+	          <p>
+	            When you connect Gmail, Applictus uses <strong>read‑only</strong> access to analyze job‑related messages.
+	            We do not send email, delete email, or modify your mailbox.
+	          </p>
+
+	          <h3>Data We Access</h3>
+	          <ul>
+	            <li><strong>Account information:</strong> email address, name (optional), and sign‑in method.</li>
+	            <li>
+	              <strong>Gmail metadata:</strong> sender, subject, snippet, timestamps, message and thread identifiers,
+	              and labels needed for deduping and status inference.
+	            </li>
+	            <li>
+	              <strong>Message content (limited):</strong> when required to detect job‑related signals and classify
+	              updates. Access remains read‑only.
+	            </li>
+	            <li>
+	              <strong>Derived application data:</strong> company, role/title, and inferred status signals that power
+	              your dashboard.
+	            </li>
+	            <li>
+	              <strong>OAuth tokens:</strong> used to access Gmail (stored encrypted when encryption is enabled).
+	            </li>
+	          </ul>
+
+	          <h3>How We Use Data</h3>
+	          <ul>
+	            <li>Detect job‑related emails and keep application statuses current.</li>
+	            <li>Prevent duplicates by tracking message identifiers.</li>
+	            <li>Provide context for inferred updates where available.</li>
+	            <li>Maintain reliability and security (dedupe, fraud prevention, debugging).</li>
+	          </ul>
+
+	          <h3>What We Do Not Do</h3>
+	          <ul>
+	            <li>We do not sell your data.</li>
+	            <li>We do not show ads or use your data for ad targeting.</li>
+	            <li>We do not allow human review of your Gmail content unless you explicitly ask for support.</li>
+	          </ul>
+
+	          <h3>Google API Limited Use Disclosure</h3>
+	          <p>
+	            Applictus’s use and transfer of information received from Google APIs will adhere to the Google API
+	            Services User Data Policy, including the Limited Use requirements.
+	          </p>
+
+	          <h3>Retention</h3>
+	          <p>
+	            We retain tracking data while your account is active. If you disconnect Gmail, Applictus stops reading
+	            your mailbox. Previously extracted tracking data remains in your account unless you request deletion.
+	          </p>
+
+	          <h3>Security</h3>
+	          <ul>
+	            <li>We use HTTPS in production.</li>
+	            <li>OAuth tokens are stored encrypted when encryption is enabled.</li>
+	            <li>Access is tied to your authenticated session.</li>
+	          </ul>
+
+	          <h3>Third‑Party Services</h3>
+	          <ul>
+	            <li><strong>Google OAuth / Gmail:</strong> authentication and permitted read‑only mailbox access.</li>
+	            <li><strong>Hosting provider:</strong> runs the Applictus service.</li>
+	            <li><strong>Database provider:</strong> stores account and tracking data.</li>
+	          </ul>
+
+	          <h3>Your Controls</h3>
+	          <ul>
+	            <li>Disconnect Gmail from the Account page at any time.</li>
+	            <li>Log out to clear your session on this device.</li>
+	            <li>If account/data deletion is not available in‑app yet, contact us and we’ll help.</li>
+	          </ul>
+
+	          <h3>Contact</h3>
+	          <p>
+	            Questions? Email <a class="app-footer-link" href="mailto:support@applictus.com">support@applictus.com</a>.
+	          </p>
+	        </div>
+	      </section>
+
+	      <section class="view" id="terms-view" hidden>
+	        <header class="home-nav legal-home-nav" aria-label="Legal page navigation">
+	          <a class="home-brand" href="/" aria-label="Applictus home">
+	            <span class="home-brand-mark" aria-hidden="true">
+	              <img src="/Applictus_logo.png" alt="" />
+	            </span>
+	            <span class="home-brand-copy">
+	              <strong>Applictus</strong>
+	              <small>Application Status Tracker</small>
+	            </span>
+	          </a>
+	          <div class="home-nav-actions">
+	            <a class="home-link" href="/privacy">Privacy</a>
+	            <a class="home-link" href="/terms">Terms</a>
+	            <a class="btn btn--secondary btn--sm" href="/app">Login</a>
+	            <a class="btn btn--primary btn--sm" href="/app">Sign Up</a>
+	          </div>
+	        </header>
+	        <div class="page-header">
+	          <h2>Terms of Service</h2>
+	          <div class="muted small">Last updated: Feb 2026</div>
+	        </div>
+	        <div class="card legal">
+	          <h3>Overview</h3>
+	          <p>
+	            Applictus helps you track job applications by organizing job‑related updates in a dashboard. These terms
+	            explain how you may use the service and how we operate it.
+	          </p>
+
+	          <h3>Gmail Connection (Optional)</h3>
+	          <p>
+	            Connecting Gmail is optional. If you connect, Applictus uses <strong>read‑only</strong> access to detect
+	            job‑related messages and keep your application statuses current. You can disconnect Gmail at any time
+	            from the Account page.
+	          </p>
+
+	          <h3>How the Service Works</h3>
+	          <p>
+	            Applictus automatically groups and classifies job‑related updates. We provide best‑effort inferences based
+	            on the email data you authorize. You control final decisions and any edits to your records.
+	          </p>
+
+	          <h3>Account Responsibilities</h3>
+	          <ul>
+	            <li>Keep your account credentials secure and accurate.</li>
+	            <li>Use the service only with data you own or are authorized to access.</li>
+	            <li>Review and confirm important application details when needed.</li>
+	          </ul>
+
+	          <h3>Acceptable Use</h3>
+	          <ul>
+	            <li>No abuse, automated scraping, or attempts to bypass security controls.</li>
+	            <li>No interference with the service, including excessive load or spam.</li>
+	          </ul>
+
+	          <h3>Termination</h3>
+	          <p>
+	            We may suspend or terminate access if we believe your use violates these terms or harms the service. You
+	            may stop using Applictus at any time.
+	          </p>
+
+	          <h3>Changes</h3>
+	          <p>
+	            We may update these terms from time to time. If changes are material, we’ll make a reasonable effort to
+	            notify you. The “Last updated” date reflects the latest version.
+	          </p>
+
+	          <h3>Contact</h3>
+	          <p>
+	            Questions? Email <a class="app-footer-link" href="mailto:support@applictus.com">support@applictus.com</a>.
+	          </p>
+	        </div>
+	      </section>
+
+		      <section class="view" id="contact-view" hidden>
+		        <header class="home-nav legal-home-nav" aria-label="Legal page navigation">
+		          <a class="home-brand" href="/" aria-label="Applictus home">
+		            <span class="home-brand-mark" aria-hidden="true">
+		              <img src="/Applictus_logo.png" alt="" />
+		            </span>
+		            <span class="home-brand-copy">
+		              <strong>Applictus</strong>
+		              <small>Application Status Tracker</small>
+		            </span>
+		          </a>
+		          <div class="home-nav-actions">
+		            <a class="home-link" href="/privacy">Privacy</a>
+		            <a class="home-link" href="/terms">Terms</a>
+		            <a class="btn btn--secondary btn--sm" href="/app">Login</a>
+		            <a class="btn btn--primary btn--sm" href="/app">Sign Up</a>
+		          </div>
+		        </header>
+		        <div class="page-header">
+		          <h2>Contact</h2>
+		          <div class="muted small">Last updated: Feb 2026</div>
+		        </div>
+		        <div class="card legal">
+		          <h3>Send us a message</h3>
+		          <p class="muted">
+		            Need help, have feedback, or want to report a bug? Send a note below and we’ll get back to you.
+		          </p>
+
+		          <form id="contact-form" class="form-grid" novalidate>
+		            <div class="form-success hidden" id="contact-success" role="status" aria-live="polite"></div>
+		            <div class="form-error hidden" id="contact-error" role="alert"></div>
+
+		            <label>
+		              Name
+		              <input
+		                type="text"
+		                name="name"
+		                autocomplete="name"
+		                required
+		                maxlength="120"
+		                placeholder="Your name"
+		              />
+		            </label>
+		            <label>
+		              Email
+		              <input
+		                type="email"
+		                name="email"
+		                autocomplete="email"
+		                required
+		                maxlength="254"
+		                placeholder="you@domain.com"
+		              />
+		            </label>
+		            <label>
+		              Message
+		              <textarea
+		                name="message"
+		                rows="6"
+		                required
+		                maxlength="4000"
+		                placeholder="How can we help?"
+		              ></textarea>
+		            </label>
+
+		            <button class="btn btn--primary btn--md" type="submit">Send message</button>
+
+		            <div class="muted small">
+		              Prefer email? You can write to
+		              <a class="app-footer-link" href="mailto:support@applictus.com?subject=Applictus%20Support">
+		                support@applictus.com
+		              </a>.
+		            </div>
+		          </form>
+		        </div>
+		      </section>
+
+		      <section class="view" id="about-view" hidden>
+		        <header class="home-nav legal-home-nav" aria-label="Legal page navigation">
+		          <a class="home-brand" href="/" aria-label="Applictus home">
+		            <span class="home-brand-mark" aria-hidden="true">
+		              <img src="/Applictus_logo.png" alt="" />
+		            </span>
+		            <span class="home-brand-copy">
+		              <strong>Applictus</strong>
+		              <small>Application Status Tracker</small>
+		            </span>
+		          </a>
+		          <div class="home-nav-actions">
+		            <a class="home-link" href="/privacy">Privacy</a>
+		            <a class="home-link" href="/terms">Terms</a>
+		            <a class="btn btn--secondary btn--sm" href="/app">Login</a>
+		            <a class="btn btn--primary btn--sm" href="/app">Sign Up</a>
+		          </div>
+		        </header>
+		        <div class="page-header about-header">
+		          <div>
+		            <h2>About Applictus</h2>
+		            <div class="muted small">Last updated: Feb 2026</div>
+		            <p class="about-subtitle">
+		              Applictus helps you stay on top of job applications by connecting Gmail and organizing key updates
+		              into a clean dashboard.
+		            </p>
+		          </div>
+		        </div>
+		        <div class="card about">
+		          <section class="about-section">
+		            <h3>What Applictus does</h3>
+		            <ul class="about-list">
+		              <li>Detects job-related emails and groups updates by company + role.</li>
+		              <li>Tracks application statuses and surfaces changes with confidence.</li>
+		              <li>Gives you a single, searchable dashboard for your entire pipeline.</li>
+		            </ul>
+		          </section>
+
+		          <section class="about-section">
+		            <h3>Why we built it</h3>
+		            <p>
+		              Job searches are fragmented across inboxes, spreadsheets, and notes. We wanted a focused tool that
+		              keeps statuses current, searchable, and easy to act on without manually managing every thread.
+		            </p>
+		          </section>
+
+		          <section class="about-section">
+		            <h3>Who we are</h3>
+		            <div class="about-team">
+		              <div class="profile-card">
+		                <div class="profile-avatar">
+		                  <img
+		                    class="profile-headshot"
+		                    src="/jason.png"
+		                    alt="Jason Conklin"
+		                    loading="lazy"
+		                    onload="this.parentElement.classList.add('has-image')"
+		                    onerror="this.parentElement.classList.add('missing-image')"
+		                  />
+		                  <div class="profile-avatar-fallback" aria-hidden="true">JC</div>
+		                </div>
+		                <div class="profile-meta">
+		                  <div class="profile-name">Jason Conklin</div>
+		                  <div class="muted small">B.S. Computer Science, NJIT</div>
+		                  <span class="profile-badge">Engineering + Product</span>
+		                </div>
+		              </div>
+		              <div class="profile-card">
+		                <div class="profile-avatar">
+		                  <img
+		                    class="profile-headshot"
+		                    src="/shane.png"
+		                    alt="Shane Conklin"
+		                    loading="lazy"
+		                    onload="this.parentElement.classList.add('has-image')"
+		                    onerror="this.parentElement.classList.add('missing-image')"
+		                  />
+		                  <div class="profile-avatar-fallback" aria-hidden="true">SC</div>
+		                </div>
+		                <div class="profile-meta">
+		                  <div class="profile-name">Shane Conklin</div>
+		                  <div class="muted small">Business, Kean University</div>
+		                  <span class="profile-badge">Product + Operations</span>
+		                </div>
+		              </div>
+		            </div>
+		          </section>
+
+		          <section class="about-section">
+		            <h3>Privacy-first by design</h3>
+		            <ul class="about-list">
+		              <li>We focus on the email metadata needed to track job updates.</li>
+		              <li>You control Gmail scan windows and can disconnect anytime.</li>
+		              <li>Access stays tied to your authenticated session.</li>
+		            </ul>
+		          </section>
+		        </div>
+		      </section>
+		    </main>
+
+	    <footer class="app-footer" role="contentinfo">
+	      <div class="app-footer-inner">
+	        <div class="app-footer-copy">© 2026 Applictus</div>
+	        <nav class="app-footer-links" aria-label="Legal and contact links">
+	          <a class="app-footer-link" href="#privacy">PRIVACY</a>
+	          <span class="app-footer-sep" aria-hidden="true">·</span>
+	          <a class="app-footer-link" href="#terms">TERMS</a>
+	          <span class="app-footer-sep" aria-hidden="true">·</span>
+	          <a class="app-footer-link" href="#contact">CONTACT</a>
+	          <span class="app-footer-sep" aria-hidden="true">·</span>
+	          <a class="app-footer-link" href="#about">ABOUT US</a>
+	        </nav>
+	      </div>
+	    </footer>
+
+    <div class="drawer hidden" id="detail-drawer">
+      <div class="drawer-backdrop" data-action="close"></div>
+      <aside class="drawer-panel" id="detail-panel">
+        <div class="drawer-header">
+          <div class="drawer-header-text">
+            <div class="drawer-title" id="detail-company">—</div>
+            <div class="drawer-subtitle" id="detail-title">—</div>
+          </div>
+          <button class="drawer-close" type="button" data-action="close" aria-label="Close details">✕</button>
+          <div class="drawer-chips">
+            <div class="pill pill-status" id="detail-status">Unknown</div>
+            <div class="pill subtle" id="detail-source">Inferred</div>
+            <div class="pill subtle" id="detail-confidence">—</div>
+          </div>
+        </div>
+        <div class="drawer-body">
+          <div class="drawer-card">
+            <div class="drawer-card-title">Details</div>
+            <div class="details-grid" id="detail-meta"></div>
+          </div>
+
+          <div class="drawer-card">
+            <div class="drawer-disclosure" id="detail-explainer-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="detail-explainer-body">
+              <span>Status explanation</span>
+              <span class="chevron">▾</span>
+            </div>
+            <div class="drawer-disclosure-body collapsed" id="detail-explainer-body">
+              <div class="explanation" id="detail-explanation">No explanation yet.</div>
+              <div class="suggestion-callout hidden" id="detail-suggestion">
+                <div class="explanation" id="detail-suggestion-label">Suggestion</div>
+                <div class="explanation" id="detail-suggestion-explanation">—</div>
+                <div class="suggestion-actions">
+                  <button class="btn btn--ghost btn--sm" type="button" data-action="accept-suggestion" id="detail-suggestion-accept">
+                    Accept
+                  </button>
+                  <button class="btn btn--ghost btn--sm" type="button" data-action="dismiss-suggestion" id="detail-suggestion-dismiss">
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="drawer-card">
+            <div class="drawer-card-title">Timeline</div>
+            <div class="timeline" id="detail-timeline"></div>
+          </div>
+        </div>
+        <div class="drawer-footer action-group" id="detail-actions">
+          <button class="btn btn--ghost btn--sm" type="button" data-action="edit">
+            <span class="btn-icon-left" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+            </span>
+            <span class="btn-label">Edit</span>
+          </button>
+          <button class="btn btn--ghost btn--sm" type="button" data-action="archive">
+            <span class="btn-icon-left" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 8v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8" />
+                <path d="M1 3h22v5H1z" />
+                <path d="M10 12h4" />
+              </svg>
+            </span>
+            <span class="btn-label">Archive</span>
+          </button>
+          <button class="btn btn--danger btn--sm" type="button" data-action="delete">
+            <span class="btn-icon-left" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18" />
+                <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+                <path d="M19 6v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+              </svg>
+            </span>
+            <span class="btn-label">Delete</span>
+          </button>
+        </div>
+      </aside>
     </div>
-    <script type="module" src="/home.js?v=4"></script>
+
+    <div class="modal hidden" id="modal-root" aria-hidden="true">
+      <div class="modal-backdrop" data-action="backdrop"></div>
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <button class="btn btn--ghost btn--sm modal-close" type="button" data-action="close" aria-label="Close">
+          <span class="modal-close__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </span>
+        </button>
+        <div class="modal-header">
+          <h3 id="modal-title">Modal</h3>
+          <p class="muted" id="modal-description"></p>
+        </div>
+        <div class="modal-body" id="modal-body"></div>
+        <div class="modal-footer" id="modal-footer"></div>
+      </div>
+    </div>
+    </div>
+
+    <div id="app-splash" aria-label="Loading Applictus" role="status">
+      <div class="splash-card">
+        <img src="/Applictus_logo.png" alt="Applictus" class="splash-logo" />
+        <div class="splash-title">Applictus</div>
+        <div class="splash-subtitle">Application Status Tracker</div>
+        <div class="splash-loader" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="splash-still">Still loading...</div>
+      </div>
+    </div>
+
+    <script type="module" src="/app.js?v=22"></script>
   </body>
 </html>
