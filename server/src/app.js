@@ -838,20 +838,34 @@ function isInternalGmailUser(userOrEmail) {
   return getInternalGmailUsersAllowlist().has(email);
 }
 
-function getInternalGoogleAuthConfig() {
+function resolveInternalGoogleRedirectUri(req = null) {
+  if (req) {
+    try {
+      return new URL('/api/auth/google/internal/callback', getRequestBaseUrl(req)).toString();
+    } catch (_) {
+      // Fall through to environment/default fallback below.
+    }
+  }
+  const explicitRedirect = String(process.env.GOOGLE_REDIRECT_URI_INTERNAL || '').trim();
+  if (explicitRedirect) {
+    return explicitRedirect;
+  }
+  return `${process.env.APP_API_BASE_URL || 'http://localhost:3000'}/api/auth/google/internal/callback`;
+}
+
+function getInternalGoogleAuthConfig(options = {}) {
   const clientId = process.env.GOOGLE_CLIENT_ID_INTERNAL;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET_INTERNAL;
   if (!clientId || !clientSecret) {
     return null;
   }
-  const redirectUri =
-    process.env.GOOGLE_REDIRECT_URI_INTERNAL ||
-    `${process.env.APP_API_BASE_URL || 'http://localhost:3000'}/api/auth/google/internal/callback`;
+  const requestedRedirectUri = String(options.redirectUri || '').trim();
+  const redirectUri = requestedRedirectUri || resolveInternalGoogleRedirectUri(options.req || null);
   return { clientId, clientSecret, redirectUri };
 }
 
-function getInternalGoogleOAuthClient() {
-  const config = getInternalGoogleAuthConfig();
+function getInternalGoogleOAuthClient(options = {}) {
+  const config = getInternalGoogleAuthConfig(options);
   if (!config) {
     return null;
   }
@@ -861,12 +875,16 @@ function getInternalGoogleOAuthClient() {
 function getInternalGoogleAuthUrl(oAuthClient, state, options = {}) {
   const prompt = options.prompt || 'select_account consent';
   const accessType = options.accessType || 'offline';
+  const loginHint = options.loginHint ? String(options.loginHint).trim() : '';
+  const redirectUri = options.redirectUri ? String(options.redirectUri).trim() : '';
   return oAuthClient.generateAuthUrl({
     access_type: accessType,
     include_granted_scopes: false,
     scope: [...INTERNAL_GMAIL_SCOPES],
     state,
-    prompt
+    prompt,
+    ...(loginHint ? { login_hint: loginHint } : {}),
+    ...(redirectUri ? { redirect_uri: redirectUri } : {})
   });
 }
 
@@ -2529,8 +2547,9 @@ app.get('/api/auth/google/internal/start', authIpLimiter, (req, res) => {
   if (!isEncryptionReady()) {
     return res.redirect(getWebAuthErrorRedirect('TOKEN_ENC_KEY_REQUIRED'));
   }
-  const oAuthClient = getInternalGoogleOAuthClient();
-  const authConfig = getInternalGoogleAuthConfig();
+  const internalRedirectUri = resolveInternalGoogleRedirectUri(req);
+  const oAuthClient = getInternalGoogleOAuthClient({ redirectUri: internalRedirectUri });
+  const authConfig = getInternalGoogleAuthConfig({ redirectUri: internalRedirectUri });
   if (!oAuthClient || !authConfig) {
     return res.redirect(getWebAuthErrorRedirect('GMAIL_NOT_CONFIGURED'));
   }
@@ -2545,12 +2564,16 @@ app.get('/api/auth/google/internal/start', authIpLimiter, (req, res) => {
   if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
     logInfo('google.internal.oauth.scopes_requested', {
       userId: req.user.id,
-      scopes: INTERNAL_GMAIL_SCOPES
+      scopes: INTERNAL_GMAIL_SCOPES,
+      redirect_uri: authConfig.redirectUri,
+      login_hint: normalizeEmail(req.user.email) || null
     });
   }
   const url = getInternalGoogleAuthUrl(oAuthClient, state, {
     accessType: 'offline',
-    prompt: 'select_account consent'
+    prompt: 'select_account consent',
+    loginHint: normalizeEmail(req.user.email),
+    redirectUri: authConfig.redirectUri
   });
   return res.redirect(url);
 });
@@ -2566,7 +2589,8 @@ app.get('/api/auth/google/internal/callback', authIpLimiter, async (req, res) =>
     return res.redirect(getWebAuthErrorRedirect('TOKEN_ENC_KEY_REQUIRED'));
   }
 
-  const oAuthClient = getInternalGoogleOAuthClient();
+  const internalRedirectUri = resolveInternalGoogleRedirectUri(req);
+  const oAuthClient = getInternalGoogleOAuthClient({ redirectUri: internalRedirectUri });
   if (!oAuthClient) {
     return res.redirect(getWebAuthErrorRedirect('GMAIL_NOT_CONFIGURED'));
   }
@@ -2596,7 +2620,10 @@ app.get('/api/auth/google/internal/callback', authIpLimiter, async (req, res) =>
       return res.redirect(getWebAuthErrorRedirect('OAUTH_CODE_MISSING'));
     }
     try {
-      const tokenResponse = await oAuthClient.getToken(code);
+      const tokenResponse = await oAuthClient.getToken({
+        code,
+        redirect_uri: internalRedirectUri
+      });
       exchangedTokens = tokenResponse?.tokens || null;
       if (!exchangedTokens) {
         return res.redirect(getWebAuthErrorRedirect('GMAIL_CONNECT_FAILED'));
