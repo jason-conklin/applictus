@@ -750,6 +750,71 @@
                           <span class="scan-dots" aria-hidden="true"></span>
                         </span>
                       </button>
+                      <button
+                        class="btn btn--secondary btn--md btn-scan-menu sync-menu-button hidden"
+                        type="button"
+                        id="email-sync-menu-button"
+                        aria-label="Choose sync range"
+                        aria-haspopup="menu"
+                        aria-expanded="false"
+                        aria-hidden="true"
+                      >
+                        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                          <path d="M6 8l4 4 4-4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                      </button>
+                      <div class="sync-range-menu hidden" id="sync-range-menu" role="menu" aria-label="Sync range">
+                        <button
+                          class="sync-range-menu-item is-selected"
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked="true"
+                          data-sync-option="since_last"
+                        >
+                          <span class="sync-range-check" aria-hidden="true">✓</span>
+                          <span>Since last sync</span>
+                        </button>
+                        <button
+                          class="sync-range-menu-item"
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked="false"
+                          data-sync-option="7"
+                        >
+                          <span class="sync-range-check" aria-hidden="true"></span>
+                          <span>Last 7 days</span>
+                        </button>
+                        <button
+                          class="sync-range-menu-item"
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked="false"
+                          data-sync-option="14"
+                        >
+                          <span class="sync-range-check" aria-hidden="true"></span>
+                          <span>Last 14 days</span>
+                        </button>
+                        <button
+                          class="sync-range-menu-item"
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked="false"
+                          data-sync-option="30"
+                        >
+                          <span class="sync-range-check" aria-hidden="true"></span>
+                          <span>Last 30 days</span>
+                        </button>
+                        <button
+                          class="sync-range-menu-item"
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked="false"
+                          data-sync-option="90"
+                        >
+                          <span class="sync-range-check" aria-hidden="true"></span>
+                          <span>Last 90 days</span>
+                        </button>
+                      </div>
                     </div>
                     <div class="muted small sync-helper-text scan-helper" id="sync-helper-text">
                       Set up automatic forwarding in about 2 minutes — no Google login required.

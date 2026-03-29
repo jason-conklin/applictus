@@ -1326,11 +1326,12 @@ function updateDashboardPrimarySyncUI() {
     emailSync.disabled = false;
     emailSync.setAttribute('aria-busy', 'false');
     if (syncMenuButton) {
-      syncMenuButton.classList.add('hidden');
-      syncMenuButton.disabled = true;
-      syncMenuButton.setAttribute('aria-hidden', 'true');
+      const showRangeControl = Boolean(emailState.connected);
+      syncMenuButton.classList.toggle('hidden', !showRangeControl);
+      syncMenuButton.disabled = !showRangeControl;
+      syncMenuButton.setAttribute('aria-hidden', showRangeControl ? 'false' : 'true');
     }
-    if (syncRangeMenuOpen) {
+    if (!emailState.connected && syncRangeMenuOpen) {
       closeSyncRangeMenu();
     }
     if (syncConnectCta) {
