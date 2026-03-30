@@ -1028,11 +1028,9 @@ async function createSession(userId) {
 }
 
 function cookieDomainOptions() {
-  // In Vercel preview deployments, always use host-only cookies so every preview URL works without domain tweaks.
-  if (IS_VERCEL_PREVIEW) {
-    return {};
-  }
-  return COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {};
+  // Force host-only cookies to avoid domain mismatches across preview/prod hosts.
+  // This keeps sessions working on whichever host the user is on (preview or prod).
+  return {};
 }
 
 function isCrossSiteAuth() {
