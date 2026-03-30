@@ -4033,6 +4033,10 @@ async function loadAdminAnalyticsSummary() {
     const summary = await api('/api/admin/analytics/summary');
     renderAdminKpis(summary);
   } catch (err) {
+    const els = ensureAdminElements();
+    if (els.chartHint) {
+      els.chartHint.textContent = 'Unable to load admin KPIs.';
+    }
     if (DEBUG_APP) {
       // eslint-disable-next-line no-console
       console.debug('[admin-analytics] summary failed', err);

@@ -860,22 +860,19 @@ async function readCount(dbInstance, sql, params = []) {
 }
 
 function getDateFilters(isPg) {
+  const pgCreatedAt = "(COALESCE(NULLIF(created_at,'')::timestamptz, now() at time zone 'utc'))";
   return {
     today: isPg
-      ? "created_at >= (now() at time zone 'utc')::date AND created_at < ((now() at time zone 'utc')::date + interval '1 day')"
+      ? `${pgCreatedAt}::date = (now() at time zone 'utc')::date`
       : "date(created_at) = date('now')",
-    week: isPg
-      ? "created_at >= (now() at time zone 'utc') - interval '6 days'"
-      : "date(created_at) >= date('now','-6 days')",
-    monthBucket: isPg
-      ? "to_char((created_at)::timestamptz at time zone 'utc','YYYY-MM') = $1"
-      : "strftime('%Y-%m', created_at) = ?",
+    week: isPg ? `${pgCreatedAt} >= (now() at time zone 'utc') - interval '6 days'` : "date(created_at) >= date('now','-6 days')",
+    monthBucket: isPg ? `to_char(${pgCreatedAt},'YYYY-MM') = $1` : "strftime('%Y-%m', created_at) = ?",
     monthCutoff: isPg
-      ? "created_at >= (date_trunc('month', (now() at time zone 'utc')) - interval '11 months')"
+      ? `${pgCreatedAt} >= (date_trunc('month', (now() at time zone 'utc')) - interval '11 months')`
       : "strftime('%Y-%m', created_at) >= strftime('%Y-%m', date('now','-11 months'))",
     daysCutoff: (days) =>
       isPg
-        ? `created_at >= (now() at time zone 'utc') - interval '${Math.max(0, days - 1)} days'`
+        ? `${pgCreatedAt} >= (now() at time zone 'utc') - interval '${Math.max(0, days - 1)} days'`
         : `date(created_at) >= date('now','-${Math.max(0, days - 1)} days')`
   };
 }
@@ -2994,6 +2991,7 @@ async function buildAdminAnalyticsSummary(dbInstance) {
 function buildTrendQuery({ metric, range, isPg }) {
   const rangeKey = range || '30d';
   const metricKey = metric || 'tracked_emails';
+  const pgCreatedAt = "(COALESCE(NULLIF(created_at,'')::timestamptz, now() at time zone 'utc'))";
   const rangeConfig = {
     '30d': { days: 30, bucket: 'day' },
     '90d': { days: 90, bucket: 'day' },
@@ -3004,10 +3002,10 @@ function buildTrendQuery({ metric, range, isPg }) {
   const bucketExpr =
     rangeConfig.bucket === 'month'
       ? isPg
-        ? "to_char((created_at)::timestamptz at time zone 'utc','YYYY-MM')"
+        ? `to_char(${pgCreatedAt},'YYYY-MM')`
         : "strftime('%Y-%m', created_at)"
       : isPg
-        ? "to_char((created_at)::timestamptz at time zone 'utc','YYYY-MM-DD')"
+        ? `to_char(${pgCreatedAt},'YYYY-MM-DD')`
         : 'date(created_at)';
 
   let table = 'users';
