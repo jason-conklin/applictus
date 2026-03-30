@@ -3,6 +3,31 @@ const assert = require('node:assert/strict');
 
 const { parseJobEmail } = require('../src/parseJobEmail');
 
+test('linkedin parser rejects CTA link and picks real role (Robert Half bug)', async () => {
+  const parsed = await parseJobEmail({
+    fromEmail: 'jobs-noreply@linkedin.com',
+    fromDomain: 'linkedin.com',
+    subject: 'Your application was sent to Robert Half',
+    text: [
+      'Your application was sent to Robert Half',
+      'Robert Half',
+      'Junior Applications Developer (.NET and Angular (or React))',
+      'Robert Half · Morris Plains, NJ (On-site)',
+      'Applied on March 28, 2026',
+      'View job: https://linkedin.com/comm/jobs/view/12345'
+    ].join('\n')
+  });
+
+  assert.equal(parsed.providerId, 'linkedin_jobs');
+  assert.equal(parsed.company, 'Robert Half');
+  assert.equal(parsed.role, 'Junior Applications Developer (.NET and Angular (or React))');
+  const ctaCandidate = parsed.parserDebug?.linkedin_role_candidates_scored?.find((c) =>
+    String(c.raw || '').toLowerCase().startsWith('view job')
+  );
+  assert.ok(ctaCandidate);
+  assert.equal(ctaCandidate.rejected, true);
+});
+
 test('linkedin parser extracts Dexian quick-apply role with hyphen company/location separator', async () => {
   const parsed = await parseJobEmail({
     fromEmail: 'jobs-noreply@linkedin.com',

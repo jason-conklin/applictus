@@ -1247,7 +1247,25 @@ async function syncGmailMessages({
           reason: classification.reason || null
         });
       }
-      if (!classification.isJobRelated) {
+      const parsedEmail = await parseJobEmail({
+        fromEmail: sender,
+        fromDomain: sender ? String(sender).toLowerCase().split('@')[1] || '' : '',
+        subject,
+        text: bodyText,
+        html: '',
+        headers: previewHeaders,
+        db,
+        userId
+      });
+
+      const parseConfidence = parsedEmail?.confidence || {};
+      const parsedDetectedType = mapParsedStatusToDetectedType(parsedEmail?.status);
+      const parserHasHighSignal =
+        parsedDetectedType &&
+        Number(parseConfidence.status || 0) >= PARSE_CONFIDENCE_THRESHOLDS.status &&
+        (parsedEmail?.company || parsedEmail?.role);
+
+      if (!classification.isJobRelated && !parserHasHighSignal) {
         skippedNotJob += 1;
         let reasonCode = 'classified_not_job_related';
         if (classification.reason === 'denylisted') {
@@ -1331,11 +1349,58 @@ async function syncGmailMessages({
         companyName: identity.companyName
       });
       const rolePayload = roleResult && roleResult.jobTitle ? roleResult : null;
+      const parsedCompanyCandidate =
+        Number(parseConfidence.company || 0) >= PARSE_CONFIDENCE_THRESHOLDS.company
+          ? parsedEmail?.company || null
+          : null;
+      const parsedRoleCandidate =
+        Number(parseConfidence.role || 0) >= PARSE_CONFIDENCE_THRESHOLDS.role ? parsedEmail?.role || null : null;
+      const bestCompanyCandidate = parsedCompanyCandidate || identity.companyName || null;
+      const bestRoleCandidate = parsedRoleCandidate || rolePayload?.jobTitle || identity.jobTitle || null;
+
       const reqResult = extractExternalReqId({ subject, snippet, bodyText });
       let externalReqId = reqResult.externalReqId || null;
       let effectiveClassification = { ...classification };
+      if (parsedDetectedType && Number(parseConfidence.status || 0) >= PARSE_CONFIDENCE_THRESHOLDS.status) {
+        effectiveClassification = {
+          ...effectiveClassification,
+          isJobRelated: true,
+          detectedType: parsedDetectedType,
+          confidenceScore: Math.max(
+            Number(parseConfidence.status || 0) / 100,
+            Number.isFinite(classification.confidenceScore) ? classification.confidenceScore : 0.7
+          ),
+          explanation: classification.explanation || 'provider_parser',
+          reason: 'parser_high_confidence'
+        };
+      }
       let effectiveIdentity = { ...identity };
+      if (bestCompanyCandidate) {
+        effectiveIdentity.companyName = bestCompanyCandidate;
+        if (parsedCompanyCandidate) {
+          effectiveIdentity.companyConfidence = Math.max(
+            Number(parseConfidence.company || 0) / 100,
+            Number(effectiveIdentity.companyConfidence || 0)
+          );
+          effectiveIdentity.explanation = 'provider_parser';
+        }
+      }
       let effectiveRole = rolePayload;
+      if (parsedRoleCandidate) {
+        effectiveRole = {
+          jobTitle: parsedRoleCandidate,
+          confidence: Number(parseConfidence.role || 0) / 100,
+          source: `${parsedEmail?.providerId || 'parser'}_parser`,
+          explanation: 'provider_parser'
+        };
+      } else if (!effectiveRole && bestRoleCandidate) {
+        effectiveRole = {
+          jobTitle: bestRoleCandidate,
+          confidence: Number(rolePayload?.confidence || identity.roleConfidence || 0),
+          source: rolePayload?.source || identity.explanation || null,
+          explanation: rolePayload?.explanation || identity.explanation || null
+        };
+      }
       let llmStatus = 'skipped';
       let llmError = null;
       let llmModel = null;
