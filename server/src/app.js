@@ -3047,6 +3047,7 @@ app.get('/api/admin/analytics/summary', requireAuth, async (req, res) => {
     if (!isInternalAdminUser(req.user)) {
       return res.status(403).json({ error: 'FORBIDDEN' });
     }
+    logInfo('admin.analytics.summary.request', { userId: req.user?.id || null, email: req.user?.email || null });
     const summary = await buildAdminAnalyticsSummary(db);
     return res.json(summary);
   } catch (err) {
@@ -3063,6 +3064,12 @@ app.get('/api/admin/analytics/trends', requireAuth, async (req, res) => {
     if (!isInternalAdminUser(req.user)) {
       return res.status(403).json({ error: 'FORBIDDEN' });
     }
+    logInfo('admin.analytics.trends.request', {
+      userId: req.user?.id || null,
+      email: req.user?.email || null,
+      metric: req.query.metric || null,
+      range: req.query.range || null
+    });
     const metric = String(req.query.metric || 'tracked_emails');
     const range = String(req.query.range || '30d');
     const { sql, bucketType } = buildTrendQuery({ metric, range, isPg: !!db.isAsync });

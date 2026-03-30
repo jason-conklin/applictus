@@ -4041,7 +4041,8 @@ async function loadAdminAnalyticsSummary() {
   } catch (err) {
     const els = ensureAdminElements();
     if (els.chartHint) {
-      els.chartHint.textContent = 'Unable to load admin KPIs.';
+      const code = err?.code || err?.status || 'error';
+      els.chartHint.textContent = `Unable to load admin KPIs (${code}).`;
     }
     if (DEBUG_APP) {
       // eslint-disable-next-line no-console
@@ -4055,12 +4056,22 @@ async function loadAdminTrend(metric = adminTrendState.metric, range = adminTren
   try {
     const els = ensureAdminElements();
     if (els.chartHint) els.chartHint.textContent = 'Loading trend…';
+    const trendTimeout = setTimeout(() => {
+      const el = ensureAdminElements().chartHint;
+      if (el && el.textContent.includes('Loading')) {
+        el.textContent = 'Trend load is taking longer than expected…';
+      }
+    }, 4000);
     const trend = await api(`/api/admin/analytics/trends?metric=${encodeURIComponent(metric)}&range=${encodeURIComponent(range)}`);
+    clearTimeout(trendTimeout);
     adminTrendState = { ...adminTrendState, metric, range, points: trend.points || [] };
     renderAdminChart(trend);
   } catch (err) {
     const els = ensureAdminElements();
-    if (els.chartHint) els.chartHint.textContent = 'Unable to load trend.';
+    if (els.chartHint) {
+      const code = err?.code || err?.status || 'error';
+      els.chartHint.textContent = `Unable to load trend (${code}).`;
+    }
     if (DEBUG_APP) {
       // eslint-disable-next-line no-console
       console.debug('[admin-analytics] trend failed', err);
