@@ -1066,6 +1066,16 @@ function isCrossSiteAuth() {
 }
 
 function sessionCookieOptions({ isProd: isProdOverride } = {}) {
+  // In Vercel preview, prefer host-only, lax cookies to avoid cross-site/scope issues.
+  if (IS_VERCEL_PREVIEW) {
+    return {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: false,
+      maxAge: SESSION_TTL_MS,
+      ...cookieDomainOptions()
+    };
+  }
   return {
     httpOnly: true,
     sameSite: isCrossSiteAuth() ? 'none' : 'lax',
