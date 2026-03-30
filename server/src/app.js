@@ -74,6 +74,7 @@ const PORT = process.env.PORT || 3000;
 const WEB_BASE_URL = process.env.APP_WEB_BASE_URL || (isProd() ? 'https://applictus.com' : 'http://localhost:3000');
 const API_BASE_URL = process.env.APP_API_BASE_URL || WEB_BASE_URL;
 const COOKIE_DOMAIN = process.env.APP_COOKIE_DOMAIN || '';
+const IS_VERCEL_PREVIEW = process.env.VERCEL_ENV === 'preview';
 const ALLOWED_ORIGINS = new Set(
   [
     process.env.APP_WEB_BASE_URL,
@@ -1027,6 +1028,10 @@ async function createSession(userId) {
 }
 
 function cookieDomainOptions() {
+  // In Vercel preview deployments, always use host-only cookies so every preview URL works without domain tweaks.
+  if (IS_VERCEL_PREVIEW) {
+    return {};
+  }
   return COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {};
 }
 
