@@ -291,6 +291,11 @@ const accountPlanProgress = document.getElementById('account-plan-progress');
 const accountPlanWarning = document.getElementById('account-plan-warning');
 const accountUpgradeButton = document.getElementById('account-upgrade-button');
 const accountPlanDetails = document.getElementById('account-plan-details');
+const adminMetricSelect = document.getElementById('analytics-metric-select');
+const adminRangeSelect = document.getElementById('analytics-range-select');
+const adminChartSvgStatic = document.getElementById('analytics-chart');
+const adminChartHintStatic = document.getElementById('analytics-chart-hint');
+
 let adminEls = null;
 function ensureAdminElements() {
   if (adminEls) return adminEls;
@@ -304,10 +309,10 @@ function ensureAdminElements() {
     kpiTodayEmails: document.getElementById('admin-kpi-today-emails'),
     kpiWeekEmails: document.getElementById('admin-kpi-week-emails'),
     kpiNewUsers: document.getElementById('admin-kpi-new-users'),
-    metricSelect: document.getElementById('analytics-metric-select'),
-    rangeSelect: document.getElementById('analytics-range-select'),
-    chartSvg: document.getElementById('analytics-chart'),
-    chartHint: document.getElementById('analytics-chart-hint')
+    metricSelect: adminMetricSelect || document.getElementById('analytics-metric-select'),
+    rangeSelect: adminRangeSelect || document.getElementById('analytics-range-select'),
+    chartSvg: adminChartSvgStatic || document.getElementById('analytics-chart'),
+    chartHint: adminChartHintStatic || document.getElementById('analytics-chart-hint')
   };
   return adminEls;
 }
@@ -9051,6 +9056,27 @@ adminRangeSelect?.addEventListener('change', async () => {
   adminTrendState.range = range;
   await loadAdminTrend((els.metricSelect || adminMetricSelect)?.value || adminTrendState.metric, range);
 });
+
+// If admin elements exist at load time, bootstrap listeners for them as well
+(() => {
+  const els = ensureAdminElements();
+  if (els.metricSelect && !els.metricSelect.dataset.bound) {
+    els.metricSelect.dataset.bound = '1';
+    els.metricSelect.addEventListener('change', async () => {
+      const metric = els.metricSelect.value || adminTrendState.metric;
+      adminTrendState.metric = metric;
+      await loadAdminTrend(metric, (els.rangeSelect || adminRangeSelect)?.value || '30d');
+    });
+  }
+  if (els.rangeSelect && !els.rangeSelect.dataset.bound) {
+    els.rangeSelect.dataset.bound = '1';
+    els.rangeSelect.addEventListener('change', async () => {
+      const range = els.rangeSelect.value || adminTrendState.range;
+      adminTrendState.range = range;
+      await loadAdminTrend((els.metricSelect || adminMetricSelect)?.value || adminTrendState.metric, range);
+    });
+  }
+})();
 
 emailSync?.addEventListener('click', async () => {
   if (isInternalGmailMode()) {
