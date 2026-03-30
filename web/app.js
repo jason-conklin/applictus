@@ -312,7 +312,8 @@ function ensureAdminElements() {
     metricSelect: adminMetricSelect || document.getElementById('analytics-metric-select'),
     rangeSelect: adminRangeSelect || document.getElementById('analytics-range-select'),
     chartSvg: adminChartSvgStatic || document.getElementById('analytics-chart'),
-    chartHint: adminChartHintStatic || document.getElementById('analytics-chart-hint')
+    chartHint: adminChartHintStatic || document.getElementById('analytics-chart-hint'),
+    statusText: document.getElementById('admin-analytics-status')
   };
   return adminEls;
 }
@@ -4037,12 +4038,18 @@ async function loadAdminAnalyticsSummary() {
   try {
     const summary = await api('/api/admin/analytics/summary');
     renderAdminKpis(summary);
+    const els = ensureAdminElements();
+    if (els.statusText) els.statusText.textContent = 'Admin KPIs loaded.';
     return true;
   } catch (err) {
     const els = ensureAdminElements();
     if (els.chartHint) {
       const code = err?.code || err?.status || 'error';
       els.chartHint.textContent = `Unable to load admin KPIs (${code}).`;
+    }
+    if (els.statusText) {
+      const code = err?.code || err?.status || 'error';
+      els.statusText.textContent = `KPIs error (${code}). Check session/login.`;
     }
     if (DEBUG_APP) {
       // eslint-disable-next-line no-console
@@ -4066,11 +4073,20 @@ async function loadAdminTrend(metric = adminTrendState.metric, range = adminTren
     clearTimeout(trendTimeout);
     adminTrendState = { ...adminTrendState, metric, range, points: trend.points || [] };
     renderAdminChart(trend);
+    const els2 = ensureAdminElements();
+    if (els2.statusText) {
+      els2.statusText.textContent = `Trend loaded (${trend.points?.length || 0} points, ${metric}, ${range}).`;
+    }
+    return true;
   } catch (err) {
     const els = ensureAdminElements();
     if (els.chartHint) {
       const code = err?.code || err?.status || 'error';
       els.chartHint.textContent = `Unable to load trend (${code}).`;
+    }
+    if (els.statusText) {
+      const code = err?.code || err?.status || 'error';
+      els.statusText.textContent = `Trend error (${code}). Check session/login.`;
     }
     if (DEBUG_APP) {
       // eslint-disable-next-line no-console
