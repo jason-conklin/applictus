@@ -436,6 +436,11 @@ const PLAN_LIMITS = {
   free: 75,
   pro: 500
 };
+let planState = null;
+const planNoticeShown = {
+  atLimit: false,
+  global: false
+};
 let currentDetail = null;
 let csrfToken = null;
 const PAGE_SIZE = 25;
@@ -3843,11 +3848,15 @@ function flashAccountPasswordHint(message, { success = false } = {}) {
 }
 
 function getPlanLimitForUser(user = sessionUser) {
-  if (!user) return PLAN_LIMITS.free;
-  if (Number.isFinite(user.plan_limit) && user.plan_limit > 0) {
-    return user.plan_limit;
+  const source = user || planState || sessionUser;
+  if (!source) return PLAN_LIMITS.free;
+  if (Number.isFinite(source.monthly_tracked_email_limit) && source.monthly_tracked_email_limit > 0) {
+    return source.monthly_tracked_email_limit;
   }
-  const tier = String(user.plan_tier || 'free').toLowerCase();
+  if (Number.isFinite(source.plan_limit) && source.plan_limit > 0) {
+    return source.plan_limit;
+  }
+  const tier = String(source.plan_tier || 'free').toLowerCase();
   return PLAN_LIMITS[tier] || PLAN_LIMITS.free;
 }
 
@@ -3862,15 +3871,19 @@ function renderPlanUsage(user = sessionUser) {
     accountPlanWarning.textContent = '';
     return;
   }
-  const tier = String(user.plan_tier || 'free').toLowerCase();
-  const limit = getPlanLimitForUser(user);
-  const usage = Number(user.plan_usage || 0);
+  const source = planState || user;
+  const tier = String(source.plan_tier || 'free').toLowerCase();
+  const limit = getPlanLimitForUser(source);
+  const usage = Number(source.tracked_email_count_current_month || source.plan_usage || 0);
   accountPlanName.textContent = tier === 'pro' ? 'Pro' : 'Free';
   accountPlanUsage.textContent = `${usage} / ${limit} tracked emails this month`;
   const ratio = limit > 0 ? Math.min(1, usage / limit) : 0;
   accountPlanProgress.style.width = `${Math.round(ratio * 100)}%`;
   let warning = '';
-  if (limit > 0) {
+  const globalBlocked = Boolean(source.global_blocked);
+  if (globalBlocked) {
+    warning = 'Free tracking is temporarily at capacity this month.';
+  } else if (limit > 0) {
     if (ratio >= 1) {
       warning = 'You reached your monthly tracking limit. Upgrade to continue tracking new updates.';
     } else if (ratio >= 0.8) {
@@ -3967,6 +3980,38 @@ function openPricingModal() {
     footer,
     allowBackdropClose: true
   });
+}
+
+async function refreshPlanUsage() {
+  try {
+    const data = await api('/api/account/plan');
+    planState = data;
+    if (sessionUser) {
+      sessionUser.plan_tier = data.plan_tier;
+      sessionUser.plan_status = data.plan_status;
+      sessionUser.plan_limit = data.monthly_tracked_email_limit;
+      sessionUser.plan_usage = data.tracked_email_count_current_month;
+      sessionUser.plan_bucket = data.tracked_email_month_bucket;
+      sessionUser.plan_global_blocked = data.global_blocked;
+    }
+    renderPlanUsage(sessionUser);
+
+    if (data.global_blocked && !planNoticeShown.global) {
+      planNoticeShown.global = true;
+      showNotice('Free tracking is temporarily at capacity this month.', 'Tracking paused for Free');
+    } else if (data.at_limit && !planNoticeShown.atLimit) {
+      planNoticeShown.atLimit = true;
+      showNotice(
+        `You reached your monthly tracking limit (${data.tracked_email_count_current_month} of ${data.monthly_tracked_email_limit}). Upgrade to keep tracking new updates this month.`,
+        'Tracking limit reached'
+      );
+    }
+  } catch (err) {
+    if (DEBUG_APP) {
+      // eslint-disable-next-line no-console
+      console.debug('[plan] refresh failed', err);
+    }
+  }
 }
 
 function accountPasswordErrorMessage(code) {
@@ -4126,6 +4171,7 @@ async function loadSession() {
   syncAccountAvatarIdentity(sessionUser);
   updateFilterSummary();
   addToggle?.setAttribute('aria-expanded', 'false');
+  void refreshPlanUsage();
 
   setView('dashboard');
 
@@ -7837,6 +7883,7 @@ function route() {
   } else if (routeKey === 'account') {
     setView('account');
     renderAccountPanel();
+    void refreshPlanUsage();
     if (isInternalGmailMode()) {
       void refreshEmailStatus();
     } else {
@@ -7855,6 +7902,7 @@ function route() {
     } else {
       void refreshInboundStatus({ ensureAddress: true });
     }
+    void refreshPlanUsage();
     void loadActiveApplications().catch((err) => {
       const authFailure = err?.status === 401 || err?.message === 'AUTH_REQUIRED';
       if (authFailure) {
@@ -7959,8 +8007,13 @@ async function requestUpgrade() {
       sessionUser = res.user;
       renderAccountPanel(sessionUser);
       showNotice('Pro plan activated for your account.', 'Upgrade');
+      await refreshPlanUsage();
     }
   } catch (err) {
+    if (err?.status === 403) {
+      showNotice('Upgrade requires billing setup and is currently disabled.', 'Upgrade');
+      return;
+    }
     showNotice('Unable to start upgrade right now.', 'Upgrade');
   }
 }
