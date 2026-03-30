@@ -291,19 +291,26 @@ const accountPlanProgress = document.getElementById('account-plan-progress');
 const accountPlanWarning = document.getElementById('account-plan-warning');
 const accountUpgradeButton = document.getElementById('account-upgrade-button');
 const accountPlanDetails = document.getElementById('account-plan-details');
-const adminAnalyticsSection = document.getElementById('admin-analytics-section');
-const adminKpiTotalUsers = document.getElementById('admin-kpi-total-users');
-const adminKpiProUsers = document.getElementById('admin-kpi-pro-users');
-const adminKpiFreeUsers = document.getElementById('admin-kpi-free-users');
-const adminKpiTotalApps = document.getElementById('admin-kpi-total-apps');
-const adminKpiMonthEmails = document.getElementById('admin-kpi-month-emails');
-const adminKpiTodayEmails = document.getElementById('admin-kpi-today-emails');
-const adminKpiWeekEmails = document.getElementById('admin-kpi-week-emails');
-const adminKpiNewUsers = document.getElementById('admin-kpi-new-users');
-const adminMetricSelect = document.getElementById('analytics-metric-select');
-const adminRangeSelect = document.getElementById('analytics-range-select');
-const adminChartSvg = document.getElementById('analytics-chart');
-const adminChartHint = document.getElementById('analytics-chart-hint');
+let adminEls = null;
+function ensureAdminElements() {
+  if (adminEls) return adminEls;
+  adminEls = {
+    section: document.getElementById('admin-analytics-section'),
+    kpiTotalUsers: document.getElementById('admin-kpi-total-users'),
+    kpiProUsers: document.getElementById('admin-kpi-pro-users'),
+    kpiFreeUsers: document.getElementById('admin-kpi-free-users'),
+    kpiTotalApps: document.getElementById('admin-kpi-total-apps'),
+    kpiMonthEmails: document.getElementById('admin-kpi-month-emails'),
+    kpiTodayEmails: document.getElementById('admin-kpi-today-emails'),
+    kpiWeekEmails: document.getElementById('admin-kpi-week-emails'),
+    kpiNewUsers: document.getElementById('admin-kpi-new-users'),
+    metricSelect: document.getElementById('analytics-metric-select'),
+    rangeSelect: document.getElementById('analytics-range-select'),
+    chartSvg: document.getElementById('analytics-chart'),
+    chartHint: document.getElementById('analytics-chart-hint')
+  };
+  return adminEls;
+}
 
 const quickAdd = null;
 const addToggle = document.getElementById('add-toggle');
@@ -3764,6 +3771,9 @@ function setView(view) {
     accountAvatar.classList.toggle('hidden', !isAuthed);
     accountAvatar.classList.toggle('active', view === 'account');
   }
+  if (view === 'account') {
+    updateAdminAnalyticsVisibility();
+  }
   closeProfileMenu();
 
   if (nav) {
@@ -3937,20 +3947,24 @@ function isAdminClient(user = sessionUser) {
 
 function renderAdminKpis(summary) {
   if (!summary) return;
+  const els = ensureAdminElements();
   const setVal = (el, value) => {
     if (el) el.textContent = Number.isFinite(value) ? value.toLocaleString() : '—';
   };
-  setVal(adminKpiTotalUsers, summary.total_users);
-  setVal(adminKpiProUsers, summary.pro_users);
-  setVal(adminKpiFreeUsers, summary.free_users);
-  setVal(adminKpiTotalApps, summary.total_applications);
-  setVal(adminKpiMonthEmails, summary.tracked_emails_month);
-  setVal(adminKpiTodayEmails, summary.tracked_emails_today);
-  setVal(adminKpiWeekEmails, summary.tracked_emails_week);
-  setVal(adminKpiNewUsers, summary.new_users_month);
+  setVal(els.kpiTotalUsers, summary.total_users);
+  setVal(els.kpiProUsers, summary.pro_users);
+  setVal(els.kpiFreeUsers, summary.free_users);
+  setVal(els.kpiTotalApps, summary.total_applications);
+  setVal(els.kpiMonthEmails, summary.tracked_emails_month);
+  setVal(els.kpiTodayEmails, summary.tracked_emails_today);
+  setVal(els.kpiWeekEmails, summary.tracked_emails_week);
+  setVal(els.kpiNewUsers, summary.new_users_month);
 }
 
 function renderAdminChart(trend) {
+  const els = ensureAdminElements();
+  const adminChartSvg = els.chartSvg;
+  const adminChartHint = els.chartHint;
   if (!adminChartSvg || !adminChartHint) return;
   const points = Array.isArray(trend?.points) ? trend.points : [];
   if (!points.length) {
@@ -4028,12 +4042,14 @@ async function loadAdminAnalyticsSummary() {
 
 async function loadAdminTrend(metric = adminTrendState.metric, range = adminTrendState.range) {
   try {
-    adminChartHint.textContent = 'Loading trend…';
+    const els = ensureAdminElements();
+    if (els.chartHint) els.chartHint.textContent = 'Loading trend…';
     const trend = await api(`/api/admin/analytics/trends?metric=${encodeURIComponent(metric)}&range=${encodeURIComponent(range)}`);
     adminTrendState = { ...adminTrendState, metric, range, points: trend.points || [] };
     renderAdminChart(trend);
   } catch (err) {
-    adminChartHint.textContent = 'Unable to load trend.';
+    const els = ensureAdminElements();
+    if (els.chartHint) els.chartHint.textContent = 'Unable to load trend.';
     if (DEBUG_APP) {
       // eslint-disable-next-line no-console
       console.debug('[admin-analytics] trend failed', err);
@@ -4042,9 +4058,13 @@ async function loadAdminTrend(metric = adminTrendState.metric, range = adminTren
 }
 
 function updateAdminAnalyticsVisibility() {
-  if (!adminAnalyticsSection) return;
+  const els = ensureAdminElements();
+  if (!els.section) return;
   const isAdmin = isAdminClient(sessionUser);
-  adminAnalyticsSection.classList.toggle('hidden', !isAdmin);
+  els.section.classList.toggle('hidden', !isAdmin);
+  if (isAdmin) {
+    els.section.style.display = 'block';
+  }
   if (isAdmin && !adminAnalyticsLoaded) {
     adminAnalyticsLoaded = true;
     void loadAdminAnalyticsSummary();
@@ -9015,15 +9035,17 @@ emailDisconnect?.addEventListener('click', async () => {
 });
 
 adminMetricSelect?.addEventListener('change', async () => {
-  const metric = adminMetricSelect.value;
+  const els = ensureAdminElements();
+  const metric = (els.metricSelect || adminMetricSelect)?.value || adminTrendState.metric;
   adminTrendState.metric = metric;
-  await loadAdminTrend(metric, adminRangeSelect?.value || '30d');
+  await loadAdminTrend(metric, (els.rangeSelect || adminRangeSelect)?.value || '30d');
 });
 
 adminRangeSelect?.addEventListener('change', async () => {
-  const range = adminRangeSelect.value;
+  const els = ensureAdminElements();
+  const range = (els.rangeSelect || adminRangeSelect)?.value || adminTrendState.range;
   adminTrendState.range = range;
-  await loadAdminTrend(adminMetricSelect?.value || adminTrendState.metric, range);
+  await loadAdminTrend((els.metricSelect || adminMetricSelect)?.value || adminTrendState.metric, range);
 });
 
 emailSync?.addEventListener('click', async () => {
