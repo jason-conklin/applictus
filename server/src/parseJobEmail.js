@@ -87,6 +87,20 @@ function parseGeneric({ subject, text }) {
     }
   }
 
+  // Phrase-based company extraction for rejection-style emails
+  if (!companyRaw) {
+    const interestMatch = body.match(/interest in (?:employment with|employment at|joining|with)\s+([A-Z][A-Za-z0-9&.' -]{1,80})(?=[.,\n]|$)/i);
+    if (interestMatch && interestMatch[1]) {
+      companyRaw = interestMatch[1].trim();
+      candidates.company.push(companyRaw);
+      notes.push('company_phrase:interest_in_employment');
+    }
+  }
+
+  if (companyRaw) {
+    companyRaw = companyRaw.replace(/^employment with\s+/i, '').replace(/^with\s+/i, '').trim();
+  }
+
   const statusSignal = detectStatusSignal({
     subject: subj,
     text: body,
@@ -163,19 +177,35 @@ async function parseJobEmail(payload = {}) {
     notes.push('company_preferred:body_logo_line');
   }
 
-  if (!parsed?.status) {
-    const fallbackStatus = detectStatusSignal({
-      subject: input.subject,
-      text: input.text,
-      company: companyCandidate,
-      role: roleCandidate,
-      defaultStatus: 'applied'
-    });
-    parsed.status = fallbackStatus.status;
-    if (!parsed?.debug || typeof parsed.debug !== 'object') {
-      parsed.debug = {};
-    }
-    parsed.debug.status_source = parsed.debug.status_source || fallbackStatus.source || 'fallback';
+  const statusSignal = detectStatusSignal({
+    subject: input.subject,
+    text: input.text,
+    company: companyCandidate,
+    role: roleCandidate,
+    defaultStatus: 'applied'
+  });
+
+  if (!parsed?.debug || typeof parsed.debug !== 'object') {
+    parsed.debug = {};
+  }
+
+  // Status priority and safety overrides
+  const currentStatus = parsed?.status;
+  if (statusSignal.status === 'rejected' && currentStatus !== 'rejected') {
+    parsed.status = 'rejected';
+    parsed.debug.status_override_reason = 'rejection_phrase_override';
+    parsed.debug.status_source = statusSignal.source || parsed.debug.status_source || 'rejection_phrase';
+  } else if (
+    currentStatus === 'interview_requested' &&
+    statusSignal.status === 'applied'
+  ) {
+    // Prevent false interview upgrades when strong applied signals are present.
+    parsed.status = 'applied';
+    parsed.debug.status_override_reason = 'applied_phrase_preferred';
+    parsed.debug.status_source = statusSignal.source || parsed.debug.status_source || 'applied_phrase';
+  } else if (!currentStatus) {
+    parsed.status = statusSignal.status;
+    parsed.debug.status_source = statusSignal.source || parsed.debug.status_source || 'fallback';
   }
 
   if (matchedHint?.company_override) {
@@ -196,6 +226,9 @@ async function parseJobEmail(payload = {}) {
     role: roleCandidate,
     notes
   });
+  if (validation.company && /^employment with\s+/i.test(validation.company)) {
+    validation.company = validation.company.replace(/^employment with\s+/i, '').trim();
+  }
   if (
     validation.company &&
     validation.role &&
@@ -222,7 +255,11 @@ async function parseJobEmail(payload = {}) {
   const confidence = {
     company: overrideCompany ? 95 : Number(parsed?.confidence?.company || 0),
     role: overrideRole ? 95 : Number(parsed?.confidence?.role || 0),
-    status: overrideStatus ? 95 : Number(parsed?.confidence?.status || 0),
+    status: overrideStatus
+      ? 95
+      : parsed.status === statusSignal.status
+        ? Number(statusSignal.confidence || parsed?.confidence?.status || 0)
+        : Number(parsed?.confidence?.status || statusSignal.confidence || 0),
     key: appKeyPayload
       ? Math.max(
           Number(parsed?.confidence?.key || 0),

@@ -2,22 +2,31 @@ const REJECTION_SIGNAL_PATTERNS = [
   { pattern: /\bwe regret to inform you\b/i, label: 'we regret to inform you' },
   { pattern: /\bwill not be taking your application further\b/i, label: 'will not be taking your application further' },
   { pattern: /\bwill not be moving forward\b/i, label: 'will not be moving forward' },
-  { pattern: /\bnot moving forward with your application\b/i, label: 'not moving forward with your application' },
+  { pattern: /\bare not moving forward\b/i, label: 'are not moving forward' },
+  { pattern: /\bnot moving forward with your (?:application|candidacy)\b/i, label: 'not moving forward with your candidacy' },
   { pattern: /\bwe will not be progressing\b/i, label: 'we will not be progressing' },
   { pattern: /\bafter careful consideration\b/i, label: 'after careful consideration' },
   { pattern: /\bnot selected\b/i, label: 'not selected' },
   { pattern: /\bunfortunately\b/i, label: 'unfortunately' },
   { pattern: /\bpursue other candidates\b/i, label: 'pursue other candidates' },
-  { pattern: /\bunable to move forward\b/i, label: 'unable to move forward' }
+  { pattern: /\bunable to move forward\b/i, label: 'unable to move forward' },
+  { pattern: /\bwish you continued career success\b/i, label: 'wish you continued career success' },
+  { pattern: /\bwish you success in your job search\b/i, label: 'wish you success in your job search' }
 ];
 
+// Interview detection must be explicit; generic CTAs should not match.
 const INTERVIEW_SIGNAL_PATTERNS = [
-  { pattern: /\bwe(?:'d| would) like to schedule\b/i, label: 'schedule_interview' },
-  { pattern: /\bare you available\b/i, label: 'availability_request' },
   { pattern: /\binterview\b/i, label: 'interview_keyword' },
+  { pattern: /\bwe(?:'d| would)? like to schedule\b/i, label: 'schedule_interview' },
+  { pattern: /\bschedule (?:a )?(call|chat|meeting|time)\b/i, label: 'schedule_time' },
+  { pattern: /\bselect (?:a )?(time|slot)\b/i, label: 'select_time_slot' },
   { pattern: /\btime slots?\b/i, label: 'time_slots' },
+  { pattern: /\bavailability\b/i, label: 'availability' },
   { pattern: /\bphone screen\b/i, label: 'phone_screen' },
-  { pattern: /\bnext steps?\b/i, label: 'next_steps' },
+  { pattern: /\bcalendar\b/i, label: 'calendar' },
+  { pattern: /\bwould like to speak with you\b/i, label: 'speak_with_you' },
+  { pattern: /\binvite you to interview\b/i, label: 'invite_to_interview' },
+  { pattern: /\bbook (?:a )?time\b/i, label: 'book_time' },
   { pattern: /\blet'?s connect\b/i, label: 'lets_connect' }
 ];
 
@@ -128,7 +137,8 @@ function detectStatusSignal({
     const hasContext = Boolean(
       (company && cleanLine(company)) ||
       (role && cleanLine(role)) ||
-      JOB_CONTEXT_PATTERN.test(corpus)
+      JOB_CONTEXT_PATTERN.test(corpus) ||
+      /\binterview\b/i.test(corpus)
     );
     if (hasContext && !digestVeto) {
       return {

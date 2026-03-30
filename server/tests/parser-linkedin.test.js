@@ -26,6 +26,7 @@ test('linkedin parser rejects CTA link and picks real role (Robert Half bug)', a
   );
   assert.ok(ctaCandidate);
   assert.equal(ctaCandidate.rejected, true);
+  assert.equal(parsed.status, 'applied');
 });
 
 test('linkedin parser extracts Dexian quick-apply role with hyphen company/location separator', async () => {
