@@ -152,6 +152,7 @@ const VALID_STATUSES = new Set(Object.values(ApplicationStatus));
 const CSRF_HEADER = 'x-csrf-token';
 const INBOUND_SECRET_HEADER = 'x-applictus-inbound-secret';
 const CSRF_TTL_MS = 2 * 60 * 60 * 1000;
+const PLAN_ADMIN_SECRET = process.env.PLAN_ADMIN_SECRET || null;
 const AUTH_DB_TIMEOUT_MS = 2_000;
 const DB_HEALTH_TIMEOUT_MS = 2_000;
 const preauthCsrfStore = new Map();
@@ -910,7 +911,12 @@ function toSessionUserPayload(user) {
     has_password: Boolean(user.password_hash),
     inbox_username: user.inbox_username || null,
     inbox_mode: inboxMode,
-    gmail_internal_enabled: inboxMode === 'gmail'
+    gmail_internal_enabled: inboxMode === 'gmail',
+    plan_tier: user.plan_tier || 'free',
+    plan_status: user.plan_status || 'active',
+    plan_limit: user.monthly_tracked_email_limit || null,
+    plan_usage: user.tracked_email_count_current_month || 0,
+    plan_bucket: user.tracked_email_month_bucket || null
   };
 }
 
@@ -2785,6 +2791,39 @@ app.post('/api/account/inbox-username', requireAuth, async (req, res) => {
       detail: err?.message ? String(err.message).slice(0, 220) : String(err)
     });
     return res.status(500).json({ error: 'INBOX_USERNAME_UPDATE_FAILED' });
+  }
+});
+
+// Placeholder upgrade endpoint (no billing provider wired yet)
+app.post('/api/account/plan/upgrade', requireAuth, async (req, res) => {
+  try {
+    updateUserPlan(db, { userId: req.user.id, tier: 'pro', status: 'active' });
+    const refreshed = await getUserById(req.user.id);
+    return res.json({ ok: true, user: toSessionUserPayload(refreshed) });
+  } catch (err) {
+    logError('plan.upgrade.failed', { userId: req.user?.id, error: err?.message || String(err) });
+    return res.status(500).json({ error: 'PLAN_UPGRADE_FAILED' });
+  }
+});
+
+// Dev/admin-only plan setter, gated by PLAN_ADMIN_SECRET header
+app.post('/api/account/plan/dev-set', async (req, res) => {
+  try {
+    if (!PLAN_ADMIN_SECRET || req.headers['x-plan-admin'] !== PLAN_ADMIN_SECRET) {
+      return res.status(403).json({ error: 'FORBIDDEN' });
+    }
+    const userId = req.body?.user_id || req.body?.userId;
+    const tier = req.body?.tier || 'pro';
+    const status = req.body?.status || 'active';
+    if (!userId) {
+      return res.status(400).json({ error: 'USER_ID_REQUIRED' });
+    }
+    updateUserPlan(db, { userId, tier, status });
+    const refreshed = await getUserById(userId);
+    return res.json({ ok: true, user: toSessionUserPayload(refreshed) });
+  } catch (err) {
+    logError('plan.dev_set.failed', { error: err?.message || String(err) });
+    return res.status(500).json({ error: 'PLAN_SET_FAILED' });
   }
 });
 

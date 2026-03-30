@@ -277,6 +277,12 @@ const accountInboxUsernameSuggestions = document.getElementById('account-inbox-u
 const contactForm = document.getElementById('contact-form');
 const contactError = document.getElementById('contact-error');
 const contactSuccess = document.getElementById('contact-success');
+const accountPlanName = document.getElementById('account-plan-name');
+const accountPlanUsage = document.getElementById('account-plan-usage');
+const accountPlanProgress = document.getElementById('account-plan-progress');
+const accountPlanWarning = document.getElementById('account-plan-warning');
+const accountUpgradeButton = document.getElementById('account-upgrade-button');
+const accountPlanDetails = document.getElementById('account-plan-details');
 
 const quickAdd = null;
 const addToggle = document.getElementById('add-toggle');
@@ -426,6 +432,10 @@ const rcPreviewBlock = document.getElementById('rc-preview-block');
 const rcPreviewText = document.getElementById('rc-preview-text');
 
 let sessionUser = null;
+const PLAN_LIMITS = {
+  free: 75,
+  pro: 500
+};
 let currentDetail = null;
 let csrfToken = null;
 const PAGE_SIZE = 25;
@@ -3811,6 +3821,7 @@ function renderAccountPanel(user = sessionUser) {
       : 'Set a password to sign in without Google.';
   }
   renderAccountInboxUsernamePrompt({ checkAvailability: true });
+  renderPlanUsage(user);
 }
 
 let accountPasswordHintTimer = null;
@@ -3829,6 +3840,133 @@ function flashAccountPasswordHint(message, { success = false } = {}) {
     renderAccountPanel();
     accountPasswordHintTimer = null;
   }, 5000);
+}
+
+function getPlanLimitForUser(user = sessionUser) {
+  if (!user) return PLAN_LIMITS.free;
+  if (Number.isFinite(user.plan_limit) && user.plan_limit > 0) {
+    return user.plan_limit;
+  }
+  const tier = String(user.plan_tier || 'free').toLowerCase();
+  return PLAN_LIMITS[tier] || PLAN_LIMITS.free;
+}
+
+function renderPlanUsage(user = sessionUser) {
+  if (!accountPlanName || !accountPlanUsage || !accountPlanProgress) {
+    return;
+  }
+  if (!user) {
+    accountPlanName.textContent = 'Free';
+    accountPlanUsage.textContent = '—';
+    accountPlanProgress.style.width = '0%';
+    accountPlanWarning.textContent = '';
+    return;
+  }
+  const tier = String(user.plan_tier || 'free').toLowerCase();
+  const limit = getPlanLimitForUser(user);
+  const usage = Number(user.plan_usage || 0);
+  accountPlanName.textContent = tier === 'pro' ? 'Pro' : 'Free';
+  accountPlanUsage.textContent = `${usage} / ${limit} tracked emails this month`;
+  const ratio = limit > 0 ? Math.min(1, usage / limit) : 0;
+  accountPlanProgress.style.width = `${Math.round(ratio * 100)}%`;
+  let warning = '';
+  if (limit > 0) {
+    if (ratio >= 1) {
+      warning = 'You reached your monthly tracking limit. Upgrade to continue tracking new updates.';
+    } else if (ratio >= 0.8) {
+      warning = `You have used ${usage} of ${limit}. Consider upgrading to Pro.`;
+    }
+  }
+  accountPlanWarning.textContent = warning;
+  if (accountUpgradeButton) {
+    accountUpgradeButton.disabled = tier === 'pro';
+    accountUpgradeButton.textContent = tier === 'pro' ? 'Pro active' : 'Upgrade to Pro';
+  }
+}
+
+function buildPlanCard({ title, price, limit, features, ctaText, tier }) {
+  const card = document.createElement('div');
+  card.className = 'plan-card';
+  const pill = document.createElement('div');
+  pill.className = 'plan-pill';
+  pill.textContent = tier === 'pro' ? 'Most popular' : 'Included';
+  const h4 = document.createElement('h4');
+  h4.textContent = title;
+  const priceEl = document.createElement('div');
+  priceEl.className = 'plan-price';
+  priceEl.textContent = price;
+  const limitEl = document.createElement('div');
+  limitEl.className = 'muted small';
+  limitEl.textContent = `${limit} tracked emails / month`;
+  const ul = document.createElement('ul');
+  ul.className = 'plan-features';
+  features.forEach((feat) => {
+    const li = document.createElement('li');
+    li.textContent = feat;
+    ul.appendChild(li);
+  });
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = tier === 'pro' ? 'btn btn--primary btn--sm' : 'btn btn--ghost btn--sm';
+  btn.textContent = ctaText;
+  btn.addEventListener('click', () => {
+    if (tier === 'pro') {
+      requestUpgrade();
+    } else {
+      closeModal('confirm');
+    }
+  });
+  card.append(pill, h4, priceEl, limitEl, ul, btn);
+  return card;
+}
+
+function openPricingModal() {
+  const container = document.createElement('div');
+  container.className = 'plan-card-grid';
+  const freeCard = buildPlanCard({
+    title: 'Free',
+    price: '$0 / month',
+    limit: PLAN_LIMITS.free,
+    features: [
+      'Automatic tracking',
+      'Application timelines',
+      'Dashboard updates'
+    ],
+    ctaText: 'Stay on Free',
+    tier: 'free'
+  });
+  const proCard = buildPlanCard({
+    title: 'Pro',
+    price: '$4 / month',
+    limit: PLAN_LIMITS.pro,
+    features: [
+      'Up to 500 tracked emails / month',
+      'Everything in Free',
+      'Higher limits for active searches'
+    ],
+    ctaText: 'Upgrade to Pro',
+    tier: 'pro'
+  });
+  container.append(freeCard, proCard);
+
+  const body = document.createElement('div');
+  body.appendChild(container);
+  const footer = document.createElement('div');
+  footer.className = 'modal-footer-actions';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'btn btn--ghost btn--sm';
+  closeBtn.textContent = 'Close';
+  closeBtn.addEventListener('click', () => closeModal('cancel'));
+  footer.appendChild(closeBtn);
+
+  openModal({
+    title: 'Pricing',
+    description: 'Fair, transparent plans. Upgrade when you need more volume.',
+    body,
+    footer,
+    allowBackdropClose: true
+  });
 }
 
 function accountPasswordErrorMessage(code) {
@@ -7810,6 +7948,22 @@ googleAuth?.addEventListener('click', () => {
   }
   window.location.href = target;
 });
+
+accountUpgradeButton?.addEventListener('click', openPricingModal);
+accountPlanDetails?.addEventListener('click', openPricingModal);
+
+async function requestUpgrade() {
+  try {
+    const res = await api('/api/account/plan/upgrade', { method: 'POST' });
+    if (res?.user) {
+      sessionUser = res.user;
+      renderAccountPanel(sessionUser);
+      showNotice('Pro plan activated for your account.', 'Upgrade');
+    }
+  } catch (err) {
+    showNotice('Unable to start upgrade right now.', 'Upgrade');
+  }
+}
 
 if (loginForm && !loginForm.dataset.bound) {
   loginForm.dataset.bound = '1';

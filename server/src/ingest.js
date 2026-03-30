@@ -25,6 +25,7 @@ const { shouldSuppressEmail } = require('./suppressEmail');
 const { parseJobEmail } = require('./parseJobEmail');
 const { extractForwardedOriginalMessage } = require('./forwardedMessage');
 const { buildApplicationKey: buildDeterministicApplicationKey } = require('./applicationKey');
+const { applyTrackedEmailUsage } = require('./planUsage');
 const {
   normalizeCompany: normalizeValidatedCompany,
   normalizeRole: normalizeValidatedRole
@@ -77,7 +78,9 @@ const REASON_KEYS = [
   'duplicate_rfc_message_id',
   'matched_existing',
   'auto_created',
-  'unsorted_created'
+  'unsorted_created',
+  'plan_limit_reached',
+  'global_cap_reached'
 ];
 
 const HIGH_SIGNAL_TYPES = new Set([
@@ -1316,6 +1319,38 @@ async function syncGmailMessages({
       }
       if (classification.detectedType === 'rejection') {
         classifiedRejection += 1;
+      }
+
+      const usageResult = applyTrackedEmailUsage(db, {
+        userId,
+        isJobRelated: true,
+        newEvent: !shouldReprocessLinkedInDuplicate
+      });
+
+      if (!usageResult.allowed) {
+        const reasonCode = usageResult.reason === 'global_cap_reached'
+          ? 'global_cap_reached'
+          : 'plan_limit_reached';
+        reasons[reasonCode] = (reasons[reasonCode] || 0) + 1;
+        skippedNotJob += 1;
+        await recordSkipSample({
+          db,
+          userId,
+          provider: 'gmail',
+          messageId: message.id,
+          sender,
+          subject,
+          reasonCode
+        });
+        fetched += 1;
+        logDebug('ingest.plan_limit_block', {
+          userId,
+          messageId: message.id,
+          reason: usageResult.reason,
+          plan: usageResult.plan || null,
+          global: usageResult.global || null
+        });
+        continue;
       }
 
       setSyncProgress(syncId, {
@@ -3120,6 +3155,52 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
           )
           .get(userId, 'inbound_forward', messageId)
       );
+
+      const usageResult = applyTrackedEmailUsage(db, {
+        userId,
+        isJobRelated: true,
+        newEvent: !existingEvent
+      });
+
+      if (!usageResult.allowed) {
+        const reasonCode = usageResult.reason === 'global_cap_reached'
+          ? 'global_cap_reached'
+          : 'plan_limit_reached';
+        reasons[reasonCode] = (reasons[reasonCode] || 0) + 1;
+        ignored += 1;
+        const processedAt = new Date().toISOString();
+        debugMeta.suppression = {
+          applied: true,
+          reason: reasonCode
+        };
+        await awaitMaybe(
+          db
+            .prepare(
+              `UPDATE inbound_messages
+               SET processing_status = 'ignored',
+                   processed_at = ?,
+                   processing_error = ?,
+                   derived_debug_json = ?
+               WHERE id = ?`
+            )
+            .run(processedAt, reasonCode, encodeDebugJson(db, debugMeta), row.id)
+        );
+        lastProcessedAt = processedAt;
+        if (errorSamples.length < 5) {
+          errorSamples.push({
+            subject: truncateSnippet(subject, 96) || '(no subject)',
+            reason: reasonCode
+          });
+        }
+        logDebug('ingest.plan_limit_block', {
+          userId,
+          messageId,
+          reason: usageResult.reason,
+          plan: usageResult.plan || null,
+          global: usageResult.global || null
+        });
+        continue;
+      }
 
       if (existingEvent?.id) {
         eventPayload.id = existingEvent.id;
