@@ -3978,6 +3978,26 @@ async function adminFetchJson(path) {
   }
 }
 
+async function ensureAdminSession() {
+  try {
+    const data = await api('/api/auth/session');
+    if (data?.user) {
+      sessionUser = data.user;
+      return true;
+    }
+  } catch (err) {
+    const els = ensureAdminElements();
+    if (els.statusText) {
+      const code = err?.code || err?.status || 'error';
+      els.statusText.textContent = `Admin session required (${code}). Please sign in on this host.`;
+    }
+    if (els.chartHint) {
+      els.chartHint.textContent = 'Sign in to view admin analytics.';
+    }
+  }
+  return false;
+}
+
 function isAdminClient(user = sessionUser) {
   if (!user) return false;
   const email = normalizeEmailClient(user.email);
@@ -4148,13 +4168,13 @@ function updateAdminAnalyticsVisibility() {
   els.section.style.display = isAdmin ? '' : 'none';
   els.section.setAttribute('aria-hidden', isAdmin ? 'false' : 'true');
   if (isAdmin) {
-    void loadAdminAnalyticsSummary().then((ok) => {
-      if (!ok) adminAnalyticsLoaded = false;
-    });
-    void loadAdminTrend().then((ok) => {
-      if (!ok) adminAnalyticsLoaded = false;
-    });
-    adminAnalyticsLoaded = true;
+    void (async () => {
+      const authed = await ensureAdminSession();
+      if (!authed) return;
+      const okSummary = await loadAdminAnalyticsSummary();
+      const okTrend = await loadAdminTrend();
+      adminAnalyticsLoaded = okSummary && okTrend;
+    })();
   }
 }
 
