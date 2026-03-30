@@ -77,6 +77,10 @@ const RESERVED_INBOX_USERNAMES = new Set([
   'security',
   'billing'
 ]);
+const ADMIN_EMAIL_ALLOWLIST = new Set([
+  'jasonconklin.dev@gmail.com',
+  'shaneconklin14@gmail.com'
+]);
 
 function apiUrl(path) {
   if (!path) return API_BASE_URL || '';
@@ -182,6 +186,10 @@ function getStatusBandTone(status) {
   return 'unknown';
 }
 
+function normalizeEmailClient(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 function normalizeModalStatusValue(status) {
   const normalized = normalizeStatusValue(status);
   // Keep modal statuses intentionally compact and stable:
@@ -283,6 +291,19 @@ const accountPlanProgress = document.getElementById('account-plan-progress');
 const accountPlanWarning = document.getElementById('account-plan-warning');
 const accountUpgradeButton = document.getElementById('account-upgrade-button');
 const accountPlanDetails = document.getElementById('account-plan-details');
+const adminAnalyticsSection = document.getElementById('admin-analytics-section');
+const adminKpiTotalUsers = document.getElementById('admin-kpi-total-users');
+const adminKpiProUsers = document.getElementById('admin-kpi-pro-users');
+const adminKpiFreeUsers = document.getElementById('admin-kpi-free-users');
+const adminKpiTotalApps = document.getElementById('admin-kpi-total-apps');
+const adminKpiMonthEmails = document.getElementById('admin-kpi-month-emails');
+const adminKpiTodayEmails = document.getElementById('admin-kpi-today-emails');
+const adminKpiWeekEmails = document.getElementById('admin-kpi-week-emails');
+const adminKpiNewUsers = document.getElementById('admin-kpi-new-users');
+const adminMetricSelect = document.getElementById('analytics-metric-select');
+const adminRangeSelect = document.getElementById('analytics-range-select');
+const adminChartSvg = document.getElementById('analytics-chart');
+const adminChartHint = document.getElementById('analytics-chart-hint');
 
 const quickAdd = null;
 const addToggle = document.getElementById('add-toggle');
@@ -3827,6 +3848,7 @@ function renderAccountPanel(user = sessionUser) {
   }
   renderAccountInboxUsernamePrompt({ checkAvailability: true });
   renderPlanUsage(user);
+  updateAdminAnalyticsVisibility();
 }
 
 let accountPasswordHintTimer = null;
@@ -3894,6 +3916,136 @@ function renderPlanUsage(user = sessionUser) {
   if (accountUpgradeButton) {
     accountUpgradeButton.disabled = tier === 'pro';
     accountUpgradeButton.textContent = tier === 'pro' ? 'Pro active' : 'Upgrade to Pro';
+  }
+}
+
+let adminAnalyticsLoaded = false;
+let adminTrendState = {
+  metric: 'tracked_emails',
+  range: '30d',
+  points: []
+};
+
+function isAdminClient(user = sessionUser) {
+  if (!user) return false;
+  const email = normalizeEmailClient(user.email);
+  return ADMIN_EMAIL_ALLOWLIST.has(email);
+}
+
+function renderAdminKpis(summary) {
+  if (!summary) return;
+  const setVal = (el, value) => {
+    if (el) el.textContent = Number.isFinite(value) ? value.toLocaleString() : '—';
+  };
+  setVal(adminKpiTotalUsers, summary.total_users);
+  setVal(adminKpiProUsers, summary.pro_users);
+  setVal(adminKpiFreeUsers, summary.free_users);
+  setVal(adminKpiTotalApps, summary.total_applications);
+  setVal(adminKpiMonthEmails, summary.tracked_emails_month);
+  setVal(adminKpiTodayEmails, summary.tracked_emails_today);
+  setVal(adminKpiWeekEmails, summary.tracked_emails_week);
+  setVal(adminKpiNewUsers, summary.new_users_month);
+}
+
+function renderAdminChart(trend) {
+  if (!adminChartSvg || !adminChartHint) return;
+  const points = Array.isArray(trend?.points) ? trend.points : [];
+  if (!points.length) {
+    adminChartSvg.innerHTML = '';
+    adminChartHint.textContent = 'No data for this range.';
+    return;
+  }
+  const numericPoints = points.map((p, idx) => ({
+    x: idx,
+    label: p.bucket,
+    value: Number(p.value || 0)
+  }));
+  const maxVal = Math.max(...numericPoints.map((p) => p.value), 1);
+  const width = adminChartSvg.clientWidth || 640;
+  const height = 240;
+  const pad = 26;
+  const plotW = width - pad * 2;
+  const plotH = height - pad * 2;
+  const path = [];
+  const circles = [];
+  numericPoints.forEach((pt, idx) => {
+    const x = pad + (plotW * idx) / Math.max(1, numericPoints.length - 1);
+    const y = pad + plotH - (pt.value / maxVal) * plotH;
+    path.push(`${idx === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`);
+    circles.push(`<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="3" fill="#2d5cff" opacity="0.9"></circle>`);
+  });
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => ({
+    y: pad + plotH - ratio * plotH,
+    label: Math.round(maxVal * ratio)
+  }));
+  const xLabels = [numericPoints[0], numericPoints[numericPoints.length - 1]].filter(Boolean);
+  adminChartSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  adminChartSvg.innerHTML = `
+    <g stroke="rgba(20,40,80,0.15)" stroke-width="1">
+      ${yTicks
+        .map(
+          (tick) =>
+            `<line x1="${pad}" y1="${tick.y.toFixed(2)}" x2="${width - pad}" y2="${tick.y.toFixed(
+              2
+            )}" />`
+        )
+        .join('')}
+    </g>
+    <g fill="rgba(20,40,80,0.55)" font-size="10" font-weight="600">
+      ${yTicks
+        .map(
+          (tick) =>
+            `<text x="${pad - 8}" y="${tick.y.toFixed(2)}" text-anchor="end" dominant-baseline="middle">${tick.label.toLocaleString()}</text>`
+        )
+        .join('')}
+      ${
+        xLabels.length
+          ? `<text x="${pad}" y="${height - 6}" text-anchor="start">${xLabels[0].label}</text>
+             <text x="${width - pad}" y="${height - 6}" text-anchor="end">${xLabels[xLabels.length - 1].label}</text>`
+          : ''
+      }
+    </g>
+    <path d="${path.join(' ')}" fill="none" stroke="#2d5cff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+    ${circles.join('')}
+  `;
+  adminChartHint.textContent = `${trend.points.length} data points • ${trend.metric.replace(/_/g, ' ')} (${trend.range})`;
+}
+
+async function loadAdminAnalyticsSummary() {
+  try {
+    const summary = await api('/api/admin/analytics/summary');
+    renderAdminKpis(summary);
+  } catch (err) {
+    if (DEBUG_APP) {
+      // eslint-disable-next-line no-console
+      console.debug('[admin-analytics] summary failed', err);
+    }
+  }
+}
+
+async function loadAdminTrend(metric = adminTrendState.metric, range = adminTrendState.range) {
+  try {
+    adminChartHint.textContent = 'Loading trend…';
+    const trend = await api(`/api/admin/analytics/trends?metric=${encodeURIComponent(metric)}&range=${encodeURIComponent(range)}`);
+    adminTrendState = { ...adminTrendState, metric, range, points: trend.points || [] };
+    renderAdminChart(trend);
+  } catch (err) {
+    adminChartHint.textContent = 'Unable to load trend.';
+    if (DEBUG_APP) {
+      // eslint-disable-next-line no-console
+      console.debug('[admin-analytics] trend failed', err);
+    }
+  }
+}
+
+function updateAdminAnalyticsVisibility() {
+  if (!adminAnalyticsSection) return;
+  const isAdmin = isAdminClient(sessionUser);
+  adminAnalyticsSection.classList.toggle('hidden', !isAdmin);
+  if (isAdmin && !adminAnalyticsLoaded) {
+    adminAnalyticsLoaded = true;
+    void loadAdminAnalyticsSummary();
+    void loadAdminTrend();
   }
 }
 
@@ -8857,6 +9009,18 @@ emailDisconnect?.addEventListener('click', async () => {
     return;
   }
   await disconnectGmailConnection(emailDisconnect);
+});
+
+adminMetricSelect?.addEventListener('change', async () => {
+  const metric = adminMetricSelect.value;
+  adminTrendState.metric = metric;
+  await loadAdminTrend(metric, adminRangeSelect?.value || '30d');
+});
+
+adminRangeSelect?.addEventListener('change', async () => {
+  const range = adminRangeSelect.value;
+  adminTrendState.range = range;
+  await loadAdminTrend(adminMetricSelect?.value || adminTrendState.metric, range);
 });
 
 emailSync?.addEventListener('click', async () => {

@@ -842,6 +842,44 @@ function isInternalGmailUser(userOrEmail) {
   return getInternalGmailUsersAllowlist().has(email);
 }
 
+function isInternalAdminUser(userOrEmail) {
+  return isInternalGmailUser(userOrEmail);
+}
+
+async function runPrepared(dbInstance, sql, params = [], mode = 'get') {
+  const stmt = dbInstance.prepare(sql);
+  if (dbInstance.isAsync) {
+    return stmt[mode](...params);
+  }
+  return stmt[mode](...params);
+}
+
+async function readCount(dbInstance, sql, params = []) {
+  const row = await runPrepared(dbInstance, sql, params, 'get');
+  return Number(row?.count || 0);
+}
+
+function getDateFilters(isPg) {
+  return {
+    today: isPg
+      ? "created_at >= (now() at time zone 'utc')::date AND created_at < ((now() at time zone 'utc')::date + interval '1 day')"
+      : "date(created_at) = date('now')",
+    week: isPg
+      ? "created_at >= (now() at time zone 'utc') - interval '6 days'"
+      : "date(created_at) >= date('now','-6 days')",
+    monthBucket: isPg
+      ? "to_char((created_at)::timestamptz at time zone 'utc','YYYY-MM') = $1"
+      : "strftime('%Y-%m', created_at) = ?",
+    monthCutoff: isPg
+      ? "created_at >= (date_trunc('month', (now() at time zone 'utc')) - interval '11 months')"
+      : "strftime('%Y-%m', created_at) >= strftime('%Y-%m', date('now','-11 months'))",
+    daysCutoff: (days) =>
+      isPg
+        ? `created_at >= (now() at time zone 'utc') - interval '${Math.max(0, days - 1)} days'`
+        : `date(created_at) >= date('now','-${Math.max(0, days - 1)} days')`
+  };
+}
+
 function resolveInternalGoogleRedirectUri(req = null) {
   if (req) {
     try {
@@ -2902,6 +2940,147 @@ app.post('/api/account/plan/dev-set', async (req, res) => {
   } catch (err) {
     logError('plan.dev_set.failed', { error: err?.message || String(err) });
     return res.status(500).json({ error: 'PLAN_SET_FAILED' });
+  }
+});
+
+// Admin analytics (internal-only)
+async function buildAdminAnalyticsSummary(dbInstance) {
+  const isPg = !!dbInstance.isAsync;
+  const filters = getDateFilters(isPg);
+  const bucket = currentMonthBucket();
+
+  const totalUsers = await readCount(dbInstance, 'SELECT COUNT(*) AS count FROM users');
+  const proUsers = await readCount(
+    dbInstance,
+    "SELECT COUNT(*) AS count FROM users WHERE lower(COALESCE(plan_tier,'free')) = 'pro'"
+  );
+  const freeUsers = await readCount(
+    dbInstance,
+    "SELECT COUNT(*) AS count FROM users WHERE lower(COALESCE(plan_tier,'free')) = 'free'"
+  );
+  const totalApplications = await readCount(dbInstance, 'SELECT COUNT(*) AS count FROM job_applications');
+
+  const trackedMonth = await readCount(
+    dbInstance,
+    `SELECT COUNT(*) AS count FROM email_events WHERE ingest_decision IS NOT NULL AND ${filters.monthBucket}`,
+    [bucket]
+  );
+  const trackedToday = await readCount(
+    dbInstance,
+    `SELECT COUNT(*) AS count FROM email_events WHERE ingest_decision IS NOT NULL AND ${filters.today}`
+  );
+  const trackedWeek = await readCount(
+    dbInstance,
+    `SELECT COUNT(*) AS count FROM email_events WHERE ingest_decision IS NOT NULL AND ${filters.week}`
+  );
+  const newUsersMonth = await readCount(
+    dbInstance,
+    `SELECT COUNT(*) AS count FROM users WHERE ${filters.monthBucket}`,
+    [bucket]
+  );
+
+  return {
+    total_users: totalUsers,
+    pro_users: proUsers,
+    free_users: freeUsers,
+    total_applications: totalApplications,
+    tracked_emails_month: trackedMonth,
+    tracked_emails_today: trackedToday,
+    tracked_emails_week: trackedWeek,
+    new_users_month: newUsersMonth
+  };
+}
+
+function buildTrendQuery({ metric, range, isPg }) {
+  const rangeKey = range || '30d';
+  const metricKey = metric || 'tracked_emails';
+  const rangeConfig = {
+    '30d': { days: 30, bucket: 'day' },
+    '90d': { days: 90, bucket: 'day' },
+    '12m': { months: 12, bucket: 'month' }
+  }[rangeKey] || { days: 30, bucket: 'day' };
+
+  const filters = getDateFilters(isPg);
+  const bucketExpr =
+    rangeConfig.bucket === 'month'
+      ? isPg
+        ? "to_char((created_at)::timestamptz at time zone 'utc','YYYY-MM')"
+        : "strftime('%Y-%m', created_at)"
+      : isPg
+        ? "to_char((created_at)::timestamptz at time zone 'utc','YYYY-MM-DD')"
+        : 'date(created_at)';
+
+  let table = 'users';
+  let where =
+    rangeConfig.bucket === 'month'
+      ? `WHERE ${filters.monthCutoff}`
+      : `WHERE ${filters.daysCutoff(rangeConfig.days)}`;
+
+  switch (metricKey) {
+    case 'registered_users':
+      table = 'users';
+      break;
+    case 'pro_users':
+      table = 'users';
+      where += " AND lower(COALESCE(plan_tier,'free')) = 'pro'";
+      break;
+    case 'tracked_applications':
+      table = 'job_applications';
+      break;
+    case 'tracked_emails':
+      table = 'email_events';
+      where += ' AND ingest_decision IS NOT NULL';
+      break;
+    case 'new_users':
+    default:
+      table = 'users';
+      break;
+  }
+
+  const sql = `SELECT ${bucketExpr} AS bucket, COUNT(*) AS value FROM ${table} ${where} GROUP BY 1 ORDER BY 1`;
+  return {
+    sql,
+    bucketType: rangeConfig.bucket
+  };
+}
+
+app.get('/api/admin/analytics/summary', requireAuth, async (req, res) => {
+  try {
+    if (!isInternalAdminUser(req.user)) {
+      return res.status(403).json({ error: 'FORBIDDEN' });
+    }
+    const summary = await buildAdminAnalyticsSummary(db);
+    return res.json(summary);
+  } catch (err) {
+    logError('admin.analytics.summary.failed', {
+      userId: req.user?.id || null,
+      error: err?.message || String(err)
+    });
+    return res.status(500).json({ error: 'ANALYTICS_FAILED' });
+  }
+});
+
+app.get('/api/admin/analytics/trends', requireAuth, async (req, res) => {
+  try {
+    if (!isInternalAdminUser(req.user)) {
+      return res.status(403).json({ error: 'FORBIDDEN' });
+    }
+    const metric = String(req.query.metric || 'tracked_emails');
+    const range = String(req.query.range || '30d');
+    const { sql, bucketType } = buildTrendQuery({ metric, range, isPg: !!db.isAsync });
+    const rows = await runPrepared(db, sql, [], 'all');
+    return res.json({
+      metric,
+      range,
+      bucket_type: bucketType,
+      points: rows || []
+    });
+  } catch (err) {
+    logError('admin.analytics.trends.failed', {
+      userId: req.user?.id || null,
+      error: err?.message || String(err)
+    });
+    return res.status(500).json({ error: 'ANALYTICS_FAILED' });
   }
 });
 

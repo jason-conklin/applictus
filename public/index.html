@@ -750,6 +750,79 @@
               </div>
 	          </div>
         </div>
+        <div class="card account-panel admin-analytics-card surface-raised hidden" id="admin-analytics-section">
+          <div class="account-card-header admin-analytics-head">
+            <div>
+              <h3>Admin Analytics</h3>
+              <p class="muted small">Internal visibility into growth, usage, and ingestion health.</p>
+            </div>
+            <span class="pill pill--subtle">Internal</span>
+          </div>
+          <div class="admin-analytics-body">
+            <div class="analytics-kpi-grid">
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Total registered users</div>
+                <div class="kpi-value" id="admin-kpi-total-users">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Pro / paid users</div>
+                <div class="kpi-value" id="admin-kpi-pro-users">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Free users</div>
+                <div class="kpi-value" id="admin-kpi-free-users">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Total tracked applications</div>
+                <div class="kpi-value" id="admin-kpi-total-apps">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Tracked emails this month</div>
+                <div class="kpi-value" id="admin-kpi-month-emails">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Emails tracked today</div>
+                <div class="kpi-value" id="admin-kpi-today-emails">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Emails tracked this week</div>
+                <div class="kpi-value" id="admin-kpi-week-emails">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">New users this month</div>
+                <div class="kpi-value" id="admin-kpi-new-users">—</div>
+              </div>
+            </div>
+            <div class="analytics-chart-card">
+              <div class="analytics-chart-header">
+                <div>
+                  <div class="chart-title">Trend</div>
+                  <div class="muted small">Single metric view to spot ingestion and growth changes.</div>
+                </div>
+                <div class="chart-controls">
+                  <label class="sr-only" for="analytics-metric-select">Metric</label>
+                  <select id="analytics-metric-select" class="chart-select">
+                    <option value="tracked_emails">Tracked emails</option>
+                    <option value="tracked_applications">Tracked applications</option>
+                    <option value="registered_users">Registered users</option>
+                    <option value="pro_users">Pro users</option>
+                    <option value="new_users">New users</option>
+                  </select>
+                  <label class="sr-only" for="analytics-range-select">Range</label>
+                  <select id="analytics-range-select" class="chart-select">
+                    <option value="30d">Last 30 days</option>
+                    <option value="90d">Last 90 days</option>
+                    <option value="12m">Last 12 months</option>
+                  </select>
+                </div>
+              </div>
+              <div class="analytics-chart-body">
+                <svg id="analytics-chart" role="img" aria-label="Admin analytics trend chart"></svg>
+                <div class="muted small chart-hint" id="analytics-chart-hint">Loading trend…</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="view" id="dashboard-view" hidden>
