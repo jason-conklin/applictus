@@ -4105,7 +4105,11 @@ async function loadAdminAnalyticsSummary() {
     if (els.statusText) els.statusText.textContent = 'Loading admin KPIs…';
     const summary = await adminFetchJson('/api/admin/analytics/summary');
     renderAdminKpis(summary);
-    if (els.statusText) els.statusText.textContent = 'Admin KPIs loaded.';
+    if (els.statusText) {
+      const caps = summary?.schema_capabilities;
+      const schemaNote = caps && caps.hasPlanTier ? '' : ' (plan fields missing)';
+      els.statusText.textContent = `Admin KPIs loaded${schemaNote}.`;
+    }
     return true;
   } catch (err) {
     const els = ensureAdminElements();

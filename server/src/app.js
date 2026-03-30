@@ -860,6 +860,27 @@ async function readCount(dbInstance, sql, params = []) {
   return Number(row?.count || 0);
 }
 
+async function pgHasColumns(dbInstance, table, columns = []) {
+  if (!dbInstance.isAsync) return true;
+  const rows = await runPrepared(
+    dbInstance,
+    `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1`,
+    [table],
+    'all'
+  );
+  const present = new Set((rows || []).map((r) => String(r.column_name)));
+  return columns.every((c) => present.has(c));
+}
+
+async function getAdminSchemaCapabilities(dbInstance) {
+  if (!dbInstance.isAsync) {
+    return { hasPlanTier: true, hasPlanUsage: true };
+  }
+  const hasPlanTier = await pgHasColumns(dbInstance, 'users', ['plan_tier']);
+  const hasPlanUsage = await pgHasColumns(dbInstance, 'users', ['tracked_email_count_current_month', 'tracked_email_month_bucket']);
+  return { hasPlanTier, hasPlanUsage };
+}
+
 function getDateFilters(isPg) {
   const pgCreatedAt = "COALESCE(created_at, (now() at time zone 'utc'))";
   return {
@@ -2945,20 +2966,29 @@ app.post('/api/account/plan/dev-set', async (req, res) => {
 });
 
 // Admin analytics (internal-only)
-async function buildAdminAnalyticsSummary(dbInstance) {
+async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
   const isPg = !!dbInstance.isAsync;
   const filters = getDateFilters(isPg);
   const bucket = currentMonthBucket();
 
+  const { hasPlanTier = true, hasPlanUsage = true } = caps || (await getAdminSchemaCapabilities(dbInstance));
+  if (!hasPlanTier || !hasPlanUsage) {
+    logWarn('admin.analytics.schema.missing_plan_fields', { hasPlanTier, hasPlanUsage });
+  }
+
   const totalUsers = await readCount(dbInstance, 'SELECT COUNT(*) AS count FROM users');
-  const proUsers = await readCount(
-    dbInstance,
-    "SELECT COUNT(*) AS count FROM users WHERE lower(COALESCE(plan_tier,'free')) = 'pro'"
-  );
-  const freeUsers = await readCount(
-    dbInstance,
-    "SELECT COUNT(*) AS count FROM users WHERE lower(COALESCE(plan_tier,'free')) = 'free'"
-  );
+  const proUsers = hasPlanTier
+    ? await readCount(
+        dbInstance,
+        "SELECT COUNT(*) AS count FROM users WHERE lower(COALESCE(plan_tier,'free')) = 'pro'"
+      )
+    : 0;
+  const freeUsers = hasPlanTier
+    ? await readCount(
+        dbInstance,
+        "SELECT COUNT(*) AS count FROM users WHERE lower(COALESCE(plan_tier,'free')) = 'free'"
+      )
+    : totalUsers;
   const totalApplications = await readCount(dbInstance, 'SELECT COUNT(*) AS count FROM job_applications');
 
   const trackedMonth = await readCount(
@@ -2992,7 +3022,7 @@ async function buildAdminAnalyticsSummary(dbInstance) {
   };
 }
 
-function buildTrendQuery({ metric, range, isPg }) {
+function buildTrendQuery({ metric, range, isPg, hasPlanTier = true }) {
   const rangeKey = range || '30d';
   const metricKey = metric || 'tracked_emails';
   const pgCreatedAt = "COALESCE(created_at, (now() at time zone 'utc'))";
@@ -3024,6 +3054,9 @@ function buildTrendQuery({ metric, range, isPg }) {
       break;
     case 'pro_users':
       table = 'users';
+      if (!hasPlanTier) {
+        return { sql: null, bucketType: rangeConfig.bucket, empty: true };
+      }
       where += " AND lower(COALESCE(plan_tier,'free')) = 'pro'";
       break;
     case 'tracked_applications':
@@ -3052,7 +3085,9 @@ app.get('/api/admin/analytics/summary', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'FORBIDDEN' });
     }
     logInfo('admin.analytics.summary.request', { userId: req.user?.id || null, email: req.user?.email || null });
-    const summary = await buildAdminAnalyticsSummary(db);
+    const caps = await getAdminSchemaCapabilities(db);
+    const summary = await buildAdminAnalyticsSummary(db, caps);
+    summary.schema_capabilities = caps;
     return res.json(summary);
   } catch (err) {
     logError('admin.analytics.summary.failed', {
@@ -3074,15 +3109,17 @@ app.get('/api/admin/analytics/trends', requireAuth, async (req, res) => {
       metric: req.query.metric || null,
       range: req.query.range || null
     });
+    const caps = await getAdminSchemaCapabilities(db);
     const metric = String(req.query.metric || 'tracked_emails');
     const range = String(req.query.range || '30d');
-    const { sql, bucketType } = buildTrendQuery({ metric, range, isPg: !!db.isAsync });
-    const rows = await runPrepared(db, sql, [], 'all');
+    const { sql, bucketType, empty } = buildTrendQuery({ metric, range, isPg: !!db.isAsync, hasPlanTier: caps.hasPlanTier });
+    const rows = empty ? [] : await runPrepared(db, sql, [], 'all');
     return res.json({
       metric,
       range,
       bucket_type: bucketType,
-      points: rows || []
+      points: rows || [],
+      schema_capabilities: caps
     });
   } catch (err) {
     logError('admin.analytics.trends.failed', {
