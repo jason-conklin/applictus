@@ -1028,9 +1028,10 @@ async function createSession(userId) {
 }
 
 function cookieDomainOptions() {
-  // Force host-only cookies to avoid domain mismatches across preview/prod hosts.
-  // This keeps sessions working on whichever host the user is on (preview or prod).
-  return {};
+  if (IS_VERCEL_PREVIEW) {
+    return {};
+  }
+  return COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {};
 }
 
 function isCrossSiteAuth() {

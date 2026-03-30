@@ -3978,23 +3978,34 @@ async function adminFetchJson(path) {
   }
 }
 
-async function ensureAdminSession() {
+async function checkSessionStatus() {
+  const els = ensureAdminElements();
   try {
-    const data = await api('/api/auth/session');
-    if (data?.user) {
-      sessionUser = data.user;
+    const res = await fetch(apiUrl('/api/auth/session'), { credentials: 'include' });
+    if (res.ok) {
+      const data = await res.json();
+      if (els.statusText) {
+        els.statusText.textContent = `Session OK for ${data?.user?.email || 'unknown user'}`;
+      }
       return true;
     }
-  } catch (err) {
-    const els = ensureAdminElements();
     if (els.statusText) {
-      const code = err?.code || err?.status || 'error';
-      els.statusText.textContent = `Admin session required (${code}). Please sign in on this host.`;
+      els.statusText.textContent = `Session check failed (${res.status}). Please sign in on this host.`;
     }
-    if (els.chartHint) {
-      els.chartHint.textContent = 'Sign in to view admin analytics.';
+  } catch (err) {
+    if (els.statusText) {
+      els.statusText.textContent = `Session check error. Please sign in on this host.`;
     }
   }
+  if (els.chartHint) {
+    els.chartHint.textContent = 'Sign in to view admin analytics.';
+  }
+  return false;
+}
+
+async function ensureAdminSession() {
+  const ok = await checkSessionStatus();
+  if (ok) return true;
   return false;
 }
 
