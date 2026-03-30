@@ -3778,6 +3778,9 @@ function setView(view) {
   } else {
     clearInboundAutoSyncPolling();
   }
+  if (view === 'account') {
+    updateAdminAnalyticsVisibility();
+  }
 }
 
 function setAuthPanel(panel) {
