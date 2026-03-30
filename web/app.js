@@ -4062,9 +4062,8 @@ function updateAdminAnalyticsVisibility() {
   if (!els.section) return;
   const isAdmin = isAdminClient(sessionUser);
   els.section.classList.toggle('hidden', !isAdmin);
-  if (isAdmin) {
-    els.section.style.display = 'block';
-  }
+  els.section.style.display = isAdmin ? '' : 'none';
+  els.section.setAttribute('aria-hidden', isAdmin ? 'false' : 'true');
   if (isAdmin && !adminAnalyticsLoaded) {
     adminAnalyticsLoaded = true;
     void loadAdminAnalyticsSummary();
@@ -4344,6 +4343,7 @@ async function loadSession() {
   sessionUser = data.user;
   renderAccountPanel(sessionUser);
   syncAccountAvatarIdentity(sessionUser);
+  updateAdminAnalyticsVisibility();
   updateFilterSummary();
   addToggle?.setAttribute('aria-expanded', 'false');
   void refreshPlanUsage();
