@@ -78,6 +78,7 @@ const IS_VERCEL_PREVIEW = process.env.VERCEL_ENV === 'preview';
 const ALLOWED_ORIGINS = new Set(
   [
     process.env.APP_WEB_BASE_URL,
+    'https://www.applictus.com',
     'https://applictus.com',
     'http://localhost:3000',
     'http://localhost:5173'
@@ -881,6 +882,12 @@ async function getAdminSchemaCapabilities(dbInstance) {
   return { hasPlanTier, hasPlanUsage };
 }
 
+function authDebug(meta = {}) {
+  if (process.env.JOBTRACK_LOG_LEVEL !== 'debug') return;
+  // eslint-disable-next-line no-console
+  console.debug('[auth] session check', meta);
+}
+
 function getDateFilters(isPg) {
   const pgCreatedAt = "COALESCE(created_at, (now() at time zone 'utc'))";
   return {
@@ -1059,7 +1066,9 @@ function isCrossSiteAuth() {
   try {
     const webOrigin = new URL(process.env.APP_WEB_BASE_URL || WEB_BASE_URL).origin;
     const apiOrigin = new URL(process.env.APP_API_BASE_URL || API_BASE_URL).origin;
-    return webOrigin !== apiOrigin;
+    // Treat apex and www as same-site for cookie purposes.
+    const normalize = (origin) => origin.replace('https://www.', 'https://').replace('http://www.', 'http://');
+    return normalize(webOrigin) !== normalize(apiOrigin);
   } catch (err) {
     return false;
   }
@@ -1929,14 +1938,14 @@ const contactIpLimiter = createRateLimiter({
 app.use(async (req, res, next) => {
   try {
     const token = req.cookies[SESSION_COOKIE];
-    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
-      // eslint-disable-next-line no-console
-      console.debug('[auth] session check', {
-        origin: req.headers.origin || null,
-        hasCookie: Boolean(token),
-        path: req.path
-      });
-    }
+    authDebug({
+      origin: req.headers.origin || null,
+      host: req.headers.host || null,
+      hasCookie: Boolean(token),
+      path: req.path,
+      cookieDomain: COOKIE_DOMAIN || '(host-only)',
+      preview: IS_VERCEL_PREVIEW
+    });
     if (!token) {
       req.user = null;
       req.session = null;
@@ -3092,7 +3101,7 @@ function buildTrendQuery({ metric, range, isPg, hasPlanTier = true }) {
 app.get('/api/admin/analytics/summary', requireAuth, async (req, res) => {
   try {
     if (!isInternalAdminUser(req.user)) {
-      return res.status(403).json({ error: 'FORBIDDEN' });
+      return res.status(403).json({ error: 'ADMIN_ONLY' });
     }
     logInfo('admin.analytics.summary.request', { userId: req.user?.id || null, email: req.user?.email || null });
     const caps = await getAdminSchemaCapabilities(db);
@@ -3123,6 +3132,9 @@ app.get('/api/admin/analytics/trends', requireAuth, async (req, res) => {
     const metric = String(req.query.metric || 'tracked_emails');
     const range = String(req.query.range || '30d');
     const { sql, bucketType, empty } = buildTrendQuery({ metric, range, isPg: !!db.isAsync, hasPlanTier: caps.hasPlanTier });
+    if (empty && metric === 'pro_users') {
+      return res.status(500).json({ error: 'ANALYTICS_SCHEMA_MISSING', detail: 'plan_tier missing' });
+    }
     const rows = empty ? [] : await runPrepared(db, sql, [], 'all');
     return res.json({
       metric,

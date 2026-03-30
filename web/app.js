@@ -3992,6 +3992,9 @@ async function checkSessionStatus() {
     if (els.statusText) {
       els.statusText.textContent = `Session check failed (${res.status}). Please sign in on this host.`;
     }
+    if (res.status === 401 && els.chartHint) {
+      els.chartHint.textContent = 'Not authenticated on this host. Sign in and retry.';
+    }
   } catch (err) {
     if (els.statusText) {
       els.statusText.textContent = `Session check error. Please sign in on this host.`;
@@ -4123,6 +4126,9 @@ async function loadAdminAnalyticsSummary() {
       if (code === 401) {
         els.statusText.textContent += ' You may need to re-sign in on this host.';
       }
+      if (code === 500 && summary?.schema_capabilities && !summary.schema_capabilities.hasPlanTier) {
+        els.statusText.textContent = 'Admin analytics: plan schema missing. Apply migration 035_plan_usage_postgres.sql.';
+      }
     }
     if (DEBUG_APP) {
       // eslint-disable-next-line no-console
@@ -4165,6 +4171,9 @@ async function loadAdminTrend(metric = adminTrendState.metric, range = adminTren
       els.statusText.textContent = `Trend error (${code}). Check session/login.`;
       if (code === 401) {
         els.statusText.textContent += ' You may need to re-sign in on this host.';
+      }
+      if (code === 'ANALYTICS_SCHEMA_MISSING') {
+        els.statusText.textContent = 'Admin analytics: plan schema missing. Apply migration 035_plan_usage_postgres.sql.';
       }
     }
     if (DEBUG_APP) {
