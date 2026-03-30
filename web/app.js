@@ -4037,6 +4037,7 @@ async function loadAdminAnalyticsSummary() {
   try {
     const summary = await api('/api/admin/analytics/summary');
     renderAdminKpis(summary);
+    return true;
   } catch (err) {
     const els = ensureAdminElements();
     if (els.chartHint) {
@@ -4046,6 +4047,7 @@ async function loadAdminAnalyticsSummary() {
       // eslint-disable-next-line no-console
       console.debug('[admin-analytics] summary failed', err);
     }
+    return false;
   }
 }
 
@@ -4063,6 +4065,7 @@ async function loadAdminTrend(metric = adminTrendState.metric, range = adminTren
       // eslint-disable-next-line no-console
       console.debug('[admin-analytics] trend failed', err);
     }
+    return false;
   }
 }
 
@@ -4073,10 +4076,14 @@ function updateAdminAnalyticsVisibility() {
   els.section.classList.toggle('hidden', !isAdmin);
   els.section.style.display = isAdmin ? '' : 'none';
   els.section.setAttribute('aria-hidden', isAdmin ? 'false' : 'true');
-  if (isAdmin && !adminAnalyticsLoaded) {
+  if (isAdmin) {
+    void loadAdminAnalyticsSummary().then((ok) => {
+      if (!ok) adminAnalyticsLoaded = false;
+    });
+    void loadAdminTrend().then((ok) => {
+      if (!ok) adminAnalyticsLoaded = false;
+    });
     adminAnalyticsLoaded = true;
-    void loadAdminAnalyticsSummary();
-    void loadAdminTrend();
   }
 }
 

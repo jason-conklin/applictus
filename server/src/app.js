@@ -860,7 +860,7 @@ async function readCount(dbInstance, sql, params = []) {
 }
 
 function getDateFilters(isPg) {
-  const pgCreatedAt = "(COALESCE(NULLIF(created_at,'')::timestamptz, now() at time zone 'utc'))";
+  const pgCreatedAt = "COALESCE(created_at, (now() at time zone 'utc'))";
   return {
     today: isPg
       ? `${pgCreatedAt}::date = (now() at time zone 'utc')::date`
@@ -2991,7 +2991,7 @@ async function buildAdminAnalyticsSummary(dbInstance) {
 function buildTrendQuery({ metric, range, isPg }) {
   const rangeKey = range || '30d';
   const metricKey = metric || 'tracked_emails';
-  const pgCreatedAt = "(COALESCE(NULLIF(created_at,'')::timestamptz, now() at time zone 'utc'))";
+  const pgCreatedAt = "COALESCE(created_at, (now() at time zone 'utc'))";
   const rangeConfig = {
     '30d': { days: 30, bucket: 'day' },
     '90d': { days: 90, bucket: 'day' },
