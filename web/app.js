@@ -3944,6 +3944,34 @@ let adminTrendState = {
   range: '30d',
   points: []
 };
+const ADMIN_FETCH_TIMEOUT_MS = 8000;
+
+async function adminFetchJson(path) {
+  const url = apiUrl(path);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ADMIN_FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { credentials: 'include', signal: controller.signal });
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : {};
+    if (!res.ok) {
+      const err = new Error(data.error || data.message || `Request failed (${res.status})`);
+      err.code = data.error || res.status;
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      const abortErr = new Error('Request timed out');
+      abortErr.code = 'timeout';
+      throw abortErr;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 function isAdminClient(user = sessionUser) {
   if (!user) return false;
@@ -4036,9 +4064,10 @@ function renderAdminChart(trend) {
 
 async function loadAdminAnalyticsSummary() {
   try {
-    const summary = await api('/api/admin/analytics/summary');
-    renderAdminKpis(summary);
     const els = ensureAdminElements();
+    if (els.chartHint) els.chartHint.textContent = 'Loading admin KPIs…';
+    const summary = await adminFetchJson('/api/admin/analytics/summary');
+    renderAdminKpis(summary);
     if (els.statusText) els.statusText.textContent = 'Admin KPIs loaded.';
     return true;
   } catch (err) {
@@ -4050,6 +4079,9 @@ async function loadAdminAnalyticsSummary() {
     if (els.statusText) {
       const code = err?.code || err?.status || 'error';
       els.statusText.textContent = `KPIs error (${code}). Check session/login.`;
+      if (code === 401) {
+        els.statusText.textContent += ' You may need to re-sign in on this host.';
+      }
     }
     if (DEBUG_APP) {
       // eslint-disable-next-line no-console
@@ -4069,7 +4101,9 @@ async function loadAdminTrend(metric = adminTrendState.metric, range = adminTren
         el.textContent = 'Trend load is taking longer than expected…';
       }
     }, 4000);
-    const trend = await api(`/api/admin/analytics/trends?metric=${encodeURIComponent(metric)}&range=${encodeURIComponent(range)}`);
+    const trend = await adminFetchJson(
+      `/api/admin/analytics/trends?metric=${encodeURIComponent(metric)}&range=${encodeURIComponent(range)}`
+    );
     clearTimeout(trendTimeout);
     adminTrendState = { ...adminTrendState, metric, range, points: trend.points || [] };
     renderAdminChart(trend);
@@ -4087,6 +4121,9 @@ async function loadAdminTrend(metric = adminTrendState.metric, range = adminTren
     if (els.statusText) {
       const code = err?.code || err?.status || 'error';
       els.statusText.textContent = `Trend error (${code}). Check session/login.`;
+      if (code === 401) {
+        els.statusText.textContent += ' You may need to re-sign in on this host.';
+      }
     }
     if (DEBUG_APP) {
       // eslint-disable-next-line no-console
