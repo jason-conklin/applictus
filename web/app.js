@@ -295,6 +295,7 @@ const adminMetricSelect = document.getElementById('analytics-metric-select');
 const adminRangeSelect = document.getElementById('analytics-range-select');
 const adminChartSvgStatic = document.getElementById('analytics-chart');
 const adminChartHintStatic = document.getElementById('analytics-chart-hint');
+const adminStatusStatic = document.getElementById('admin-analytics-status');
 
 let adminEls = null;
 function ensureAdminElements() {
@@ -313,7 +314,7 @@ function ensureAdminElements() {
     rangeSelect: adminRangeSelect || document.getElementById('analytics-range-select'),
     chartSvg: adminChartSvgStatic || document.getElementById('analytics-chart'),
     chartHint: adminChartHintStatic || document.getElementById('analytics-chart-hint'),
-    statusText: document.getElementById('admin-analytics-status')
+    statusText: adminStatusStatic || document.getElementById('admin-analytics-status')
   };
   return adminEls;
 }
@@ -3951,7 +3952,11 @@ async function adminFetchJson(path) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ADMIN_FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, { credentials: 'include', signal: controller.signal });
+    const res = await fetch(url, {
+      credentials: 'include',
+      signal: controller.signal,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
     const text = await res.text();
     const data = text ? JSON.parse(text) : {};
     if (!res.ok) {
@@ -4066,6 +4071,7 @@ async function loadAdminAnalyticsSummary() {
   try {
     const els = ensureAdminElements();
     if (els.chartHint) els.chartHint.textContent = 'Loading admin KPIs…';
+    if (els.statusText) els.statusText.textContent = 'Loading admin KPIs…';
     const summary = await adminFetchJson('/api/admin/analytics/summary');
     renderAdminKpis(summary);
     if (els.statusText) els.statusText.textContent = 'Admin KPIs loaded.';
@@ -4095,6 +4101,7 @@ async function loadAdminTrend(metric = adminTrendState.metric, range = adminTren
   try {
     const els = ensureAdminElements();
     if (els.chartHint) els.chartHint.textContent = 'Loading trend…';
+    if (els.statusText) els.statusText.textContent = 'Loading trend…';
     const trendTimeout = setTimeout(() => {
       const el = ensureAdminElements().chartHint;
       if (el && el.textContent.includes('Loading')) {
