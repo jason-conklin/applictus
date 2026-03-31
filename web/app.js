@@ -1511,8 +1511,8 @@ function renderForwardingSummary() {
   }
   if (isInternalGmailMode()) {
     syncSummaryStatus.textContent = emailState.connected
-      ? '✅ Gmail Connected (Internal Mode)'
-      : 'Internal Gmail mode not connected';
+      ? 'Gmail connected'
+      : 'Gmail not connected';
     syncSummaryMetrics.textContent = formatInboundMetaText();
     syncSummary.classList.remove('hidden');
     if (syncResult) {
@@ -1610,17 +1610,17 @@ function updateInboundStatusPresentation() {
   if (isInternalGmailMode()) {
     const connected = Boolean(emailState.connected);
     const connectedEmail = emailState.email || sessionUser?.email || null;
-    const statusText = connected ? 'Gmail Connected (Internal Mode)' : 'Internal Gmail not connected';
+    const statusText = connected ? 'Connected' : 'Not connected';
     const helpText = connected
       ? `Connected via Gmail API${connectedEmail ? ` · ${connectedEmail}` : ''}`
-      : 'Internal mode uses Gmail API ingestion for allowlisted users only.';
+      : 'Connect Gmail to enable inbox sync.';
     setPillState(inboundStatusPill, statusText, connected ? 'connected' : 'idle');
     setPillState(dashboardInboxStatus, statusText, connected ? 'connected' : 'idle');
     if (dashboardInboxEmail) {
       dashboardInboxEmail.textContent = connectedEmail || 'Connect Gmail to begin ingestion';
     }
     if (syncStatus) {
-      syncStatus.textContent = connected ? 'Ready to sync' : 'Connect Gmail';
+      syncStatus.textContent = connected ? 'Ready' : 'Connect Gmail';
     }
     if (inboundAddressLabel) {
       inboundAddressLabel.textContent = 'Connected Gmail account';
@@ -1664,7 +1664,7 @@ function updateInboundStatusPresentation() {
       accountHelpNote.textContent = helpText;
     }
     if (accountHelpSetupType) {
-      accountHelpSetupType.textContent = 'Internal Gmail API';
+      accountHelpSetupType.textContent = 'Gmail API';
     }
     if (accountHelpLastEmail) {
       accountHelpLastEmail.textContent = connectedEmail || '—';
@@ -1900,8 +1900,8 @@ function updateSyncHelperText() {
   if (isInternalGmailMode()) {
     if (syncHelperText) {
       syncHelperText.textContent = emailState.connected
-        ? 'Internal Gmail mode is active for this account.'
-        : 'Connect Gmail to enable internal ingestion mode.';
+        ? 'Gmail sync is active for this account.'
+        : 'Connect Gmail to enable inbox sync.';
     }
     if (accountSyncHelperText) {
       accountSyncHelperText.textContent = formatInboundMetaText();
@@ -2631,6 +2631,33 @@ function parseDate(value) {
     return Number.isNaN(date.getTime()) ? null : date;
   }
   return null;
+}
+
+const RECENT_ACTIVITY_WINDOW_MS = 1000 * 60 * 60 * 48;
+
+function formatActivityRecency(value, { nowMs = Date.now() } = {}) {
+  const date = parseDate(value);
+  if (!date) {
+    return { label: '—', title: 'No activity date', isRecent: false };
+  }
+  const dateMs = date.getTime();
+  const nowDate = new Date(nowMs);
+  const dayStartNow = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate()).getTime();
+  const dayStartTarget = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const dayDiff = Math.floor((dayStartNow - dayStartTarget) / (24 * 60 * 60 * 1000));
+  let label = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if (dayDiff === 0) {
+    label = 'Today';
+  } else if (dayDiff === 1) {
+    label = 'Yesterday';
+  } else if (dayDiff > 1 && dayDiff < 7) {
+    label = `${dayDiff}d ago`;
+  }
+  return {
+    label,
+    title: date.toLocaleString(),
+    isRecent: nowMs - dateMs >= -60 * 1000 && nowMs - dateMs <= RECENT_ACTIVITY_WINDOW_MS
+  };
 }
 
 function setSyncProgressState({ visible, progress, label, error = false, indeterminate = false }) {
@@ -7407,7 +7434,8 @@ function renderApplicationsTable(applications) {
     .map((app, index) => {
       const statusValue = normalizeStatusValue(app.current_status || 'UNKNOWN');
       const statusPill = renderStatusPill(statusValue);
-      const activity = formatDate(getActivityDate(app));
+      const activityMeta = formatActivityRecency(getActivityDate(app));
+      const activity = activityMeta.label;
       const suggestionLabel = app.suggested_status
         ? STATUS_LABELS[app.suggested_status] || app.suggested_status
         : null;
@@ -7418,8 +7446,9 @@ function renderApplicationsTable(applications) {
       const isInterview = isInterviewStatus(statusValue);
       const isNewSignal =
         state.signals.pulseOfferIds.has(rowId) || state.signals.pulseInterviewIds.has(rowId);
+      const isRecentUpdate = activityMeta.isRecent;
       return `
-        <div class="table-row application-row${isSelected ? ' table-row-selected' : ''}${isOffer ? ' is-offer' : ''}${isInterview ? ' is-interview' : ''}${isNewSignal ? ' is-new-signal' : ''}" style="--stagger: ${index}" data-id="${app.id}" data-status-tone="${statusBandTone}">
+        <div class="table-row application-row${isSelected ? ' table-row-selected' : ''}${isOffer ? ' is-offer' : ''}${isInterview ? ' is-interview' : ''}${isNewSignal ? ' is-new-signal' : ''}${isRecentUpdate ? ' is-recent-update' : ''}" style="--stagger: ${index}" data-id="${app.id}" data-status-tone="${statusBandTone}">
           <div class="status-band" aria-hidden="true"></div>
           <div class="cell-company table-col-company"><strong>${app.company_name || '—'}</strong></div>
           <div class="cell-role table-col-role" title="${app.job_title || '—'}">${app.job_title || '—'}</div>
@@ -7427,7 +7456,7 @@ function renderApplicationsTable(applications) {
             <div class="status-cell">${statusPill}</div>
             ${suggestionLabel ? `<div class="explanation">Suggestion: ${suggestionLabel}</div>` : ''}
           </div>
-          <div class="table-col-activity">${activity}</div>
+          <div class="table-col-activity activity-cell${isRecentUpdate ? ' activity-cell--recent' : ''}" title="${escapeHtml(activityMeta.title)}">${activity}</div>
           <div class="table-select-cell table-col-select">
             <label class="table-select-control" aria-label="Select application">
               <input class="table-select-input table-row-select" type="checkbox" data-id="${app.id}" ${
