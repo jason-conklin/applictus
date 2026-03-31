@@ -7447,12 +7447,17 @@ function renderApplicationsTable(applications) {
       const statusBandTone = getStatusBandTone(statusValue);
       const rowId = String(app.id);
       const isOffer = isOfferStatus(statusValue);
-      const isInterview = isInterviewStatus(statusValue);
+      const isInterviewRequested = statusValue === 'INTERVIEW_REQUESTED';
+      const isPriority = isInterviewRequested || isOffer;
       const isNewSignal =
         state.signals.pulseOfferIds.has(rowId) || state.signals.pulseInterviewIds.has(rowId);
       const isRecentUpdate = activityMeta.isRecent;
+      const priorityPrompt =
+        isPriority && isRecentUpdate
+          ? `<span class="priority-prompt">Action needed</span>`
+          : '';
       return `
-        <div class="table-row application-row${isSelected ? ' table-row-selected' : ''}${isOffer ? ' is-offer' : ''}${isInterview ? ' is-interview' : ''}${isNewSignal ? ' is-new-signal' : ''}${isRecentUpdate ? ' is-recent-update' : ''}" style="--stagger: ${index}" data-id="${app.id}" data-status-tone="${statusBandTone}">
+        <div class="table-row application-row${isSelected ? ' table-row-selected' : ''}${isOffer ? ' is-offer' : ''}${isInterviewRequested ? ' is-interview' : ''}${isPriority ? ' is-priority' : ''}${isOffer ? ' is-priority-offer' : ''}${isInterviewRequested ? ' is-priority-interview' : ''}${isNewSignal ? ' is-new-signal' : ''}${isRecentUpdate ? ' is-recent-update' : ''}" style="--stagger: ${index}" data-id="${app.id}" data-status-tone="${statusBandTone}">
           <div class="status-band" aria-hidden="true"></div>
           <div class="row-main table-col-main">
             <div class="cell-company table-col-company"><strong>${app.company_name || '—'}</strong></div>
@@ -7461,6 +7466,7 @@ function renderApplicationsTable(applications) {
           <div class="row-signals table-col-signals">
             <div class="table-col-status status-col">
               <div class="status-cell">${statusPill}</div>
+              ${priorityPrompt}
               ${suggestionLabel ? `<div class="explanation">Suggestion: ${suggestionLabel}</div>` : ''}
             </div>
             <div class="table-col-activity activity-cell${isRecentUpdate ? ' activity-cell--recent' : ''}" title="${escapeHtml(activityMeta.title)}">${activity}</div>

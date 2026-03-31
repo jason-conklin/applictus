@@ -10780,6 +10780,12 @@ body.app-page-bg .topbar .nav-link.active {
   justify-content: center;
 }
 
+#dashboard-view #applications-table .table-row.application-row .status-col {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+}
+
 #dashboard-view #applications-table .table-row.application-row .table-col-activity {
   justify-content: flex-end;
 }
@@ -10810,9 +10816,69 @@ body.app-page-bg .topbar .nav-link.active {
   font-weight: 700;
 }
 
+#dashboard-view #applications-table .priority-prompt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(32, 92, 175, 0.24);
+  background: rgba(40, 109, 204, 0.08);
+  color: rgba(23, 67, 132, 0.86);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
 #dashboard-view #applications-table .table-row.application-row .status-band {
-  width: 3px;
+  width: 2px;
   border-radius: 0;
+  opacity: 0.4;
+}
+
+#dashboard-view #applications-table .table-row.application-row.is-priority .status-band {
+  width: 4px;
+  opacity: 1;
+}
+
+#dashboard-view #applications-table .table-row.application-row.is-priority-interview .status-band {
+  background: var(--status-pill-interview-border);
+}
+
+#dashboard-view #applications-table .table-row.application-row.is-priority-offer .status-band {
+  background: var(--status-pill-offer-border);
+}
+
+#dashboard-view #applications-table .table-row.application-row.is-priority-interview {
+  background: linear-gradient(180deg, #f7fbff 0%, #f2f7ff 100%);
+  border-color: rgba(58, 124, 221, 0.28);
+}
+
+#dashboard-view #applications-table .table-row.application-row.is-priority-offer {
+  background: linear-gradient(180deg, #f7fdf9 0%, #f1f9f4 100%);
+  border-color: rgba(45, 167, 99, 0.28);
+}
+
+#dashboard-view #applications-table .table-row.application-row.is-priority .appl-statusPill {
+  border-width: 1.8px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.62), 0 2px 6px rgba(21, 45, 85, 0.08);
+}
+
+#dashboard-view #applications-table .table-row.application-row.is-priority-interview .appl-statusPill {
+  border-color: #4f95f1;
+  background: #dbeafe;
+}
+
+#dashboard-view #applications-table .table-row.application-row.is-priority-offer .appl-statusPill {
+  border-color: #36c487;
+  background: #d1fae5;
+}
+
+#dashboard-view #applications-table .table-row.application-row.is-priority.is-new-signal {
+  animation: none;
 }
 
 #dashboard-view #applications-table .table-row.application-row.is-recent-update {
@@ -10821,11 +10887,33 @@ body.app-page-bg .topbar .nav-link.active {
     0 5px 14px rgba(19, 40, 78, 0.08);
 }
 
+#dashboard-view #applications-table .table-row.application-row.is-priority-interview.is-recent-update {
+  box-shadow:
+    inset 4px 0 0 rgba(47, 102, 196, 0.4),
+    0 7px 16px rgba(17, 48, 96, 0.12);
+}
+
+#dashboard-view #applications-table .table-row.application-row.is-priority-offer.is-recent-update {
+  box-shadow:
+    inset 4px 0 0 rgba(34, 169, 104, 0.38),
+    0 7px 16px rgba(23, 93, 64, 0.11);
+}
+
 #dashboard-view #applications-table .table-row.application-row:hover {
   background: #eef4fd;
   border-color: rgba(46, 90, 172, 0.36);
   box-shadow: 0 10px 22px rgba(15, 35, 80, 0.13);
   transform: translateY(-1px);
+}
+
+#dashboard-view #applications-table .table-row.application-row.is-priority-interview:hover {
+  background: #edf5ff;
+  border-color: rgba(47, 102, 196, 0.34);
+}
+
+#dashboard-view #applications-table .table-row.application-row.is-priority-offer:hover {
+  background: #ecfaf1;
+  border-color: rgba(34, 169, 104, 0.34);
 }
 
 #dashboard-view #applications-table .table-row.application-row.table-row-selected,
