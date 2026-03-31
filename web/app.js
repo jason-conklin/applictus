@@ -1,4 +1,5 @@
 import { ensureAnimatedBackgroundLayout, removeAnimatedBackgroundLayout } from '/animated-background.js';
+import { renderAdminChart as renderAdminChartHelper } from './adminAnalyticsChart.js';
 
 // Frontend choice: buildless HTML/JS keeps iteration fast while the API stabilizes.
 const STATUS_LABELS = {
