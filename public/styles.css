@@ -6676,6 +6676,38 @@ button.inbound-diagnostics-row:hover {
   gap: 16px;
 }
 
+#account-view {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(320px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+#account-view .page-header,
+#account-view .account-grid,
+#account-view #admin-analytics-section {
+  grid-column: 1 / -1;
+}
+
+#account-view .account-inbox-card {
+  grid-column: 1;
+  grid-row: 2;
+  margin: 0;
+}
+
+#account-view .account-help-card--support {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+#account-view .account-grid {
+  grid-row: 3;
+}
+
+#account-view #admin-analytics-section {
+  grid-row: 4;
+}
+
 .account-info-card {
   position: relative;
   border-radius: 20px;
@@ -6735,7 +6767,7 @@ button.inbound-diagnostics-row:hover {
 }
 
 .account-help-card--support {
-  margin-top: 16px;
+  margin-top: 0;
   border: 1px solid rgba(21, 57, 108, 0.12);
   background: linear-gradient(180deg, #fafdff 0%, #f5f9ff 100%);
   box-shadow:
@@ -7582,6 +7614,18 @@ button.inbound-diagnostics-row:hover {
 
   .account-grid {
     grid-template-columns: 1fr;
+  }
+
+  #account-view {
+    grid-template-columns: 1fr;
+  }
+
+  #account-view .account-inbox-card,
+  #account-view .account-help-card--support,
+  #account-view .account-grid,
+  #account-view #admin-analytics-section {
+    grid-column: 1;
+    grid-row: auto;
   }
 
   .account-inbox-head {
