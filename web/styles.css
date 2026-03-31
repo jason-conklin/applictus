@@ -10343,6 +10343,35 @@ body.app-page-bg .topbar .nav-link.active {
   -webkit-backdrop-filter: none;
 }
 
+#dashboard-view .kpi-card.kpi-card--filterable {
+  cursor: pointer;
+  user-select: none;
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, background-color 150ms ease;
+}
+
+#dashboard-view .kpi-card.kpi-card--filterable:hover {
+  transform: translateY(-1px);
+  border-color: rgba(35, 79, 145, 0.24);
+  box-shadow:
+    0 10px 20px rgba(13, 40, 82, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -1px 0 rgba(12, 33, 66, 0.06);
+}
+
+#dashboard-view .kpi-card.kpi-card--filterable:focus-visible {
+  outline: 2px solid rgba(42, 99, 189, 0.42);
+  outline-offset: 2px;
+}
+
+#dashboard-view .kpi-card.kpi-card--filterable.is-filter-active {
+  border-color: rgba(37, 93, 178, 0.34);
+  background: linear-gradient(180deg, #ffffff 0%, #f2f7ff 100%);
+  box-shadow:
+    0 12px 24px rgba(20, 52, 102, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -1px 0 rgba(12, 33, 66, 0.06);
+}
+
 #dashboard-view .kpi-new-tag {
   position: absolute;
   top: 10px;

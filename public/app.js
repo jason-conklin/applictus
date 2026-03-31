@@ -581,6 +581,9 @@ const kpiApplied = document.getElementById('kpi-applied');
 const kpiOffers = document.getElementById('kpi-offers');
 const kpiInterviews = document.getElementById('kpi-interviews');
 const kpiRejected = document.getElementById('kpi-rejected');
+const dashboardKpiFilterCards = Array.from(
+  document.querySelectorAll('#dashboard-view .kpi-card[data-kpi-filter]')
+);
 const accountEmailSync = document.getElementById('account-email-sync');
 const accountSyncMenuButton = document.getElementById('account-sync-menu-button');
 const accountSyncRangeMenu = document.getElementById('account-sync-range-menu');
@@ -3426,6 +3429,50 @@ function syncStatusFilterMenuUi() {
       statusMenuHighlightIndex = index;
     }
   });
+  updateDashboardKpiFilterState();
+}
+
+function getKpiFilterOption(card) {
+  const raw = String(card?.dataset?.kpiFilter ?? '').trim().toLowerCase();
+  return STATUS_FILTER_BY_UI.get(raw) || STATUS_FILTER_OPTIONS[0];
+}
+
+function updateDashboardKpiFilterState() {
+  if (!dashboardKpiFilterCards.length) {
+    return;
+  }
+  const selectedOption = getStatusFilterOptionFromValue(filterStatus?.value || state.filters.status);
+  dashboardKpiFilterCards.forEach((card) => {
+    const option = getKpiFilterOption(card);
+    const isActive = option.api === selectedOption.api;
+    card.classList.toggle('is-filter-active', isActive);
+    card.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+}
+
+function bindDashboardKpiFilterCards() {
+  if (!dashboardKpiFilterCards.length) {
+    return;
+  }
+  dashboardKpiFilterCards.forEach((card) => {
+    if (card.dataset.kpiFilterBound === '1') {
+      return;
+    }
+    card.dataset.kpiFilterBound = '1';
+    const handleActivate = () => {
+      const option = getKpiFilterOption(card);
+      applyStatusFilterValue(option.value);
+      closeStatusMenu();
+    };
+    card.addEventListener('click', handleActivate);
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        handleActivate();
+      }
+    });
+  });
+  updateDashboardKpiFilterState();
 }
 
 function setStatusMenuOpen(nextOpen, { focusSelected = false } = {}) {
@@ -9056,6 +9103,7 @@ filterStatus?.addEventListener('change', async () => {
 });
 
 syncStatusFilterMenuUi();
+bindDashboardKpiFilterCards();
 
 filterCompany?.addEventListener('input', () => {
   if (filterCompanyClear) {

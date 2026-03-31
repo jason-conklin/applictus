@@ -10,7 +10,7 @@
     <meta name="app-api-base-url" content="" />
     <title>Applictus</title>
     <link rel="icon" href="/Applictus_logo.png" type="image/png" />
-    <link rel="stylesheet" href="/styles.css?v=34" />
+    <link rel="stylesheet" href="/styles.css?v=35" />
     <style>
       body:not(.app-ready) #app {
         opacity: 0;
@@ -1093,7 +1093,14 @@
           </div>
 	          </div>
         <section class="kpi-row" aria-label="Application stats">
-          <div class="kpi-card status-total">
+          <div
+            class="kpi-card status-total kpi-card--filterable"
+            data-kpi-filter=""
+            role="button"
+            tabindex="0"
+            aria-label="Show all application statuses"
+            title="Show all statuses"
+          >
             <div class="kpi-meta">
               <span class="kpi-dot neutral"></span>
               <span class="kpi-icon" aria-hidden="true">
@@ -1107,7 +1114,14 @@
             </div>
             <div class="kpi-value" id="kpi-total">0</div>
           </div>
-          <div class="kpi-card status-applied">
+          <div
+            class="kpi-card status-applied kpi-card--filterable"
+            data-kpi-filter="applied"
+            role="button"
+            tabindex="0"
+            aria-label="Filter applications by Applied status"
+            title="Filter to Applied"
+          >
             <div class="kpi-meta">
               <span class="kpi-dot warning"></span>
               <span class="kpi-icon" aria-hidden="true">
@@ -1122,7 +1136,14 @@
               <div class="kpi-value" id="kpi-applied">0</div>
             </div>
           </div>
-          <div class="kpi-card status-interview">
+          <div
+            class="kpi-card status-interview kpi-card--filterable"
+            data-kpi-filter="interview_requested"
+            role="button"
+            tabindex="0"
+            aria-label="Filter applications by Interview requested status"
+            title="Filter to Interview requested"
+          >
             <div class="kpi-meta">
               <span class="kpi-dot info"></span>
               <span class="kpi-icon" aria-hidden="true">
@@ -1139,7 +1160,14 @@
               <div class="kpi-value" id="kpi-interviews">0</div>
             </div>
           </div>
-          <div class="kpi-card status-offer">
+          <div
+            class="kpi-card status-offer kpi-card--filterable"
+            data-kpi-filter="offer_received"
+            role="button"
+            tabindex="0"
+            aria-label="Filter applications by Offer received status"
+            title="Filter to Offer received"
+          >
             <div class="kpi-meta">
               <span class="kpi-dot success"></span>
               <span class="kpi-icon" aria-hidden="true">
@@ -1153,7 +1181,14 @@
               <div class="kpi-value" id="kpi-offers">0</div>
             </div>
           </div>
-          <div class="kpi-card status-rejected">
+          <div
+            class="kpi-card status-rejected kpi-card--filterable"
+            data-kpi-filter="rejected"
+            role="button"
+            tabindex="0"
+            aria-label="Filter applications by Rejected status"
+            title="Filter to Rejected"
+          >
             <div class="kpi-meta">
               <span class="kpi-dot danger"></span>
               <span class="kpi-icon" aria-hidden="true">
@@ -2091,6 +2126,6 @@
       </div>
     </div>
 
-    <script type="module" src="/app.js?v=38"></script>
+    <script type="module" src="/app.js?v=39"></script>
   </body>
 </html>
