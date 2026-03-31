@@ -3223,9 +3223,13 @@ app.get('/api/admin/analytics/users', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'ADMIN_ONLY' });
     }
     const limit = Math.min(200, Math.max(10, Number(req.query.limit) || 100));
+    const hasInboxMode = db.isAsync ? await pgHasColumns(db, 'users', ['inbox_mode']) : true;
+    const fields = hasInboxMode
+      ? 'id, email, name, plan_tier, plan_status, inbox_mode, created_at'
+      : 'id, email, name, plan_tier, plan_status, created_at';
     const sql = db.isAsync
-      ? `SELECT id, email, name, plan_tier, plan_status, inbox_mode, created_at FROM users ORDER BY created_at DESC NULLS LAST LIMIT $1`
-      : `SELECT id, email, name, plan_tier, plan_status, inbox_mode, created_at FROM users ORDER BY created_at DESC LIMIT ?`;
+      ? `SELECT ${fields} FROM users ORDER BY created_at DESC NULLS LAST LIMIT $1`
+      : `SELECT ${fields} FROM users ORDER BY created_at DESC LIMIT ?`;
     const rows = await runPrepared(db, sql, [limit], 'all');
     return res.json({ users: rows || [] });
   } catch (err) {
