@@ -6803,6 +6803,43 @@ button.inbound-diagnostics-row:hover {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
+.analytics-users-card {
+  margin-top: 16px;
+  border: 1px solid rgba(25, 55, 103, 0.08);
+  border-radius: 16px;
+  padding: 16px;
+  background: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.analytics-users-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.admin-users-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.admin-user-item {
+  border: 1px solid rgba(25, 55, 103, 0.08);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f9ff 100%);
+}
+
+.admin-user-email {
+  font-weight: 600;
+  color: #13294b;
+}
+
 .analytics-chart-header {
   display: flex;
   align-items: center;

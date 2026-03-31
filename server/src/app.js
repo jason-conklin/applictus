@@ -92,6 +92,11 @@ const adminAnalyticsCache = {
   trends: new Map() // key: `${metric}:${range}` -> { data, ts }
 };
 
+function resetAdminCache() {
+  adminAnalyticsCache.summary = { data: null, ts: 0 };
+  adminAnalyticsCache.trends = new Map();
+}
+
 // Stack choice: Express + SQLite keeps the backend lightweight and easy to ship locally.
 const app = express();
 const db = openDb();
@@ -3202,6 +3207,27 @@ app.get('/api/admin/analytics/trends', requireAuth, async (req, res) => {
     return res.json(payload);
   } catch (err) {
     logError('admin.analytics.trends.failed', {
+      userId: req.user?.id || null,
+      error: err?.message || String(err)
+    });
+    return res.status(500).json({ error: 'ANALYTICS_FAILED' });
+  }
+});
+
+// Admin: list recent users for diagnostics (limited)
+app.get('/api/admin/analytics/users', requireAuth, async (req, res) => {
+  try {
+    if (!isInternalAdminUser(req.user)) {
+      return res.status(403).json({ error: 'ADMIN_ONLY' });
+    }
+    const limit = Math.min(200, Math.max(10, Number(req.query.limit) || 100));
+    const sql = db.isAsync
+      ? `SELECT id, email, name, plan_tier, plan_status, inbox_mode, created_at FROM users ORDER BY created_at DESC NULLS LAST LIMIT $1`
+      : `SELECT id, email, name, plan_tier, plan_status, inbox_mode, created_at FROM users ORDER BY created_at DESC LIMIT ?`;
+    const rows = await runPrepared(db, sql, [limit], 'all');
+    return res.json({ users: rows || [] });
+  } catch (err) {
+    logError('admin.analytics.users.failed', {
       userId: req.user?.id || null,
       error: err?.message || String(err)
     });

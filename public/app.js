@@ -190,6 +190,25 @@ function normalizeEmailClient(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function escapeHtml(text) {
+  return String(text || '').replace(/[&<>"']/g, (ch) => {
+    switch (ch) {
+      case '&':
+        return '&amp;';
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '"':
+        return '&quot;';
+      case "'":
+        return '&#39;';
+      default:
+        return ch;
+    }
+  });
+}
+
 function normalizeModalStatusValue(status) {
   const normalized = normalizeStatusValue(status);
   // Keep modal statuses intentionally compact and stable:
@@ -314,7 +333,9 @@ function ensureAdminElements() {
     rangeSelect: adminRangeSelect || document.getElementById('analytics-range-select'),
     chartSvg: adminChartSvgStatic || document.getElementById('analytics-chart'),
     chartHint: adminChartHintStatic || document.getElementById('analytics-chart-hint'),
-    statusText: adminStatusStatic || document.getElementById('admin-analytics-status')
+    statusText: adminStatusStatic || document.getElementById('admin-analytics-status'),
+    userList: document.getElementById('admin-users-list'),
+    userCount: document.getElementById('admin-users-count')
   };
   return adminEls;
 }
@@ -2604,7 +2625,6 @@ function startSyncPolling(syncId) {
   syncUiState.startTs = Date.now();
   syncUiState.state = 'running';
   syncUiState.pollErrorCount = 0;
-  syncUiState.pollInFlight = false;
   if (syncUiState.pollTimer) {
     window.clearInterval(syncUiState.pollTimer);
   }
@@ -2639,11 +2659,6 @@ function startSyncPolling(syncId) {
     window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
   const poll = async () => {
-    if (document.hidden) {
-      return;
-    }
-    if (syncUiState.pollInFlight) return;
-    syncUiState.pollInFlight = true;
     try {
       const progress = await api(`/api/email/sync/status?sync_id=${encodeURIComponent(syncId)}`);
       if (progress && (progress.ok === false || progress.status === 'unknown_sync_id')) {
@@ -2653,7 +2668,6 @@ function startSyncPolling(syncId) {
           window.clearInterval(syncUiState.pollTimer);
           syncUiState.pollTimer = null;
         }
-        syncUiState.pollInFlight = false;
         return;
       }
       syncUiState.pollErrorCount = 0;
@@ -2684,7 +2698,6 @@ function startSyncPolling(syncId) {
         window.clearInterval(syncUiState.pollTimer);
         syncUiState.pollTimer = null;
       }
-      syncUiState.pollInFlight = false;
     } catch (err) {
       // If the status record isn't found, stop polling and rely on the main sync request.
       if (err && (err.status === 404 || err.code === 'NOT_FOUND')) {
@@ -2692,7 +2705,6 @@ function startSyncPolling(syncId) {
           window.clearInterval(syncUiState.pollTimer);
           syncUiState.pollTimer = null;
         }
-        syncUiState.pollInFlight = false;
         return;
       }
       // Treat intermittent poll errors as transient; only fail after a few consecutive errors.
@@ -2716,11 +2728,10 @@ function startSyncPolling(syncId) {
         window.clearInterval(syncUiState.pollTimer);
         syncUiState.pollTimer = null;
       }
-      syncUiState.pollInFlight = false;
     }
   };
   poll();
-  syncUiState.pollTimer = window.setInterval(poll, 2500);
+  syncUiState.pollTimer = window.setInterval(poll, 450);
 }
 
 function formatDateTime(value) {
@@ -4194,6 +4205,38 @@ async function loadAdminTrend(metric = adminTrendState.metric, range = adminTren
   }
 }
 
+async function loadAdminUsers() {
+  const els = ensureAdminElements();
+  if (!els.userList) return true;
+  try {
+    els.userList.innerHTML = '<li class="muted small">Loading users…</li>';
+    const data = await adminFetchJson('/api/admin/analytics/users');
+    const users = Array.isArray(data?.users) ? data.users : [];
+    if (els.userCount) {
+      els.userCount.textContent = `${users.length} users (recent)`;
+    }
+    if (!users.length) {
+      els.userList.innerHTML = '<li class="muted small">No users found.</li>';
+      return true;
+    }
+    const items = users.map((u) => {
+      const email = u.email || '—';
+      const tier = String(u.plan_tier || 'free').toLowerCase();
+      const created = formatDateTime(u.created_at) || '';
+      const mode = u.inbox_mode || '';
+      return `<li class="admin-user-item"><div class="admin-user-email">${escapeHtml(email)}</div><div class="muted small">${tier} · ${mode || 'forwarding'}${created ? ' · ' + created : ''}</div></li>`;
+    });
+    els.userList.innerHTML = items.join('');
+    return true;
+  } catch (err) {
+    if (els.userList) {
+      const code = err?.code || err?.status || 'error';
+      els.userList.innerHTML = `<li class="muted small">Unable to load users (${code}).</li>`;
+    }
+    return false;
+  }
+}
+
 function updateAdminAnalyticsVisibility() {
   const els = ensureAdminElements();
   if (!els.section) return;
@@ -4207,7 +4250,8 @@ function updateAdminAnalyticsVisibility() {
       if (!authed) return;
       const okSummary = await loadAdminAnalyticsSummary();
       const okTrend = await loadAdminTrend();
-      adminAnalyticsLoaded = okSummary && okTrend;
+      const okUsers = await loadAdminUsers();
+      adminAnalyticsLoaded = okSummary && okTrend && okUsers;
     })();
   }
 }
