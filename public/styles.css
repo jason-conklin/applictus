@@ -10697,6 +10697,143 @@ body.app-page-bg .topbar .nav-link.active {
   background: #dde8f8;
 }
 
+/* Applications row component refinement */
+#dashboard-view #applications-table {
+  display: grid;
+  gap: 7px;
+}
+
+#dashboard-view #applications-table .applications-header,
+#dashboard-view #applications-table .table-row.application-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0;
+}
+
+#dashboard-view #applications-table .applications-header {
+  min-height: 38px;
+  margin: 0;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#dashboard-view #applications-table .applications-header .table-header-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.94fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+#dashboard-view #applications-table .applications-header .table-header-signals {
+  display: grid;
+  grid-template-columns: minmax(128px, auto) minmax(98px, auto) 62px;
+  align-items: center;
+  gap: 10px;
+  justify-items: end;
+  padding-left: 14px;
+}
+
+#dashboard-view #applications-table .applications-header .sort-btn {
+  min-height: 32px;
+  padding: 0 8px;
+}
+
+#dashboard-view #applications-table .table-row.application-row {
+  position: relative;
+  min-height: 58px;
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(120, 142, 173, 0.24);
+  background: #f8fafd;
+  box-shadow: 0 3px 10px rgba(17, 36, 72, 0.06);
+  overflow: hidden;
+  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+#dashboard-view #applications-table .table-row.application-row .row-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding-right: 14px;
+}
+
+#dashboard-view #applications-table .table-row.application-row .row-signals {
+  display: grid;
+  grid-template-columns: minmax(128px, auto) minmax(98px, auto) 62px;
+  align-items: center;
+  gap: 10px;
+}
+
+#dashboard-view #applications-table .table-row.application-row .table-col-status,
+#dashboard-view #applications-table .table-row.application-row .table-col-activity,
+#dashboard-view #applications-table .table-row.application-row .table-col-select {
+  padding: 0;
+}
+
+#dashboard-view #applications-table .table-row.application-row .table-col-status {
+  justify-content: center;
+}
+
+#dashboard-view #applications-table .table-row.application-row .table-col-activity {
+  justify-content: flex-end;
+}
+
+#dashboard-view #applications-table .table-row.application-row .table-col-select {
+  justify-content: flex-end;
+}
+
+#dashboard-view #applications-table .table-row.application-row .cell-company strong {
+  font-size: 15.5px;
+  font-weight: 700;
+}
+
+#dashboard-view #applications-table .table-row.application-row .cell-role {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+#dashboard-view #applications-table .table-row.application-row .activity-cell {
+  font-size: 12.5px;
+}
+
+#dashboard-view #applications-table .appl-statusPill {
+  min-height: 28px;
+  padding: 6px 12px;
+  border-width: 1.5px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+#dashboard-view #applications-table .table-row.application-row .status-band {
+  width: 3px;
+  border-radius: 0;
+}
+
+#dashboard-view #applications-table .table-row.application-row.is-recent-update {
+  box-shadow:
+    inset 3px 0 0 rgba(46, 101, 194, 0.3),
+    0 5px 14px rgba(19, 40, 78, 0.08);
+}
+
+#dashboard-view #applications-table .table-row.application-row:hover {
+  background: #eef4fd;
+  border-color: rgba(46, 90, 172, 0.36);
+  box-shadow: 0 10px 22px rgba(15, 35, 80, 0.13);
+  transform: translateY(-1px);
+}
+
+#dashboard-view #applications-table .table-row.application-row.table-row-selected,
+#dashboard-view #applications-table .table-row.application-row.table-row-selected:hover {
+  background: #e1ebfb;
+  border-color: rgba(31, 80, 166, 0.42);
+}
+
 @media (prefers-reduced-motion: reduce) {
   #dashboard-view .kpi-new-tag[data-kpi-signal='true'],
   #dashboard-view .kpi-delta[data-kpi-signal='true'] {
@@ -10811,6 +10948,33 @@ body.app-page-bg .topbar .nav-link.active {
     justify-content: space-between;
     flex-wrap: wrap;
   }
+
+  #dashboard-view #applications-table .applications-header {
+    display: none;
+  }
+
+  #dashboard-view #applications-table .table-row.application-row {
+    grid-template-columns: 1fr;
+    row-gap: 8px;
+    padding: 11px 14px 10px;
+  }
+
+  #dashboard-view #applications-table .table-row.application-row .row-main {
+    padding-right: 0;
+  }
+
+  #dashboard-view #applications-table .table-row.application-row .row-signals {
+    grid-template-columns: minmax(116px, 1fr) auto auto;
+    gap: 8px;
+  }
+
+  #dashboard-view #applications-table .table-row.application-row .table-col-activity {
+    justify-content: center;
+  }
+
+  #dashboard-view #applications-table .table-row.application-row .table-col-select {
+    min-width: 44px;
+  }
 }
 
 @media (max-width: 720px) {
@@ -10843,6 +11007,18 @@ body.app-page-bg .topbar .nav-link.active {
   #dashboard-view .status-strip-actions .sync-manual-process {
     width: 100%;
     text-align: left;
+  }
+
+  #dashboard-view #applications-table .table-row.application-row .row-signals {
+    grid-template-columns: 1fr auto auto;
+  }
+
+  #dashboard-view #applications-table .table-row.application-row .cell-company strong {
+    font-size: 15px;
+  }
+
+  #dashboard-view #applications-table .table-row.application-row .cell-role {
+    font-size: 13px;
   }
 
   #applications-table {
