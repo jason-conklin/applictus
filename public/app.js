@@ -4094,7 +4094,7 @@ function renderAdminChart(trend) {
   });
 }
 
-function loadAdminAnalyticsSummary() {
+async function loadAdminAnalyticsSummary() {
   try {
     const els = ensureAdminElements();
     if (els.chartHint) els.chartHint.textContent = 'Loading admin KPIs…';
