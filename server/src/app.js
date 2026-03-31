@@ -64,7 +64,7 @@ const { buildApplicationKey } = require('./normalizeJobFields');
 const { buildHintFingerprintFromEmail, upsertUserHint } = require('./hints');
 const { validateInboxUsername, normalizeInboxUsername } = require('./inboxUsername');
 const { updateUserPlan, getUserPlan } = require('./billing');
-const { ensurePlanState, resolvePlanLimit } = require('./planUsage');
+const { ensurePlanState, resolvePlanLimit, currentMonthBucket } = require('./planUsage');
 
 function isProd() {
   return process.env.NODE_ENV === 'production';
