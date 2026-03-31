@@ -41,6 +41,10 @@ function logUserAction(db, { userId, applicationId, actionType, payload }) {
 
 function shouldBlockAuto(application, nextStatus, confidence) {
   const current = application.current_status || ApplicationStatus.UNKNOWN;
+  // Avoid counting "updates" when inference reaffirms the same status.
+  if (nextStatus === current) {
+    return 'same_status';
+  }
   if (application.user_override && nextStatus !== current) {
     return 'user_override';
   }
