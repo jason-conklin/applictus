@@ -85,6 +85,13 @@ const ALLOWED_ORIGINS = new Set(
   ].filter(Boolean)
 );
 
+// Lightweight in-memory cache to dampen short-burst analytics reads.
+const ADMIN_CACHE_TTL_MS = 60_000;
+const adminAnalyticsCache = {
+  summary: { data: null, ts: 0 },
+  trends: new Map() // key: `${metric}:${range}` -> { data, ts }
+};
+
 // Stack choice: Express + SQLite keeps the backend lightweight and easy to ship locally.
 const app = express();
 const db = openDb();
@@ -880,6 +887,17 @@ async function getAdminSchemaCapabilities(dbInstance) {
   const hasPlanTier = await pgHasColumns(dbInstance, 'users', ['plan_tier']);
   const hasPlanUsage = await pgHasColumns(dbInstance, 'users', ['tracked_email_count_current_month', 'tracked_email_month_bucket']);
   return { hasPlanTier, hasPlanUsage };
+}
+
+async function pgHasTable(dbInstance, table) {
+  if (!dbInstance.isAsync) return true;
+  const row = await runPrepared(
+    dbInstance,
+    `SELECT to_regclass($1) AS exists`,
+    [table],
+    'get'
+  );
+  return Boolean(row && row.exists);
 }
 
 function authDebug(meta = {}) {
@@ -3103,10 +3121,27 @@ app.get('/api/admin/analytics/summary', requireAuth, async (req, res) => {
     if (!isInternalAdminUser(req.user)) {
       return res.status(403).json({ error: 'ADMIN_ONLY' });
     }
+    const cacheAge = Date.now() - adminAnalyticsCache.summary.ts;
+    if (adminAnalyticsCache.summary.data && cacheAge < ADMIN_CACHE_TTL_MS) {
+      logInfo('admin.analytics.summary.cache_hit', { age_ms: cacheAge });
+      return res.json({ ...adminAnalyticsCache.summary.data, cache: 'hit' });
+    }
     logInfo('admin.analytics.summary.request', { userId: req.user?.id || null, email: req.user?.email || null });
+    const hasUsers = await pgHasTable(db, 'users');
+    const hasApps = await pgHasTable(db, 'job_applications');
+    const hasEvents = await pgHasTable(db, 'email_events');
+    if (!hasUsers || !hasApps || !hasEvents) {
+      logWarn('admin.analytics.schema.missing_table', { hasUsers, hasApps, hasEvents });
+      return res.status(500).json({
+        error: 'ANALYTICS_SCHEMA_MISSING',
+        detail: 'Required tables missing',
+        tables: { users: hasUsers, job_applications: hasApps, email_events: hasEvents }
+      });
+    }
     const caps = await getAdminSchemaCapabilities(db);
     const summary = await buildAdminAnalyticsSummary(db, caps);
     summary.schema_capabilities = caps;
+    adminAnalyticsCache.summary = { data: summary, ts: Date.now() };
     return res.json(summary);
   } catch (err) {
     logError('admin.analytics.summary.failed', {
@@ -3120,29 +3155,51 @@ app.get('/api/admin/analytics/summary', requireAuth, async (req, res) => {
 app.get('/api/admin/analytics/trends', requireAuth, async (req, res) => {
   try {
     if (!isInternalAdminUser(req.user)) {
-      return res.status(403).json({ error: 'FORBIDDEN' });
+      return res.status(403).json({ error: 'ADMIN_ONLY' });
     }
+    const metric = String(req.query.metric || 'tracked_emails');
+    const range = String(req.query.range || '30d');
+
+    const cacheKey = `${metric}:${range}`;
+    const cached = adminAnalyticsCache.trends.get(cacheKey);
+    const cacheAge = cached ? Date.now() - cached.ts : Infinity;
+    if (cached && cacheAge < ADMIN_CACHE_TTL_MS) {
+      logInfo('admin.analytics.trends.cache_hit', { metric, range, age_ms: cacheAge });
+      return res.json({ ...cached.data, cache: 'hit' });
+    }
+
     logInfo('admin.analytics.trends.request', {
       userId: req.user?.id || null,
       email: req.user?.email || null,
-      metric: req.query.metric || null,
-      range: req.query.range || null
+      metric,
+      range
     });
+    const hasUsers = await pgHasTable(db, 'users');
+    const hasApps = await pgHasTable(db, 'job_applications');
+    const hasEvents = await pgHasTable(db, 'email_events');
+    if (!hasUsers || !hasApps || !hasEvents) {
+      logWarn('admin.analytics.schema.missing_table', { hasUsers, hasApps, hasEvents });
+      return res.status(500).json({
+        error: 'ANALYTICS_SCHEMA_MISSING',
+        detail: 'Required tables missing',
+        tables: { users: hasUsers, job_applications: hasApps, email_events: hasEvents }
+      });
+    }
     const caps = await getAdminSchemaCapabilities(db);
-    const metric = String(req.query.metric || 'tracked_emails');
-    const range = String(req.query.range || '30d');
     const { sql, bucketType, empty } = buildTrendQuery({ metric, range, isPg: !!db.isAsync, hasPlanTier: caps.hasPlanTier });
     if (empty && metric === 'pro_users') {
       return res.status(500).json({ error: 'ANALYTICS_SCHEMA_MISSING', detail: 'plan_tier missing' });
     }
     const rows = empty ? [] : await runPrepared(db, sql, [], 'all');
-    return res.json({
+    const payload = {
       metric,
       range,
       bucket_type: bucketType,
       points: rows || [],
       schema_capabilities: caps
-    });
+    };
+    adminAnalyticsCache.trends.set(cacheKey, { data: payload, ts: Date.now() });
+    return res.json(payload);
   } catch (err) {
     logError('admin.analytics.trends.failed', {
       userId: req.user?.id || null,

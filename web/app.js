@@ -4126,8 +4126,8 @@ async function loadAdminAnalyticsSummary() {
       if (code === 401) {
         els.statusText.textContent += ' You may need to re-sign in on this host.';
       }
-      if (code === 500 && summary?.schema_capabilities && !summary.schema_capabilities.hasPlanTier) {
-        els.statusText.textContent = 'Admin analytics: plan schema missing. Apply migration 035_plan_usage_postgres.sql.';
+      if (code === 'ANALYTICS_SCHEMA_MISSING' || code === 500) {
+        els.statusText.textContent = 'Admin analytics: schema missing (users/job_applications/email_events or plan fields).';
       }
     }
     if (DEBUG_APP) {
@@ -4172,8 +4172,8 @@ async function loadAdminTrend(metric = adminTrendState.metric, range = adminTren
       if (code === 401) {
         els.statusText.textContent += ' You may need to re-sign in on this host.';
       }
-      if (code === 'ANALYTICS_SCHEMA_MISSING') {
-        els.statusText.textContent = 'Admin analytics: plan schema missing. Apply migration 035_plan_usage_postgres.sql.';
+      if (code === 'ANALYTICS_SCHEMA_MISSING' || code === 500) {
+        els.statusText.textContent = 'Admin analytics: schema missing (users/job_applications/email_events or plan fields).';
       }
     }
     if (DEBUG_APP) {

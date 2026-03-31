@@ -2554,6 +2554,7 @@ function startSyncPolling(syncId) {
   syncUiState.startTs = Date.now();
   syncUiState.state = 'running';
   syncUiState.pollErrorCount = 0;
+  syncUiState.pollInFlight = false;
   if (syncUiState.pollTimer) {
     window.clearInterval(syncUiState.pollTimer);
   }
@@ -2588,6 +2589,11 @@ function startSyncPolling(syncId) {
     window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
   const poll = async () => {
+    if (document.hidden) {
+      return;
+    }
+    if (syncUiState.pollInFlight) return;
+    syncUiState.pollInFlight = true;
     try {
       const progress = await api(`/api/email/sync/status?sync_id=${encodeURIComponent(syncId)}`);
       if (progress && (progress.ok === false || progress.status === 'unknown_sync_id')) {
@@ -2597,6 +2603,7 @@ function startSyncPolling(syncId) {
           window.clearInterval(syncUiState.pollTimer);
           syncUiState.pollTimer = null;
         }
+        syncUiState.pollInFlight = false;
         return;
       }
       syncUiState.pollErrorCount = 0;
@@ -2627,6 +2634,7 @@ function startSyncPolling(syncId) {
         window.clearInterval(syncUiState.pollTimer);
         syncUiState.pollTimer = null;
       }
+      syncUiState.pollInFlight = false;
     } catch (err) {
       // If the status record isn't found, stop polling and rely on the main sync request.
       if (err && (err.status === 404 || err.code === 'NOT_FOUND')) {
@@ -2634,6 +2642,7 @@ function startSyncPolling(syncId) {
           window.clearInterval(syncUiState.pollTimer);
           syncUiState.pollTimer = null;
         }
+        syncUiState.pollInFlight = false;
         return;
       }
       // Treat intermittent poll errors as transient; only fail after a few consecutive errors.
@@ -2657,10 +2666,11 @@ function startSyncPolling(syncId) {
         window.clearInterval(syncUiState.pollTimer);
         syncUiState.pollTimer = null;
       }
+      syncUiState.pollInFlight = false;
     }
   };
   poll();
-  syncUiState.pollTimer = window.setInterval(poll, 450);
+  syncUiState.pollTimer = window.setInterval(poll, 2500);
 }
 
 function formatDateTime(value) {
