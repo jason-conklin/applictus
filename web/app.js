@@ -4364,20 +4364,35 @@ function updateAdminAnalyticsVisibility() {
   }
 }
 
-function buildPlanCard({ title, price, limit, features, ctaText, tier }) {
+function buildPlanCard({ title, context, price, limit, features, ctaText, tier }) {
   const card = document.createElement('div');
-  card.className = 'plan-card';
+  card.className = `plan-card ${tier === 'pro' ? 'plan-card--pro' : 'plan-card--free'}`;
+
+  const top = document.createElement('div');
+  top.className = 'plan-card-top';
+
   const pill = document.createElement('div');
-  pill.className = 'plan-pill';
+  pill.className = `plan-pill ${tier === 'pro' ? 'plan-pill--popular' : 'plan-pill--included'}`;
   pill.textContent = tier === 'pro' ? 'Most popular' : 'Included';
+
   const h4 = document.createElement('h4');
+  h4.className = 'plan-title';
   h4.textContent = title;
+
+  const contextEl = document.createElement('div');
+  contextEl.className = 'plan-context muted small';
+  contextEl.textContent = context;
+
+  top.append(pill, h4, contextEl);
+
   const priceEl = document.createElement('div');
   priceEl.className = 'plan-price';
   priceEl.textContent = price;
+
   const limitEl = document.createElement('div');
-  limitEl.className = 'muted small';
+  limitEl.className = 'plan-limit muted small';
   limitEl.textContent = `${limit} tracked emails / month`;
+
   const ul = document.createElement('ul');
   ul.className = 'plan-features';
   features.forEach((feat) => {
@@ -4385,9 +4400,10 @@ function buildPlanCard({ title, price, limit, features, ctaText, tier }) {
     li.textContent = feat;
     ul.appendChild(li);
   });
+
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = tier === 'pro' ? 'btn btn--primary btn--sm' : 'btn btn--ghost btn--sm';
+  btn.className = tier === 'pro' ? 'btn btn--primary btn--md plan-cta plan-cta--pro' : 'btn btn--ghost btn--sm plan-cta plan-cta--free';
   btn.textContent = ctaText;
   btn.addEventListener('click', () => {
     if (tier === 'pro') {
@@ -4396,7 +4412,8 @@ function buildPlanCard({ title, price, limit, features, ctaText, tier }) {
       closeModal('confirm');
     }
   });
-  card.append(pill, h4, priceEl, limitEl, ul, btn);
+
+  card.append(top, priceEl, limitEl, ul, btn);
   return card;
 }
 
@@ -4405,23 +4422,26 @@ function openPricingModal() {
   container.className = 'plan-card-grid';
   const freeCard = buildPlanCard({
     title: 'Free',
+    context: 'For light usage',
     price: '$0 / month',
     limit: PLAN_LIMITS.free,
     features: [
-      'Automatic tracking',
-      'Application timelines',
-      'Dashboard updates'
+      'Up to 75 tracked emails per month',
+      'Automatically track job updates from your inbox',
+      'See your applications in one timeline'
     ],
     ctaText: 'Stay on Free',
     tier: 'free'
   });
   const proCard = buildPlanCard({
     title: 'Pro',
+    context: 'For active job search',
     price: '$4 / month',
     limit: PLAN_LIMITS.pro,
     features: [
       'Up to 500 tracked emails / month',
-      'Everything in Free',
+      'Never miss interview requests or important updates',
+      'Track all applications across your job search',
       'Higher limits for active searches'
     ],
     ctaText: 'Upgrade to Pro',
@@ -4431,6 +4451,10 @@ function openPricingModal() {
 
   const body = document.createElement('div');
   body.appendChild(container);
+  const trust = document.createElement('div');
+  trust.className = 'pricing-trust muted small';
+  trust.textContent = 'Cancel anytime • No hidden fees • Upgrade or downgrade anytime';
+  body.appendChild(trust);
   const footer = document.createElement('div');
   footer.className = 'modal-footer-actions';
   const closeBtn = document.createElement('button');
@@ -4441,8 +4465,8 @@ function openPricingModal() {
   footer.appendChild(closeBtn);
 
   openModal({
-    title: 'Pricing',
-    description: 'Fair, transparent plans. Upgrade when you need more volume.',
+    title: 'Choose your plan',
+    description: 'Stay on top of every job update. Upgrade when you need more volume.',
     body,
     footer,
     allowBackdropClose: true

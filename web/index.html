@@ -150,6 +150,154 @@
         }
       }
     </style>
+    <style id="pricing-styles">
+      .account-plan-body .plan-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 8px;
+      }
+      .plan-progress {
+        height: 10px;
+        background: rgba(17, 50, 96, 0.12);
+        border-radius: 999px;
+        overflow: hidden;
+        margin: 10px 0 8px;
+      }
+      .plan-progress-bar {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #2a5ea8 0%, #1f4d8f 100%);
+        transition: width 220ms ease;
+      }
+      .plan-warning {
+        min-height: 20px;
+        color: #36557d;
+        line-height: 1.45;
+      }
+      .plan-actions {
+        margin-top: 12px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .plan-card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 16px;
+        margin-top: 4px;
+      }
+      .plan-card {
+        position: relative;
+        border: 1px solid rgba(20, 40, 80, 0.12);
+        border-radius: 16px;
+        padding: 18px;
+        background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+        box-shadow:
+          0 14px 30px rgba(12, 36, 84, 0.08),
+          inset 0 1px 0 rgba(255, 255, 255, 0.86);
+      }
+      .plan-card-top {
+        display: grid;
+        gap: 5px;
+        margin-bottom: 12px;
+      }
+      .plan-card--pro {
+        border-color: rgba(22, 69, 143, 0.26);
+        background:
+          radial-gradient(125% 115% at 6% 0%, rgba(227, 238, 255, 0.68), rgba(255, 255, 255, 0) 64%),
+          linear-gradient(180deg, #ffffff 0%, #f1f7ff 100%);
+        box-shadow:
+          0 24px 44px rgba(15, 45, 96, 0.15),
+          0 8px 18px rgba(15, 45, 96, 0.1),
+          inset 0 1px 0 rgba(255, 255, 255, 0.92);
+        transform: translateY(-1px);
+      }
+      .plan-title {
+        margin: 0 0 4px;
+        font-size: 17px;
+        color: #13294b;
+      }
+      .plan-context {
+        margin: 0;
+        color: #4c5f7c;
+        line-height: 1.45;
+      }
+      .plan-price {
+        font-size: 32px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: #102746;
+        line-height: 1.1;
+        margin: 2px 0 4px;
+      }
+      .plan-limit {
+        margin-bottom: 14px;
+        color: #4f6079;
+      }
+      .plan-features {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 14px;
+        display: grid;
+        gap: 8px;
+      }
+      .plan-features li {
+        position: relative;
+        margin-bottom: 0;
+        padding-left: 20px;
+        color: #2d4568;
+        line-height: 1.45;
+      }
+      .plan-features li::before {
+        content: '✓';
+        position: absolute;
+        left: 0;
+        top: 0;
+        color: #2e63b0;
+        font-weight: 700;
+      }
+      .plan-pill {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        padding: 3px 9px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        margin-bottom: 2px;
+      }
+      .plan-pill--popular {
+        background: rgba(37, 82, 171, 0.16);
+        border: 1px solid rgba(37, 82, 171, 0.28);
+        color: #1a468f;
+      }
+      .plan-pill--included {
+        background: rgba(17, 50, 96, 0.08);
+        border: 1px solid rgba(17, 50, 96, 0.12);
+        color: #3a5174;
+      }
+      .plan-cta {
+        width: 100%;
+        justify-content: center;
+      }
+      .plan-cta--free {
+        color: #536987;
+        border-color: rgba(20, 40, 80, 0.18);
+        background: linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%);
+      }
+      .plan-cta--pro {
+        box-shadow:
+          0 14px 24px rgba(20, 58, 126, 0.2),
+          inset 0 1px 0 rgba(255, 255, 255, 0.22);
+      }
+      .pricing-trust {
+        margin-top: 12px;
+        text-align: center;
+        color: #5a6f8f;
+        line-height: 1.5;
+      }
+    </style>
   </head>
   <body>
     <div id="app">
@@ -1970,6 +2118,6 @@
       </div>
     </div>
 
-    <script type="module" src="/app.js?v=33"></script>
+    <script type="module" src="/app.js?v=34"></script>
   </body>
 </html>
