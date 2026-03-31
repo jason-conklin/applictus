@@ -8740,23 +8740,6 @@ profileMenuPanel?.addEventListener('click', async (event) => {
   const action = actionTarget.dataset.menuAction;
   if (action === 'inbox') {
     closeProfileMenu();
-    if (isInternalGmailMode()) {
-      if (!emailState.connected) {
-        try {
-          await startGmailConnectFlow();
-        } catch (err) {
-          showNotice(err.message || 'Unable to connect Gmail', 'Connect Gmail');
-        }
-      } else {
-        window.location.hash = '#account';
-      }
-      return;
-    }
-    try {
-      await refreshInboundStatus({ ensureAddress: true });
-    } catch (_) {
-      // keep modal accessible even if status refresh fails
-    }
     openInboundSetupModal({ startStep: 0 });
     return;
   }
@@ -8890,7 +8873,7 @@ dashboardView?.addEventListener('click', async (event) => {
     return;
   }
   if (action === 'manage-inbox') {
-    window.location.hash = '#account';
+    openInboundSetupModal({ startStep: 0 });
     return;
   }
 });
