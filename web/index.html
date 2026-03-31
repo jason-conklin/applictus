@@ -10,7 +10,7 @@
     <meta name="app-api-base-url" content="" />
     <title>Applictus</title>
     <link rel="icon" href="/Applictus_logo.png" type="image/png" />
-    <link rel="stylesheet" href="/styles.css?v=28" />
+    <link rel="stylesheet" href="/styles.css?v=29" />
     <style>
       body:not(.app-ready) #app {
         opacity: 0;
@@ -960,138 +960,111 @@
         </div>
         <div class="dashboard">
           <div class="sync-band surface-raised">
-            <div class="sync-strip scan-card" id="sync-strip">
-              <div class="scan-card__left">
-                <div class="scan-top">
-                  <button class="btn btn--secondary btn--md manage-inbox-btn" type="button" data-action="manage-inbox">
-                    <span class="manage-inbox-icon" aria-hidden="true">
-                      <svg
-                        viewBox="0 0 24 24"
-                        width="20"
-                        height="20"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.9"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        focusable="false"
-                        aria-hidden="true"
-                      >
-                        <rect x="3" y="5" width="18" height="14" rx="2"></rect>
-                        <path d="M3.8 7.2L12 13.4L20.2 7.2"></path>
-                      </svg>
-                    </span>
-                    <span class="btn-label">Inbox setup</span>
-                  </button>
-                  <div class="sync-strip-status">
-                    <div class="pill" id="dashboard-inbox-status">Not connected</div>
-                    <div class="muted small" id="dashboard-inbox-email">—</div>
-                    <span class="muted" id="sync-status">Setup needed</span>
-                  </div>
-                </div>
-                <div class="scan-bottom">
-                  <div class="sync-summary" id="sync-summary">
-                    <div
-                      class="sync-summary-main"
-                      id="sync-summary-main"
-                    >
-                      <span class="sync-summary-status" id="sync-summary-status">Inbox not connected</span>
-                      <span class="sync-summary-metrics muted" id="sync-summary-metrics"></span>
-                    </div>
-                  </div>
-                  <div class="sync-details hidden" id="sync-details-wrapper">
-                    <pre class="sync-details-block" id="sync-result"></pre>
-                  </div>
+            <div class="sync-strip status-strip" id="sync-strip">
+              <div class="status-strip-main">
+                <button class="btn btn--secondary btn--sm manage-inbox-btn" type="button" data-action="manage-inbox">
+                  <span class="btn-label">Inbox setup</span>
+                </button>
+                <div class="pill" id="dashboard-inbox-status">Not connected</div>
+                <div class="muted small status-strip-email" id="dashboard-inbox-email">—</div>
+                <div class="sync-summary-main status-strip-meta" id="sync-summary-main" role="button" tabindex="0" aria-expanded="false">
+                  <span class="status-strip-meta-item" id="sync-status">Setup needed</span>
+                  <span class="status-strip-divider" aria-hidden="true">•</span>
+                  <span class="sync-summary" id="sync-summary">
+                    <span class="sync-summary-status" id="sync-summary-status">Inbox not connected</span>
+                    <span class="sync-summary-metrics" id="sync-summary-metrics"></span>
+                  </span>
                 </div>
               </div>
-              <div class="scan-card__right">
-                <div class="sync-inline-controls">
-                  <div class="sync-quick-controls" id="sync-controls">
-                    <div class="sync-action-group scan-actions" id="sync-action-group">
-                      <button class="btn btn--primary btn--md btn-scan" type="button" id="email-sync">
-                        <span class="btn-icon-left" aria-hidden="true">⟳</span>
-                        <span class="btn-label scan-label">
-                          <span class="scan-text">Sync inbox</span>
-                          <span class="scan-dots" aria-hidden="true"></span>
-                        </span>
+              <div class="status-strip-actions">
+                <div class="sync-quick-controls" id="sync-controls">
+                  <div class="sync-action-group status-strip-action-group" id="sync-action-group">
+                    <button class="btn btn--primary btn--md btn-scan" type="button" id="email-sync">
+                      <span class="btn-icon-left" aria-hidden="true">⟳</span>
+                      <span class="btn-label scan-label">
+                        <span class="scan-text">Sync inbox</span>
+                        <span class="scan-dots" aria-hidden="true"></span>
+                      </span>
+                    </button>
+                    <button
+                      class="btn btn--secondary btn--md btn-scan-menu sync-menu-button hidden"
+                      type="button"
+                      id="email-sync-menu-button"
+                      aria-label="Choose sync range"
+                      aria-haspopup="menu"
+                      aria-expanded="false"
+                      aria-hidden="true"
+                    >
+                      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path d="M6 8l4 4 4-4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
+                    </button>
+                    <div class="sync-range-menu hidden" id="sync-range-menu" role="menu" aria-label="Sync range">
+                      <button
+                        class="sync-range-menu-item is-selected"
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked="true"
+                        data-sync-option="since_last"
+                      >
+                        <span class="sync-range-check" aria-hidden="true">✓</span>
+                        <span>Since last sync</span>
                       </button>
                       <button
-                        class="btn btn--secondary btn--md btn-scan-menu sync-menu-button hidden"
+                        class="sync-range-menu-item"
                         type="button"
-                        id="email-sync-menu-button"
-                        aria-label="Choose sync range"
-                        aria-haspopup="menu"
-                        aria-expanded="false"
-                        aria-hidden="true"
+                        role="menuitemradio"
+                        aria-checked="false"
+                        data-sync-option="7"
                       >
-                        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                          <path d="M6 8l4 4 4-4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
+                        <span class="sync-range-check" aria-hidden="true"></span>
+                        <span>Last 7 days</span>
                       </button>
-                      <div class="sync-range-menu hidden" id="sync-range-menu" role="menu" aria-label="Sync range">
-                        <button
-                          class="sync-range-menu-item is-selected"
-                          type="button"
-                          role="menuitemradio"
-                          aria-checked="true"
-                          data-sync-option="since_last"
-                        >
-                          <span class="sync-range-check" aria-hidden="true">✓</span>
-                          <span>Since last sync</span>
-                        </button>
-                        <button
-                          class="sync-range-menu-item"
-                          type="button"
-                          role="menuitemradio"
-                          aria-checked="false"
-                          data-sync-option="7"
-                        >
-                          <span class="sync-range-check" aria-hidden="true"></span>
-                          <span>Last 7 days</span>
-                        </button>
-                        <button
-                          class="sync-range-menu-item"
-                          type="button"
-                          role="menuitemradio"
-                          aria-checked="false"
-                          data-sync-option="14"
-                        >
-                          <span class="sync-range-check" aria-hidden="true"></span>
-                          <span>Last 14 days</span>
-                        </button>
-                        <button
-                          class="sync-range-menu-item"
-                          type="button"
-                          role="menuitemradio"
-                          aria-checked="false"
-                          data-sync-option="30"
-                        >
-                          <span class="sync-range-check" aria-hidden="true"></span>
-                          <span>Last 30 days</span>
-                        </button>
-                        <button
-                          class="sync-range-menu-item"
-                          type="button"
-                          role="menuitemradio"
-                          aria-checked="false"
-                          data-sync-option="90"
-                        >
-                          <span class="sync-range-check" aria-hidden="true"></span>
-                          <span>Last 90 days</span>
-                        </button>
-                      </div>
+                      <button
+                        class="sync-range-menu-item"
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked="false"
+                        data-sync-option="14"
+                      >
+                        <span class="sync-range-check" aria-hidden="true"></span>
+                        <span>Last 14 days</span>
+                      </button>
+                      <button
+                        class="sync-range-menu-item"
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked="false"
+                        data-sync-option="30"
+                      >
+                        <span class="sync-range-check" aria-hidden="true"></span>
+                        <span>Last 30 days</span>
+                      </button>
+                      <button
+                        class="sync-range-menu-item"
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked="false"
+                        data-sync-option="90"
+                      >
+                        <span class="sync-range-check" aria-hidden="true"></span>
+                        <span>Last 90 days</span>
+                      </button>
                     </div>
-                    <div class="muted small sync-helper-text scan-helper" id="sync-helper-text">
-                      Set up automatic forwarding in about 2 minutes — no Google login required.
-                    </div>
-                    <button class="link-button sync-manual-process" type="button" id="sync-process-now">
-                      Process inbox now
-                    </button>
                   </div>
+                  <button class="link-button sync-manual-process" type="button" id="sync-process-now">
+                    Process inbox now
+                  </button>
                 </div>
                 <div class="sync-connect-cta hidden" id="sync-connect-cta">
                   <div class="muted small">Inbox not connected</div>
                 </div>
+              </div>
+              <div class="sr-only sync-helper-text scan-helper" id="sync-helper-text">
+                Set up automatic forwarding in about 2 minutes — no Google login required.
+              </div>
+              <div class="sync-details hidden" id="sync-details-wrapper">
+                <pre class="sync-details-block" id="sync-result"></pre>
               </div>
             </div>
           <div class="sync-error hidden" id="sync-error-banner">
@@ -2118,6 +2091,6 @@
       </div>
     </div>
 
-    <script type="module" src="/app.js?v=35"></script>
+    <script type="module" src="/app.js?v=36"></script>
   </body>
 </html>

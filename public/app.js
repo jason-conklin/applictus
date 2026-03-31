@@ -1610,7 +1610,7 @@ function updateInboundStatusPresentation() {
   if (isInternalGmailMode()) {
     const connected = Boolean(emailState.connected);
     const connectedEmail = emailState.email || sessionUser?.email || null;
-    const statusText = connected ? 'Connected' : 'Not connected';
+    const statusText = connected ? 'Connected ✓' : 'Not connected';
     const helpText = connected
       ? `Connected via Gmail API${connectedEmail ? ` · ${connectedEmail}` : ''}`
       : 'Connect Gmail to enable inbox sync.';
@@ -1700,7 +1700,7 @@ function updateInboundStatusPresentation() {
   if (readiness === 'forwarding_active') {
     pillText = 'Receiving forwarded emails';
     pillState = 'connected';
-    dashboardText = 'Connected';
+    dashboardText = 'Connected ✓';
     dashboardState = 'connected';
     syncText = 'Forwarding active';
     helpStatusText = 'Connected · Receiving forwarded emails';
