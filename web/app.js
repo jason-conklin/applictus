@@ -7404,32 +7404,28 @@ function renderApplicationsTable(applications) {
   const arrow = sortDir === 'asc' ? '▲' : '▼';
   const header = `
     <div class="table-header sortable applications-header">
-      <div class="table-header-main">
-        <button type="button" class="sort-btn table-col-company${sortKey === 'company' ? ' active' : ''}" data-sort="company" aria-label="Sort by company">
-          <span>Company</span>${sortKey === 'company' ? `<span class="arrow">${arrow}</span>` : ''}
-        </button>
-        <button type="button" class="sort-btn table-col-role${sortKey === 'role' ? ' active' : ''}" data-sort="role" aria-label="Sort by role">
-          <span>Role</span>${sortKey === 'role' ? `<span class="arrow">${arrow}</span>` : ''}
-        </button>
-      </div>
-      <div class="table-header-signals">
-        <button type="button" class="sort-btn header-status table-col-status${sortKey === 'status' ? ' active' : ''}" data-sort="status" aria-label="Sort by status">
-          <span>Status</span>${sortKey === 'status' ? `<span class="arrow">${arrow}</span>` : ''}
-        </button>
-        <button type="button" class="sort-btn header-activity table-col-activity${sortKey === 'lastActivity' ? ' active' : ''}" data-sort="lastActivity" aria-label="Sort by last activity">
-          <span>Last activity</span>${sortKey === 'lastActivity' ? `<span class="arrow">${arrow}</span>` : ''}
-        </button>
-        <div class="table-select-header table-col-select">
-          <label class="table-select-header-label" aria-label="Select all applications on this page">
-            <span class="table-select-all-text">SELECT ALL</span>
-            <span class="table-select-control">
-              <input class="table-select-input table-select-all" type="checkbox" ${allSelected ? 'checked' : ''} ${
-                someSelected ? 'data-indeterminate="true"' : ''
-              } />
-              <span class="table-select-mark" aria-hidden="true"></span>
-            </span>
-          </label>
-        </div>
+      <button type="button" class="sort-btn table-col-company${sortKey === 'company' ? ' active' : ''}" data-sort="company" aria-label="Sort by company">
+        <span>Company</span>${sortKey === 'company' ? `<span class="arrow">${arrow}</span>` : ''}
+      </button>
+      <button type="button" class="sort-btn table-col-role${sortKey === 'role' ? ' active' : ''}" data-sort="role" aria-label="Sort by role">
+        <span>Role</span>${sortKey === 'role' ? `<span class="arrow">${arrow}</span>` : ''}
+      </button>
+      <button type="button" class="sort-btn header-status table-col-status${sortKey === 'status' ? ' active' : ''}" data-sort="status" aria-label="Sort by status">
+        <span>Status</span>${sortKey === 'status' ? `<span class="arrow">${arrow}</span>` : ''}
+      </button>
+      <button type="button" class="sort-btn header-activity table-col-activity${sortKey === 'lastActivity' ? ' active' : ''}" data-sort="lastActivity" aria-label="Sort by last activity">
+        <span>Last activity</span>${sortKey === 'lastActivity' ? `<span class="arrow">${arrow}</span>` : ''}
+      </button>
+      <div class="table-select-header table-col-select">
+        <label class="table-select-header-label" aria-label="Select all applications on this page">
+          <span class="table-select-all-text">SELECT ALL</span>
+          <span class="table-select-control">
+            <input class="table-select-input table-select-all" type="checkbox" ${allSelected ? 'checked' : ''} ${
+              someSelected ? 'data-indeterminate="true"' : ''
+            } />
+            <span class="table-select-mark" aria-hidden="true"></span>
+          </span>
+        </label>
       </div>
     </div>
   `;
@@ -7459,25 +7455,21 @@ function renderApplicationsTable(applications) {
       return `
         <div class="table-row application-row${isSelected ? ' table-row-selected' : ''}${isOffer ? ' is-offer' : ''}${isInterviewRequested ? ' is-interview' : ''}${isPriority ? ' is-priority' : ''}${isOffer ? ' is-priority-offer' : ''}${isInterviewRequested ? ' is-priority-interview' : ''}${isNewSignal ? ' is-new-signal' : ''}${isRecentUpdate ? ' is-recent-update' : ''}" style="--stagger: ${index}" data-id="${app.id}" data-status-tone="${statusBandTone}">
           <div class="status-band" aria-hidden="true"></div>
-          <div class="row-main table-col-main">
-            <div class="cell-company table-col-company"><strong>${app.company_name || '—'}</strong></div>
-            <div class="cell-role table-col-role" title="${app.job_title || '—'}">${app.job_title || '—'}</div>
+          <div class="cell-company table-col-company"><strong>${app.company_name || '—'}</strong></div>
+          <div class="cell-role table-col-role" title="${app.job_title || '—'}">${app.job_title || '—'}</div>
+          <div class="table-col-status status-col">
+            <div class="status-cell">${statusPill}</div>
+            ${priorityPrompt}
+            ${suggestionLabel ? `<div class="explanation">Suggestion: ${suggestionLabel}</div>` : ''}
           </div>
-          <div class="row-signals table-col-signals">
-            <div class="table-col-status status-col">
-              <div class="status-cell">${statusPill}</div>
-              ${priorityPrompt}
-              ${suggestionLabel ? `<div class="explanation">Suggestion: ${suggestionLabel}</div>` : ''}
-            </div>
-            <div class="table-col-activity activity-cell${isRecentUpdate ? ' activity-cell--recent' : ''}" title="${escapeHtml(activityMeta.title)}">${activity}</div>
-            <div class="table-select-cell table-col-select">
-              <label class="table-select-control" aria-label="Select application">
-                <input class="table-select-input table-row-select" type="checkbox" data-id="${app.id}" ${
-                  isSelected ? 'checked' : ''
-                } />
-                <span class="table-select-mark" aria-hidden="true"></span>
-              </label>
-            </div>
+          <div class="table-col-activity activity-cell${isRecentUpdate ? ' activity-cell--recent' : ''}" title="${escapeHtml(activityMeta.title)}">${activity}</div>
+          <div class="table-select-cell table-col-select">
+            <label class="table-select-control" aria-label="Select application">
+              <input class="table-select-input table-row-select" type="checkbox" data-id="${app.id}" ${
+                isSelected ? 'checked' : ''
+              } />
+              <span class="table-select-mark" aria-hidden="true"></span>
+            </label>
           </div>
         </div>
       `;

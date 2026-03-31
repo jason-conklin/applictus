@@ -10697,8 +10697,9 @@ body.app-page-bg .topbar .nav-link.active {
   background: #dde8f8;
 }
 
-/* Applications row component refinement */
+/* Applications table refinement (true column layout) */
 #dashboard-view #applications-table {
+  --applications-grid-template: minmax(0, 1.52fr) minmax(0, 1.58fr) minmax(138px, 1.08fr) minmax(112px, 0.9fr) 58px;
   display: grid;
   gap: 7px;
 }
@@ -10706,13 +10707,13 @@ body.app-page-bg .topbar .nav-link.active {
 #dashboard-view #applications-table .applications-header,
 #dashboard-view #applications-table .table-row.application-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: var(--applications-grid-template);
   align-items: center;
   gap: 0;
 }
 
 #dashboard-view #applications-table .applications-header {
-  min-height: 38px;
+  min-height: 40px;
   margin: 0;
   padding: 0 2px;
   border: 0;
@@ -10721,33 +10722,38 @@ body.app-page-bg .topbar .nav-link.active {
   box-shadow: none;
 }
 
-#dashboard-view #applications-table .applications-header .table-header-main {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0.94fr);
-  align-items: center;
-  gap: 10px;
+#dashboard-view #applications-table .applications-header > * {
   min-width: 0;
-}
-
-#dashboard-view #applications-table .applications-header .table-header-signals {
-  display: grid;
-  grid-template-columns: minmax(128px, auto) minmax(98px, auto) 62px;
-  align-items: center;
-  gap: 10px;
-  justify-items: end;
-  padding-left: 14px;
+  padding: 0 14px;
 }
 
 #dashboard-view #applications-table .applications-header .sort-btn {
-  min-height: 32px;
-  padding: 0 8px;
+  min-height: 30px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+#dashboard-view #applications-table .applications-header .table-col-company,
+#dashboard-view #applications-table .applications-header .table-col-role,
+#dashboard-view #applications-table .applications-header .table-col-activity {
+  justify-content: flex-start;
+}
+
+#dashboard-view #applications-table .applications-header .table-col-status {
+  justify-content: center;
+}
+
+#dashboard-view #applications-table .applications-header .table-col-select {
+  justify-content: flex-end;
+  padding-right: 10px;
+  padding-left: 4px;
 }
 
 #dashboard-view #applications-table .table-row.application-row {
   position: relative;
   min-height: 58px;
   margin: 0;
-  padding: 10px 16px;
+  padding: 9px 0;
   border-radius: 12px;
   border: 1px solid rgba(120, 142, 173, 0.24);
   background: #f8fafd;
@@ -10756,28 +10762,25 @@ body.app-page-bg .topbar .nav-link.active {
   transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
-#dashboard-view #applications-table .table-row.application-row .row-main {
-  display: grid;
-  gap: 3px;
+#dashboard-view #applications-table .table-row.application-row > :not(.status-band) {
   min-width: 0;
-  padding-right: 14px;
+  padding: 0 14px;
 }
 
-#dashboard-view #applications-table .table-row.application-row .row-signals {
-  display: grid;
-  grid-template-columns: minmax(128px, auto) minmax(98px, auto) 62px;
+#dashboard-view #applications-table .table-row.application-row .table-col-company,
+#dashboard-view #applications-table .table-row.application-row .table-col-role,
+#dashboard-view #applications-table .table-row.application-row .table-col-activity {
+  display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-#dashboard-view #applications-table .table-row.application-row .table-col-status,
-#dashboard-view #applications-table .table-row.application-row .table-col-activity,
-#dashboard-view #applications-table .table-row.application-row .table-col-select {
-  padding: 0;
+  justify-content: flex-start;
+  text-align: left;
 }
 
 #dashboard-view #applications-table .table-row.application-row .table-col-status {
+  display: flex;
+  align-items: center;
   justify-content: center;
+  text-align: center;
 }
 
 #dashboard-view #applications-table .table-row.application-row .status-col {
@@ -10786,31 +10789,47 @@ body.app-page-bg .topbar .nav-link.active {
   gap: 3px;
 }
 
-#dashboard-view #applications-table .table-row.application-row .table-col-activity {
-  justify-content: flex-end;
-}
-
 #dashboard-view #applications-table .table-row.application-row .table-col-select {
+  display: flex;
+  align-items: center;
   justify-content: flex-end;
+  padding-right: 10px;
+  padding-left: 4px;
 }
 
 #dashboard-view #applications-table .table-row.application-row .cell-company strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 15.5px;
   font-weight: 700;
+  color: #0f2f59;
 }
 
 #dashboard-view #applications-table .table-row.application-row .cell-role {
-  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.1px;
   font-weight: 500;
+  color: rgba(17, 43, 81, 0.72);
 }
 
 #dashboard-view #applications-table .table-row.application-row .activity-cell {
-  font-size: 12.5px;
+  font-size: 12.25px;
+  font-weight: 500;
+  color: rgba(17, 43, 81, 0.56);
+}
+
+#dashboard-view #applications-table .table-row.application-row .activity-cell.activity-cell--recent {
+  color: #1f5ca9;
+  font-weight: 700;
 }
 
 #dashboard-view #applications-table .appl-statusPill {
   min-height: 28px;
-  padding: 6px 12px;
+  padding: 6px 11px;
   border-width: 1.5px;
   font-size: 12.5px;
   font-weight: 700;
@@ -10836,7 +10855,7 @@ body.app-page-bg .topbar .nav-link.active {
 #dashboard-view #applications-table .table-row.application-row .status-band {
   width: 2px;
   border-radius: 0;
-  opacity: 0.4;
+  opacity: 0.42;
 }
 
 #dashboard-view #applications-table .table-row.application-row.is-priority .status-band {
@@ -10877,7 +10896,7 @@ body.app-page-bg .topbar .nav-link.active {
   background: #d1fae5;
 }
 
-#dashboard-view #applications-table .table-row.application-row.is-priority.is-new-signal {
+#dashboard-view #applications-table .table-row.application-row.is-new-signal {
   animation: none;
 }
 
@@ -11037,31 +11056,32 @@ body.app-page-bg .topbar .nav-link.active {
     flex-wrap: wrap;
   }
 
-  #dashboard-view #applications-table .applications-header {
-    display: none;
+  #dashboard-view #applications-table .applications-header,
+  #dashboard-view #applications-table .table-row.application-row {
+    grid-template-columns: minmax(0, 1.38fr) minmax(0, 1.5fr) minmax(122px, 1.1fr) minmax(92px, 0.82fr) 52px;
+  }
+
+  #dashboard-view #applications-table .applications-header > *,
+  #dashboard-view #applications-table .table-row.application-row > :not(.status-band) {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  #dashboard-view #applications-table .applications-header .sort-btn {
+    min-height: 30px;
   }
 
   #dashboard-view #applications-table .table-row.application-row {
-    grid-template-columns: 1fr;
-    row-gap: 8px;
-    padding: 11px 14px 10px;
+    min-height: 56px;
+    padding: 9px 0;
   }
 
-  #dashboard-view #applications-table .table-row.application-row .row-main {
-    padding-right: 0;
+  #dashboard-view #applications-table .table-row.application-row .cell-company strong {
+    font-size: 14.5px;
   }
 
-  #dashboard-view #applications-table .table-row.application-row .row-signals {
-    grid-template-columns: minmax(116px, 1fr) auto auto;
-    gap: 8px;
-  }
-
-  #dashboard-view #applications-table .table-row.application-row .table-col-activity {
-    justify-content: center;
-  }
-
-  #dashboard-view #applications-table .table-row.application-row .table-col-select {
-    min-width: 44px;
+  #dashboard-view #applications-table .table-row.application-row .cell-role {
+    font-size: 13px;
   }
 }
 
@@ -11097,16 +11117,32 @@ body.app-page-bg .topbar .nav-link.active {
     text-align: left;
   }
 
-  #dashboard-view #applications-table .table-row.application-row .row-signals {
-    grid-template-columns: 1fr auto auto;
+  #dashboard-view #applications-table .applications-header,
+  #dashboard-view #applications-table .table-row.application-row {
+    grid-template-columns: minmax(0, 1.22fr) minmax(0, 1.3fr) minmax(108px, 1fr) minmax(80px, 0.75fr) 44px;
+  }
+
+  #dashboard-view #applications-table .applications-header > *,
+  #dashboard-view #applications-table .table-row.application-row > :not(.status-band) {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  #dashboard-view #applications-table .applications-header .sort-btn,
+  #dashboard-view #applications-table .applications-header .table-select-all-text {
+    font-size: 10px;
+  }
+
+  #dashboard-view #applications-table .table-row.application-row {
+    min-height: 54px;
   }
 
   #dashboard-view #applications-table .table-row.application-row .cell-company strong {
-    font-size: 15px;
+    font-size: 14px;
   }
 
   #dashboard-view #applications-table .table-row.application-row .cell-role {
-    font-size: 13px;
+    font-size: 12.5px;
   }
 
   #applications-table {
