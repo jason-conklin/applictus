@@ -77,6 +77,10 @@ const RESERVED_INBOX_USERNAMES = new Set([
   'security',
   'billing'
 ]);
+const ADMIN_EMAIL_ALLOWLIST = new Set([
+  'jasonconklin.dev@gmail.com',
+  'shaneconklin14@gmail.com'
+]);
 
 function apiUrl(path) {
   if (!path) return API_BASE_URL || '';
@@ -182,6 +186,10 @@ function getStatusBandTone(status) {
   return 'unknown';
 }
 
+function normalizeEmailClient(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 function normalizeModalStatusValue(status) {
   const normalized = normalizeStatusValue(status);
   // Keep modal statuses intentionally compact and stable:
@@ -277,6 +285,39 @@ const accountInboxUsernameSuggestions = document.getElementById('account-inbox-u
 const contactForm = document.getElementById('contact-form');
 const contactError = document.getElementById('contact-error');
 const contactSuccess = document.getElementById('contact-success');
+const accountPlanName = document.getElementById('account-plan-name');
+const accountPlanUsage = document.getElementById('account-plan-usage');
+const accountPlanProgress = document.getElementById('account-plan-progress');
+const accountPlanWarning = document.getElementById('account-plan-warning');
+const accountUpgradeButton = document.getElementById('account-upgrade-button');
+const accountPlanDetails = document.getElementById('account-plan-details');
+const adminMetricSelect = document.getElementById('analytics-metric-select');
+const adminRangeSelect = document.getElementById('analytics-range-select');
+const adminChartSvgStatic = document.getElementById('analytics-chart');
+const adminChartHintStatic = document.getElementById('analytics-chart-hint');
+const adminStatusStatic = document.getElementById('admin-analytics-status');
+
+let adminEls = null;
+function ensureAdminElements() {
+  if (adminEls) return adminEls;
+  adminEls = {
+    section: document.getElementById('admin-analytics-section'),
+    kpiTotalUsers: document.getElementById('admin-kpi-total-users'),
+    kpiProUsers: document.getElementById('admin-kpi-pro-users'),
+    kpiFreeUsers: document.getElementById('admin-kpi-free-users'),
+    kpiTotalApps: document.getElementById('admin-kpi-total-apps'),
+    kpiMonthEmails: document.getElementById('admin-kpi-month-emails'),
+    kpiTodayEmails: document.getElementById('admin-kpi-today-emails'),
+    kpiWeekEmails: document.getElementById('admin-kpi-week-emails'),
+    kpiNewUsers: document.getElementById('admin-kpi-new-users'),
+    metricSelect: adminMetricSelect || document.getElementById('analytics-metric-select'),
+    rangeSelect: adminRangeSelect || document.getElementById('analytics-range-select'),
+    chartSvg: adminChartSvgStatic || document.getElementById('analytics-chart'),
+    chartHint: adminChartHintStatic || document.getElementById('analytics-chart-hint'),
+    statusText: adminStatusStatic || document.getElementById('admin-analytics-status')
+  };
+  return adminEls;
+}
 
 const quickAdd = null;
 const addToggle = document.getElementById('add-toggle');
@@ -426,6 +467,15 @@ const rcPreviewBlock = document.getElementById('rc-preview-block');
 const rcPreviewText = document.getElementById('rc-preview-text');
 
 let sessionUser = null;
+const PLAN_LIMITS = {
+  free: 75,
+  pro: 500
+};
+let planState = null;
+const planNoticeShown = {
+  atLimit: false,
+  global: false
+};
 let currentDetail = null;
 let csrfToken = null;
 const PAGE_SIZE = 25;
@@ -3738,6 +3788,9 @@ function setView(view) {
     accountAvatar.classList.toggle('hidden', !isAuthed);
     accountAvatar.classList.toggle('active', view === 'account');
   }
+  if (view === 'account') {
+    updateAdminAnalyticsVisibility();
+  }
   closeProfileMenu();
 
   if (nav) {
@@ -3751,6 +3804,9 @@ function setView(view) {
     syncInboundAutoPolling();
   } else {
     clearInboundAutoSyncPolling();
+  }
+  if (view === 'account') {
+    updateAdminAnalyticsVisibility();
   }
 }
 
@@ -3821,6 +3877,8 @@ function renderAccountPanel(user = sessionUser) {
       : 'Set a password to sign in without Google.';
   }
   renderAccountInboxUsernamePrompt({ checkAvailability: true });
+  renderPlanUsage(user);
+  updateAdminAnalyticsVisibility();
 }
 
 let accountPasswordHintTimer = null;
@@ -3839,6 +3897,436 @@ function flashAccountPasswordHint(message, { success = false } = {}) {
     renderAccountPanel();
     accountPasswordHintTimer = null;
   }, 5000);
+}
+
+function getPlanLimitForUser(user = sessionUser) {
+  const source = user || planState || sessionUser;
+  if (!source) return PLAN_LIMITS.free;
+  if (Number.isFinite(source.monthly_tracked_email_limit) && source.monthly_tracked_email_limit > 0) {
+    return source.monthly_tracked_email_limit;
+  }
+  if (Number.isFinite(source.plan_limit) && source.plan_limit > 0) {
+    return source.plan_limit;
+  }
+  const tier = String(source.plan_tier || 'free').toLowerCase();
+  return PLAN_LIMITS[tier] || PLAN_LIMITS.free;
+}
+
+function renderPlanUsage(user = sessionUser) {
+  if (!accountPlanName || !accountPlanUsage || !accountPlanProgress) {
+    return;
+  }
+  if (!user) {
+    accountPlanName.textContent = 'Free';
+    accountPlanUsage.textContent = '—';
+    accountPlanProgress.style.width = '0%';
+    accountPlanWarning.textContent = '';
+    return;
+  }
+  const source = planState || user;
+  const tier = String(source.plan_tier || 'free').toLowerCase();
+  const limit = getPlanLimitForUser(source);
+  const usage = Number(source.tracked_email_count_current_month || source.plan_usage || 0);
+  accountPlanName.textContent = tier === 'pro' ? 'Pro' : 'Free';
+  accountPlanUsage.textContent = `${usage} / ${limit} tracked emails this month`;
+  const ratio = limit > 0 ? Math.min(1, usage / limit) : 0;
+  accountPlanProgress.style.width = `${Math.round(ratio * 100)}%`;
+  let warning = '';
+  const globalBlocked = Boolean(source.global_blocked);
+  if (globalBlocked) {
+    warning = 'Free tracking is temporarily at capacity this month.';
+  } else if (limit > 0) {
+    if (ratio >= 1) {
+      warning = 'You reached your monthly tracking limit. Upgrade to continue tracking new updates.';
+    } else if (ratio >= 0.8) {
+      warning = `You have used ${usage} of ${limit}. Consider upgrading to Pro.`;
+    }
+  }
+  accountPlanWarning.textContent = warning;
+  if (accountUpgradeButton) {
+    accountUpgradeButton.disabled = tier === 'pro';
+    accountUpgradeButton.textContent = tier === 'pro' ? 'Pro active' : 'Upgrade to Pro';
+  }
+}
+
+let adminAnalyticsLoaded = false;
+let adminTrendState = {
+  metric: 'tracked_emails',
+  range: '30d',
+  points: []
+};
+const ADMIN_FETCH_TIMEOUT_MS = 8000;
+
+async function adminFetchJson(path) {
+  const url = apiUrl(path);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ADMIN_FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      credentials: 'include',
+      signal: controller.signal,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : {};
+    if (!res.ok) {
+      const err = new Error(data.error || data.message || `Request failed (${res.status})`);
+      err.code = data.error || res.status;
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      const abortErr = new Error('Request timed out');
+      abortErr.code = 'timeout';
+      throw abortErr;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function checkSessionStatus() {
+  const els = ensureAdminElements();
+  try {
+    const res = await fetch(apiUrl('/api/auth/session'), { credentials: 'include' });
+    if (res.ok) {
+      const data = await res.json();
+      if (els.statusText) {
+        els.statusText.textContent = `Session OK for ${data?.user?.email || 'unknown user'}`;
+      }
+      return true;
+    }
+    if (els.statusText) {
+      els.statusText.textContent = `Session check failed (${res.status}). Please sign in on this host.`;
+    }
+    if (res.status === 401 && els.chartHint) {
+      els.chartHint.textContent = 'Not authenticated on this host. Sign in and retry.';
+    }
+  } catch (err) {
+    if (els.statusText) {
+      els.statusText.textContent = `Session check error. Please sign in on this host.`;
+    }
+  }
+  if (els.chartHint) {
+    els.chartHint.textContent = 'Sign in to view admin analytics.';
+  }
+  return false;
+}
+
+async function ensureAdminSession() {
+  const ok = await checkSessionStatus();
+  if (ok) return true;
+  return false;
+}
+
+function isAdminClient(user = sessionUser) {
+  if (!user) return false;
+  const email = normalizeEmailClient(user.email);
+  return ADMIN_EMAIL_ALLOWLIST.has(email);
+}
+
+function renderAdminKpis(summary) {
+  if (!summary) return;
+  const els = ensureAdminElements();
+  const setVal = (el, value) => {
+    if (el) el.textContent = Number.isFinite(value) ? value.toLocaleString() : '—';
+  };
+  setVal(els.kpiTotalUsers, summary.total_users);
+  setVal(els.kpiProUsers, summary.pro_users);
+  setVal(els.kpiFreeUsers, summary.free_users);
+  setVal(els.kpiTotalApps, summary.total_applications);
+  setVal(els.kpiMonthEmails, summary.tracked_emails_month);
+  setVal(els.kpiTodayEmails, summary.tracked_emails_today);
+  setVal(els.kpiWeekEmails, summary.tracked_emails_week);
+  setVal(els.kpiNewUsers, summary.new_users_month);
+}
+
+function renderAdminChart(trend) {
+  const els = ensureAdminElements();
+  const adminChartSvg = els.chartSvg;
+  const adminChartHint = els.chartHint;
+  if (!adminChartSvg || !adminChartHint) return;
+  const points = Array.isArray(trend?.points) ? trend.points : [];
+  if (!points.length) {
+    adminChartSvg.innerHTML = '';
+    adminChartHint.textContent = 'No data for this range.';
+    return;
+  }
+  const numericPoints = points.map((p, idx) => ({
+    x: idx,
+    label: p.bucket,
+    value: Number(p.value || 0)
+  }));
+  const maxVal = Math.max(...numericPoints.map((p) => p.value), 1);
+  const width = adminChartSvg.clientWidth || 640;
+  const height = 240;
+  const pad = 26;
+  const plotW = width - pad * 2;
+  const plotH = height - pad * 2;
+  const path = [];
+  const circles = [];
+  numericPoints.forEach((pt, idx) => {
+    const x = pad + (plotW * idx) / Math.max(1, numericPoints.length - 1);
+    const y = pad + plotH - (pt.value / maxVal) * plotH;
+    path.push(`${idx === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`);
+    circles.push(`<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="3" fill="#2d5cff" opacity="0.9"></circle>`);
+  });
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => ({
+    y: pad + plotH - ratio * plotH,
+    label: Math.round(maxVal * ratio)
+  }));
+  const xLabels = [numericPoints[0], numericPoints[numericPoints.length - 1]].filter(Boolean);
+  adminChartSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  adminChartSvg.innerHTML = `
+    <g stroke="rgba(20,40,80,0.15)" stroke-width="1">
+      ${yTicks
+        .map(
+          (tick) =>
+            `<line x1="${pad}" y1="${tick.y.toFixed(2)}" x2="${width - pad}" y2="${tick.y.toFixed(
+              2
+            )}" />`
+        )
+        .join('')}
+    </g>
+    <g fill="rgba(20,40,80,0.55)" font-size="10" font-weight="600">
+      ${yTicks
+        .map(
+          (tick) =>
+            `<text x="${pad - 8}" y="${tick.y.toFixed(2)}" text-anchor="end" dominant-baseline="middle">${tick.label.toLocaleString()}</text>`
+        )
+        .join('')}
+      ${
+        xLabels.length
+          ? `<text x="${pad}" y="${height - 6}" text-anchor="start">${xLabels[0].label}</text>
+             <text x="${width - pad}" y="${height - 6}" text-anchor="end">${xLabels[xLabels.length - 1].label}</text>`
+          : ''
+      }
+    </g>
+    <path d="${path.join(' ')}" fill="none" stroke="#2d5cff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+    ${circles.join('')}
+  `;
+  adminChartHint.textContent = `${trend.points.length} data points • ${trend.metric.replace(/_/g, ' ')} (${trend.range})`;
+}
+
+async function loadAdminAnalyticsSummary() {
+  try {
+    const els = ensureAdminElements();
+    if (els.chartHint) els.chartHint.textContent = 'Loading admin KPIs…';
+    if (els.statusText) els.statusText.textContent = 'Loading admin KPIs…';
+    const summary = await adminFetchJson('/api/admin/analytics/summary');
+    renderAdminKpis(summary);
+    if (els.statusText) {
+      const caps = summary?.schema_capabilities;
+      const schemaNote = caps && caps.hasPlanTier ? '' : ' (plan fields missing)';
+      els.statusText.textContent = `Admin KPIs loaded${schemaNote}.`;
+    }
+    return true;
+  } catch (err) {
+    const els = ensureAdminElements();
+    if (els.chartHint) {
+      const code = err?.code || err?.status || 'error';
+      els.chartHint.textContent = `Unable to load admin KPIs (${code}).`;
+    }
+    if (els.statusText) {
+      const code = err?.code || err?.status || 'error';
+      els.statusText.textContent = `KPIs error (${code}). Check session/login.`;
+      if (code === 401) {
+        els.statusText.textContent += ' You may need to re-sign in on this host.';
+      }
+      if (code === 'ANALYTICS_SCHEMA_MISSING' || code === 500) {
+        els.statusText.textContent = 'Admin analytics: schema missing (users/job_applications/email_events or plan fields).';
+      }
+    }
+    if (DEBUG_APP) {
+      // eslint-disable-next-line no-console
+      console.debug('[admin-analytics] summary failed', err);
+    }
+    return false;
+  }
+}
+
+async function loadAdminTrend(metric = adminTrendState.metric, range = adminTrendState.range) {
+  try {
+    const els = ensureAdminElements();
+    if (els.chartHint) els.chartHint.textContent = 'Loading trend…';
+    if (els.statusText) els.statusText.textContent = 'Loading trend…';
+    const trendTimeout = setTimeout(() => {
+      const el = ensureAdminElements().chartHint;
+      if (el && el.textContent.includes('Loading')) {
+        el.textContent = 'Trend load is taking longer than expected…';
+      }
+    }, 4000);
+    const trend = await adminFetchJson(
+      `/api/admin/analytics/trends?metric=${encodeURIComponent(metric)}&range=${encodeURIComponent(range)}`
+    );
+    clearTimeout(trendTimeout);
+    adminTrendState = { ...adminTrendState, metric, range, points: trend.points || [] };
+    renderAdminChart(trend);
+    const els2 = ensureAdminElements();
+    if (els2.statusText) {
+      els2.statusText.textContent = `Trend loaded (${trend.points?.length || 0} points, ${metric}, ${range}).`;
+    }
+    return true;
+  } catch (err) {
+    const els = ensureAdminElements();
+    if (els.chartHint) {
+      const code = err?.code || err?.status || 'error';
+      els.chartHint.textContent = `Unable to load trend (${code}).`;
+    }
+    if (els.statusText) {
+      const code = err?.code || err?.status || 'error';
+      els.statusText.textContent = `Trend error (${code}). Check session/login.`;
+      if (code === 401) {
+        els.statusText.textContent += ' You may need to re-sign in on this host.';
+      }
+      if (code === 'ANALYTICS_SCHEMA_MISSING' || code === 500) {
+        els.statusText.textContent = 'Admin analytics: schema missing (users/job_applications/email_events or plan fields).';
+      }
+    }
+    if (DEBUG_APP) {
+      // eslint-disable-next-line no-console
+      console.debug('[admin-analytics] trend failed', err);
+    }
+    return false;
+  }
+}
+
+function updateAdminAnalyticsVisibility() {
+  const els = ensureAdminElements();
+  if (!els.section) return;
+  const isAdmin = isAdminClient(sessionUser);
+  els.section.classList.toggle('hidden', !isAdmin);
+  els.section.style.display = isAdmin ? '' : 'none';
+  els.section.setAttribute('aria-hidden', isAdmin ? 'false' : 'true');
+  if (isAdmin) {
+    void (async () => {
+      const authed = await ensureAdminSession();
+      if (!authed) return;
+      const okSummary = await loadAdminAnalyticsSummary();
+      const okTrend = await loadAdminTrend();
+      adminAnalyticsLoaded = okSummary && okTrend;
+    })();
+  }
+}
+
+function buildPlanCard({ title, price, limit, features, ctaText, tier }) {
+  const card = document.createElement('div');
+  card.className = 'plan-card';
+  const pill = document.createElement('div');
+  pill.className = 'plan-pill';
+  pill.textContent = tier === 'pro' ? 'Most popular' : 'Included';
+  const h4 = document.createElement('h4');
+  h4.textContent = title;
+  const priceEl = document.createElement('div');
+  priceEl.className = 'plan-price';
+  priceEl.textContent = price;
+  const limitEl = document.createElement('div');
+  limitEl.className = 'muted small';
+  limitEl.textContent = `${limit} tracked emails / month`;
+  const ul = document.createElement('ul');
+  ul.className = 'plan-features';
+  features.forEach((feat) => {
+    const li = document.createElement('li');
+    li.textContent = feat;
+    ul.appendChild(li);
+  });
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = tier === 'pro' ? 'btn btn--primary btn--sm' : 'btn btn--ghost btn--sm';
+  btn.textContent = ctaText;
+  btn.addEventListener('click', () => {
+    if (tier === 'pro') {
+      requestUpgrade();
+    } else {
+      closeModal('confirm');
+    }
+  });
+  card.append(pill, h4, priceEl, limitEl, ul, btn);
+  return card;
+}
+
+function openPricingModal() {
+  const container = document.createElement('div');
+  container.className = 'plan-card-grid';
+  const freeCard = buildPlanCard({
+    title: 'Free',
+    price: '$0 / month',
+    limit: PLAN_LIMITS.free,
+    features: [
+      'Automatic tracking',
+      'Application timelines',
+      'Dashboard updates'
+    ],
+    ctaText: 'Stay on Free',
+    tier: 'free'
+  });
+  const proCard = buildPlanCard({
+    title: 'Pro',
+    price: '$4 / month',
+    limit: PLAN_LIMITS.pro,
+    features: [
+      'Up to 500 tracked emails / month',
+      'Everything in Free',
+      'Higher limits for active searches'
+    ],
+    ctaText: 'Upgrade to Pro',
+    tier: 'pro'
+  });
+  container.append(freeCard, proCard);
+
+  const body = document.createElement('div');
+  body.appendChild(container);
+  const footer = document.createElement('div');
+  footer.className = 'modal-footer-actions';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'btn btn--ghost btn--sm';
+  closeBtn.textContent = 'Close';
+  closeBtn.addEventListener('click', () => closeModal('cancel'));
+  footer.appendChild(closeBtn);
+
+  openModal({
+    title: 'Pricing',
+    description: 'Fair, transparent plans. Upgrade when you need more volume.',
+    body,
+    footer,
+    allowBackdropClose: true
+  });
+}
+
+async function refreshPlanUsage() {
+  try {
+    const data = await api('/api/account/plan');
+    planState = data;
+    if (sessionUser) {
+      sessionUser.plan_tier = data.plan_tier;
+      sessionUser.plan_status = data.plan_status;
+      sessionUser.plan_limit = data.monthly_tracked_email_limit;
+      sessionUser.plan_usage = data.tracked_email_count_current_month;
+      sessionUser.plan_bucket = data.tracked_email_month_bucket;
+      sessionUser.plan_global_blocked = data.global_blocked;
+    }
+    renderPlanUsage(sessionUser);
+
+    if (data.global_blocked && !planNoticeShown.global) {
+      planNoticeShown.global = true;
+      showNotice('Free tracking is temporarily at capacity this month.', 'Tracking paused for Free');
+    } else if (data.at_limit && !planNoticeShown.atLimit) {
+      planNoticeShown.atLimit = true;
+      showNotice(
+        `You reached your monthly tracking limit (${data.tracked_email_count_current_month} of ${data.monthly_tracked_email_limit}). Upgrade to keep tracking new updates this month.`,
+        'Tracking limit reached'
+      );
+    }
+  } catch (err) {
+    if (DEBUG_APP) {
+      // eslint-disable-next-line no-console
+      console.debug('[plan] refresh failed', err);
+    }
+  }
 }
 
 function accountPasswordErrorMessage(code) {
@@ -3996,8 +4484,10 @@ async function loadSession() {
   sessionUser = data.user;
   renderAccountPanel(sessionUser);
   syncAccountAvatarIdentity(sessionUser);
+  updateAdminAnalyticsVisibility();
   updateFilterSummary();
   addToggle?.setAttribute('aria-expanded', 'false');
+  void refreshPlanUsage();
 
   setView('dashboard');
 
@@ -7709,6 +8199,7 @@ function route() {
   } else if (routeKey === 'account') {
     setView('account');
     renderAccountPanel();
+    void refreshPlanUsage();
     if (isInternalGmailMode()) {
       void refreshEmailStatus();
     } else {
@@ -7727,6 +8218,7 @@ function route() {
     } else {
       void refreshInboundStatus({ ensureAddress: true });
     }
+    void refreshPlanUsage();
     void loadActiveApplications().catch((err) => {
       const authFailure = err?.status === 401 || err?.message === 'AUTH_REQUIRED';
       if (authFailure) {
@@ -7820,6 +8312,27 @@ googleAuth?.addEventListener('click', () => {
   }
   window.location.href = target;
 });
+
+accountUpgradeButton?.addEventListener('click', openPricingModal);
+accountPlanDetails?.addEventListener('click', openPricingModal);
+
+async function requestUpgrade() {
+  try {
+    const res = await api('/api/account/plan/upgrade', { method: 'POST' });
+    if (res?.user) {
+      sessionUser = res.user;
+      renderAccountPanel(sessionUser);
+      showNotice('Pro plan activated for your account.', 'Upgrade');
+      await refreshPlanUsage();
+    }
+  } catch (err) {
+    if (err?.status === 403) {
+      showNotice('Upgrade requires billing setup and is currently disabled.', 'Upgrade');
+      return;
+    }
+    showNotice('Unable to start upgrade right now.', 'Upgrade');
+  }
+}
 
 if (loginForm && !loginForm.dataset.bound) {
   loginForm.dataset.bound = '1';
@@ -8661,6 +9174,41 @@ emailDisconnect?.addEventListener('click', async () => {
   }
   await disconnectGmailConnection(emailDisconnect);
 });
+
+adminMetricSelect?.addEventListener('change', async () => {
+  const els = ensureAdminElements();
+  const metric = (els.metricSelect || adminMetricSelect)?.value || adminTrendState.metric;
+  adminTrendState.metric = metric;
+  await loadAdminTrend(metric, (els.rangeSelect || adminRangeSelect)?.value || '30d');
+});
+
+adminRangeSelect?.addEventListener('change', async () => {
+  const els = ensureAdminElements();
+  const range = (els.rangeSelect || adminRangeSelect)?.value || adminTrendState.range;
+  adminTrendState.range = range;
+  await loadAdminTrend((els.metricSelect || adminMetricSelect)?.value || adminTrendState.metric, range);
+});
+
+// If admin elements exist at load time, bootstrap listeners for them as well
+(() => {
+  const els = ensureAdminElements();
+  if (els.metricSelect && !els.metricSelect.dataset.bound) {
+    els.metricSelect.dataset.bound = '1';
+    els.metricSelect.addEventListener('change', async () => {
+      const metric = els.metricSelect.value || adminTrendState.metric;
+      adminTrendState.metric = metric;
+      await loadAdminTrend(metric, (els.rangeSelect || adminRangeSelect)?.value || '30d');
+    });
+  }
+  if (els.rangeSelect && !els.rangeSelect.dataset.bound) {
+    els.rangeSelect.dataset.bound = '1';
+    els.rangeSelect.addEventListener('change', async () => {
+      const range = els.rangeSelect.value || adminTrendState.range;
+      adminTrendState.range = range;
+      await loadAdminTrend((els.metricSelect || adminMetricSelect)?.value || adminTrendState.metric, range);
+    });
+  }
+})();
 
 emailSync?.addEventListener('click', async () => {
   if (isInternalGmailMode()) {
