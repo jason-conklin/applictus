@@ -81,6 +81,13 @@ const ADMIN_EMAIL_ALLOWLIST = new Set([
   'jasonconklin.dev@gmail.com',
   'shaneconklin14@gmail.com'
 ]);
+const ADMIN_METRIC_LABELS = {
+  tracked_emails: 'Tracked emails',
+  tracked_applications: 'Tracked applications',
+  registered_users: 'Registered users',
+  pro_users: 'Pro users',
+  new_users: 'New users'
+};
 
 function apiUrl(path) {
   if (!path) return API_BASE_URL || '';
@@ -207,6 +214,23 @@ function escapeHtml(text) {
         return ch;
     }
   });
+}
+
+function formatBucketLabel(bucket) {
+  if (!bucket) return '—';
+  const text = String(bucket);
+  // YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    const date = new Date(text + 'T00:00:00Z');
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+  // YYYY-MM
+  if (/^\d{4}-\d{2}$/.test(text)) {
+    const [y, m] = text.split('-').map((n) => Number(n));
+    const date = new Date(Date.UTC(y, m - 1, 1));
+    return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+  }
+  return text;
 }
 
 function normalizeModalStatusValue(status) {

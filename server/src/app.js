@@ -3069,6 +3069,8 @@ function buildTrendQuery({ metric, range, isPg, hasPlanTier = true }) {
   const metricKey = metric || 'tracked_emails';
   const pgCreatedAt = "COALESCE(created_at, (now() at time zone 'utc'))";
   const rangeConfig = {
+    '7d': { days: 7, bucket: 'day' },
+    '14d': { days: 14, bucket: 'day' },
     '30d': { days: 30, bucket: 'day' },
     '90d': { days: 90, bucket: 'day' },
     '12m': { months: 12, bucket: 'month' }
