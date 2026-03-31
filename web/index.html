@@ -10,7 +10,7 @@
     <meta name="app-api-base-url" content="" />
     <title>Applictus</title>
     <link rel="icon" href="/Applictus_logo.png" type="image/png" />
-    <link rel="stylesheet" href="/styles.css?v=24" />
+    <link rel="stylesheet" href="/styles.css?v=25" />
     <style>
       body:not(.app-ready) #app {
         opacity: 0;
@@ -605,81 +605,198 @@
             the forwarding rule at any time.
           </div>
         </div>
-			        <div class="account-grid">
-			          <div class="card account-panel account-info-card surface-raised">
-		            <div class="account-card-header">
-		              <h3>Account & Security</h3>
-                <p class="muted small">Security & sign-in settings</p>
-		            </div>
-	            <div class="account-panel-body">
-                <div class="account-row account-row--identity">
-                  <div class="account-row-label muted small">Email</div>
-                  <div class="account-row-value account-email" id="account-email">—</div>
-                </div>
-                <div class="account-auth-section">
-                  <div class="account-section-heading muted small">Sign-in methods</div>
-	                <div class="account-methods auth-badges" id="account-methods">—</div>
-                </div>
-                <div class="account-actions-row">
-                  <div class="account-actions-primary">
-                    <button class="btn btn--primary btn--md account-password-btn" type="button" id="account-password-button">
-                      <span class="account-action-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                          <path d="M14 10h4a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h4"></path>
-                          <path d="M12 3v11"></path>
-                          <path d="m9 6 3-3 3 3"></path>
-                        </svg>
-                      </span>
-                      <span id="account-password-button-label">Change password</span>
-                    </button>
-	                <div class="muted small account-password-copy" id="account-password-hint"></div>
-                  </div>
-                  <button class="btn btn--danger btn--sm account-logout-btn" id="account-logout" type="button">
+        <div class="account-grid">
+          <div class="card account-panel account-info-card surface-raised">
+            <div class="account-card-header">
+              <h3>Account & Security</h3>
+              <p class="muted small">Security & sign-in settings</p>
+            </div>
+            <div class="account-panel-body">
+              <div class="account-row account-row--identity">
+                <div class="account-row-label muted small">Email</div>
+                <div class="account-row-value account-email" id="account-email">—</div>
+              </div>
+              <div class="account-auth-section">
+                <div class="account-section-heading muted small">Sign-in methods</div>
+                <div class="account-methods auth-badges" id="account-methods">—</div>
+              </div>
+              <div class="account-actions-row">
+                <div class="account-actions-primary">
+                  <button class="btn btn--primary btn--md account-password-btn" type="button" id="account-password-button">
                     <span class="account-action-icon" aria-hidden="true">
                       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                        <path d="M16 17l5-5-5-5"></path>
-                        <path d="M21 12H9"></path>
+                        <path d="M14 10h4a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h4"></path>
+                        <path d="M12 3v11"></path>
+                        <path d="m9 6 3-3 3 3"></path>
                       </svg>
                     </span>
-                    <span>Log out</span>
+                    <span id="account-password-button-label">Change password</span>
                   </button>
+                  <div class="muted small account-password-copy" id="account-password-hint"></div>
                 </div>
-                <div class="account-diagnostics hidden" id="inbound-diagnostics-wrap">
-                  <button class="link-button account-diagnostics-link" type="button" id="inbound-diagnostics-link">
-                    Diagnostics
-                  </button>
-                </div>
-		            </div>
-		          </div>
-	          <div class="card account-panel account-help-card surface-raised">
-              <div class="account-card-header">
-                <h3>Forwarding & Help</h3>
-                <p class="muted small">Setup, status, and support for your forwarding-based inbox.</p>
+                <button class="btn btn--danger btn--sm account-logout-btn" id="account-logout" type="button">
+                  <span class="account-action-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                      <path d="M16 17l5-5-5-5"></path>
+                      <path d="M21 12H9"></path>
+                    </svg>
+                  </span>
+                  <span>Log out</span>
+                </button>
               </div>
-              <div class="account-panel-body account-help-body">
-                <div class="account-help-row">
-                  <div class="account-row-label muted small">Inbox status</div>
-                  <div class="account-help-value" id="account-help-status">Not connected</div>
+              <div class="account-diagnostics hidden" id="inbound-diagnostics-wrap">
+                <button class="link-button account-diagnostics-link" type="button" id="inbound-diagnostics-link">
+                  Diagnostics
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="card account-panel account-plan-card surface-raised" id="account-plan-card">
+            <div class="account-card-header">
+              <h3>Plan & Usage</h3>
+              <p class="muted small">Transparent monthly usage with clear limits.</p>
+            </div>
+            <div class="account-panel-body account-plan-body">
+              <div class="plan-row">
+                <div class="plan-label muted small">Current plan</div>
+                <div class="plan-value" id="account-plan-name">—</div>
+              </div>
+              <div class="plan-row">
+                <div class="plan-label muted small">This month</div>
+                <div class="plan-value" id="account-plan-usage">—</div>
+              </div>
+              <div class="plan-progress" aria-hidden="true">
+                <div class="plan-progress-bar" id="account-plan-progress"></div>
+              </div>
+              <div class="plan-warning muted small" id="account-plan-warning"></div>
+              <div class="plan-actions">
+                <button class="btn btn--primary btn--sm" type="button" id="account-upgrade-button">Upgrade to Pro</button>
+                <button class="btn btn--ghost btn--sm" type="button" id="account-plan-details">View pricing</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card account-panel account-help-card account-help-card--support surface-raised">
+          <div class="account-card-header">
+            <h3>Forwarding & Help</h3>
+            <p class="muted small">Support tools for forwarding setup and inbox health.</p>
+          </div>
+          <div class="account-panel-body account-help-body">
+            <div class="account-help-row">
+              <div class="account-row-label muted small">Inbox status</div>
+              <div class="account-help-value" id="account-help-status">Not connected</div>
+            </div>
+            <div class="account-help-row">
+              <div class="account-row-label muted small">Last email received</div>
+              <div class="account-help-value muted small" id="account-help-last-email">—</div>
+            </div>
+            <div class="account-help-row">
+              <div class="account-row-label muted small">Setup type</div>
+              <div class="account-help-value" id="account-help-setup-type">Forwarding-based</div>
+            </div>
+            <div class="muted small account-help-note" id="account-help-note">
+              Applictus processes only forwarded mail and keeps this setup lightweight.
+            </div>
+            <div class="account-help-actions">
+              <button class="btn btn--secondary btn--sm" type="button" id="inbound-help-open-setup">View setup guide</button>
+              <button class="btn btn--ghost btn--sm" type="button" id="inbound-help-send-test">Send test email</button>
+              <button class="btn btn--ghost btn--sm" type="button" id="inbound-help-why">Why forwarding?</button>
+            </div>
+          </div>
+        </div>
+        <div class="card account-panel admin-analytics-card surface-raised" id="admin-analytics-section">
+          <div class="account-card-header admin-analytics-head">
+            <div class="admin-analytics-title">
+              <div class="admin-analytics-logo-wrap" aria-hidden="true">
+                <img src="/Applictus_logo.png" alt="" class="admin-analytics-logo" />
+              </div>
+              <div>
+                <h3>Admin Analytics</h3>
+                <p class="muted small">Internal visibility into growth, usage, and ingestion health.</p>
+              </div>
+            </div>
+            <span class="pill pill--subtle">Internal</span>
+          </div>
+          <div class="admin-analytics-body">
+            <div class="analytics-kpi-grid">
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Total registered users</div>
+                <div class="kpi-value" id="admin-kpi-total-users">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Pro / paid users</div>
+                <div class="kpi-value" id="admin-kpi-pro-users">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Free users</div>
+                <div class="kpi-value" id="admin-kpi-free-users">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Total tracked applications</div>
+                <div class="kpi-value" id="admin-kpi-total-apps">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Tracked emails this month</div>
+                <div class="kpi-value" id="admin-kpi-month-emails">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Emails tracked today</div>
+                <div class="kpi-value" id="admin-kpi-today-emails">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Emails tracked this week</div>
+                <div class="kpi-value" id="admin-kpi-week-emails">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">New users this month</div>
+                <div class="kpi-value" id="admin-kpi-new-users">—</div>
+              </div>
+            </div>
+            <div class="analytics-chart-card">
+              <div class="analytics-chart-header">
+                <div>
+                  <div class="chart-title">Trend</div>
+                  <div class="muted small">Single metric view to spot ingestion and growth changes.</div>
+                  <div class="muted small" id="admin-analytics-status"></div>
                 </div>
-                <div class="account-help-row">
-                  <div class="account-row-label muted small">Last email received</div>
-                  <div class="account-help-value muted small" id="account-help-last-email">—</div>
-                </div>
-                <div class="account-help-row">
-                  <div class="account-row-label muted small">Setup type</div>
-                  <div class="account-help-value" id="account-help-setup-type">Forwarding-based</div>
-                </div>
-                <div class="muted small account-help-note" id="account-help-note">
-                  Applictus only processes emails you forward.
-                </div>
-                <div class="account-help-actions">
-                  <button class="btn btn--secondary btn--sm" type="button" id="inbound-help-open-setup">View setup guide</button>
-                  <button class="btn btn--ghost btn--sm" type="button" id="inbound-help-send-test">Send test email</button>
-                  <button class="btn btn--ghost btn--sm" type="button" id="inbound-help-why">Why forwarding?</button>
+                <div class="chart-controls">
+                  <label class="sr-only" for="analytics-metric-select">Metric</label>
+                  <select id="analytics-metric-select" class="chart-select">
+                    <option value="tracked_emails">Tracked emails</option>
+                    <option value="tracked_applications">Tracked applications</option>
+                    <option value="registered_users">Registered users</option>
+                    <option value="pro_users">Pro users</option>
+                    <option value="new_users">New users</option>
+                  </select>
+                  <label class="sr-only" for="analytics-range-select">Range</label>
+                  <select id="analytics-range-select" class="chart-select">
+                    <option value="7d">Last 7 days</option>
+                    <option value="14d">Last 14 days</option>
+                    <option value="30d">Last 30 days</option>
+                    <option value="90d">Last 90 days</option>
+                    <option value="12m">Last 12 months</option>
+                  </select>
                 </div>
               </div>
-	          </div>
+              <div class="analytics-chart-body">
+                <svg id="analytics-chart" role="img" aria-label="Admin analytics trend chart"></svg>
+                <div class="muted small chart-hint" id="analytics-chart-hint">Loading trend…</div>
+              </div>
+            </div>
+            <div class="analytics-users-card">
+              <div class="analytics-users-header">
+                <div>
+                  <div class="chart-title">Registered users</div>
+                  <div class="muted small">Recent accounts for quick internal verification.</div>
+                </div>
+                <div class="muted small" id="admin-users-count">—</div>
+              </div>
+              <ul class="admin-users-list" id="admin-users-list">
+                <li class="muted small">Loading users…</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </section>
 

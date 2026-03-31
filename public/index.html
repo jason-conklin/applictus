@@ -10,7 +10,7 @@
     <meta name="app-api-base-url" content="" />
     <title>Applictus</title>
     <link rel="icon" href="/Applictus_logo.png" type="image/png" />
-    <link rel="stylesheet" href="/styles.css?v=24" />
+    <link rel="stylesheet" href="/styles.css?v=25" />
   <style>
       body:not(.app-ready) #app {
         opacity: 0;
@@ -676,79 +676,103 @@
         </div>
         <div class="account-grid">
           <div class="card account-panel account-info-card surface-raised">
-		            <div class="account-card-header">
-		              <h3>Account & Security</h3>
-                <p class="muted small">Security & sign-in settings</p>
-		            </div>
-	            <div class="account-panel-body">
-                <div class="account-row account-row--identity">
-                  <div class="account-row-label muted small">Email</div>
-                  <div class="account-row-value account-email" id="account-email">—</div>
-                </div>
-                <div class="account-auth-section">
-                  <div class="account-section-heading muted small">Sign-in methods</div>
-	                <div class="account-methods auth-badges" id="account-methods">—</div>
-                </div>
-                <div class="account-actions-row">
-                  <div class="account-actions-primary">
-                    <button class="btn btn--primary btn--md account-password-btn" type="button" id="account-password-button">
-                      <span class="account-action-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                          <path d="M14 10h4a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h4"></path>
-                          <path d="M12 3v11"></path>
-                          <path d="m9 6 3-3 3 3"></path>
-                        </svg>
-                      </span>
-                      <span id="account-password-button-label">Change password</span>
-                    </button>
-	                <div class="muted small account-password-copy" id="account-password-hint"></div>
-                  </div>
-                  <button class="btn btn--danger btn--sm account-logout-btn" id="account-logout" type="button">
+            <div class="account-card-header">
+              <h3>Account & Security</h3>
+              <p class="muted small">Security & sign-in settings</p>
+            </div>
+            <div class="account-panel-body">
+              <div class="account-row account-row--identity">
+                <div class="account-row-label muted small">Email</div>
+                <div class="account-row-value account-email" id="account-email">—</div>
+              </div>
+              <div class="account-auth-section">
+                <div class="account-section-heading muted small">Sign-in methods</div>
+                <div class="account-methods auth-badges" id="account-methods">—</div>
+              </div>
+              <div class="account-actions-row">
+                <div class="account-actions-primary">
+                  <button class="btn btn--primary btn--md account-password-btn" type="button" id="account-password-button">
                     <span class="account-action-icon" aria-hidden="true">
                       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                        <path d="M16 17l5-5-5-5"></path>
-                        <path d="M21 12H9"></path>
+                        <path d="M14 10h4a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h4"></path>
+                        <path d="M12 3v11"></path>
+                        <path d="m9 6 3-3 3 3"></path>
                       </svg>
                     </span>
-                    <span>Log out</span>
+                    <span id="account-password-button-label">Change password</span>
                   </button>
+                  <div class="muted small account-password-copy" id="account-password-hint"></div>
                 </div>
-                <div class="account-diagnostics hidden" id="inbound-diagnostics-wrap">
-                  <button class="link-button account-diagnostics-link" type="button" id="inbound-diagnostics-link">
-                    Diagnostics
-                  </button>
-                </div>
-		            </div>
+                <button class="btn btn--danger btn--sm account-logout-btn" id="account-logout" type="button">
+                  <span class="account-action-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                      <path d="M16 17l5-5-5-5"></path>
+                      <path d="M21 12H9"></path>
+                    </svg>
+                  </span>
+                  <span>Log out</span>
+                </button>
+              </div>
+              <div class="account-diagnostics hidden" id="inbound-diagnostics-wrap">
+                <button class="link-button account-diagnostics-link" type="button" id="inbound-diagnostics-link">
+                  Diagnostics
+                </button>
+              </div>
+            </div>
           </div>
-          <div class="card account-panel account-help-card surface-raised">
-              <div class="account-card-header">
-                <h3>Forwarding & Help</h3>
-                <p class="muted small">Setup, status, and support for your forwarding-based inbox.</p>
+          <div class="card account-panel account-plan-card surface-raised" id="account-plan-card">
+            <div class="account-card-header">
+              <h3>Plan & Usage</h3>
+              <p class="muted small">Transparent monthly usage with clear limits.</p>
+            </div>
+            <div class="account-panel-body account-plan-body">
+              <div class="plan-row">
+                <div class="plan-label muted small">Current plan</div>
+                <div class="plan-value" id="account-plan-name">—</div>
               </div>
-              <div class="account-panel-body account-help-body">
-                <div class="account-help-row">
-                  <div class="account-row-label muted small">Inbox status</div>
-                  <div class="account-help-value" id="account-help-status">Not connected</div>
-                </div>
-                <div class="account-help-row">
-                  <div class="account-row-label muted small">Last email received</div>
-                  <div class="account-help-value muted small" id="account-help-last-email">—</div>
-                </div>
-                <div class="account-help-row">
-                  <div class="account-row-label muted small">Setup type</div>
-                  <div class="account-help-value" id="account-help-setup-type">Forwarding-based</div>
-                </div>
-                <div class="muted small account-help-note" id="account-help-note">
-                  Applictus only processes emails you forward.
-                </div>
-                <div class="account-help-actions">
-                  <button class="btn btn--secondary btn--sm" type="button" id="inbound-help-open-setup">View setup guide</button>
-                  <button class="btn btn--ghost btn--sm" type="button" id="inbound-help-send-test">Send test email</button>
-                  <button class="btn btn--ghost btn--sm" type="button" id="inbound-help-why">Why forwarding?</button>
-                </div>
+              <div class="plan-row">
+                <div class="plan-label muted small">This month</div>
+                <div class="plan-value" id="account-plan-usage">—</div>
               </div>
-	          </div>
+              <div class="plan-progress" aria-hidden="true">
+                <div class="plan-progress-bar" id="account-plan-progress"></div>
+              </div>
+              <div class="plan-warning muted small" id="account-plan-warning"></div>
+              <div class="plan-actions">
+                <button class="btn btn--primary btn--sm" type="button" id="account-upgrade-button">Upgrade to Pro</button>
+                <button class="btn btn--ghost btn--sm" type="button" id="account-plan-details">View pricing</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card account-panel account-help-card account-help-card--support surface-raised">
+          <div class="account-card-header">
+            <h3>Forwarding & Help</h3>
+            <p class="muted small">Support tools for forwarding setup and inbox health.</p>
+          </div>
+          <div class="account-panel-body account-help-body">
+            <div class="account-help-row">
+              <div class="account-row-label muted small">Inbox status</div>
+              <div class="account-help-value" id="account-help-status">Not connected</div>
+            </div>
+            <div class="account-help-row">
+              <div class="account-row-label muted small">Last email received</div>
+              <div class="account-help-value muted small" id="account-help-last-email">—</div>
+            </div>
+            <div class="account-help-row">
+              <div class="account-row-label muted small">Setup type</div>
+              <div class="account-help-value" id="account-help-setup-type">Forwarding-based</div>
+            </div>
+            <div class="muted small account-help-note" id="account-help-note">
+              Applictus processes only forwarded mail and keeps this setup lightweight.
+            </div>
+            <div class="account-help-actions">
+              <button class="btn btn--secondary btn--sm" type="button" id="inbound-help-open-setup">View setup guide</button>
+              <button class="btn btn--ghost btn--sm" type="button" id="inbound-help-send-test">Send test email</button>
+              <button class="btn btn--ghost btn--sm" type="button" id="inbound-help-why">Why forwarding?</button>
+            </div>
+          </div>
         </div>
         <div class="card account-panel admin-analytics-card surface-raised" id="admin-analytics-section">
           <div class="account-card-header admin-analytics-head">
@@ -1387,30 +1411,6 @@
             <button class="btn btn--ghost btn--sm" type="button" id="archived-prev">Prev</button>
             <div class="muted" id="archived-page-info">Page 1</div>
             <button class="btn btn--ghost btn--sm" type="button" id="archived-next">Next</button>
-          </div>
-          <div class="card account-panel account-plan-card surface-raised" id="account-plan-card">
-            <div class="account-card-header">
-              <h3>Plan & Usage</h3>
-              <p class="muted small">Transparent limits and an easy upgrade path.</p>
-            </div>
-            <div class="account-panel-body account-plan-body">
-              <div class="plan-row">
-                <div class="plan-label muted small">Current plan</div>
-                <div class="plan-value" id="account-plan-name">—</div>
-              </div>
-              <div class="plan-row">
-                <div class="plan-label muted small">This month</div>
-                <div class="plan-value" id="account-plan-usage">—</div>
-              </div>
-              <div class="plan-progress" aria-hidden="true">
-                <div class="plan-progress-bar" id="account-plan-progress"></div>
-              </div>
-              <div class="plan-warning muted small" id="account-plan-warning"></div>
-              <div class="plan-actions">
-                <button class="btn btn--primary btn--sm" type="button" id="account-upgrade-button">Upgrade to Pro</button>
-                <button class="btn btn--ghost btn--sm" type="button" id="account-plan-details">View pricing</button>
-              </div>
-            </div>
           </div>
         </div>
       </section>

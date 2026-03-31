@@ -6690,6 +6690,36 @@ button.inbound-diagnostics-row:hover {
   -webkit-backdrop-filter: none;
 }
 
+.account-plan-card {
+  position: relative;
+  border-radius: 20px;
+  border: 1px solid rgba(20, 56, 108, 0.16);
+  background: linear-gradient(180deg, #ffffff 0%, #f4f9ff 100%);
+  box-shadow:
+    0 20px 46px rgba(15, 35, 80, 0.12),
+    0 6px 16px rgba(15, 35, 80, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(20, 40, 80, 0.08);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.account-plan-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0) 44%);
+  opacity: 0.6;
+  z-index: 0;
+}
+
+.account-plan-card > * {
+  position: relative;
+  z-index: 1;
+}
+
 .account-help-card {
   position: relative;
   border-radius: 20px;
@@ -6702,6 +6732,17 @@ button.inbound-diagnostics-row:hover {
     inset 0 -1px 0 rgba(20, 40, 80, 0.06);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+.account-help-card--support {
+  margin-top: 16px;
+  border: 1px solid rgba(21, 57, 108, 0.12);
+  background: linear-gradient(180deg, #fafdff 0%, #f5f9ff 100%);
+  box-shadow:
+    0 14px 32px rgba(15, 35, 80, 0.08),
+    0 4px 12px rgba(15, 35, 80, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -1px 0 rgba(20, 40, 80, 0.04);
 }
 
 .account-help-card::before {
@@ -6957,6 +6998,55 @@ button.inbound-diagnostics-row:hover {
 .account-panel-body {
   display: grid;
   gap: 14px;
+}
+
+.account-plan-body {
+  gap: 12px;
+}
+
+.plan-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.plan-value {
+  color: #163566;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.plan-progress {
+  position: relative;
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(23, 58, 109, 0.12);
+}
+
+.plan-progress-bar {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2a5ea8 0%, #1f4d8f 100%);
+  transition: width 220ms ease;
+}
+
+.plan-warning {
+  min-height: 20px;
+  color: #36557d;
+  line-height: 1.45;
+}
+
+.plan-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .account-help-body {
