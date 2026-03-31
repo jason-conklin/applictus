@@ -6676,35 +6676,39 @@ button.inbound-diagnostics-row:hover {
   gap: 16px;
 }
 
-#account-view {
+#account-view[hidden] {
+  display: none !important;
+}
+
+#account-view:not([hidden]) {
   display: grid;
   grid-template-columns: minmax(0, 1.65fr) minmax(320px, 1fr);
   gap: 16px;
   align-items: start;
 }
 
-#account-view .page-header,
-#account-view .account-grid,
-#account-view #admin-analytics-section {
+#account-view:not([hidden]) .page-header,
+#account-view:not([hidden]) .account-grid,
+#account-view:not([hidden]) #admin-analytics-section {
   grid-column: 1 / -1;
 }
 
-#account-view .account-inbox-card {
+#account-view:not([hidden]) .account-inbox-card {
   grid-column: 1;
   grid-row: 2;
   margin: 0;
 }
 
-#account-view .account-help-card--support {
+#account-view:not([hidden]) .account-help-card--support {
   grid-column: 2;
   grid-row: 2;
 }
 
-#account-view .account-grid {
+#account-view:not([hidden]) .account-grid {
   grid-row: 3;
 }
 
-#account-view #admin-analytics-section {
+#account-view:not([hidden]) #admin-analytics-section {
   grid-row: 4;
 }
 
@@ -7616,14 +7620,14 @@ button.inbound-diagnostics-row:hover {
     grid-template-columns: 1fr;
   }
 
-  #account-view {
+  #account-view:not([hidden]) {
     grid-template-columns: 1fr;
   }
 
-  #account-view .account-inbox-card,
-  #account-view .account-help-card--support,
-  #account-view .account-grid,
-  #account-view #admin-analytics-section {
+  #account-view:not([hidden]) .account-inbox-card,
+  #account-view:not([hidden]) .account-help-card--support,
+  #account-view:not([hidden]) .account-grid,
+  #account-view:not([hidden]) #admin-analytics-section {
     grid-column: 1;
     grid-row: auto;
   }
