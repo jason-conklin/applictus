@@ -11092,6 +11092,12 @@ body.app-page-bg .topbar .nav-link.active {
   opacity: 0.42;
 }
 
+#dashboard-view #applications-table .table-row.application-row[data-status-tone='rejected'] .status-band {
+  width: 3px;
+  opacity: 0.92;
+  background: #ef4444;
+}
+
 #dashboard-view #applications-table .table-row.application-row.is-priority .status-band {
   width: 4px;
   opacity: 1;
