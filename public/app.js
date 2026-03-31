@@ -1,4 +1,5 @@
 import { ensureAnimatedBackgroundLayout, removeAnimatedBackgroundLayout } from '/animated-background.js';
+import { renderAdminChart as renderAdminChartHelper } from '/adminAnalyticsChart.js';
 
 // Frontend choice: buildless HTML/JS keeps iteration fast while the API stabilizes.
 const STATUS_LABELS = {
@@ -4083,65 +4084,14 @@ function renderAdminKpis(summary) {
 
 function renderAdminChart(trend) {
   const els = ensureAdminElements();
-  const adminChartSvg = els.chartSvg;
-  const adminChartHint = els.chartHint;
-  if (!adminChartSvg || !adminChartHint) return;
-  const points = Array.isArray(trend?.points) ? trend.points : [];
-  if (!points.length) {
-    adminChartSvg.innerHTML = '';
-    adminChartHint.textContent = 'No data for this range.';
-    return;
-  }
-  const numericPoints = points.map((p, idx) => ({ x: idx, label: p.bucket, value: Number(p.value || 0) }));
-  const maxVal = Math.max(...numericPoints.map((p) => p.value), 1);
-  const width = adminChartSvg.clientWidth || 640;
-  const height = 240;
-  const pad = 26;
-  const plotW = width - pad * 2;
-  const plotH = height - pad * 2;
-  const path = [];
-  const circles = [];
-  numericPoints.forEach((pt, idx) => {
-    const x = pad + (plotW * idx) / Math.max(1, numericPoints.length - 1);
-    const y = pad + plotH - (pt.value / maxVal) * plotH;
-    path.push(`${idx === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`);
-    circles.push(`<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="3" fill="#2d5cff" opacity="0.9"></circle>`);
+  renderAdminChartHelper({
+    svg: els.chartSvg,
+    hintEl: els.chartHint,
+    points: trend?.points || [],
+    range: trend?.range || '30d',
+    metricLabel: ADMIN_METRIC_LABELS[trend.metric] || trend.metric?.replace(/_/g, ' ') || 'Metric',
+    formatBucketLabel
   });
-  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => ({
-    y: pad + plotH - ratio * plotH,
-    label: Math.round(maxVal * ratio)
-  }));
-  const xLabels = [numericPoints[0], numericPoints[numericPoints.length - 1]].filter(Boolean);
-  adminChartSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-  adminChartSvg.innerHTML = `
-    <g stroke="rgba(20,40,80,0.15)" stroke-width="1">
-      ${yTicks
-        .map(
-          (tick) =>
-            `<line x1="${pad}" y1="${tick.y.toFixed(2)}" x2="${width - pad}" y2="${tick.y.toFixed(
-              2
-            )}" />`
-        )
-        .join('')}
-    </g>
-    <g fill="rgba(20,40,80,0.55)" font-size="10" font-weight="600">
-      ${yTicks
-        .map(
-          (tick) =>
-            `<text x="${pad - 8}" y="${tick.y.toFixed(2)}" text-anchor="end" dominant-baseline="middle">${tick.label.toLocaleString()}</text>`
-        )
-        .join('')}
-      ${
-        xLabels.length
-          ? `<text x="${pad}" y="${height - 6}" text-anchor="start">${xLabels[0].label}</text>
-             <text x="${width - pad}" y="${height - 6}" text-anchor="end">${xLabels[xLabels.length - 1].label}</text>`
-          : ''
-      }
-    </g>
-    <path d="${path.join(' ')}" fill="none" stroke="#2d5cff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
-    ${circles.join('')}
-  `;
-  adminChartHint.textContent = `${trend.points.length} data points · ${trend.metric.replace(/_/g, ' ')} (${trend.range})`;
 }
 
 async function loadAdminAnalyticsSummary() {
