@@ -8347,6 +8347,86 @@ body.home-page .home-stack {
   gap: clamp(28px, 4vh, 36px);
 }
 
+body.home-page .home-platform-strip__panel {
+  display: grid;
+  gap: 12px;
+  align-items: center;
+  justify-items: center;
+  padding: clamp(14px, 2vw, 20px);
+  border-radius: 18px;
+  border: 1px solid rgba(18, 58, 112, 0.16);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(247, 252, 255, 0.95) 100%);
+  box-shadow:
+    0 14px 28px rgba(10, 37, 78, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
+body.home-page .home-platform-strip__title {
+  margin: 0;
+  font-size: 0.84rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #335b90;
+}
+
+body.home-page .home-platform-strip__logos {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+body.home-page .home-platform-strip__logos li {
+  min-height: 30px;
+  padding: 0.35rem 0.82rem;
+  border-radius: 999px;
+  border: 1px solid rgba(18, 58, 112, 0.12);
+  background: rgba(245, 250, 255, 0.96);
+  color: #4a6484;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+body.home-page .home-platform-strip__note {
+  margin: 0;
+  color: #5b7495;
+  font-size: 0.82rem;
+}
+
+body.home-page .home-problem-solution__panel {
+  display: grid;
+  gap: 12px;
+}
+
+body.home-page .home-problem-solution__panel h2 {
+  margin: 0;
+  font-size: clamp(1.28rem, 2vw, 1.68rem);
+  color: #11355f;
+  letter-spacing: -0.016em;
+}
+
+body.home-page .home-problem-solution__list {
+  margin: 0;
+  padding-left: 18px;
+  color: #2f527a;
+  display: grid;
+  gap: 8px;
+  line-height: 1.48;
+}
+
+body.home-page .home-problem-solution__close {
+  margin: 2px 0 0;
+  color: #315783;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
 body.home-page .home-panel {
   position: relative;
   border-radius: 26px !important;
@@ -9388,6 +9468,21 @@ body.home-page.animate-ready.home-loaded .home-hero-trust {
   body.home-page .home-panel {
     border-radius: 20px !important;
     padding: 18px !important;
+  }
+
+  body.home-page .home-platform-strip__panel {
+    gap: 10px;
+    padding: 14px;
+  }
+
+  body.home-page .home-platform-strip__logos {
+    gap: 8px;
+  }
+
+  body.home-page .home-platform-strip__logos li {
+    min-height: 28px;
+    padding: 0.28rem 0.72rem;
+    font-size: 0.76rem;
   }
 
   body.home-page .feature-grid {
