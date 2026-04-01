@@ -3873,15 +3873,20 @@ async function applyPostScanSignals(previousSnapshot, scanResult = null) {
   const offerIds = [];
   const interviewIds = [];
   const appliedIds = [];
+  let observedApplicationChanges = 0;
 
   for (const app of applications || []) {
     if (!app?.id) continue;
     const id = String(app.id);
+    const hadPrior = before.has(id);
     const prior = before.get(id) || { status: null, offer: false, interview: false };
     const normalizedStatus = normalizeStatusValue(app.current_status || 'UNKNOWN');
     const nowOffer = isOfferStatus(normalizedStatus);
     const nowInterview = isInterviewStatus(normalizedStatus);
     const nowApplied = normalizedStatus === 'APPLIED';
+    if (!hadPrior || prior.status !== normalizedStatus) {
+      observedApplicationChanges += 1;
+    }
     if (nowOffer && !prior.offer) {
       offerIds.push(id);
     }
@@ -3913,6 +3918,13 @@ async function applyPostScanSignals(previousSnapshot, scanResult = null) {
   } else {
     applyRowSignalPulse({ offerIds: [], interviewIds: [] });
   }
+
+  return {
+    appliedDelta,
+    offersDelta,
+    interviewsDelta,
+    observedApplicationChanges
+  };
 }
 
 function updateKpiCounts({ total = 0, applied = 0, offers = 0, interviews = 0, rejected = 0 } = {}) {
@@ -6568,13 +6580,19 @@ function deriveSyncMetrics(result = {}, rawDetails = '') {
     if (Number.isFinite(result.applications_updated)) {
       metrics.appsUpdated = Number(result.applications_updated);
     }
-    const updatedRejected = result.updated_status_to_rejected_total ?? 0;
-    const updatedApplied = result.updated_status_to_applied_total ?? 0;
-    const createdApps =
-      result.createdApplications ?? result.created_apps_total ?? result.created_apps_confirmation_total ?? 0;
-    // Anchor to created apps; if none, fall back to status changes only.
-    const updated = createdApps || (updatedRejected + updatedApplied);
-    metrics.appsUpdated = updated || metrics.appsUpdated;
+    const updatedRejected = Number(result.updated_status_to_rejected_total ?? 0) || 0;
+    const updatedApplied = Number(result.updated_status_to_applied_total ?? 0) || 0;
+    const createdAppsFromTotals = Number(result.createdApplications ?? result.created_apps_total ?? 0) || 0;
+    const createdAppsFromTypeBreakdown =
+      (Number(result.created_apps_confirmation_total ?? 0) || 0) +
+      (Number(result.created_apps_rejection_only_total ?? 0) || 0);
+    const createdApps = Math.max(createdAppsFromTotals, createdAppsFromTypeBreakdown);
+    // Rejected/Applied "updated" counters can include the same newly-created apps,
+    // so treat created apps as authoritative; only fall back to update totals when needed.
+    const computedUpdated = createdApps > 0 ? createdApps : updatedRejected + updatedApplied;
+    if (Number.isFinite(computedUpdated)) {
+      metrics.appsUpdated = Math.max(Number(metrics.appsUpdated || 0), computedUpdated);
+    }
     metrics.lastSyncedAt = result.last_synced_at ?? metrics.lastSyncedAt;
   }
   if (rawDetails) {
@@ -6810,7 +6828,21 @@ async function runEmailSync({ mode = 'since_last', days = null, statusEl, result
       resultEl.textContent = rawDetails;
     }
     await loadActiveApplications();
-    await applyPostScanSignals(preScanSnapshot, result);
+    const signalSummary = await applyPostScanSignals(preScanSnapshot, result);
+    if (status !== 'not_connected') {
+      const observedChanges = Number(signalSummary?.observedApplicationChanges ?? 0) || 0;
+      if (observedChanges > 0) {
+        const adjustedResult = {
+          ...result,
+          applications_updated: Math.max(Number(result?.applications_updated ?? 0) || 0, observedChanges)
+        };
+        renderSyncSummary({
+          status: 'success',
+          result: adjustedResult,
+          rawDetails
+        });
+      }
+    }
     await refreshEmailEvents();
     await refreshUnsortedEvents();
     enterFinishing();
