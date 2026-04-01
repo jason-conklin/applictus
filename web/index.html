@@ -183,62 +183,66 @@
       }
       .plan-card-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 16px;
         margin-top: 4px;
+        align-items: stretch;
       }
       .plan-card {
         position: relative;
         border: 1px solid rgba(20, 40, 80, 0.12);
         border-radius: 16px;
-        padding: 18px;
+        padding: 18px 18px 16px;
         background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
         box-shadow:
           0 14px 30px rgba(12, 36, 84, 0.08),
           inset 0 1px 0 rgba(255, 255, 255, 0.86);
+        display: flex;
+        flex-direction: column;
       }
       .plan-card-top {
         display: grid;
-        gap: 5px;
-        margin-bottom: 12px;
+        gap: 6px;
+        margin-bottom: 14px;
       }
       .plan-card--pro {
-        border-color: rgba(22, 69, 143, 0.26);
+        border-color: rgba(22, 69, 143, 0.38);
         background:
-          radial-gradient(125% 115% at 6% 0%, rgba(227, 238, 255, 0.68), rgba(255, 255, 255, 0) 64%),
-          linear-gradient(180deg, #ffffff 0%, #f1f7ff 100%);
+          radial-gradient(130% 120% at 6% 0%, rgba(223, 236, 255, 0.86), rgba(255, 255, 255, 0) 64%),
+          linear-gradient(180deg, #ffffff 0%, #edf5ff 100%);
         box-shadow:
-          0 24px 44px rgba(15, 45, 96, 0.15),
-          0 8px 18px rgba(15, 45, 96, 0.1),
+          0 26px 48px rgba(15, 45, 96, 0.19),
+          0 10px 22px rgba(15, 45, 96, 0.12),
           inset 0 1px 0 rgba(255, 255, 255, 0.92);
-        transform: translateY(-1px);
+        transform: translateY(-2px);
       }
       .plan-title {
-        margin: 0 0 4px;
-        font-size: 17px;
+        margin: 0;
+        font-size: 18px;
         color: #13294b;
       }
       .plan-context {
         margin: 0;
-        color: #4c5f7c;
+        color: #4f617d;
         line-height: 1.45;
       }
       .plan-price {
-        font-size: 32px;
+        font-size: 36px;
         font-weight: 700;
         letter-spacing: -0.02em;
         color: #102746;
         line-height: 1.1;
-        margin: 2px 0 4px;
+        margin: 2px 0 6px;
       }
       .plan-limit {
-        margin-bottom: 14px;
+        margin-bottom: 15px;
         color: #4f6079;
+        line-height: 1.45;
       }
       .plan-features {
         list-style: none;
         padding: 0;
-        margin: 0 0 14px;
+        margin: 0 0 12px;
         display: grid;
         gap: 8px;
       }
@@ -268,34 +272,64 @@
         margin-bottom: 2px;
       }
       .plan-pill--popular {
-        background: rgba(37, 82, 171, 0.16);
-        border: 1px solid rgba(37, 82, 171, 0.28);
-        color: #1a468f;
+        background: linear-gradient(180deg, #2f66c4 0%, #2456ad 100%);
+        border: 1px solid rgba(23, 62, 128, 0.42);
+        color: #f8fbff;
+        box-shadow: 0 6px 14px rgba(27, 70, 145, 0.2);
       }
       .plan-pill--included {
-        background: rgba(17, 50, 96, 0.08);
-        border: 1px solid rgba(17, 50, 96, 0.12);
+        background: rgba(17, 50, 96, 0.06);
+        border: 1px solid rgba(17, 50, 96, 0.1);
         color: #3a5174;
+      }
+      .plan-reinforcement {
+        margin: 0 0 12px;
+        color: #365887;
+        line-height: 1.45;
+      }
+      .plan-cta-wrap {
+        margin-top: auto;
+        display: grid;
+        gap: 6px;
       }
       .plan-cta {
         width: 100%;
         justify-content: center;
       }
       .plan-cta--free {
-        color: #536987;
-        border-color: rgba(20, 40, 80, 0.18);
-        background: linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%);
+        color: #5a6f8c;
+        border-color: rgba(20, 40, 80, 0.16);
+        background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+        box-shadow: none;
+        opacity: 0.92;
       }
       .plan-cta--pro {
         box-shadow:
-          0 14px 24px rgba(20, 58, 126, 0.2),
+          0 16px 28px rgba(20, 58, 126, 0.24),
           inset 0 1px 0 rgba(255, 255, 255, 0.22);
       }
-      .pricing-trust {
-        margin-top: 12px;
+      .plan-cta-subtext {
         text-align: center;
-        color: #5a6f8f;
+        color: #4f678a;
+        line-height: 1.35;
+      }
+      .pricing-trust {
+        margin-top: 16px;
+        text-align: center;
+        color: #4f678a;
         line-height: 1.5;
+      }
+      @media (max-width: 760px) {
+        .plan-card-grid {
+          grid-template-columns: 1fr;
+          gap: 12px;
+        }
+        .plan-card--pro {
+          transform: translateY(0);
+        }
+        .plan-price {
+          font-size: 32px;
+        }
       }
     </style>
   </head>
@@ -2126,6 +2160,6 @@
       </div>
     </div>
 
-    <script type="module" src="/app.js?v=40"></script>
+    <script type="module" src="/app.js?v=41"></script>
   </body>
 </html>

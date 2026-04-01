@@ -4450,7 +4450,7 @@ function updateAdminAnalyticsVisibility() {
   }
 }
 
-function buildPlanCard({ title, context, price, limit, features, ctaText, tier }) {
+function buildPlanCard({ title, context, price, details, features, ctaText, ctaSubtext = '', reinforcement = '', tier }) {
   const card = document.createElement('div');
   card.className = `plan-card ${tier === 'pro' ? 'plan-card--pro' : 'plan-card--free'}`;
 
@@ -4477,7 +4477,7 @@ function buildPlanCard({ title, context, price, limit, features, ctaText, tier }
 
   const limitEl = document.createElement('div');
   limitEl.className = 'plan-limit muted small';
-  limitEl.textContent = `${limit} tracked emails / month`;
+  limitEl.textContent = details || '';
 
   const ul = document.createElement('ul');
   ul.className = 'plan-features';
@@ -4486,6 +4486,13 @@ function buildPlanCard({ title, context, price, limit, features, ctaText, tier }
     li.textContent = feat;
     ul.appendChild(li);
   });
+
+  let reinforcementEl = null;
+  if (reinforcement) {
+    reinforcementEl = document.createElement('div');
+    reinforcementEl.className = 'plan-reinforcement muted small';
+    reinforcementEl.textContent = reinforcement;
+  }
 
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -4499,7 +4506,21 @@ function buildPlanCard({ title, context, price, limit, features, ctaText, tier }
     }
   });
 
-  card.append(top, priceEl, limitEl, ul, btn);
+  const ctaWrap = document.createElement('div');
+  ctaWrap.className = 'plan-cta-wrap';
+  ctaWrap.appendChild(btn);
+  if (ctaSubtext) {
+    const ctaSubtextEl = document.createElement('div');
+    ctaSubtextEl.className = 'plan-cta-subtext muted small';
+    ctaSubtextEl.textContent = ctaSubtext;
+    ctaWrap.appendChild(ctaSubtextEl);
+  }
+
+  card.append(top, priceEl, limitEl, ul);
+  if (reinforcementEl) {
+    card.appendChild(reinforcementEl);
+  }
+  card.appendChild(ctaWrap);
   return card;
 }
 
@@ -4508,13 +4529,13 @@ function openPricingModal() {
   container.className = 'plan-card-grid';
   const freeCard = buildPlanCard({
     title: 'Free',
-    context: 'For light usage',
+    context: 'For occasional tracking',
     price: '$0 / month',
-    limit: PLAN_LIMITS.free,
+    details: 'Up to 75 application updates per month',
     features: [
-      'Up to 75 tracked emails per month',
-      'Automatically track job updates from your inbox',
-      'See your applications in one timeline'
+      'Track a limited number of job updates',
+      'Basic application timeline view',
+      'Best for light or infrequent job searches'
     ],
     ctaText: 'Stay on Free',
     tier: 'free'
@@ -4523,14 +4544,16 @@ function openPricingModal() {
     title: 'Pro',
     context: 'For active job search',
     price: '$4 / month',
-    limit: PLAN_LIMITS.pro,
+    details: 'Up to 500 application updates per month',
     features: [
-      'Up to 500 tracked emails / month',
       'Never miss interview requests or important updates',
-      'Track all applications across your job search',
-      'Higher limits for active searches'
+      'Track your entire job search automatically',
+      'Stay organized across all your applications',
+      'Built for active job seekers applying regularly'
     ],
+    reinforcement: "Recommended if you're applying to multiple jobs per week",
     ctaText: 'Upgrade to Pro',
+    ctaSubtext: 'Cancel anytime',
     tier: 'pro'
   });
   container.append(freeCard, proCard);
@@ -4539,7 +4562,7 @@ function openPricingModal() {
   body.appendChild(container);
   const trust = document.createElement('div');
   trust.className = 'pricing-trust muted small';
-  trust.textContent = 'Cancel anytime • No hidden fees • Upgrade or downgrade anytime';
+  trust.textContent = 'Cancel anytime • No hidden fees • No commitment';
   body.appendChild(trust);
   const footer = document.createElement('div');
   footer.className = 'modal-footer-actions';
@@ -4551,8 +4574,8 @@ function openPricingModal() {
   footer.appendChild(closeBtn);
 
   openModal({
-    title: 'Choose your plan',
-    description: 'Stay on top of every job update. Upgrade when you need more volume.',
+    title: 'Never miss an interview or opportunity',
+    description: "Stay on top of every job update. Upgrade while you're actively applying — cancel anytime.",
     body,
     footer,
     allowBackdropClose: true
