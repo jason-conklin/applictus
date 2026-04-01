@@ -9593,6 +9593,218 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms {
   }
 }
 
+@media (max-width: 680px) {
+  body.home-page,
+  body.home-page .home-shell,
+  body.home-page .home-main,
+  body.home-page .home-billboard,
+  body.home-page .home-billboard-inner,
+  body.home-page .home-hero-platforms {
+    overflow-x: clip;
+  }
+
+  body.home-page .home-nav {
+    position: static;
+    top: auto;
+    margin-top: 10px;
+    width: calc(100% - 18px);
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  body.home-page .home-brand {
+    gap: 9px;
+  }
+
+  body.home-page .home-brand-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  body.home-page .home-brand-copy strong {
+    font-size: 16px;
+  }
+
+  body.home-page .home-brand-copy small {
+    font-size: 9px;
+    letter-spacing: 0.03em;
+  }
+
+  body.home-page .home-nav-actions {
+    width: 100%;
+    justify-content: center;
+    gap: 6px;
+    row-gap: 8px;
+  }
+
+  body.home-page .home-link {
+    font-size: 12px;
+    padding: 7px 8px;
+  }
+
+  body.home-page .home-nav .btn--sm {
+    min-height: 36px;
+    padding: 0.5rem 0.85rem;
+    font-size: 0.86rem;
+  }
+
+  body.home-page .home-billboard {
+    --home-cap-width: 210vw;
+    --home-cap-height: clamp(112px, 15vh, 146px);
+    --home-cap-lift: clamp(90px, 14vh, 130px);
+    --home-nav-overlap: 0px;
+    margin-top: 0;
+    min-height: auto;
+    padding-top: calc(var(--home-cap-height) + 14px);
+    padding-bottom: 20px;
+  }
+
+  body.home-page .home-billboard-inner {
+    max-width: 100%;
+    gap: 10px;
+    padding-inline: 0;
+  }
+
+  body.home-page .hero-banner {
+    width: min(100%, 430px);
+  }
+
+  body.home-page .hero-banner__img {
+    max-width: 100%;
+    margin-inline: auto;
+  }
+
+  body.home-page .hero-value {
+    width: min(100%, 32rem);
+    gap: 8px;
+    margin-top: 2px;
+  }
+
+  body.home-page .hero-value__title {
+    font-size: clamp(1.42rem, 7.2vw, 1.86rem);
+    line-height: 1.16;
+    max-width: 19ch;
+  }
+
+  body.home-page .hero-value__subtitle {
+    font-size: clamp(0.93rem, 4.1vw, 1.02rem);
+    line-height: 1.42;
+    max-width: 32ch;
+  }
+
+  body.home-page .home-billboard-cta {
+    width: min(100%, 420px);
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  body.home-page .home-billboard-cta .btn-bevel,
+  body.home-page .home-billboard-cta .btn-primary,
+  body.home-page .home-billboard-cta .btn-secondary {
+    min-height: 44px;
+    min-width: 0;
+    width: 100%;
+    padding: 0.72rem 1rem;
+    font-size: 0.95rem;
+  }
+
+  body.home-page .home-hero-trust {
+    width: min(100%, 360px);
+    display: grid;
+    gap: 8px;
+    justify-items: center;
+    margin-top: 10px;
+    font-size: 12.4px;
+  }
+
+  body.home-page .home-hero-trust::before {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+
+  body.home-page .home-hero-trust-item {
+    width: 100%;
+    justify-content: center;
+    gap: 7px;
+    text-align: center;
+    white-space: normal;
+  }
+
+  body.home-page .home-hero-platforms {
+    width: 100%;
+    margin-top: 12px;
+    gap: 9px;
+  }
+
+  body.home-page .home-hero-platforms__title {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-align: center;
+    max-width: 32ch;
+  }
+
+  body.home-page .home-hero-platforms__marquee {
+    width: 100%;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 6%, #000 94%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0%, #000 6%, #000 94%, transparent 100%);
+  }
+
+  body.home-page .home-hero-platforms__track {
+    animation-duration: 54s;
+  }
+
+  body.home-page .home-hero-platforms__group {
+    gap: 8px;
+    padding-right: 8px;
+  }
+
+  body.home-page .home-hero-platforms__logo {
+    min-height: 26px;
+    padding: 3px 7px;
+    border-radius: 7px;
+  }
+
+  body.home-page .home-hero-platforms__logo img {
+    height: 12px;
+    max-width: 104px;
+  }
+
+  body.home-page .home-hero-platforms__note {
+    font-size: 0.69rem;
+    text-align: center;
+    max-width: 34ch;
+    line-height: 1.35;
+  }
+}
+
+@media (max-width: 420px) {
+  body.home-page .page-wrap {
+    padding-inline: 12px;
+  }
+
+  body.home-page .hero-banner {
+    width: min(100%, 390px);
+  }
+
+  body.home-page .hero-value__title {
+    font-size: clamp(1.32rem, 7vw, 1.66rem);
+  }
+
+  body.home-page .hero-value__subtitle {
+    font-size: 0.9rem;
+    max-width: 30ch;
+  }
+
+  body.home-page .home-billboard-cta {
+    width: min(100%, 370px);
+  }
+
+  body.home-page .home-hero-platforms__logo img {
+    max-width: 96px;
+  }
+}
+
 /* =========================
    Homepage Info Sections
    ========================= */
