@@ -8347,34 +8347,6 @@ body.home-page .home-stack {
   gap: clamp(28px, 4vh, 36px);
 }
 
-body.home-page .home-problem-solution__panel {
-  display: grid;
-  gap: 12px;
-}
-
-body.home-page .home-problem-solution__panel h2 {
-  margin: 0;
-  font-size: clamp(1.28rem, 2vw, 1.68rem);
-  color: #11355f;
-  letter-spacing: -0.016em;
-}
-
-body.home-page .home-problem-solution__list {
-  margin: 0;
-  padding-left: 18px;
-  color: #2f527a;
-  display: grid;
-  gap: 8px;
-  line-height: 1.48;
-}
-
-body.home-page .home-problem-solution__close {
-  margin: 2px 0 0;
-  color: #315783;
-  font-weight: 600;
-  line-height: 1.5;
-}
-
 body.home-page .home-panel {
   position: relative;
   border-radius: 26px !important;
