@@ -11040,7 +11040,7 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #applications-table .table-row.application-row[data-status-tone='applied'] .status-band {
-  --status-band-color: var(--status-pill-applied-border);
+  --status-band-color: #f59e0b;
 }
 
 #applications-table .table-row.application-row[data-status-tone='under_review'] .status-band {
