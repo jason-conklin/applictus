@@ -8719,7 +8719,7 @@ body.home-page .home-billboard-inner {
 body.home-page .hero-banner {
   display: grid;
   place-items: center;
-  width: clamp(248px, 45vw, 620px);
+  width: clamp(266px, 48vw, 680px);
   position: relative;
   user-select: none;
   -webkit-user-select: none;
@@ -9291,7 +9291,7 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms {
   }
 
   body.home-page .hero-banner {
-    width: clamp(232px, 41vw, 568px);
+    width: clamp(248px, 43.5vw, 620px);
   }
 
   body.home-page .hero-value__title {
@@ -9353,7 +9353,7 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms {
   }
 
   body.home-page .hero-banner {
-    width: clamp(218px, 35vw, 478px);
+    width: clamp(232px, 37vw, 530px);
   }
 
   body.home-page .hero-value__title {
@@ -9435,7 +9435,7 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms {
   }
 
   body.home-page .hero-banner {
-    width: min(620px, 82vw);
+    width: min(680px, 86vw);
   }
 
   body.home-page .hero-value {
