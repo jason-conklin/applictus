@@ -4,6 +4,35 @@ function supportsReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+function supportsBackdropFilter() {
+  if (!window.CSS || typeof window.CSS.supports !== 'function') {
+    return false;
+  }
+  return (
+    window.CSS.supports('backdrop-filter: blur(10px)') ||
+    window.CSS.supports('-webkit-backdrop-filter: blur(10px)')
+  );
+}
+
+function supportsMediaQuery(query) {
+  if (!query || typeof window.matchMedia !== 'function') {
+    return false;
+  }
+  try {
+    return window.matchMedia(query).matches;
+  } catch {
+    return false;
+  }
+}
+
+function prefersReducedTransparency() {
+  return (
+    supportsMediaQuery('(prefers-reduced-transparency: reduce)') ||
+    supportsMediaQuery('(forced-colors: active)') ||
+    supportsMediaQuery('(prefers-contrast: more)')
+  );
+}
+
 function getRevealNodes() {
   const nodes = Array.from(document.querySelectorAll('.reveal, [data-reveal]'));
   return Array.from(new Set(nodes));
@@ -42,13 +71,13 @@ function isHomeRoute() {
   return normalizePathname(window.location.pathname) === '/';
 }
 
-function playHomeIntro(reducedMotion) {
+function playHomeIntro(reducedEffects) {
   const hero = document.querySelector('[data-hero-banner]');
   if (!hero) {
     return;
   }
   hero.classList.remove('is-intro');
-  if (reducedMotion || !isHomeRoute()) {
+  if (reducedEffects || !isHomeRoute()) {
     return;
   }
   // Force reflow so repeated entries replay keyframes.
@@ -56,13 +85,13 @@ function playHomeIntro(reducedMotion) {
   hero.classList.add('is-intro');
 }
 
-function setupHomeIntroPlayback(reducedMotion) {
+function setupHomeIntroPlayback(reducedEffects) {
   const hero = document.querySelector('[data-hero-banner]');
   if (!hero) {
     return;
   }
 
-  const replay = () => playHomeIntro(reducedMotion);
+  const replay = () => playHomeIntro(reducedEffects);
   replay();
 
   window.addEventListener('pageshow', replay);
@@ -119,14 +148,14 @@ function setupHomeIntroPlayback(reducedMotion) {
   );
 }
 
-function setupHeroBanner(reducedMotion) {
+function setupHeroBanner(reducedEffects) {
   const banner = document.querySelector('.hero-banner');
   const tiltEl = document.querySelector('.hero-banner__tilt');
   const bannerImg = document.querySelector('.hero-banner__img');
   if (bannerImg) {
     bannerImg.addEventListener('dragstart', (event) => event.preventDefault());
   }
-  if (!banner || !tiltEl || reducedMotion) {
+  if (!banner || !tiltEl || reducedEffects) {
     return;
   }
 
@@ -325,12 +354,20 @@ function bootHomepage() {
   }
 
   const reducedMotion = supportsReducedMotion();
+  const reducedTransparency = prefersReducedTransparency();
+  const hasBackdropFilter = supportsBackdropFilter();
+  const reducedEffects = reducedMotion || reducedTransparency || !hasBackdropFilter;
+
   document.body.classList.add('home-page', 'animated-bg-mode', 'animated-bg-auth');
   document.body.classList.add('animate-ready', 'reveal-ready');
+  document.body.classList.toggle('reduced-motion', reducedMotion);
+  document.body.classList.toggle('reduced-transparency', reducedTransparency);
+  document.body.classList.toggle('no-backdrop-filter', !hasBackdropFilter);
+  document.body.classList.toggle('home-effects-fallback', reducedEffects);
   ensureAnimatedBackgroundLayout({ variant: 'auth' });
 
-  setupHomeIntroPlayback(reducedMotion);
-  setupHeroBanner(reducedMotion);
+  setupHomeIntroPlayback(reducedEffects);
+  setupHeroBanner(reducedEffects);
   setupHowStepperConnector();
   setupScrollCtas(reducedMotion);
   setupScrollReveal(reducedMotion);

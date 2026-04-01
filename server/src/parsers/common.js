@@ -158,9 +158,7 @@ function detectStatusSignal({
     return {
       status: 'rejected',
       confidence: strongRejectionHits.length > 0 ? 95 : 92,
-      source: rejectionWonOverApplied
-        ? `rejection_priority_over_applied:${selectedRejection.label}`
-        : `rejection_phrase:${selectedRejection.label}`,
+      source: `rejection_phrase:${selectedRejection.label}`,
       matched: selectedRejection.label,
       rejectionMatches: rejectionHits.map((hit) => hit.label),
       interviewMatches: [],

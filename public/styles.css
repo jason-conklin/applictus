@@ -10131,6 +10131,126 @@ body.home-page .info-step:hover .how-step-card__icon {
   }
 }
 
+/* =========================================================
+   Home Hero Fallbacks (reduced effects / no blur support)
+   Keeps layout intact while removing foggy overlays.
+   ========================================================= */
+body.home-page.home-effects-fallback .home-billboard,
+body.home-page.home-effects-fallback .home-billboard-inner,
+body.home-page.home-effects-fallback .hero-banner,
+body.home-page.home-effects-fallback .hero-value {
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+body.home-page.home-effects-fallback .home-cap {
+  background: linear-gradient(180deg, #2d73ff 0%, #1f5fe6 45%, #1b55d6 72%, #184fc8 100%) !important;
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.22),
+    0 6px 14px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+}
+
+body.home-page.home-effects-fallback .home-cap::before,
+body.home-page.home-effects-fallback .home-cap::after,
+body.home-page.home-effects-fallback .home-cap .cap-noise {
+  content: none !important;
+  display: none !important;
+  animation: none !important;
+  opacity: 0 !important;
+  mix-blend-mode: normal !important;
+}
+
+body.home-page.home-effects-fallback .hero-banner__intro::before,
+body.home-page.home-effects-fallback .hero-banner__intro::after {
+  content: none !important;
+  display: none !important;
+  animation: none !important;
+}
+
+body.home-page.home-effects-fallback .hero-banner__float,
+body.home-page.home-effects-fallback .hero-banner__tilt {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+body.home-page.home-effects-fallback .hero-banner__img,
+body.home-page.home-effects-fallback .hero-value__title,
+body.home-page.home-effects-fallback .hero-value__subtitle {
+  filter: none !important;
+  text-shadow: none !important;
+  opacity: 1 !important;
+}
+
+body.home-page.home-effects-fallback .home-hero-platforms__track {
+  animation: none !important;
+  transform: none !important;
+}
+
+body.home-page.home-effects-fallback .animated-bg::after,
+body.home-page.home-effects-fallback .animated-bg-icons,
+body.home-page.home-effects-fallback .animated-bg-icon {
+  display: none !important;
+  animation: none !important;
+  opacity: 0 !important;
+}
+
+body.home-page.home-effects-fallback .animated-bg::before {
+  animation: none !important;
+  transform: none !important;
+  opacity: 0.84 !important;
+  background-image: var(--animated-bg-gradient) !important;
+  background-size: 100% 100% !important;
+}
+
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+  body.home-page {
+    --auth-bg-intensity: 0.8;
+  }
+
+  body.home-page .home-cap::before,
+  body.home-page .home-cap::after,
+  body.home-page .home-cap .cap-noise,
+  body.home-page .hero-banner__intro::before,
+  body.home-page .hero-banner__intro::after,
+  body.home-page .animated-bg::after,
+  body.home-page .animated-bg-icons,
+  body.home-page .animated-bg-icon {
+    display: none !important;
+    animation: none !important;
+  }
+
+  body.home-page .animated-bg::before {
+    animation: none !important;
+    transform: none !important;
+    opacity: 0.84 !important;
+    background-image: var(--animated-bg-gradient) !important;
+  }
+}
+
+@supports not ((backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px))) {
+  body.home-page .home-cap::before,
+  body.home-page .home-cap::after,
+  body.home-page .home-cap .cap-noise,
+  body.home-page .hero-banner__intro::before,
+  body.home-page .hero-banner__intro::after,
+  body.home-page .animated-bg::after,
+  body.home-page .animated-bg-icons,
+  body.home-page .animated-bg-icon {
+    display: none !important;
+    animation: none !important;
+  }
+
+  body.home-page .animated-bg::before {
+    animation: none !important;
+    transform: none !important;
+    opacity: 0.84 !important;
+    background-image: var(--animated-bg-gradient) !important;
+    background-size: 100% 100% !important;
+  }
+}
+
 /* ========================= DASHBOARD: PREMIUM THEME ========================= */
 #dashboard-view,
 #dashboard-view .dashboard {
