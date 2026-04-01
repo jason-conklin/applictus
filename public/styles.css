@@ -8691,7 +8691,7 @@ body.home-page .home-billboard-inner {
 body.home-page .hero-banner {
   display: grid;
   place-items: center;
-  width: clamp(380px, 66vw, 1040px);
+  width: clamp(360px, 62vw, 980px);
   position: relative;
   user-select: none;
   -webkit-user-select: none;
@@ -9263,7 +9263,7 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms {
   }
 
   body.home-page .hero-banner {
-    width: clamp(360px, 60vw, 940px);
+    width: clamp(340px, 57vw, 880px);
   }
 
   body.home-page .hero-value__title {
@@ -9325,7 +9325,7 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms {
   }
 
   body.home-page .hero-banner {
-    width: clamp(320px, 52vw, 760px);
+    width: clamp(304px, 49vw, 720px);
   }
 
   body.home-page .hero-value__title {
@@ -9407,7 +9407,7 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms {
   }
 
   body.home-page .hero-banner {
-    width: min(900px, 98vw);
+    width: min(840px, 96vw);
   }
 
   body.home-page .hero-value {
