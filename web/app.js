@@ -512,6 +512,8 @@ const addPanel = null;
 const filterCount = document.getElementById('filter-count');
 const applicationsTable = document.getElementById('applications-table');
 const appCount = document.getElementById('app-count');
+const dashboardOnboardingCard = document.getElementById('dashboard-onboarding');
+const dashboardFiltersInline = document.getElementById('filters-inline');
 const archivedTable = document.getElementById('archived-table');
 const archivedCount = document.getElementById('archived-count');
 const unsortedTable = document.getElementById('unsorted-table');
@@ -760,6 +762,9 @@ const state = {
     appliedDelta: 0,
     offersDelta: 0,
     interviewsDelta: 0
+  },
+  dashboard: {
+    onboardingDismissed: false
   },
   archived: {
     offset: 0,
@@ -1690,6 +1695,7 @@ function updateInboundStatusPresentation() {
     renderForwardingSummary();
     updateDashboardPrimarySyncUI();
     renderAccountInboxUsernamePrompt({ checkAvailability: false });
+    applyDashboardOnboardingState(state.table.total);
     return;
   }
   const setupState = inboundState.setupState || 'not_started';
@@ -1835,6 +1841,7 @@ function updateInboundStatusPresentation() {
   renderForwardingSummary();
   updateDashboardPrimarySyncUI();
   renderAccountInboxUsernamePrompt({ checkAvailability: false });
+  applyDashboardOnboardingState(state.table.total);
 }
 
 function setSyncRangeMenuOpen(open) {
@@ -1948,7 +1955,19 @@ function updateAccountSyncResultLine() {
   accountSyncResult.textContent = metricsLine;
 }
 
-function getDashboardEmptyStateHtml() {
+function getDashboardEmptyStateHtml({ firstTime = false } = {}) {
+  if (firstTime) {
+    return `
+      <div class="empty-state empty-state--onboarding">
+        <h3>Your application timeline will appear here</h3>
+        <p class="muted">Once your inbox is connected, Applictus will automatically track confirmations, interviews, and rejections for you.</p>
+        <div class="empty-state-actions">
+          <button class="btn btn--primary btn--md" type="button" data-action="sync-inbox">Connect inbox</button>
+          <button class="btn btn--ghost btn--sm" type="button" data-action="add-application">Add application manually</button>
+        </div>
+      </div>
+    `;
+  }
   return `
     <div class="empty-state">
       <h3>No applications yet</h3>
@@ -3627,10 +3646,45 @@ function applyArchivedStatusFilterValue(uiValue) {
   }
 }
 
-function updateDashboardMeta(total) {
-  if (appCount) {
-    appCount.textContent = `${total} tracked`;
+function hasCompletedDashboardInboxSetup() {
+  if (isInternalGmailMode()) {
+    return Boolean(emailState.connected);
   }
+  const readiness = resolveForwardingReadiness();
+  return readiness === 'forwarding_active' || readiness === 'awaiting_first_email';
+}
+
+function shouldShowDashboardOnboarding(total = state.table.total) {
+  const safeTotal = Number.isFinite(Number(total)) ? Number(total) : 0;
+  if (!sessionUser || safeTotal > 0) {
+    state.dashboard.onboardingDismissed = false;
+    return false;
+  }
+  if (hasCompletedDashboardInboxSetup()) {
+    state.dashboard.onboardingDismissed = false;
+    return false;
+  }
+  return !state.dashboard.onboardingDismissed;
+}
+
+function applyDashboardOnboardingState(total = state.table.total) {
+  const safeTotal = Number.isFinite(Number(total)) ? Number(total) : 0;
+  const active = shouldShowDashboardOnboarding(safeTotal);
+  dashboardView?.classList.toggle('dashboard-first-time-onboarding', active);
+  if (dashboardOnboardingCard) {
+    dashboardOnboardingCard.classList.toggle('hidden', !active);
+  }
+  if (dashboardFiltersInline) {
+    dashboardFiltersInline.classList.toggle('hidden', active);
+  }
+  if (appCount) {
+    appCount.textContent = active ? 'No tracked applications yet' : `${safeTotal} tracked`;
+  }
+  return active;
+}
+
+function updateDashboardMeta(total) {
+  applyDashboardOnboardingState(total);
 }
 
 function getKpiSignalDescriptors() {
@@ -4064,6 +4118,7 @@ function setView(view) {
   }
   if (view === 'dashboard') {
     syncInboundAutoPolling();
+    applyDashboardOnboardingState(state.table.total);
   } else {
     clearInboundAutoSyncPolling();
   }
@@ -7579,9 +7634,10 @@ function renderApplicationsTable(applications) {
   state.table.selectedIds = new Set(
     Array.from(state.table.selectedIds || []).filter((id) => visibleIdSet.has(id))
   );
+  const firstTimeOnboarding = applyDashboardOnboardingState(state.table.total);
 
   if (!applications.length) {
-    applicationsTable.innerHTML = getDashboardEmptyStateHtml();
+    applicationsTable.innerHTML = getDashboardEmptyStateHtml({ firstTime: firstTimeOnboarding });
     updateTableBulkBar();
     return;
   }
@@ -8556,6 +8612,7 @@ function route() {
     routeKey === 'privacy' || routeKey === 'terms' || routeKey === 'contact' || routeKey === 'about';
 
   if (!sessionUser) {
+    state.dashboard.onboardingDismissed = false;
     setDrawerOpen(false);
     addToggle?.setAttribute('aria-expanded', 'false');
     if (isPublicRoute) {
@@ -9124,6 +9181,13 @@ dashboardView?.addEventListener('click', async (event) => {
   }
   if (action === 'manage-inbox') {
     openInboundSetupModal({ startStep: 0 });
+    return;
+  }
+  if (action === 'onboarding-later') {
+    state.dashboard.onboardingDismissed = true;
+    applyDashboardOnboardingState(state.table.total);
+    const applicationsCard = document.getElementById('dashboard-applications-card');
+    applicationsCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
   }
 });

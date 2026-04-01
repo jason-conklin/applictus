@@ -3,6 +3,7 @@ const { google } = require('googleapis');
 const { getAuthorizedClient, fetchConnectedEmail } = require('./email');
 const {
   classifyEmail,
+  isRelevantApplicationEmail,
   isLinkedInJobsUpdateEmail,
   isLinkedInJobsApplicationSentEmail,
   isOutboundUserMessage
@@ -60,6 +61,7 @@ function normalizeDbBool(value) {
 }
 
 const REASON_KEYS = [
+  'not_relevant',
   'classified_not_job_related',
   'denylisted',
   'missing_identity',
@@ -125,6 +127,35 @@ function isHighSignalClassification(classification) {
     return true;
   }
   return false;
+}
+
+function buildClassificationLogDetails(classification) {
+  const debug = classification?.debug && typeof classification.debug === 'object' ? classification.debug : {};
+  const matchedKeywords = Array.from(
+    new Set(
+      [
+        ...(Array.isArray(debug.matchedKeywords) ? debug.matchedKeywords : []),
+        ...(Array.isArray(debug.rejectionMatches) ? debug.rejectionMatches : []),
+        ...(Array.isArray(debug.interviewMatches) ? debug.interviewMatches : []),
+        ...(Array.isArray(debug.appliedMatches) ? debug.appliedMatches : [])
+      ].filter(Boolean)
+    )
+  );
+  const rejectedKeywords = Array.from(
+    new Set(
+      [
+        ...(Array.isArray(debug.rejectedKeywords) ? debug.rejectedKeywords : []),
+        ...(Array.isArray(debug.negativeMatches) ? debug.negativeMatches : [])
+      ].filter(Boolean)
+    )
+  );
+  return {
+    matched_keywords: matchedKeywords,
+    rejected_keywords: rejectedKeywords,
+    final_status: mapDetectedTypeToDerivedStatus(classification?.detectedType),
+    detected_type: classification?.detectedType || null,
+    classification_reason: classification?.reason || null
+  };
 }
 
 function extractSenderEmail(sender) {
@@ -1209,6 +1240,41 @@ async function syncGmailMessages({
           fetchedAttachmentBodies: shouldFetchLinkedInAttachments
         });
       }
+      const relevanceDecision = isRelevantApplicationEmail({
+        subject,
+        snippet,
+        sender,
+        body: bodyText
+      });
+      logDebug('ingest.relevance_filter', {
+        userId,
+        messageId: message.id,
+        relevance_decision: relevanceDecision.isRelevant ? 'relevant' : 'ignored',
+        matched_keywords: relevanceDecision.matchedKeywords || [],
+        rejected_keywords: relevanceDecision.rejectedKeywords || [],
+        reason: relevanceDecision.reason || null
+      });
+      if (!relevanceDecision.isRelevant) {
+        skippedNotJob += 1;
+        reasons.not_relevant += 1;
+        await recordSkipSample({
+          db,
+          userId,
+          provider: 'gmail',
+          messageId: message.id,
+          sender,
+          subject,
+          reasonCode: 'not_relevant'
+        });
+        fetched += 1;
+        logDebug('ingest.skip_not_relevant', {
+          userId,
+          messageId: message.id,
+          matchedKeywords: relevanceDecision.matchedKeywords || [],
+          rejectedKeywords: relevanceDecision.rejectedKeywords || []
+        });
+        continue;
+      }
       const classification = classifyEmail({
         subject,
         snippet,
@@ -1216,6 +1282,17 @@ async function syncGmailMessages({
         body: bodyText,
         authenticatedUserEmail,
         messageLabels
+      });
+      const classificationDetails = buildClassificationLogDetails(classification);
+      logDebug('ingest.classification_decision', {
+        userId,
+        messageId: message.id,
+        relevance_decision: 'relevant',
+        classification_reason: classificationDetails.classification_reason,
+        matched_keywords: classificationDetails.matched_keywords,
+        rejected_keywords: classificationDetails.rejected_keywords,
+        final_status: classificationDetails.final_status,
+        detected_type: classificationDetails.detected_type
       });
       if (
         process.env.DEBUG_INGEST_LINKEDIN === '1' &&
@@ -2811,6 +2888,55 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
         continue;
       }
 
+      const relevanceDecision = isRelevantApplicationEmail({
+        subject,
+        snippet,
+        sender,
+        body: bodyText
+      });
+      debugMeta.relevance = {
+        decision: relevanceDecision.isRelevant ? 'relevant' : 'ignored',
+        matched_keywords: relevanceDecision.matchedKeywords || [],
+        rejected_keywords: relevanceDecision.rejectedKeywords || [],
+        reason: relevanceDecision.reason || null
+      };
+      logDebug('inbound.relevance_filter', {
+        userId,
+        inboundMessageId: row.id,
+        relevance_decision: relevanceDecision.isRelevant ? 'relevant' : 'ignored',
+        matched_keywords: relevanceDecision.matchedKeywords || [],
+        rejected_keywords: relevanceDecision.rejectedKeywords || [],
+        reason: relevanceDecision.reason || null
+      });
+      if (!relevanceDecision.isRelevant) {
+        ignored += 1;
+        const processedAt = new Date().toISOString();
+        debugMeta.suppression = {
+          applied: true,
+          reason: 'not_relevant'
+        };
+        if (errorSamples.length < 5) {
+          errorSamples.push({
+            subject: truncateSnippet(subject, 96) || '(no subject)',
+            reason: 'suppressed:not_relevant'
+          });
+        }
+        await awaitMaybe(
+          db
+            .prepare(
+              `UPDATE inbound_messages
+               SET processing_status = 'ignored',
+                   processed_at = ?,
+                   processing_error = ?,
+                   derived_debug_json = ?
+               WHERE id = ?`
+            )
+            .run(processedAt, 'suppressed:not_relevant', encodeDebugJson(db, debugMeta), row.id)
+        );
+        lastProcessedAt = processedAt;
+        continue;
+      }
+
       const parsedEmail = await parseJobEmail({
         fromEmail: sender,
         fromDomain: senderDomain,
@@ -2894,6 +3020,24 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
       if (classification?.debug && typeof classification.debug === 'object') {
         debugMeta.classifier_debug = classification.debug;
       }
+      const classificationDetails = buildClassificationLogDetails(classification);
+      debugMeta.classification = {
+        reason: classificationDetails.classification_reason,
+        matched_keywords: classificationDetails.matched_keywords,
+        rejected_keywords: classificationDetails.rejected_keywords,
+        final_status: classificationDetails.final_status,
+        detected_type: classificationDetails.detected_type
+      };
+      logDebug('inbound.classification_decision', {
+        userId,
+        inboundMessageId: row.id,
+        relevance_decision: 'relevant',
+        classification_reason: classificationDetails.classification_reason,
+        matched_keywords: classificationDetails.matched_keywords,
+        rejected_keywords: classificationDetails.rejected_keywords,
+        final_status: classificationDetails.final_status,
+        detected_type: classificationDetails.detected_type
+      });
 
       if (!classification?.isJobRelated && !parserHasHighSignal) {
         ignored += 1;
@@ -3501,6 +3645,28 @@ async function ingestInboundEmailForUser(db, userId, inboundMessage) {
     ? new Date(inboundMessage.received_at).getTime()
     : Number.NaN;
   const internalDate = Number.isFinite(receivedMs) ? receivedMs : Date.now();
+
+  const relevanceDecision = isRelevantApplicationEmail({
+    subject: subject || '',
+    snippet: snippet || '',
+    sender: sender || '',
+    body: canonicalBodyText || ''
+  });
+  if (!relevanceDecision.isRelevant) {
+    logDebug('inbound.single.skip_not_relevant', {
+      userId,
+      messageId: inboundMessage.id || null,
+      matched_keywords: relevanceDecision.matchedKeywords || [],
+      rejected_keywords: relevanceDecision.rejectedKeywords || [],
+      reason: relevanceDecision.reason || null
+    });
+    return {
+      ok: true,
+      ignored: true,
+      reason: 'not_relevant',
+      isJobRelated: false
+    };
+  }
 
   const classification = classifyEmail({
     subject: subject || '',

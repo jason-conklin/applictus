@@ -34,20 +34,40 @@ const REJECTION_SIGNAL_PATTERNS = [
   { pattern: /\bwish you success in your job search\b/i, label: 'wish you success in your job search', strength: 'soft' }
 ];
 
-// Interview detection must be explicit; generic CTAs should not match.
-const INTERVIEW_SIGNAL_PATTERNS = [
+// Interview detection must be explicit and actionable; vague "next steps" language should not match.
+const INTERVIEW_CONTEXT_PATTERNS = [
   { pattern: /\binterview\b/i, label: 'interview_keyword' },
-  { pattern: /\bwe(?:'d| would)? like to schedule\b/i, label: 'schedule_interview' },
-  { pattern: /\bschedule (?:a )?(call|chat|meeting|time)\b/i, label: 'schedule_time' },
-  { pattern: /\bselect (?:a )?(time|slot)\b/i, label: 'select_time_slot' },
-  { pattern: /\btime slots?\b/i, label: 'time_slots' },
-  { pattern: /\bavailability\b/i, label: 'availability' },
-  { pattern: /\bphone screen\b/i, label: 'phone_screen' },
-  { pattern: /\bcalendar\b/i, label: 'calendar' },
+  { pattern: /\bphone screen\b|\bscreening call\b/i, label: 'phone_screen' },
   { pattern: /\bwould like to speak with you\b/i, label: 'speak_with_you' },
-  { pattern: /\binvite you to interview\b/i, label: 'invite_to_interview' },
-  { pattern: /\bbook (?:a )?time\b/i, label: 'book_time' },
-  { pattern: /\blet'?s connect\b/i, label: 'lets_connect' }
+  { pattern: /\binvite you to (?:an )?interview\b/i, label: 'invite_to_interview' },
+  { pattern: /\btime to meet\b/i, label: 'time_to_meet' }
+];
+
+const INTERVIEW_ACTION_PATTERNS = [
+  { pattern: /\bschedule\b/i, label: 'schedule' },
+  { pattern: /\bavailability\b/i, label: 'availability' },
+  { pattern: /\bwhat time works\b/i, label: 'what_time_works' },
+  { pattern: /\bselect (?:a )?(?:time|slot)\b/i, label: 'select_slot' },
+  { pattern: /\btime slots?\b/i, label: 'time_slots' },
+  { pattern: /\bcalendar invite\b|\bzoom (?:invitation|invite)\b/i, label: 'calendar_or_zoom_invite' },
+  { pattern: /\bbook (?:a )?time\b/i, label: 'book_time' }
+];
+
+const INTERVIEW_VAGUE_PATTERNS = [
+  { pattern: /\bnext steps\b/i, label: 'next_steps' },
+  { pattern: /\bmay reach out\b/i, label: 'may_reach_out' },
+  { pattern: /\bwe will contact you\b/i, label: 'will_contact_you' },
+  { pattern: /\breviewing your application\b/i, label: 'reviewing_application' },
+  { pattern: /\bunder consideration\b/i, label: 'under_consideration' }
+];
+
+const INTERVIEW_NEGATIVE_PATTERNS = [
+  { pattern: /\bjobs? for you\b/i, label: 'jobs_for_you' },
+  { pattern: /\brecommended jobs?\b/i, label: 'recommended_jobs' },
+  { pattern: /\bbased on your search\b/i, label: 'based_on_your_search' },
+  { pattern: /\bjob alert\b/i, label: 'job_alert' },
+  { pattern: /\bjobs you may like\b/i, label: 'jobs_you_may_like' },
+  { pattern: /\bnew jobs? in\b/i, label: 'new_jobs_in' }
 ];
 
 const APPLIED_SIGNAL_PATTERNS = [
@@ -172,27 +192,45 @@ function detectStatusSignal({
   }
 
   const digestVeto = DIGEST_VETO_PATTERN.test(corpus) && /\bunsubscribe\b/i.test(corpus);
-  const interviewHits = collectPatternHits(INTERVIEW_SIGNAL_PATTERNS, corpus);
-  const interviewHit = interviewHits[0] || null;
-  if (interviewHit) {
-    const hasContext = Boolean(
-      (company && cleanLine(company)) ||
-      (role && cleanLine(role)) ||
-      JOB_CONTEXT_PATTERN.test(corpus) ||
-      /\binterview\b/i.test(corpus)
-    );
-    if (hasContext && !digestVeto) {
-      return {
-        status: 'interview_requested',
-        confidence: 86,
-        source: `interview_phrase:${interviewHit.label}`,
-        matched: interviewHit.label,
-        rejectionMatches: rejectionHits.map((hit) => hit.label),
-        interviewMatches: interviewHits.map((hit) => hit.label),
-        appliedMatches: appliedHits.map((hit) => hit.label),
-        decisionReason: 'explicit_interview_signal'
-      };
-    }
+  const interviewContextHits = collectPatternHits(INTERVIEW_CONTEXT_PATTERNS, corpus);
+  const interviewActionHits = collectPatternHits(INTERVIEW_ACTION_PATTERNS, corpus);
+  const interviewVagueHits = collectPatternHits(INTERVIEW_VAGUE_PATTERNS, corpus);
+  const interviewNegativeHits = collectPatternHits(INTERVIEW_NEGATIVE_PATTERNS, corpus);
+  const hasDirectInterviewCta =
+    /\bplease (?:share|send|provide).{0,40}\b(?:availability|time slots?)\b/i.test(corpus) ||
+    /\bplease (?:select|choose|book).{0,25}\b(?:time|slot)\b/i.test(corpus) ||
+    /\b(?:are you available|here are some times?)\b/i.test(corpus);
+  const interviewMatches = Array.from(
+    new Set([
+      ...interviewContextHits.map((hit) => hit.label),
+      ...interviewActionHits.map((hit) => hit.label),
+      ...(hasDirectInterviewCta ? ['direct_interview_cta'] : [])
+    ])
+  );
+
+  const hasInterviewContext = interviewContextHits.length > 0;
+  const hasInterviewAction = interviewActionHits.length > 0 || hasDirectInterviewCta;
+  const hasContext = Boolean(
+    (company && cleanLine(company)) ||
+    (role && cleanLine(role)) ||
+    JOB_CONTEXT_PATTERN.test(corpus) ||
+    /\binterview\b/i.test(corpus)
+  );
+  const interviewSuppressedByNegatives =
+    digestVeto ||
+    interviewNegativeHits.length > 0 ||
+    (interviewVagueHits.length > 0 && !hasInterviewAction);
+  if (hasInterviewContext && hasInterviewAction && hasContext && !interviewSuppressedByNegatives) {
+    return {
+      status: 'interview_requested',
+      confidence: 88,
+      source: `interview_phrase:${interviewMatches[0] || interviewContextHits[0]?.label || 'explicit_interview_signal'}`,
+      matched: interviewMatches[0] || interviewContextHits[0]?.label || null,
+      rejectionMatches: rejectionHits.map((hit) => hit.label),
+      interviewMatches,
+      appliedMatches: appliedHits.map((hit) => hit.label),
+      decisionReason: 'explicit_interview_signal'
+    };
   }
 
   const appliedHit = appliedHits[0] || null;
@@ -203,7 +241,7 @@ function detectStatusSignal({
       source: `applied_phrase:${appliedHit.label}`,
       matched: appliedHit.label,
       rejectionMatches: rejectionHits.map((hit) => hit.label),
-      interviewMatches: interviewHits.map((hit) => hit.label),
+      interviewMatches,
       appliedMatches: appliedHits.map((hit) => hit.label),
       decisionReason: 'applied_phrase_match'
     };
@@ -216,7 +254,7 @@ function detectStatusSignal({
       source: 'default',
       matched: null,
       rejectionMatches: rejectionHits.map((hit) => hit.label),
-      interviewMatches: interviewHits.map((hit) => hit.label),
+      interviewMatches,
       appliedMatches: appliedHits.map((hit) => hit.label),
       decisionReason: 'fallback_default_status'
     };
@@ -227,7 +265,7 @@ function detectStatusSignal({
     source: 'none',
     matched: null,
     rejectionMatches: rejectionHits.map((hit) => hit.label),
-    interviewMatches: interviewHits.map((hit) => hit.label),
+    interviewMatches,
     appliedMatches: appliedHits.map((hit) => hit.label),
     decisionReason: 'no_status_signal'
   };

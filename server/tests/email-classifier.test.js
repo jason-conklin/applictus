@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const {
   classifyEmail,
+  isRelevantApplicationEmail,
   isLinkedInJobsUpdateEmail,
   isLinkedInJobsApplicationSentEmail
 } = require('../../shared/emailClassifier');
@@ -110,6 +111,57 @@ Tue 3/3 5-6 pm`
   });
   assert.equal(result.isJobRelated, true);
   assert.equal(result.detectedType, 'meeting_requested');
+});
+
+test('classifyEmail keeps application submitted confirmations as applied despite vague next-step language', () => {
+  const result = classifyEmail({
+    subject: 'Application submitted',
+    sender: 'no-reply@indeed.com',
+    snippet: 'Application submitted. Good luck. The employer may reach out.',
+    body: `Application submitted
+Thanks for applying to Data Analyst at Acme.
+Good luck.
+The employer may reach out if they would like to move forward.`
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'confirmation');
+  assert.notEqual(result.detectedType, 'interview_requested');
+});
+
+test('isRelevantApplicationEmail ignores job-alert digests with multiple listings', () => {
+  const relevance = isRelevantApplicationEmail({
+    subject: '12 new jobs for you in New York',
+    sender: 'alerts@jobplatform.com',
+    snippet: 'Recommended jobs based on your search',
+    body: `Job alert
+Recommended jobs for you
+Data Analyst - Apply now
+Business Analyst - Apply now
+QA Analyst - Apply now
+View more jobs`
+  });
+  assert.equal(relevance.isRelevant, false);
+  assert.equal(relevance.reason, 'not_relevant');
+  assert.ok(Array.isArray(relevance.rejectedKeywords));
+  assert.ok(
+    relevance.rejectedKeywords.includes('jobs_for_you') ||
+      relevance.rejectedKeywords.includes('recommended_jobs') ||
+      relevance.rejectedKeywords.includes('job_alert')
+  );
+});
+
+test('classifyEmail detects explicit schedule-an-interview requests', () => {
+  const result = classifyEmail({
+    subject: 'Schedule an interview with the hiring manager',
+    sender: 'recruiting@company.com',
+    snippet: 'Please share your availability for a phone screen.',
+    body: `We would like to speak with you and invite you to interview for the role.
+Please share your availability this week.
+Mon 4/6 10:00 am
+Tue 4/7 2:00 pm`
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'interview_requested');
 });
 
 test('classifyEmail suppresses Glassdoor-style community digest interview snippets', () => {

@@ -46,6 +46,72 @@ const NEWSLETTER_INTERVIEW_BLOCK_PATTERNS = [
   /\bmanage settings\b/i
 ];
 
+const RELEVANCE_KEEP_SIGNALS = [
+  { pattern: /\bapplication submitted\b/i, label: 'application_submitted' },
+  { pattern: /\byour application was sent\b/i, label: 'application_was_sent' },
+  { pattern: /\bthank you for applying\b/i, label: 'thank_you_for_applying' },
+  { pattern: /\bthank you for your application\b/i, label: 'thank_you_for_your_application' },
+  { pattern: /\bwe (?:have )?received your application\b/i, label: 'received_application' },
+  { pattern: /\bapplication (?:received|update)\b/i, label: 'application_update' },
+  { pattern: /\bwe (?:will not|are not) moving forward\b/i, label: 'moving_forward_rejection' },
+  { pattern: /\bnot selected\b/i, label: 'not_selected' },
+  { pattern: /\bpursue other candidates\b/i, label: 'pursue_other_candidates' },
+  { pattern: /\boffer (?:letter|extended|received)\b/i, label: 'offer_signal' },
+  { pattern: /\b(interview|phone screen|screening call)\b/i, label: 'interview_context' },
+  { pattern: /\binvite you to (?:an )?interview\b/i, label: 'interview_invite' }
+];
+
+const RELEVANCE_IGNORE_SIGNALS = [
+  { pattern: /\bjobs? for you\b/i, label: 'jobs_for_you' },
+  { pattern: /\brecommended jobs?\b/i, label: 'recommended_jobs' },
+  { pattern: /\bbased on your search\b/i, label: 'based_on_your_search' },
+  { pattern: /\bjob alert\b/i, label: 'job_alert' },
+  { pattern: /\bnew jobs? in\b/i, label: 'new_jobs_in' },
+  { pattern: /\bjobs you may like\b/i, label: 'jobs_you_may_like' },
+  { pattern: /\bview (?:all|more) jobs?\b/i, label: 'view_more_jobs' },
+  { pattern: /\bdiscover your next job\b/i, label: 'discover_next_job' }
+];
+
+const RELEVANCE_MARKETING_SIGNALS = [
+  { pattern: /\bunsubscribe\b/i, label: 'unsubscribe' },
+  { pattern: /\bnewsletter\b/i, label: 'newsletter' },
+  { pattern: /\bdigest\b/i, label: 'digest' },
+  { pattern: /\brecommended for you\b/i, label: 'recommended_for_you' }
+];
+
+const INTERVIEW_CONTEXT_SIGNAL_PATTERNS = [
+  { pattern: /\binterview\b/i, label: 'interview_keyword' },
+  { pattern: /\bphone screen\b|\bscreening call\b/i, label: 'phone_screen' },
+  { pattern: /\b(?:we|i) would like to speak with you\b/i, label: 'speak_with_you' },
+  { pattern: /\binvite you to (?:an )?interview\b/i, label: 'invite_to_interview' },
+  { pattern: /\btime to meet\b/i, label: 'time_to_meet' }
+];
+
+const INTERVIEW_ACTION_SIGNAL_PATTERNS = [
+  { pattern: /\bschedule\b/i, label: 'schedule' },
+  { pattern: /\bavailability\b/i, label: 'availability' },
+  { pattern: /\bwhat time works\b/i, label: 'what_time_works' },
+  { pattern: /\bselect (?:a|your) time\b/i, label: 'select_time' },
+  { pattern: /\bbook (?:a )?time\b/i, label: 'book_time' },
+  { pattern: /\bcalendar invite\b/i, label: 'calendar_invite' },
+  { pattern: /\bzoom (?:invitation|invite)\b/i, label: 'zoom_invite' }
+];
+
+const INTERVIEW_DIRECT_CTA_PATTERNS = [
+  { pattern: /\bplease (?:share|send|provide).{0,40}\b(?:availability|time slots?)\b/i, label: 'share_availability' },
+  { pattern: /\bplease (?:select|choose|book).{0,25}\b(?:time|slot)\b/i, label: 'select_slot' },
+  { pattern: /\bare you available\b/i, label: 'are_you_available' },
+  { pattern: /\bhere are some times?\b/i, label: 'here_are_times' }
+];
+
+const INTERVIEW_VAGUE_SIGNAL_PATTERNS = [
+  { pattern: /\bnext steps\b/i, label: 'next_steps' },
+  { pattern: /\bmay reach out\b/i, label: 'may_reach_out' },
+  { pattern: /\bwe will contact you\b/i, label: 'will_contact_you' },
+  { pattern: /\breviewing your application\b/i, label: 'reviewing_application' },
+  { pattern: /\bunder consideration\b/i, label: 'under_consideration' }
+];
+
 const INTERVIEW_DIRECT_INTENT_PATTERNS = [
   /\bi would like to speak with you\b/i,
   /\bwe would like to speak with you\b/i,
@@ -247,6 +313,17 @@ function hasDecisionRejectionCues(text) {
   }
   const softMatches = collectSignalMatches(SOFT_REJECTION_SIGNALS, text);
   return softMatches.length >= 2;
+}
+
+function hasAppliedConfirmationSignals(text) {
+  if (!text) return false;
+  return (
+    /\bapplication submitted\b/i.test(text) ||
+    /\byour application was sent\b/i.test(text) ||
+    /\bthank you for applying\b/i.test(text) ||
+    /\bwe (?:have )?received your application\b/i.test(text) ||
+    /\bgood luck(?: with| in)? (?:your )?(?:application|job search|search)?\b/i.test(text)
+  );
 }
 
 const RULES = [
@@ -471,6 +548,90 @@ function collectSignalMatches(signals, text) {
   return signals.filter((signal) => signal.pattern.test(sourceText)).map((signal) => signal.label);
 }
 
+function countJobListingLikeLines(text) {
+  const sourceText = String(text || '');
+  if (!sourceText) {
+    return 0;
+  }
+  const lines = sourceText
+    .split(/\r?\n/)
+    .map((line) => String(line || '').trim())
+    .filter(Boolean);
+  return lines.filter((line) => {
+    return (
+      /\b(?:apply now|view job|save job)\b/i.test(line) ||
+      /\b(?:\d+\+?\s+new jobs?|jobs? for you|recommended jobs?)\b/i.test(line) ||
+      /^(?:[-*•]|\d+\.)\s+.+(?:engineer|developer|analyst|manager|designer|specialist)\b/i.test(line)
+    );
+  }).length;
+}
+
+function isRelevantApplicationEmail({ subject, snippet, sender, body } = {}) {
+  const textSource = [
+    normalize(subject),
+    normalize(snippet),
+    normalize(body || ''),
+    normalize(sender || '')
+  ]
+    .filter(Boolean)
+    .join('\n');
+  if (!textSource) {
+    return {
+      isRelevant: false,
+      reason: 'not_relevant',
+      matchedKeywords: [],
+      rejectedKeywords: ['empty_text']
+    };
+  }
+
+  const matchedKeywords = collectSignalMatches(RELEVANCE_KEEP_SIGNALS, textSource);
+  const rejectedKeywords = collectSignalMatches(RELEVANCE_IGNORE_SIGNALS, textSource);
+  const marketingKeywords = collectSignalMatches(RELEVANCE_MARKETING_SIGNALS, textSource);
+  const listingLineCount = countJobListingLikeLines(textSource);
+  const listingCtaCount =
+    countMatches(/\b(?:apply now|view job|save job)\b/i, textSource) +
+    countMatches(/\b(?:jobs? for you|recommended jobs?|new jobs? in)\b/i, textSource);
+  const hasRoleCompanyReference =
+    /\byour application to\s+.+\s+at\s+.+/i.test(textSource) ||
+    /\b(?:position|role)\b.{0,90}\b(?:at|with)\b/i.test(textSource);
+  const hasLifecycleAnchor =
+    /\b(?:application|applied|candidacy|offer|interview|rejection|not selected|moving forward)\b/i.test(textSource);
+  const hasStrongKeepSignal = matchedKeywords.length > 0 || (hasRoleCompanyReference && hasLifecycleAnchor);
+  const looksLikeAlert = rejectedKeywords.length > 0 || listingLineCount >= 3 || listingCtaCount >= 4;
+  const strongMarketingEnvelope = marketingKeywords.length >= 2 && (listingLineCount >= 2 || rejectedKeywords.length > 0);
+
+  if ((looksLikeAlert || strongMarketingEnvelope) && !hasStrongKeepSignal) {
+    return {
+      isRelevant: false,
+      reason: 'not_relevant',
+      matchedKeywords,
+      rejectedKeywords: Array.from(
+        new Set([
+          ...rejectedKeywords,
+          ...marketingKeywords,
+          ...(listingLineCount >= 3 ? ['multi_listing_email'] : []),
+          ...(listingCtaCount >= 4 ? ['listing_cta_burst'] : [])
+        ])
+      )
+    };
+  }
+
+  if (hasStrongKeepSignal) {
+    return {
+      isRelevant: true,
+      matchedKeywords,
+      rejectedKeywords
+    };
+  }
+
+  return {
+    isRelevant: false,
+    reason: 'not_relevant',
+    matchedKeywords,
+    rejectedKeywords: Array.from(new Set([...rejectedKeywords, ...marketingKeywords, 'missing_application_specific_context']))
+  };
+}
+
 function hasNewsletterHeaderSignal(headers) {
   if (!headers) {
     return false;
@@ -636,6 +797,25 @@ function detectSchedulingInterview({ subject, snippet, sender, body }) {
     return null;
   }
 
+  const interviewContextHits = collectSignalMatches(INTERVIEW_CONTEXT_SIGNAL_PATTERNS, textSource);
+  const interviewActionHits = collectSignalMatches(INTERVIEW_ACTION_SIGNAL_PATTERNS, textSource);
+  const directCtaHits = collectSignalMatches(INTERVIEW_DIRECT_CTA_PATTERNS, textSource);
+  const vagueInterviewHits = collectSignalMatches(INTERVIEW_VAGUE_SIGNAL_PATTERNS, textSource);
+  const relevanceScreen = isRelevantApplicationEmail({
+    subject: rawSubject,
+    snippet: rawSnippet,
+    sender,
+    body: rawBody
+  });
+  const rejectedRelevanceKeywords = Array.isArray(relevanceScreen.rejectedKeywords)
+    ? relevanceScreen.rejectedKeywords
+    : [];
+  const listingPenaltySignals = rejectedRelevanceKeywords.filter((label) =>
+    ['multi_listing_email', 'listing_cta_burst', 'jobs_for_you', 'recommended_jobs', 'job_alert', 'jobs_you_may_like'].includes(
+      String(label || '')
+    )
+  );
+
   const lines = textSource
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -665,11 +845,27 @@ function detectSchedulingInterview({ subject, snippet, sender, body }) {
   const hasSecondPersonSignal =
     /\b(?:you|your)\b/i.test(textSource) &&
     /\b(?:availability|schedule|time works|calendar invite|zoom|phone screen|interview)\b/i.test(textSource);
+  const hasStrongInterviewContext = interviewContextHits.length > 0;
+  const hasActionIntent = interviewActionHits.length > 0 || directCtaHits.length > 0;
+  const hasStrongMeetingIntent =
+    /\blet(?:'|’)s schedule\b/i.test(textSource) ||
+    /\bschedule (?:a|the)?\s*(?:call|chat|meeting)\b/i.test(textSource) ||
+    /\bhere are some times?\b/i.test(textSource) ||
+    /\bwhat time works\b/i.test(textSource);
 
-  const passesCandidateDirectGate =
-    (hasDirectIntent || hasExplicitDirectRequest || hasSubjectInterviewSignal) &&
-    (hasPersonalizationSignal || hasSecondPersonSignal || hasExplicitDirectRequest || hasAnyTimeEvidence);
-  if (!passesCandidateDirectGate) {
+  const hasCandidateOwnershipSignal =
+    hasPersonalizationSignal || hasSecondPersonSignal || hasExplicitDirectRequest || hasAnyTimeEvidence;
+  const hasCandidateDirectSignal = hasDirectIntent || hasExplicitDirectRequest || hasSubjectInterviewSignal;
+  const passesInterviewGate =
+    hasCandidateDirectSignal && hasCandidateOwnershipSignal && hasStrongInterviewContext && hasActionIntent;
+  const passesMeetingGate =
+    !hasStrongInterviewContext &&
+    hasStrongMeetingIntent &&
+    hasCandidateOwnershipSignal &&
+    (hasAnyTimeEvidence || hasActionIntent) &&
+    listingPenaltySignals.length === 0;
+
+  if (!passesInterviewGate && !passesMeetingGate) {
     return null;
   }
 
@@ -695,17 +891,32 @@ function detectSchedulingInterview({ subject, snippet, sender, body }) {
   if (hasInterviewContext) {
     schedulingScore += 8;
   }
-
-  const threshold = 58;
-  if (schedulingScore < threshold) {
-    return null;
+  if (directCtaHits.length > 0) {
+    schedulingScore += 8;
+  }
+  if (listingPenaltySignals.length > 0) {
+    schedulingScore -= 28;
+  }
+  if (vagueInterviewHits.length > 0 && !hasExplicitDirectRequest && !hasStrongTimeEvidence) {
+    schedulingScore -= 18;
+  }
+  if (!hasActionIntent) {
+    schedulingScore -= 24;
   }
 
-  let detectedType = 'interview_requested';
-  if (explicitScheduled && (hasInterviewContext || hasStrongTimeEvidence)) {
+  if (vagueInterviewHits.length > 0 && !passesInterviewGate && !hasStrongTimeEvidence) {
+    return null;
+  }
+  let detectedType = passesInterviewGate ? 'interview_requested' : 'meeting_requested';
+  if (detectedType === 'interview_requested' && explicitScheduled && (hasInterviewContext || hasStrongTimeEvidence)) {
     detectedType = 'interview_scheduled';
-  } else if (!hasInterviewContext && jobContextHits.length === 0) {
+  } else if (detectedType === 'interview_requested' && !hasInterviewContext && jobContextHits.length === 0) {
     detectedType = 'meeting_requested';
+  }
+
+  const threshold = detectedType === 'meeting_requested' ? 50 : 58;
+  if (schedulingScore < threshold) {
+    return null;
   }
 
   const confidenceBase = 0.74 + Math.min(schedulingScore, 100) * 0.0022;
@@ -721,7 +932,11 @@ function detectSchedulingInterview({ subject, snippet, sender, body }) {
     `scheduling score ${Math.round(schedulingScore)}`,
     `${intentHits.length} intent phrase${intentHits.length === 1 ? '' : 's'}`,
     hasStrongTimeEvidence ? 'strong time-slot evidence' : 'time-slot evidence',
-    jobContextHits.length ? `${jobContextHits.length} job-context signal${jobContextHits.length === 1 ? '' : 's'}` : 'no strong job-context signals'
+    jobContextHits.length ? `${jobContextHits.length} job-context signal${jobContextHits.length === 1 ? '' : 's'}` : 'no strong job-context signals',
+    interviewContextHits.length ? `${interviewContextHits.length} interview-context signal${interviewContextHits.length === 1 ? '' : 's'}` : 'no interview-context signals',
+    interviewActionHits.length || directCtaHits.length
+      ? `${interviewActionHits.length + directCtaHits.length} scheduling action signal${interviewActionHits.length + directCtaHits.length === 1 ? '' : 's'}`
+      : 'no scheduling actions'
   ];
 
   return {
@@ -729,7 +944,12 @@ function detectSchedulingInterview({ subject, snippet, sender, body }) {
     detectedType,
     confidenceScore,
     explanation: `Detected recruiting scheduling request (${details.join(', ')}).`,
-    reason: 'human_recruiting_scheduling'
+    reason: 'human_recruiting_scheduling',
+    debug: {
+      interviewMatches: Array.from(new Set([...interviewContextHits, ...interviewActionHits, ...directCtaHits])),
+      rejectedKeywords: Array.from(new Set([...vagueInterviewHits, ...listingPenaltySignals])),
+      finalDecision: detectedType
+    }
   };
 }
 
@@ -831,9 +1051,6 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
   }
 
   const schedulingSignal = detectSchedulingInterview({ subject, snippet, sender, body });
-  if (schedulingSignal) {
-    return schedulingSignal;
-  }
 
   const minConfidence = 0.6;
   const rules = [PROFILE_SUBMITTED_RULE, ...RULES];
@@ -919,6 +1136,27 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
     }
   }
 
+  const offerRules = rules.filter((rule) => rule.detectedType === 'offer');
+  const offerMatch = findRuleMatch(offerRules, text, 0.9, jobContext);
+  if (offerMatch) {
+    return {
+      isJobRelated: true,
+      detectedType: offerMatch.rule.detectedType,
+      confidenceScore: offerMatch.rule.confidence,
+      explanation: `Matched ${offerMatch.rule.name} via ${offerMatch.matched}.`,
+      reason: offerMatch.rule.name,
+      debug: {
+        matchedKeywords: [String(offerMatch.matched || '')].filter(Boolean),
+        rejectedKeywords: [],
+        finalDecision: 'offer'
+      }
+    };
+  }
+
+  if (schedulingSignal) {
+    return schedulingSignal;
+  }
+
   const confirmationRules = rules.filter((rule) => rule.detectedType === 'confirmation');
   const rejectionRules = rules.filter((rule) => rule.detectedType === 'rejection');
   const rejectionMatch = findRuleMatch(rejectionRules, text, 0.9, jobContext);
@@ -957,7 +1195,27 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
       detectedType: confirmationMatch.rule.detectedType,
       confidenceScore: confirmationMatch.rule.confidence,
       explanation: `Matched ${confirmationMatch.rule.name} via ${confirmationMatch.matched}.`,
-      reason: confirmationMatch.rule.name
+      reason: confirmationMatch.rule.name,
+      debug: {
+        matchedKeywords: [String(confirmationMatch.matched || '')].filter(Boolean),
+        rejectedKeywords: [],
+        finalDecision: 'confirmation'
+      }
+    };
+  }
+
+  if (hasAppliedConfirmationSignals(textSource)) {
+    return {
+      isJobRelated: true,
+      detectedType: 'confirmation',
+      confidenceScore: 0.89,
+      explanation: 'Applied confirmation fallback matched explicit application receipt language.',
+      reason: 'confirmation_fallback',
+      debug: {
+        matchedKeywords: collectSignalMatches(APPLIED_COURTESY_SIGNALS, textSource),
+        rejectedKeywords: [],
+        finalDecision: 'confirmation'
+      }
     };
   }
 
@@ -986,6 +1244,7 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
 
 module.exports = {
   classifyEmail,
+  isRelevantApplicationEmail,
   isLinkedInJobsUpdateEmail,
   isLinkedInJobsApplicationSentEmail,
   isOutboundUserMessage,

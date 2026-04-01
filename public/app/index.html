@@ -1136,6 +1136,55 @@
                 <pre class="sync-details-block" id="sync-result"></pre>
               </div>
             </div>
+            <div class="dashboard-onboarding hidden" id="dashboard-onboarding">
+              <div class="dashboard-onboarding__content">
+                <div class="dashboard-onboarding__eyebrow">Welcome</div>
+                <h3 class="dashboard-onboarding__title">Get Applictus tracking in a few minutes</h3>
+                <p class="dashboard-onboarding__text">
+                  Connect your inbox once, and Applictus will automatically organize confirmations, interviews, and rejections into one timeline.
+                </p>
+                <ul class="dashboard-onboarding__reassurance" aria-label="Setup reassurance">
+                  <li>Takes ~2 minutes</li>
+                  <li>No inbox access required</li>
+                  <li>Works automatically after setup</li>
+                </ul>
+                <div class="dashboard-onboarding__clarification">
+                  <p><strong>Google sign-in only secures your account.</strong></p>
+                  <p>Applictus uses forwarding to track updates - not direct inbox access.</p>
+                </div>
+                <div class="dashboard-onboarding__actions">
+                  <button class="btn btn--primary btn--md" type="button" data-action="sync-inbox">
+                    Connect your inbox to start tracking
+                  </button>
+                  <button class="btn btn--ghost btn--sm" type="button" data-action="onboarding-later">I'll do this later</button>
+                </div>
+              </div>
+              <div class="dashboard-onboarding__steps" aria-label="Onboarding steps">
+                <ol class="dashboard-stepper">
+                  <li class="dashboard-stepper__step is-active">
+                    <span class="dashboard-stepper__index">1</span>
+                    <div class="dashboard-stepper__body">
+                      <div class="dashboard-stepper__title">Connect your inbox</div>
+                      <p>Create your Applictus inbox address and start setup.</p>
+                    </div>
+                  </li>
+                  <li class="dashboard-stepper__step">
+                    <span class="dashboard-stepper__index">2</span>
+                    <div class="dashboard-stepper__body">
+                      <div class="dashboard-stepper__title">Add forwarding once</div>
+                      <p>Add your Applictus address in Gmail or your email provider.</p>
+                    </div>
+                  </li>
+                  <li class="dashboard-stepper__step">
+                    <span class="dashboard-stepper__index">3</span>
+                    <div class="dashboard-stepper__body">
+                      <div class="dashboard-stepper__title">We track updates automatically</div>
+                      <p>Your application timeline starts filling in as updates arrive.</p>
+                    </div>
+                  </li>
+                </ol>
+              </div>
+            </div>
             <div class="plan-usage-trigger hidden" id="dashboard-plan-warning" role="status" aria-live="polite">
               <span class="plan-usage-trigger__text" id="dashboard-plan-warning-text"></span>
               <button class="btn btn--ghost btn--sm plan-usage-trigger__cta" type="button" id="dashboard-plan-warning-cta">
@@ -1278,7 +1327,7 @@
             <div class="kpi-value" id="kpi-rejected">0</div>
           </div>
         </section>
-        <section class="card surface-raised surface-rim">
+        <section class="card surface-raised surface-rim" id="dashboard-applications-card">
           <div class="card-header">
             <div class="header-left">
               <div>
@@ -2201,6 +2250,6 @@
       </div>
     </div>
 
-    <script type="module" src="/app.js?v=41"></script>
+    <script type="module" src="/app.js?v=42"></script>
   </body>
 </html>
