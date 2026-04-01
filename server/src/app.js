@@ -1011,7 +1011,7 @@ function toSessionUserPayload(user) {
     gmail_internal_enabled: inboxMode === 'gmail',
     plan_tier: user.plan_tier || 'free',
     plan_status: user.plan_status || 'active',
-    plan_limit: user.monthly_tracked_email_limit || null,
+    plan_limit: resolvePlanLimit(user.plan_tier, user.monthly_tracked_email_limit),
     plan_usage: user.tracked_email_count_current_month || 0,
     plan_bucket: user.tracked_email_month_bucket || null
   };

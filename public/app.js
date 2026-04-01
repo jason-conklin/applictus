@@ -658,7 +658,7 @@ const rcPreviewText = document.getElementById('rc-preview-text');
 
 let sessionUser = null;
 const PLAN_LIMITS = {
-  free: 75,
+  free: 50,
   pro: 500
 };
 let planState = null;
@@ -4607,7 +4607,7 @@ function openPricingModal() {
     title: 'Free',
     context: 'For occasional tracking',
     price: '$0 / month',
-    details: 'Up to 75 application updates per month',
+    details: 'Up to 50 application updates per month',
     features: [
       'Track a limited number of job updates',
       'Basic application timeline view',

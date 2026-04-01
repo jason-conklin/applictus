@@ -1,5 +1,5 @@
 const PLAN_LIMITS = Object.freeze({
-  free: 75,
+  free: 50,
   pro: 500
 });
 
@@ -10,10 +10,14 @@ function currentMonthBucket(date = new Date()) {
 }
 
 function resolvePlanLimit(tier, explicitLimit) {
+  const normalized = String(tier || 'free').toLowerCase();
+  // Free tier limit is policy-driven and should not drift from legacy stored values.
+  if (normalized === 'free') {
+    return PLAN_LIMITS.free;
+  }
   if (Number.isFinite(explicitLimit) && explicitLimit > 0) {
     return explicitLimit;
   }
-  const normalized = String(tier || 'free').toLowerCase();
   return PLAN_LIMITS[normalized] || PLAN_LIMITS.free;
 }
 

@@ -92,7 +92,7 @@ test('free user at limit is blocked', () => {
   const db = createMockDb([{
     id: 'u1',
     plan_tier: 'free',
-    tracked_email_count_current_month: 75,
+    tracked_email_count_current_month: 50,
     tracked_email_month_bucket: currentMonthBucket()
   }]);
   const res = applyTrackedEmailUsage(db, { userId: 'u1', isJobRelated: true, newEvent: true });
@@ -131,7 +131,7 @@ test('month rollover resets usage', () => {
   const db = createMockDb([{
     id: 'u1',
     plan_tier: 'free',
-    tracked_email_count_current_month: 74,
+    tracked_email_count_current_month: 49,
     tracked_email_month_bucket: '1999-12'
   }]);
   const res = applyTrackedEmailUsage(db, { userId: 'u1', isJobRelated: true, newEvent: true });
