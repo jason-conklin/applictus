@@ -186,6 +186,24 @@ View more jobs`
   );
 });
 
+test('isRelevantApplicationEmail keeps Indeed recommended-jobs alerts ignored', () => {
+  const relevance = isRelevantApplicationEmail({
+    subject: '20 new jobs for you - Indeed',
+    sender: 'alerts@indeed.com',
+    snippet: 'Recommended jobs based on your search',
+    body: [
+      'Job alert',
+      'Recommended jobs',
+      'Data Analyst - Apply now',
+      'Operations Analyst - Apply now',
+      'Program Analyst - Apply now',
+      'View more jobs'
+    ].join('\n')
+  });
+  assert.equal(relevance.isRelevant, false);
+  assert.equal(relevance.reason, 'not_relevant');
+});
+
 test('classifyEmail detects explicit schedule-an-interview requests', () => {
   const result = classifyEmail({
     subject: 'Schedule an interview with the hiring manager',

@@ -7,6 +7,8 @@ const {
 } = require('./common');
 
 const IGNORE_LINE_PATTERNS = [
+  /^company logo\b/i,
+  /^star rating\b/i,
   /^next steps?/i,
   /^view application/i,
   /^apply now/i,
@@ -23,6 +25,31 @@ const IGNORE_LINE_PATTERNS = [
 function isIgnorableLine(line) {
   const text = cleanLine(line);
   return IGNORE_LINE_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function cleanSubjectRole(value) {
+  const text = cleanLine(value);
+  if (!text) {
+    return null;
+  }
+  return cleanLine(
+    text
+      .replace(/\s+indeed\s+o['’]clock\b.*$/i, '')
+      .replace(/\s+application submitted\b.*$/i, '')
+      .replace(/\s+next steps?\b.*$/i, '')
+  );
+}
+
+function extractCompanyFromSentItemsLine(line) {
+  const text = cleanLine(line);
+  if (!text) {
+    return null;
+  }
+  const sentToMatch = text.match(/\bthe following items were sent to\s+(.+?)(?:[.!]|$)/i);
+  if (!sentToMatch || !sentToMatch[1]) {
+    return null;
+  }
+  return cleanLine(sentToMatch[1]);
 }
 
 function extractCompanyFromLine(line, expectedCompany) {
@@ -51,40 +78,112 @@ function parse({ subject, text }) {
   let companyRaw = null;
   let companySource = null;
 
-  const subjectRoleMatch = subjectText.match(/indeed application:\s*(.+)$/i);
+  const subjectRoleMatch = subjectText.match(
+    /indeed application:\s*(.+?)(?:\s+indeed\s+o['’]clock\b|\s+application submitted\b|$)/i
+  );
   if (subjectRoleMatch && subjectRoleMatch[1]) {
-    roleRaw = subjectRoleMatch[1].trim();
+    roleRaw = cleanSubjectRole(subjectRoleMatch[1]);
     roleSource = 'subject';
-    candidates.role.push(roleRaw);
+    if (roleRaw) {
+      candidates.role.push(roleRaw);
+    }
   }
 
   const submittedIdx = bodyLines.findIndex((line) => /application submitted/i.test(line));
   if (submittedIdx >= 0) {
     ignoredSections.push('application_submitted_block');
-    const nextRole = bodyLines[submittedIdx + 1];
-    const nextCompany = bodyLines[submittedIdx + 2];
-    if (!roleRaw && nextRole && !isIgnorableLine(nextRole)) {
-      roleRaw = nextRole;
-      roleSource = 'submitted_block';
-      candidates.role.push(nextRole);
-    } else if (!roleRaw && nextRole) {
-      rejectedCandidates.push({ field: 'role', value: nextRole, reason: 'ignored_line' });
-    }
-    if (nextCompany && !isIgnorableLine(nextCompany)) {
-      const companyLine = extractCompanyFromLine(nextCompany, companyRaw);
-      if (companyLine) {
-        companyRaw = companyLine;
-        companySource = 'submitted_block';
-        candidates.company.push(companyLine);
+    let roleLineIndex = -1;
+
+    if (!roleRaw) {
+      for (let i = submittedIdx + 1; i < Math.min(bodyLines.length, submittedIdx + 8); i += 1) {
+        const candidateLine = bodyLines[i];
+        if (!candidateLine) {
+          continue;
+        }
+        if (isIgnorableLine(candidateLine)) {
+          rejectedCandidates.push({ field: 'role', value: candidateLine, reason: 'ignored_line' });
+          continue;
+        }
+        if (
+          /^the following items were sent to\b/i.test(candidateLine) ||
+          /^[•*-]\s*(?:application|resume)\b/i.test(candidateLine)
+        ) {
+          continue;
+        }
+        const cleanedRole = cleanSubjectRole(candidateLine);
+        if (!cleanedRole) {
+          continue;
+        }
+        roleRaw = cleanedRole;
+        roleSource = 'submitted_block';
+        roleLineIndex = i;
+        candidates.role.push(cleanedRole);
+        break;
       }
-    } else if (nextCompany) {
-      rejectedCandidates.push({ field: 'company', value: nextCompany, reason: 'ignored_line' });
+    }
+
+    if (!companyRaw) {
+      for (let i = submittedIdx + 1; i < Math.min(bodyLines.length, submittedIdx + 10); i += 1) {
+        const candidateLine = bodyLines[i];
+        if (!candidateLine) {
+          continue;
+        }
+        const sentItemsCompany = extractCompanyFromSentItemsLine(candidateLine);
+        if (sentItemsCompany) {
+          companyRaw = sentItemsCompany;
+          companySource = 'sent_items_sentence';
+          candidates.company.push(sentItemsCompany);
+          break;
+        }
+      }
+    }
+
+    if (!companyRaw) {
+      const companySearchStart = roleLineIndex >= 0 ? roleLineIndex + 1 : submittedIdx + 1;
+      for (let i = companySearchStart; i < Math.min(bodyLines.length, submittedIdx + 10); i += 1) {
+        const candidateLine = bodyLines[i];
+        if (!candidateLine || isIgnorableLine(candidateLine)) {
+          continue;
+        }
+        if (/^[•*-]\s*(?:application|resume)\b/i.test(candidateLine)) {
+          continue;
+        }
+        if (
+          roleRaw &&
+          cleanLine(candidateLine).toLowerCase() === cleanLine(roleRaw).toLowerCase()
+        ) {
+          continue;
+        }
+        const companyLine = extractCompanyFromLine(candidateLine, companyRaw);
+        if (companyLine) {
+          companyRaw = companyLine;
+          companySource = 'submitted_block';
+          candidates.company.push(companyLine);
+          break;
+        }
+      }
+    }
+  }
+
+  if (!companyRaw) {
+    for (const line of bodyLines) {
+      const sentItemsCompany = extractCompanyFromSentItemsLine(line);
+      if (sentItemsCompany) {
+        companyRaw = sentItemsCompany;
+        companySource = 'sent_items_sentence';
+        candidates.company.push(sentItemsCompany);
+        break;
+      }
     }
   }
 
   if (!companyRaw) {
     for (const line of bodyLines) {
       if (isIgnorableLine(line)) {
+        ignoredSections.push(`ignored_line:${line.slice(0, 48)}`);
+        continue;
+      }
+      if (/^[•*-]\s*(?:application|resume)\b/i.test(line)) {
         ignoredSections.push(`ignored_line:${line.slice(0, 48)}`);
         continue;
       }

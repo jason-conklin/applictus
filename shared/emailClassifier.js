@@ -227,6 +227,19 @@ const APPLIED_COURTESY_SIGNALS = [
   }
 ];
 
+const APPLIED_CONFIRMATION_SIGNAL_PATTERNS = [
+  { pattern: /\bapplication submitted\b/i, label: 'application_submitted' },
+  { pattern: /\byour application was sent\b/i, label: 'application_was_sent' },
+  { pattern: /\bwe (?:have )?received your application\b/i, label: 'received_application' },
+  { pattern: /\bthe following items were sent to\b/i, label: 'items_sent_to_employer' },
+  { pattern: /\bgood luck(?: with| in)? (?:your )?(?:application|job search|search)?\b/i, label: 'good_luck' },
+  { pattern: /\bindeed application:\s*.+/i, label: 'indeed_application_subject' },
+  {
+    pattern: /\b(?:employer|job advertiser) may reach out to you about your application\b/i,
+    label: 'may_reach_out_about_application'
+  }
+];
+
 const SCHEDULING_INTENT_PATTERNS = [
   { pattern: /i would like to speak with you/i, score: 18 },
   { pattern: /can speak with you/i, score: 14 },
@@ -330,6 +343,10 @@ function hasAppliedConfirmationSignals(text) {
     /\bgood luck(?: with| in)? (?:your )?(?:application|job search|search)?\b/i.test(text) ||
     indeedConfirmationEnvelope
   );
+}
+
+function collectAppliedConfirmationSignals(text) {
+  return collectSignalMatches(APPLIED_CONFIRMATION_SIGNAL_PATTERNS, text);
 }
 
 const RULES = [
@@ -1196,6 +1213,7 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
 
   const confirmationMatch = findRuleMatch(confirmationRules, text, 0.9, jobContext);
   if (confirmationMatch) {
+    const appliedConfirmationMatches = collectAppliedConfirmationSignals(textSource);
     return {
       isJobRelated: true,
       detectedType: confirmationMatch.rule.detectedType,
@@ -1203,14 +1221,19 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
       explanation: `Matched ${confirmationMatch.rule.name} via ${confirmationMatch.matched}.`,
       reason: confirmationMatch.rule.name,
       debug: {
-        matchedKeywords: [String(confirmationMatch.matched || '')].filter(Boolean),
+        matchedKeywords: [
+          ...[String(confirmationMatch.matched || '')].filter(Boolean),
+          ...appliedConfirmationMatches
+        ],
         rejectedKeywords: [],
+        appliedMatches: appliedConfirmationMatches,
         finalDecision: 'confirmation'
       }
     };
   }
 
   if (hasAppliedConfirmationSignals(textSource)) {
+    const appliedConfirmationMatches = collectAppliedConfirmationSignals(textSource);
     return {
       isJobRelated: true,
       detectedType: 'confirmation',
@@ -1218,8 +1241,9 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
       explanation: 'Applied confirmation fallback matched explicit application receipt language.',
       reason: 'confirmation_fallback',
       debug: {
-        matchedKeywords: collectSignalMatches(APPLIED_COURTESY_SIGNALS, textSource),
+        matchedKeywords: appliedConfirmationMatches,
         rejectedKeywords: [],
+        appliedMatches: appliedConfirmationMatches,
         finalDecision: 'confirmation'
       }
     };
