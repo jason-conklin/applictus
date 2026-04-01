@@ -10705,6 +10705,50 @@ body.app-page-bg .topbar .nav-link.active {
   box-shadow: none;
 }
 
+#dashboard-view .plan-usage-trigger {
+  margin: 4px 2px 0;
+  padding: 8px 10px;
+  border-radius: 11px;
+  border: 1px solid rgba(20, 56, 106, 0.2);
+  background: rgba(242, 248, 255, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: rgba(22, 49, 86, 0.86);
+  font-size: 12px;
+  line-height: 1.42;
+}
+
+#dashboard-view .plan-usage-trigger.hidden {
+  display: none;
+}
+
+#dashboard-view .plan-usage-trigger__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#dashboard-view .plan-usage-trigger__cta {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+#dashboard-view .plan-usage-trigger.plan-usage-trigger--near {
+  border-color: rgba(245, 158, 11, 0.34);
+  background: rgba(245, 158, 11, 0.1);
+  color: #7a5a12;
+}
+
+#dashboard-view .plan-usage-trigger.plan-usage-trigger--at {
+  border-color: rgba(220, 38, 38, 0.34);
+  background: rgba(239, 68, 68, 0.1);
+  color: #8b2c2c;
+}
+
 #dashboard-view .status-strip-main {
   display: inline-flex;
   align-items: center;
@@ -11904,6 +11948,17 @@ body.app-page-bg .topbar .nav-link.active {
   #dashboard-view .status-strip-actions .sync-manual-process {
     width: 100%;
     text-align: left;
+  }
+
+  #dashboard-view .plan-usage-trigger {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  #dashboard-view .plan-usage-trigger__cta {
+    width: 100%;
+    justify-content: center;
   }
 
   #dashboard-view #applications-table .applications-header,

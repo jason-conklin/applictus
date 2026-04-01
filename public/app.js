@@ -556,6 +556,9 @@ const syncHelperText = document.getElementById('sync-helper-text');
 const syncProcessNow = document.getElementById('sync-process-now');
 const syncStatus = document.getElementById('sync-status');
 const syncResult = document.getElementById('sync-result');
+const dashboardPlanWarning = document.getElementById('dashboard-plan-warning');
+const dashboardPlanWarningText = document.getElementById('dashboard-plan-warning-text');
+const dashboardPlanWarningCta = document.getElementById('dashboard-plan-warning-cta');
 const syncErrorBanner = document.getElementById('sync-error-banner');
 const syncErrorMessage = document.getElementById('sync-error-message');
 const syncErrorDetail = document.getElementById('sync-error-detail');
@@ -659,10 +662,6 @@ const PLAN_LIMITS = {
   pro: 500
 };
 let planState = null;
-const planNoticeShown = {
-  atLimit: false,
-  global: false
-};
 let currentDetail = null;
 let csrfToken = null;
 const PAGE_SIZE = 25;
@@ -4172,7 +4171,88 @@ function getPlanLimitForUser(user = sessionUser) {
   return PLAN_LIMITS[tier] || PLAN_LIMITS.free;
 }
 
+function getPlanUsageSnapshot(user = sessionUser) {
+  const source = planState || user;
+  if (!source) {
+    return null;
+  }
+  const tier = String(source.plan_tier || 'free').toLowerCase();
+  const isFree = tier === 'free';
+  const limit = getPlanLimitForUser(source);
+  const usageRaw = source.tracked_email_count_current_month ?? source.plan_usage ?? 0;
+  const usage = Number.isFinite(Number(usageRaw)) ? Math.max(0, Number(usageRaw)) : 0;
+  const thresholdRaw = Number(source.near_limit_threshold);
+  const nearLimitThreshold = Number.isFinite(thresholdRaw) ? Math.min(0.95, Math.max(0.5, thresholdRaw)) : 0.8;
+  const thresholdCountRaw = Number(source.near_limit_threshold_count);
+  const nearLimitThresholdCount =
+    Number.isFinite(thresholdCountRaw) && thresholdCountRaw > 0
+      ? Math.round(thresholdCountRaw)
+      : limit > 0
+        ? Math.ceil(limit * nearLimitThreshold)
+        : 0;
+  const nearLimitByCount = isFree && limit > 0 ? usage >= nearLimitThresholdCount && usage < limit : false;
+  const nearLimit = isFree ? Boolean(source.near_limit) || nearLimitByCount : false;
+  const atLimit = isFree && limit > 0 ? Boolean(source.at_limit) || usage >= limit : false;
+
+  return {
+    tier,
+    isFree,
+    limit,
+    usage,
+    nearLimit,
+    atLimit
+  };
+}
+
+function getPlanUsageTrigger(planUsage) {
+  if (!planUsage || !planUsage.isFree) {
+    return null;
+  }
+  if (planUsage.atLimit) {
+    return {
+      level: 'at',
+      ctaLabel: 'Upgrade to Pro',
+      message: "You've reached your monthly tracking limit. Upgrade to continue tracking new job updates this month."
+    };
+  }
+  if (planUsage.nearLimit) {
+    return {
+      level: 'near',
+      ctaLabel: 'View pricing',
+      message: `You've tracked ${planUsage.usage} of ${planUsage.limit} updates this month. Upgrade to keep tracking new job updates without interruption.`
+    };
+  }
+  return null;
+}
+
+function renderDashboardPlanUsageTrigger(trigger) {
+  if (!dashboardPlanWarning) {
+    return;
+  }
+  if (!trigger) {
+    dashboardPlanWarning.classList.add('hidden');
+    dashboardPlanWarning.classList.remove('plan-usage-trigger--near', 'plan-usage-trigger--at');
+    if (dashboardPlanWarningText) {
+      dashboardPlanWarningText.textContent = '';
+    }
+    return;
+  }
+  dashboardPlanWarning.classList.remove('hidden');
+  dashboardPlanWarning.classList.toggle('plan-usage-trigger--near', trigger.level === 'near');
+  dashboardPlanWarning.classList.toggle('plan-usage-trigger--at', trigger.level === 'at');
+  if (dashboardPlanWarningText) {
+    dashboardPlanWarningText.textContent = trigger.message;
+  }
+  if (dashboardPlanWarningCta) {
+    dashboardPlanWarningCta.textContent = trigger.ctaLabel || 'View pricing';
+  }
+}
+
 function renderPlanUsage(user = sessionUser) {
+  const planUsage = getPlanUsageSnapshot(user);
+  const trigger = getPlanUsageTrigger(planUsage);
+  renderDashboardPlanUsageTrigger(trigger);
+
   if (!accountPlanName || !accountPlanUsage || !accountPlanProgress) {
     return;
   }
@@ -4180,29 +4260,25 @@ function renderPlanUsage(user = sessionUser) {
     accountPlanName.textContent = 'Free';
     accountPlanUsage.textContent = '—';
     accountPlanProgress.style.width = '0%';
-    accountPlanWarning.textContent = '';
+    if (accountPlanWarning) {
+      accountPlanWarning.textContent = '';
+      accountPlanWarning.classList.remove('plan-warning--near', 'plan-warning--at');
+    }
     return;
   }
   const source = planState || user;
-  const tier = String(source.plan_tier || 'free').toLowerCase();
-  const limit = getPlanLimitForUser(source);
-  const usage = Number(source.tracked_email_count_current_month || source.plan_usage || 0);
+  const tier = planUsage?.tier || String(source.plan_tier || 'free').toLowerCase();
+  const limit = planUsage?.limit || getPlanLimitForUser(source);
+  const usage = planUsage?.usage ?? Number(source.tracked_email_count_current_month || source.plan_usage || 0);
   accountPlanName.textContent = tier === 'pro' ? 'Pro' : 'Free';
   accountPlanUsage.textContent = `${usage} / ${limit} tracked emails this month`;
   const ratio = limit > 0 ? Math.min(1, usage / limit) : 0;
   accountPlanProgress.style.width = `${Math.round(ratio * 100)}%`;
-  let warning = '';
-  const globalBlocked = Boolean(source.global_blocked);
-  if (globalBlocked) {
-    warning = 'Free tracking is temporarily at capacity this month.';
-  } else if (limit > 0) {
-    if (ratio >= 1) {
-      warning = 'You reached your monthly tracking limit. Upgrade to continue tracking new updates.';
-    } else if (ratio >= 0.8) {
-      warning = `You have used ${usage} of ${limit}. Consider upgrading to Pro.`;
-    }
+  if (accountPlanWarning) {
+    accountPlanWarning.textContent = trigger?.message || '';
+    accountPlanWarning.classList.toggle('plan-warning--near', trigger?.level === 'near');
+    accountPlanWarning.classList.toggle('plan-warning--at', trigger?.level === 'at');
   }
-  accountPlanWarning.textContent = warning;
   if (accountUpgradeButton) {
     accountUpgradeButton.disabled = tier === 'pro';
     accountUpgradeButton.textContent = tier === 'pro' ? 'Pro active' : 'Upgrade to Pro';
@@ -4592,20 +4668,13 @@ async function refreshPlanUsage() {
       sessionUser.plan_limit = data.monthly_tracked_email_limit;
       sessionUser.plan_usage = data.tracked_email_count_current_month;
       sessionUser.plan_bucket = data.tracked_email_month_bucket;
+      sessionUser.plan_near_limit = data.near_limit;
+      sessionUser.plan_at_limit = data.at_limit;
+      sessionUser.plan_near_limit_threshold = data.near_limit_threshold;
+      sessionUser.plan_near_limit_threshold_count = data.near_limit_threshold_count;
       sessionUser.plan_global_blocked = data.global_blocked;
     }
     renderPlanUsage(sessionUser);
-
-    if (data.global_blocked && !planNoticeShown.global) {
-      planNoticeShown.global = true;
-      showNotice('Free tracking is temporarily at capacity this month.', 'Tracking paused for Free');
-    } else if (data.at_limit && !planNoticeShown.atLimit) {
-      planNoticeShown.atLimit = true;
-      showNotice(
-        `You reached your monthly tracking limit (${data.tracked_email_count_current_month} of ${data.monthly_tracked_email_limit}). Upgrade to keep tracking new updates this month.`,
-        'Tracking limit reached'
-      );
-    }
   } catch (err) {
     if (DEBUG_APP) {
       // eslint-disable-next-line no-console
@@ -8628,6 +8697,7 @@ googleAuth?.addEventListener('click', () => {
 
 accountUpgradeButton?.addEventListener('click', openPricingModal);
 accountPlanDetails?.addEventListener('click', openPricingModal);
+dashboardPlanWarningCta?.addEventListener('click', openPricingModal);
 
 async function requestUpgrade() {
   try {

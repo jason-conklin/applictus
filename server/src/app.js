@@ -170,6 +170,13 @@ const INBOUND_SECRET_HEADER = 'x-applictus-inbound-secret';
 const CSRF_TTL_MS = 2 * 60 * 60 * 1000;
 const PLAN_ADMIN_SECRET = process.env.PLAN_ADMIN_SECRET || null;
 const ALLOW_DEV_PLAN_UPGRADE = String(process.env.ALLOW_DEV_PLAN_UPGRADE || '').trim() === '1';
+const PLAN_NEAR_LIMIT_THRESHOLD = (() => {
+  const raw = Number(process.env.PLAN_NEAR_LIMIT_THRESHOLD || 0.8);
+  if (!Number.isFinite(raw)) {
+    return 0.8;
+  }
+  return Math.min(0.95, Math.max(0.5, raw));
+})();
 const AUTH_DB_TIMEOUT_MS = 2_000;
 const DB_HEALTH_TIMEOUT_MS = 2_000;
 const preauthCsrfStore = new Map();
@@ -2903,6 +2910,8 @@ app.post('/api/account/inbox-username', requireAuth, async (req, res) => {
 app.get('/api/account/plan', requireAuth, async (req, res) => {
   try {
     const planState = ensurePlanState(db, req.user.id);
+    const normalizedTier = String(planState.planTier || 'free').toLowerCase();
+    const isFreeTier = normalizedTier === 'free';
     const globalCap = process.env.GLOBAL_TRACKED_EMAIL_CAP
       ? Number(process.env.GLOBAL_TRACKED_EMAIL_CAP)
       : null;
@@ -2917,8 +2926,9 @@ app.get('/api/account/plan', requireAuth, async (req, res) => {
     }
     const limit = planState.limit || resolvePlanLimit(planState.planTier, null);
     const usage = planState.usage || 0;
-    const nearLimit = limit > 0 ? usage / limit >= 0.8 && usage < limit : false;
-    const atLimit = limit > 0 ? usage >= limit : false;
+    const nearLimitThresholdCount = limit > 0 ? Math.ceil(limit * PLAN_NEAR_LIMIT_THRESHOLD) : 0;
+    const nearLimit = isFreeTier && limit > 0 ? usage >= nearLimitThresholdCount && usage < limit : false;
+    const atLimit = isFreeTier && limit > 0 ? usage >= limit : false;
     const response = {
       plan_tier: planState.planTier,
       plan_status: planState.planStatus,
@@ -2927,9 +2937,11 @@ app.get('/api/account/plan', requireAuth, async (req, res) => {
       tracked_email_month_bucket: planState.bucket,
       near_limit: nearLimit,
       at_limit: atLimit,
+      near_limit_threshold: PLAN_NEAR_LIMIT_THRESHOLD,
+      near_limit_threshold_count: nearLimitThresholdCount,
       global_cap: globalCap,
       global_usage: globalUsage,
-      global_blocked: Boolean(globalCap && globalUsage >= globalCap && planState.planTier === 'free')
+      global_blocked: Boolean(globalCap && globalUsage >= globalCap && isFreeTier)
     };
     return res.json(response);
   } catch (err) {

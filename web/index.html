@@ -175,6 +175,13 @@
         color: #36557d;
         line-height: 1.45;
       }
+      .plan-warning--near {
+        color: #7a5a12;
+      }
+      .plan-warning--at {
+        color: #8b2c2c;
+        font-weight: 600;
+      }
       .plan-actions {
         margin-top: 12px;
         display: flex;
@@ -1100,6 +1107,12 @@
               <div class="sync-details hidden" id="sync-details-wrapper">
                 <pre class="sync-details-block" id="sync-result"></pre>
               </div>
+            </div>
+            <div class="plan-usage-trigger hidden" id="dashboard-plan-warning" role="status" aria-live="polite">
+              <span class="plan-usage-trigger__text" id="dashboard-plan-warning-text"></span>
+              <button class="btn btn--ghost btn--sm plan-usage-trigger__cta" type="button" id="dashboard-plan-warning-cta">
+                View pricing
+              </button>
             </div>
           <div class="sync-error hidden" id="sync-error-banner">
             <div class="sync-error-message" id="sync-error-message">Scan failed.</div>
