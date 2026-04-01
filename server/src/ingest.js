@@ -2891,6 +2891,9 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
         authenticatedUserEmail: userEmail,
         messageLabels: []
       });
+      if (classification?.debug && typeof classification.debug === 'object') {
+        debugMeta.classifier_debug = classification.debug;
+      }
 
       if (!classification?.isJobRelated && !parserHasHighSignal) {
         ignored += 1;

@@ -189,12 +189,23 @@ async function parseJobEmail(payload = {}) {
     parsed.debug = {};
   }
 
+  parsed.debug.status_signal = {
+    rejection_matches: Array.isArray(statusSignal?.rejectionMatches) ? statusSignal.rejectionMatches : [],
+    applied_matches: Array.isArray(statusSignal?.appliedMatches) ? statusSignal.appliedMatches : [],
+    interview_matches: Array.isArray(statusSignal?.interviewMatches) ? statusSignal.interviewMatches : [],
+    selected_status: statusSignal?.status || null,
+    selected_source: statusSignal?.source || null,
+    selected_match: statusSignal?.matched || null,
+    decision_reason: statusSignal?.decisionReason || null
+  };
+
   // Status priority and safety overrides
   const currentStatus = parsed?.status;
   if (statusSignal.status === 'rejected' && currentStatus !== 'rejected') {
     parsed.status = 'rejected';
     parsed.debug.status_override_reason = 'rejection_phrase_override';
     parsed.debug.status_source = statusSignal.source || parsed.debug.status_source || 'rejection_phrase';
+    parsed.debug.status_priority_reason = statusSignal.decisionReason || 'rejection_phrase_override';
   } else if (
     currentStatus === 'interview_requested' &&
     statusSignal.status === 'applied'
@@ -203,10 +214,14 @@ async function parseJobEmail(payload = {}) {
     parsed.status = 'applied';
     parsed.debug.status_override_reason = 'applied_phrase_preferred';
     parsed.debug.status_source = statusSignal.source || parsed.debug.status_source || 'applied_phrase';
+    parsed.debug.status_priority_reason = statusSignal.decisionReason || 'applied_phrase_preferred';
   } else if (!currentStatus) {
     parsed.status = statusSignal.status;
     parsed.debug.status_source = statusSignal.source || parsed.debug.status_source || 'fallback';
+    parsed.debug.status_priority_reason = statusSignal.decisionReason || 'fallback';
   }
+  parsed.debug.final_status = parsed.status || null;
+  parsed.debug.final_status_source = parsed.debug.status_source || statusSignal.source || null;
 
   if (matchedHint?.company_override) {
     companyCandidate = matchedHint.company_override;

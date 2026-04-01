@@ -1,17 +1,37 @@
 const REJECTION_SIGNAL_PATTERNS = [
-  { pattern: /\bwe regret to inform you\b/i, label: 'we regret to inform you' },
-  { pattern: /\bwill not be taking your application further\b/i, label: 'will not be taking your application further' },
-  { pattern: /\bwill not be moving forward\b/i, label: 'will not be moving forward' },
-  { pattern: /\bare not moving forward\b/i, label: 'are not moving forward' },
-  { pattern: /\bnot moving forward with your (?:application|candidacy)\b/i, label: 'not moving forward with your candidacy' },
-  { pattern: /\bwe will not be progressing\b/i, label: 'we will not be progressing' },
-  { pattern: /\bafter careful consideration\b/i, label: 'after careful consideration' },
-  { pattern: /\bnot selected\b/i, label: 'not selected' },
-  { pattern: /\bunfortunately\b/i, label: 'unfortunately' },
-  { pattern: /\bpursue other candidates\b/i, label: 'pursue other candidates' },
-  { pattern: /\bunable to move forward\b/i, label: 'unable to move forward' },
-  { pattern: /\bwish you continued career success\b/i, label: 'wish you continued career success' },
-  { pattern: /\bwish you success in your job search\b/i, label: 'wish you success in your job search' }
+  { pattern: /\bwe regret to inform you\b/i, label: 'we regret to inform you', strength: 'strong' },
+  {
+    pattern: /\bwill not be taking your application further\b/i,
+    label: 'will not be taking your application further',
+    strength: 'strong'
+  },
+  { pattern: /\bwill not be moving forward\b/i, label: 'will not be moving forward', strength: 'strong' },
+  { pattern: /\bare not moving forward\b/i, label: 'are not moving forward', strength: 'strong' },
+  {
+    pattern: /\bnot moving forward with your (?:application|candidacy)\b/i,
+    label: 'not moving forward with your candidacy',
+    strength: 'strong'
+  },
+  { pattern: /\bwe will not be progressing\b/i, label: 'we will not be progressing', strength: 'strong' },
+  { pattern: /\bafter careful consideration\b/i, label: 'after careful consideration', strength: 'strong' },
+  { pattern: /\bnot selected\b/i, label: 'not selected', strength: 'strong' },
+  { pattern: /\bunfortunately\b/i, label: 'unfortunately', strength: 'strong' },
+  { pattern: /\bpursue other candidates\b/i, label: 'pursue other candidates', strength: 'strong' },
+  { pattern: /\bunable to move forward\b/i, label: 'unable to move forward', strength: 'strong' },
+  { pattern: /\bwe have carefully reviewed your application\b/i, label: 'we have carefully reviewed your application', strength: 'soft' },
+  { pattern: /\bwe wish you all the best\b/i, label: 'we wish you all the best', strength: 'soft' },
+  {
+    pattern: /\bhope you consider\b.{0,120}\bfuture career opportunities\b/i,
+    label: 'hope you consider future career opportunities',
+    strength: 'soft'
+  },
+  {
+    pattern: /\b(?:this message is )?only in reference to\b/i,
+    label: 'only in reference to this position',
+    strength: 'soft'
+  },
+  { pattern: /\bwish you continued career success\b/i, label: 'wish you continued career success', strength: 'soft' },
+  { pattern: /\bwish you success in your job search\b/i, label: 'wish you success in your job search', strength: 'soft' }
 ];
 
 // Interview detection must be explicit; generic CTAs should not match.
@@ -67,6 +87,12 @@ function normalizeForCompare(value) {
     .trim();
 }
 
+function collectPatternHits(patterns, corpus) {
+  return patterns
+    .filter(({ pattern }) => pattern.test(corpus))
+    .map(({ label, strength }) => ({ label, strength: strength || 'neutral' }));
+}
+
 function isLocationLike(value) {
   const text = cleanLine(value);
   if (!text) {
@@ -120,19 +146,36 @@ function detectStatusSignal({
   defaultStatus = 'applied'
 } = {}) {
   const corpus = `${String(subject || '')}\n${String(text || '')}`;
+  const rejectionHits = collectPatternHits(REJECTION_SIGNAL_PATTERNS, corpus);
+  const strongRejectionHits = rejectionHits.filter((hit) => hit.strength === 'strong');
+  const softRejectionHits = rejectionHits.filter((hit) => hit.strength !== 'strong');
+  const appliedHits = collectPatternHits(APPLIED_SIGNAL_PATTERNS, corpus);
+  const hasDecisiveRejection = strongRejectionHits.length > 0 || softRejectionHits.length >= 2;
 
-  const rejectionHit = REJECTION_SIGNAL_PATTERNS.find(({ pattern }) => pattern.test(corpus));
-  if (rejectionHit) {
+  if (hasDecisiveRejection) {
+    const selectedRejection = strongRejectionHits[0] || softRejectionHits[0] || rejectionHits[0];
+    const rejectionWonOverApplied = appliedHits.length > 0;
     return {
       status: 'rejected',
-      confidence: 95,
-      source: `rejection_phrase:${rejectionHit.label}`,
-      matched: rejectionHit.label
+      confidence: strongRejectionHits.length > 0 ? 95 : 92,
+      source: rejectionWonOverApplied
+        ? `rejection_priority_over_applied:${selectedRejection.label}`
+        : `rejection_phrase:${selectedRejection.label}`,
+      matched: selectedRejection.label,
+      rejectionMatches: rejectionHits.map((hit) => hit.label),
+      interviewMatches: [],
+      appliedMatches: appliedHits.map((hit) => hit.label),
+      decisionReason: rejectionWonOverApplied
+        ? 'strong_rejection_overrides_applied_intro'
+        : strongRejectionHits.length > 0
+          ? 'strong_rejection_signal'
+          : 'soft_rejection_cluster'
     };
   }
 
   const digestVeto = DIGEST_VETO_PATTERN.test(corpus) && /\bunsubscribe\b/i.test(corpus);
-  const interviewHit = INTERVIEW_SIGNAL_PATTERNS.find(({ pattern }) => pattern.test(corpus));
+  const interviewHits = collectPatternHits(INTERVIEW_SIGNAL_PATTERNS, corpus);
+  const interviewHit = interviewHits[0] || null;
   if (interviewHit) {
     const hasContext = Boolean(
       (company && cleanLine(company)) ||
@@ -145,18 +188,26 @@ function detectStatusSignal({
         status: 'interview_requested',
         confidence: 86,
         source: `interview_phrase:${interviewHit.label}`,
-        matched: interviewHit.label
+        matched: interviewHit.label,
+        rejectionMatches: rejectionHits.map((hit) => hit.label),
+        interviewMatches: interviewHits.map((hit) => hit.label),
+        appliedMatches: appliedHits.map((hit) => hit.label),
+        decisionReason: 'explicit_interview_signal'
       };
     }
   }
 
-  const appliedHit = APPLIED_SIGNAL_PATTERNS.find(({ pattern }) => pattern.test(corpus));
+  const appliedHit = appliedHits[0] || null;
   if (appliedHit) {
     return {
       status: 'applied',
       confidence: 90,
       source: `applied_phrase:${appliedHit.label}`,
-      matched: appliedHit.label
+      matched: appliedHit.label,
+      rejectionMatches: rejectionHits.map((hit) => hit.label),
+      interviewMatches: interviewHits.map((hit) => hit.label),
+      appliedMatches: appliedHits.map((hit) => hit.label),
+      decisionReason: 'applied_phrase_match'
     };
   }
 
@@ -165,14 +216,22 @@ function detectStatusSignal({
       status: defaultStatus,
       confidence: 74,
       source: 'default',
-      matched: null
+      matched: null,
+      rejectionMatches: rejectionHits.map((hit) => hit.label),
+      interviewMatches: interviewHits.map((hit) => hit.label),
+      appliedMatches: appliedHits.map((hit) => hit.label),
+      decisionReason: 'fallback_default_status'
     };
   }
   return {
     status: undefined,
     confidence: 0,
     source: 'none',
-    matched: null
+    matched: null,
+    rejectionMatches: rejectionHits.map((hit) => hit.label),
+    interviewMatches: interviewHits.map((hit) => hit.label),
+    appliedMatches: appliedHits.map((hit) => hit.label),
+    decisionReason: 'no_status_signal'
   };
 }
 

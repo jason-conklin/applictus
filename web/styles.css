@@ -4738,7 +4738,7 @@ details summary {
   display: grid;
   place-items: center;
   padding: 24px;
-  z-index: 1200;
+  z-index: 1600;
   opacity: 1;
   visibility: visible;
   pointer-events: auto;

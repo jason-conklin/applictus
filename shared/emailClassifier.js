@@ -99,16 +99,64 @@ const LINKEDIN_REJECTION_RULE = {
   ]
 };
 
-const STRONG_REJECTION_PATTERNS = [
-  /unable to move forward/i,
-  /we are unable to move forward/i,
-  /not move forward with your application/i,
-  /decided to pursue other candidates/i,
-  /moving forward with other candidates/i,
-  /we will not be moving forward/i,
-  /we(?:'| )?ve decided to pursue other candidates/i,
-  /after careful consideration[, ]+(?:we )?(?:are )?(?:not|unable|declined|declining|will not)/i,
-  /unfortunately[, ]+(?:we )?(?:are )?(?:not|unable|declined|declining|will not|can(?:not|'t) move forward|pursue other candidates)/i
+const STRONG_REJECTION_SIGNALS = [
+  { pattern: /unable to move forward/i, label: 'unable to move forward' },
+  { pattern: /we are unable to move forward/i, label: 'we are unable to move forward' },
+  { pattern: /not move forward with your application/i, label: 'not move forward with your application' },
+  { pattern: /decided to pursue other candidates/i, label: 'decided to pursue other candidates' },
+  { pattern: /moving forward with other candidates/i, label: 'moving forward with other candidates' },
+  { pattern: /we will not be moving forward/i, label: 'we will not be moving forward' },
+  { pattern: /we(?:'| )?ve decided to pursue other candidates/i, label: "we've decided to pursue other candidates" },
+  {
+    pattern: /after careful consideration[, ]+(?:we )?(?:are )?(?:not|unable|declined|declining|will not)/i,
+    label: 'after careful consideration'
+  },
+  {
+    pattern: /unfortunately[, ]+(?:we )?(?:are )?(?:not|unable|declined|declining|will not|can(?:not|'t) move forward|pursue other candidates)/i,
+    label: 'unfortunately ... not moving forward'
+  },
+  {
+    pattern: /\bwe (?:have )?decided to pursue other candidates\b/i,
+    label: 'we have decided to pursue other candidates'
+  },
+  { pattern: /\bpursue other candidates\b/i, label: 'pursue other candidates' },
+  {
+    pattern: /\bwe will not be moving forward with your (?:application|candidacy)\b/i,
+    label: 'we will not be moving forward with your candidacy'
+  },
+  {
+    pattern: /\bwe are not moving forward with your (?:application|candidacy)\b/i,
+    label: 'we are not moving forward with your candidacy'
+  }
+];
+
+const SOFT_REJECTION_SIGNALS = [
+  {
+    pattern: /\bwe have carefully reviewed your application\b/i,
+    label: 'we have carefully reviewed your application'
+  },
+  {
+    pattern: /\bwe wish you all the best\b/i,
+    label: 'we wish you all the best'
+  },
+  {
+    pattern: /\bhope you consider\b.{0,120}\bfuture career opportunities\b/i,
+    label: 'hope you consider us for future career opportunities'
+  },
+  {
+    pattern: /\b(?:this message is )?only in reference to\b/i,
+    label: 'only in reference to this position'
+  }
+];
+
+const APPLIED_COURTESY_SIGNALS = [
+  { pattern: /\bthank you for your interest\b/i, label: 'thank you for your interest' },
+  { pattern: /\bthank you for your application\b/i, label: 'thank you for your application' },
+  { pattern: /\bthank you for applying\b/i, label: 'thank you for applying' },
+  {
+    pattern: /\bthank you for .*submit your application\b/i,
+    label: 'thank you for taking the time to submit your application'
+  }
 ];
 
 const SCHEDULING_INTENT_PATTERNS = [
@@ -193,7 +241,12 @@ function hasConfirmationReceiptCues(text) {
 
 function hasDecisionRejectionCues(text) {
   if (!text) return false;
-  return STRONG_REJECTION_PATTERNS.some((p) => p.test(text));
+  const strongMatches = collectSignalMatches(STRONG_REJECTION_SIGNALS, text);
+  if (strongMatches.length > 0) {
+    return true;
+  }
+  const softMatches = collectSignalMatches(SOFT_REJECTION_SIGNALS, text);
+  return softMatches.length >= 2;
 }
 
 const RULES = [
@@ -224,10 +277,17 @@ const RULES = [
     /after reviewing your application,? we(?:'| have)?(?:\s+)?decided to move forward/i,
     /we (?:have )?decided to move forward with other candidates/i,
     /we(?:'| have)?(?:\s+)?decided to pursue other candidates/i,
+    /we (?:have )?decided to pursue other candidates/i,
     /decided to pursue other candidates/i,
+    /pursue other candidates/i,
     /we (?:have )?chosen other candidates/i,
     /we (?:have )?chosen other applicants/i,
     /we (?:will not|won't) be moving forward/i,
+    /we are not moving forward with your (?:application|candidacy)/i,
+    /we have carefully reviewed your application/i,
+    /we wish you all the best/i,
+    /hope you consider .* future career opportunities/i,
+    /(?:this message is )?only in reference to/i,
     /we(?:'| have)?(?:\s+)?decided to go in a different direction/i,
     /moved to the next step in (?:their )?hiring process/i,
     /will not be moving forward/i,
@@ -347,7 +407,9 @@ const STRONG_REJECTION_RULE = {
     /not selected/i,
     /moved to the next step in (?:their )?hiring process/i,
     /we (?:will not|won't) be moving forward/i,
+    /we are not moving forward with your (?:application|candidacy)/i,
     /move forward with other candidates/i,
+    /we (?:have )?decided to pursue other candidates/i,
     /regret to inform/i,
     /go in a different direction/i
   ]
@@ -399,6 +461,14 @@ function countMatches(pattern, text) {
   const globalPattern = new RegExp(pattern.source, flags);
   const matches = sourceText.match(globalPattern);
   return matches ? matches.length : 0;
+}
+
+function collectSignalMatches(signals, text) {
+  const sourceText = String(text || '');
+  if (!sourceText || !Array.isArray(signals) || !signals.length) {
+    return [];
+  }
+  return signals.filter((signal) => signal.pattern.test(sourceText)).map((signal) => signal.label);
 }
 
 function hasNewsletterHeaderSignal(headers) {
@@ -784,15 +854,37 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
     };
   }
 
-  // Strong rejection override regardless of confirmation cues
-  const strongRejectionHit = STRONG_REJECTION_PATTERNS.find((p) => p.test(text));
-  if (strongRejectionHit) {
+  // Strong rejection override regardless of confirmation cues.
+  const strongRejectionMatches = collectSignalMatches(STRONG_REJECTION_SIGNALS, textSource);
+  const softRejectionMatches = collectSignalMatches(SOFT_REJECTION_SIGNALS, textSource);
+  const appliedCourtesyMatches = collectSignalMatches(APPLIED_COURTESY_SIGNALS, textSource);
+  const decisiveRejection =
+    strongRejectionMatches.length > 0 ||
+    (softRejectionMatches.length >= 2 && /application|candidate|candidacy|position|role/i.test(text));
+  if (decisiveRejection) {
+    const primaryMatch =
+      strongRejectionMatches[0] ||
+      softRejectionMatches[0] ||
+      'rejection_signal_cluster';
+    const rejectionWonOverApplied = appliedCourtesyMatches.length > 0;
     return {
       isJobRelated: true,
       detectedType: 'rejection',
       confidenceScore: 0.97,
-      explanation: 'Strong rejection phrase detected',
-      reason: 'rejection_override'
+      explanation: rejectionWonOverApplied
+        ? 'Rejection signal override: decisive rejection language beats courtesy intro phrasing.'
+        : 'Strong rejection phrase detected.',
+      reason: 'rejection_override',
+      debug: {
+        rejectionMatches: Array.from(new Set([...strongRejectionMatches, ...softRejectionMatches])),
+        appliedMatches: appliedCourtesyMatches,
+        finalDecision: 'rejection',
+        decisionReason: rejectionWonOverApplied
+          ? 'strong_rejection_overrides_applied_intro'
+          : strongRejectionMatches.length
+            ? `strong_rejection:${primaryMatch}`
+            : `soft_rejection_cluster:${primaryMatch}`
+      }
     };
   }
 
@@ -837,12 +929,22 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
       isNotSelected && isConditionalNotSelected(text) && hasConfirmationReceiptCues(text);
     const decisive = hasDecisionRejectionCues(text);
     if (!(conditionalNotSelected && !decisive)) {
+      const appliedCourtesyMatchesForDecision = collectSignalMatches(APPLIED_COURTESY_SIGNALS, textSource);
+      const rejectionRuleMatchLabel = String(rejectionMatch.matched || '');
       return {
         isJobRelated: true,
         detectedType: rejectionMatch.rule.detectedType,
         confidenceScore: rejectionMatch.rule.confidence,
         explanation: `Matched ${rejectionMatch.rule.name} via ${rejectionMatch.matched}.`,
-        reason: rejectionMatch.rule.name
+        reason: rejectionMatch.rule.name,
+        debug: {
+          rejectionMatches: rejectionRuleMatchLabel ? [rejectionRuleMatchLabel] : [],
+          appliedMatches: appliedCourtesyMatchesForDecision,
+          finalDecision: 'rejection',
+          decisionReason: appliedCourtesyMatchesForDecision.length
+            ? 'rejection_rule_overrides_applied_intro'
+            : `rejection_rule_match:${rejectionMatch.rule.name}`
+        }
       };
     }
     // Conditional disclaimer present with receipt cues and no decisive rejection: allow confirmation path.

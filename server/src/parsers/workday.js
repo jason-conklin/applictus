@@ -10,6 +10,15 @@ const STRONG_REJECTION_PHRASES = [
   { pattern: /will not be moving forward/i, label: 'will not be moving forward' },
   { pattern: /not moving forward with your application/i, label: 'not moving forward with your application' },
   { pattern: /we will not be progressing/i, label: 'we will not be progressing' },
+  { pattern: /\bwe (?:have )?decided to pursue other candidates\b/i, label: 'we have decided to pursue other candidates' },
+  { pattern: /\bpursue other candidates\b/i, label: 'pursue other candidates' },
+  { pattern: /\bwe have carefully reviewed your application\b/i, label: 'we have carefully reviewed your application' },
+  { pattern: /\bwe wish you all the best\b/i, label: 'we wish you all the best' },
+  {
+    pattern: /\bhope you consider\b.{0,120}\bfuture career opportunities\b/i,
+    label: 'hope you consider us for future career opportunities'
+  },
+  { pattern: /\b(?:this message is )?only in reference to\b/i, label: 'only in reference to this position' },
   { pattern: /\bunfortunately\b/i, label: 'unfortunately' },
   { pattern: /\bnot selected\b/i, label: 'not selected' }
 ];
@@ -156,6 +165,19 @@ function parse({ subject, text, fromEmail, fromDomain }) {
   }
 
   if (!roleRaw) {
+    const submittedForPositionMatch = body.match(
+      /submit your application for(?: the)?\s+(.+?)\s+position\b/i
+    );
+    if (submittedForPositionMatch && submittedForPositionMatch[1]) {
+      roleRaw = cleanWorkdayRoleCandidate(submittedForPositionMatch[1]);
+      if (roleRaw) {
+        roleSource = 'application_for_position';
+        candidates.role.push(roleRaw);
+      }
+    }
+  }
+
+  if (!roleRaw) {
     const interestPositionMatch = body.match(
       /thank you for your interest in(?: the)?\s+(.+?)\s+position\b/i
     );
@@ -176,6 +198,17 @@ function parse({ subject, text, fromEmail, fromDomain }) {
       companySource = 'header';
       candidates.company.push(maybeCompany);
       break;
+    }
+  }
+
+  if (!companyRaw) {
+    const directInterestCompanyMatch = body.match(
+      /thank you for your interest in\s+([A-Z][A-Za-z0-9&.' -]{1,80})(?:\s+and\b|[\n.!?]|$)/i
+    );
+    if (directInterestCompanyMatch && directInterestCompanyMatch[1]) {
+      companyRaw = cleanToken(directInterestCompanyMatch[1]);
+      companySource = 'body_phrase';
+      candidates.company.push(companyRaw);
     }
   }
 
@@ -256,6 +289,7 @@ function parse({ subject, text, fromEmail, fromDomain }) {
     business_process: 93,
     role_sentence: 92,
     subject: 88,
+    application_for_position: 87,
     interest_phrase: 84
   };
 

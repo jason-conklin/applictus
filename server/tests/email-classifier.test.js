@@ -446,6 +446,42 @@ test('classifyEmail rejection wins when body contains rejection cues', () => {
   assert.equal(result.detectedType, 'rejection');
 });
 
+test('classifyEmail detects Workday-style polite rejection and exposes decision debug', () => {
+  const result = classifyEmail({
+    subject: 'Application Update',
+    sender: 'Arch Workday <arch@myworkday.com>',
+    snippet: 'Thank you for your interest in Arch and taking the time to submit your application.',
+    body: [
+      'Hello Jason,',
+      'Thank you for your interest in Arch and taking the time to submit your application for the Data Quality Analyst, Statistical Reporting, Workers Compensation position.',
+      'We have carefully reviewed your application. At this time we have decided to pursue other candidates who we believe most closely meet the current needs of Arch at this time.',
+      'If you have applied for other positions, please note that this message is only in reference to the Data Quality Analyst, Statistical Reporting, Workers Compensation position.',
+      'We wish you all the best and hope you consider Arch for future career opportunities.'
+    ].join('\n')
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'rejection');
+  assert.ok(Array.isArray(result.debug?.rejectionMatches));
+  assert.ok(result.debug.rejectionMatches.length > 0);
+  assert.ok(Array.isArray(result.debug?.appliedMatches));
+  assert.ok(result.debug.appliedMatches.length > 0);
+  assert.equal(result.debug?.finalDecision, 'rejection');
+});
+
+test('classifyEmail treats pursue-other-candidates language as rejection', () => {
+  const result = classifyEmail({
+    subject: 'Application Update',
+    snippet: 'Thank you for applying to the Data Analyst role.',
+    body: [
+      'Thank you for your application.',
+      'After review, we decided to pursue other candidates at this time.',
+      'We wish you all the best in your search.'
+    ].join('\n')
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'rejection');
+});
+
 test('classifyEmail stays confirmation when no rejection cues present', () => {
   const result = classifyEmail({
     subject: 'Application Update',

@@ -35,6 +35,33 @@ test('iCIMS-style rejection detected with company', async () => {
   assert.equal(parsed.company, 'Lord Abbett');
 });
 
+test('Workday polite rejection phrasing is classified as rejected', async () => {
+  const parsed = await parseJobEmail({
+    fromEmail: 'arch@myworkday.com',
+    fromDomain: 'myworkday.com',
+    subject: 'Application Update',
+    text: [
+      'Hello Jason,',
+      '',
+      'Thank you for your interest in Arch and taking the time to submit your application for the Data Quality Analyst, Statistical Reporting, Workers Compensation position.',
+      '',
+      'We have carefully reviewed your application. At this time we have decided to pursue other candidates who we believe most closely meet the current needs of Arch at this time.',
+      '',
+      'If you have applied for other positions, please note that this message is only in reference to the Data Quality Analyst, Statistical Reporting, Workers Compensation position.',
+      '',
+      'We wish you all the best and hope you consider Arch for future career opportunities.',
+      '',
+      'All the best,',
+      'Arch Talent Acquisition Team'
+    ].join('\n')
+  });
+  assert.equal(parsed.status, 'rejected');
+  assert.equal(parsed.company, 'Arch');
+  assert.match(String(parsed.role || ''), /Data Quality Analyst/i);
+  assert.ok(Array.isArray(parsed.parserDebug?.status_signal?.rejection_matches));
+  assert.ok(Array.isArray(parsed.parserDebug?.status_signal?.applied_matches));
+});
+
 test('Explicit interview language still classifies as interview', async () => {
   const parsed = await parseJobEmail({
     fromEmail: 'recruiter@example.com',
@@ -61,4 +88,3 @@ test('Generic CTA does not upgrade to interview', async () => {
   });
   assert.equal(parsed.status, 'applied');
 });
-
