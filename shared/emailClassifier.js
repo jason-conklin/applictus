@@ -47,11 +47,13 @@ const NEWSLETTER_INTERVIEW_BLOCK_PATTERNS = [
 ];
 
 const RELEVANCE_KEEP_SIGNALS = [
+  { pattern: /\bindeed application:\s*.+/i, label: 'indeed_application_subject' },
   { pattern: /\bapplication submitted\b/i, label: 'application_submitted' },
   { pattern: /\byour application was sent\b/i, label: 'application_was_sent' },
   { pattern: /\bthank you for applying\b/i, label: 'thank_you_for_applying' },
   { pattern: /\bthank you for your application\b/i, label: 'thank_you_for_your_application' },
   { pattern: /\bwe (?:have )?received your application\b/i, label: 'received_application' },
+  { pattern: /\bthe following items were sent to\b/i, label: 'items_sent_to_employer' },
   { pattern: /\bapplication (?:received|update)\b/i, label: 'application_update' },
   { pattern: /\bwe (?:will not|are not) moving forward\b/i, label: 'moving_forward_rejection' },
   { pattern: /\bnot selected\b/i, label: 'not_selected' },
@@ -317,12 +319,16 @@ function hasDecisionRejectionCues(text) {
 
 function hasAppliedConfirmationSignals(text) {
   if (!text) return false;
+  const indeedConfirmationEnvelope =
+    /\bindeed application:\s*.+/i.test(text) &&
+    /\b(?:application submitted|the following items were sent to|good luck)\b/i.test(text);
   return (
     /\bapplication submitted\b/i.test(text) ||
     /\byour application was sent\b/i.test(text) ||
     /\bthank you for applying\b/i.test(text) ||
     /\bwe (?:have )?received your application\b/i.test(text) ||
-    /\bgood luck(?: with| in)? (?:your )?(?:application|job search|search)?\b/i.test(text)
+    /\bgood luck(?: with| in)? (?:your )?(?:application|job search|search)?\b/i.test(text) ||
+    indeedConfirmationEnvelope
   );
 }
 

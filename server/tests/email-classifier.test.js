@@ -128,6 +128,42 @@ The employer may reach out if they would like to move forward.`
   assert.notEqual(result.detectedType, 'interview_requested');
 });
 
+test("classifyEmail keeps Indeed o'clock confirmation updates as applied", () => {
+  const subject = 'Indeed Application: Sr. Analyst, Business Management';
+  const snippet = "Indeed o'clock Application submitted Sr. Analyst, Business Management";
+  const body = [
+    "Indeed o'clock",
+    'Application submitted',
+    'Sr. Analyst, Business Management',
+    'company logo',
+    'Valley National Bank - New Jersey United States',
+    'star rating 3.2 602 reviews',
+    'The following items were sent to Valley National Bank. Good luck!',
+    '• Application',
+    '• Resume',
+    'Next steps',
+    '• The employer or job advertiser may reach out to you about your application.'
+  ].join('\n');
+
+  const relevance = isRelevantApplicationEmail({
+    subject,
+    snippet,
+    body,
+    sender: 'indeedapply@indeed.com'
+  });
+  assert.equal(relevance.isRelevant, true);
+
+  const result = classifyEmail({
+    subject,
+    snippet,
+    body,
+    sender: 'indeedapply@indeed.com'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'confirmation');
+  assert.notEqual(result.detectedType, 'interview_requested');
+});
+
 test('isRelevantApplicationEmail ignores job-alert digests with multiple listings', () => {
   const relevance = isRelevantApplicationEmail({
     subject: '12 new jobs for you in New York',
