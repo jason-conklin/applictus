@@ -218,7 +218,8 @@ const RESERVED_INBOX_USERNAMES = new Set([
 
 const ADMIN_EMAIL_ALLOWLIST = new Set([
   'jasonconklin.dev@gmail.com',
-  'shaneconklin14@gmail.com'
+  'shaneconklin14@gmail.com',
+  'mconklin246@gmail.com'
 ]);
 const ADMIN_METRIC_LABELS = {
   tracked_emails: 'Tracked emails',
@@ -470,6 +471,8 @@ const contactSuccess = document.getElementById('contact-success');
 const accountPlanName = document.getElementById('account-plan-name');
 const accountPlanUsage = document.getElementById('account-plan-usage');
 const accountPlanProgress = document.getElementById('account-plan-progress');
+const accountPlanMarker = document.getElementById('account-plan-marker');
+const accountPlanPercent = document.getElementById('account-plan-percent');
 const accountPlanWarning = document.getElementById('account-plan-warning');
 const accountUpgradeButton = document.getElementById('account-upgrade-button');
 const accountPlanDetails = document.getElementById('account-plan-details');
@@ -4171,6 +4174,20 @@ function getPlanLimitForUser(user = sessionUser) {
   return PLAN_LIMITS[tier] || PLAN_LIMITS.free;
 }
 
+function renderPlanProgressMarker(usage = 0, limit = 0) {
+  if (!accountPlanMarker || !accountPlanPercent) {
+    return;
+  }
+  const safeLimit = Number(limit) > 0 ? Number(limit) : 0;
+  const safeUsage = Number(usage) > 0 ? Number(usage) : 0;
+  const ratio = safeLimit > 0 ? Math.min(1, safeUsage / safeLimit) : 0;
+  const percent = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+  accountPlanMarker.style.left = `${percent}%`;
+  accountPlanMarker.classList.toggle('is-start', percent <= 5);
+  accountPlanMarker.classList.toggle('is-end', percent >= 95);
+  accountPlanPercent.textContent = `${percent}%`;
+}
+
 function getPlanUsageSnapshot(user = sessionUser) {
   const source = planState || user;
   if (!source) {
@@ -4260,6 +4277,7 @@ function renderPlanUsage(user = sessionUser) {
     accountPlanName.textContent = 'Free';
     accountPlanUsage.textContent = '—';
     accountPlanProgress.style.width = '0%';
+    renderPlanProgressMarker(0, 1);
     if (accountPlanWarning) {
       accountPlanWarning.textContent = '';
       accountPlanWarning.classList.remove('plan-warning--near', 'plan-warning--at');
@@ -4274,6 +4292,7 @@ function renderPlanUsage(user = sessionUser) {
   accountPlanUsage.textContent = `${usage} / ${limit} tracked emails this month`;
   const ratio = limit > 0 ? Math.min(1, usage / limit) : 0;
   accountPlanProgress.style.width = `${Math.round(ratio * 100)}%`;
+  renderPlanProgressMarker(usage, limit);
   if (accountPlanWarning) {
     accountPlanWarning.textContent = trigger?.message || '';
     accountPlanWarning.classList.toggle('plan-warning--near', trigger?.level === 'near');

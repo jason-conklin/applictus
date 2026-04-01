@@ -162,13 +162,50 @@
         background: rgba(17, 50, 96, 0.12);
         border-radius: 999px;
         overflow: hidden;
-        margin: 10px 0 8px;
+        margin: 10px 0 0;
       }
       .plan-progress-bar {
         height: 100%;
         width: 0%;
         background: linear-gradient(90deg, #2a5ea8 0%, #1f4d8f 100%);
         transition: width 220ms ease;
+      }
+      .plan-progress-marker-row {
+        position: relative;
+        height: 24px;
+        margin-top: 6px;
+      }
+      .plan-progress-marker {
+        position: absolute;
+        top: 0;
+        left: 0;
+        display: grid;
+        justify-items: center;
+        gap: 4px;
+        transform: translateX(-50%);
+        transition: left 220ms ease, transform 220ms ease;
+      }
+      .plan-progress-marker.is-start {
+        transform: translateX(0);
+        justify-items: start;
+      }
+      .plan-progress-marker.is-end {
+        transform: translateX(-100%);
+        justify-items: end;
+      }
+      .plan-progress-marker-tick {
+        width: 1px;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(21, 52, 96, 0.54);
+      }
+      .plan-progress-marker-label {
+        font-size: 11px;
+        line-height: 1;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        color: #466188;
+        white-space: nowrap;
       }
       .plan-warning {
         min-height: 20px;
@@ -842,6 +879,12 @@
               </div>
               <div class="plan-progress" aria-hidden="true">
                 <div class="plan-progress-bar" id="account-plan-progress"></div>
+              </div>
+              <div class="plan-progress-marker-row" aria-hidden="true">
+                <div class="plan-progress-marker is-start" id="account-plan-marker">
+                  <span class="plan-progress-marker-tick"></span>
+                  <span class="plan-progress-marker-label" id="account-plan-percent">0%</span>
+                </div>
               </div>
               <div class="plan-warning muted small" id="account-plan-warning"></div>
               <div class="plan-actions">
