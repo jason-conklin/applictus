@@ -8719,7 +8719,7 @@ body.home-page .home-billboard-inner {
 body.home-page .hero-banner {
   display: grid;
   place-items: center;
-  width: clamp(266px, 48vw, 680px);
+  width: clamp(282px, 51vw, 740px);
   position: relative;
   user-select: none;
   -webkit-user-select: none;
@@ -8882,8 +8882,8 @@ body.home-page .home-billboard-cta {
 }
 
 body.home-page .home-billboard-cta .btn-primary {
-  min-height: clamp(50px, 5.4vw, 64px);
-  min-width: clamp(192px, 16.8vw, 286px);
+  min-height: clamp(49px, 5.25vw, 62px);
+  min-width: clamp(188px, 16.4vw, 280px);
   box-shadow:
     0 24px 44px rgba(13, 41, 88, 0.38),
     0 10px 20px rgba(12, 36, 78, 0.22),
@@ -8892,8 +8892,8 @@ body.home-page .home-billboard-cta .btn-primary {
 }
 
 body.home-page .home-billboard-cta .btn-secondary {
-  min-height: clamp(48px, 5.15vw, 58px);
-  min-width: clamp(178px, 15.4vw, 258px);
+  min-height: clamp(47px, 5vw, 56px);
+  min-width: clamp(174px, 15.1vw, 252px);
   color: rgba(18, 51, 95, 0.9);
   border-color: rgba(21, 58, 112, 0.14);
   background:
@@ -9034,11 +9034,11 @@ body.home-page .home-hero-platforms__note {
 }
 
 body.home-page .btn-bevel {
-  min-height: clamp(52px, 5.65vw, 64px);
-  min-width: clamp(176px, 16.1vw, 278px);
-  padding: clamp(0.9rem, 1.38vw, 1.14rem) clamp(1.4rem, 2.15vw, 2.2rem);
+  min-height: clamp(50px, 5.45vw, 62px);
+  min-width: clamp(172px, 15.8vw, 272px);
+  padding: clamp(0.86rem, 1.32vw, 1.1rem) clamp(1.34rem, 2.08vw, 2.14rem);
   border-radius: 999px;
-  font-size: clamp(1.05rem, 1.22vw, 1.24rem);
+  font-size: clamp(1.02rem, 1.18vw, 1.2rem);
   font-weight: 700;
   letter-spacing: 0.01em;
 }
@@ -9291,7 +9291,7 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms {
   }
 
   body.home-page .hero-banner {
-    width: clamp(248px, 43.5vw, 620px);
+    width: clamp(264px, 46vw, 660px);
   }
 
   body.home-page .hero-value__title {
@@ -9353,7 +9353,7 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms {
   }
 
   body.home-page .hero-banner {
-    width: clamp(232px, 37vw, 530px);
+    width: clamp(246px, 39vw, 560px);
   }
 
   body.home-page .hero-value__title {
@@ -9372,8 +9372,8 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms {
   }
 
   body.home-page .btn-bevel {
-    min-height: 50px;
-    min-width: clamp(154px, 13.5vw, 214px);
+    min-height: 49px;
+    min-width: clamp(152px, 13.2vw, 210px);
   }
 
   body.home-page .home-hero-trust {
@@ -9435,7 +9435,7 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms {
   }
 
   body.home-page .hero-banner {
-    width: min(680px, 86vw);
+    width: min(730px, 90vw);
   }
 
   body.home-page .hero-value {
