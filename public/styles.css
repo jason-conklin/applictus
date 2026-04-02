@@ -6229,7 +6229,7 @@ details summary {
 .account-section-title {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   line-height: 1.2;
 }
 
@@ -6237,10 +6237,10 @@ details summary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
-  border-radius: 7px;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 8px;
   border: 1px solid rgba(34, 74, 133, 0.2);
   background: linear-gradient(180deg, rgba(237, 244, 255, 0.92), rgba(228, 238, 252, 0.82));
   color: #28508a;
@@ -6248,8 +6248,8 @@ details summary {
 }
 
 .account-section-icon svg {
-  width: 14px;
-  height: 14px;
+  width: 17px;
+  height: 17px;
   stroke: currentColor;
   fill: none;
   stroke-width: 1.9;
