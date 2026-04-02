@@ -76,16 +76,18 @@ const PROVIDERS = [
       if (sender === 'indeedapply@indeed.com') {
         return buildDetection(this.id, true, 'indeed apply sender');
       }
+      const senderLooksIndeed = sender.includes('indeed');
+      const domainLooksIndeed = domain.includes('indeed');
       if (
-        domain.endsWith('indeed.com') &&
+        (domainLooksIndeed || senderLooksIndeed) &&
         (
           /indeed application:/i.test(subj) ||
-          /application submitted|thank you for applying|application update|interview|not moving forward|regret to inform/i.test(
+          /application submitted|thank you for applying|application update|the following items were sent to|interview|not moving forward|regret to inform/i.test(
             `${subj}\n${body}`
           )
         )
       ) {
-        return buildDetection(this.id, true, 'indeed domain + lifecycle signal');
+        return buildDetection(this.id, true, 'indeed sender/domain + lifecycle signal');
       }
       return null;
     }

@@ -58,6 +58,15 @@ test('detectProvider identifies indeed apply and workday', () => {
   });
   assert.equal(indeedLifecycle.providerId, 'indeed_apply');
 
+  const indeedEmailDomainVariant = detectProvider({
+    fromEmail: 'noreply@indeedemail.com',
+    fromDomain: 'indeedemail.com',
+    subject: "Indeed Application: Sr. Analyst, Business Management Indeed o'clock Application submitted",
+    text:
+      'The following items were sent to Valley National Bank. Good luck! The employer or job advertiser may reach out to you about your application.'
+  });
+  assert.equal(indeedEmailDomainVariant.providerId, 'indeed_apply');
+
   const workday = detectProvider({
     fromEmail: 'noreply@myworkday.com',
     fromDomain: 'myworkday.com',

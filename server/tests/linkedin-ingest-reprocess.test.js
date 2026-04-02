@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  isIndeedApplicationConfirmationEnvelope,
   isIndeedDuplicateReprocessCandidate,
   isDuplicateReprocessCandidate,
   isLinkedInDuplicateReprocessCandidate,
@@ -104,4 +105,14 @@ test('generic duplicate reprocess candidate includes recoverable Indeed confirma
     role_title: "Indeed o'clock Application submitted"
   });
   assert.equal(shouldReprocess, true);
+});
+
+test('Indeed confirmation envelope recognizes non-indeed.com sender variants when subject/body are clear', () => {
+  const isIndeed = isIndeedApplicationConfirmationEnvelope({
+    sender: 'Indeed <noreply@indeedemail.com>',
+    subject: "Indeed Application: Sr. Analyst, Business Management Indeed o'clock Application submitted",
+    snippet: 'The following items were sent to Valley National Bank. Good luck!',
+    body: 'The employer or job advertiser may reach out to you about your application.'
+  });
+  assert.equal(isIndeed, true);
 });

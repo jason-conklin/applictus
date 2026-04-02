@@ -3782,7 +3782,7 @@ app.post('/api/email/sync', requireAuth, async (req, res) => {
 
     const mode = req.body?.mode === 'days' ? 'days' : 'since_last';
     const days = clampNumber(Number(req.body?.days) || 30, 1, 365);
-    const maxResults = clampNumber(Number(req.body?.max_results) || 100, 1, 500);
+    const maxResults = clampNumber(Number(req.body?.max_results) || 500, 1, 500);
     const syncId = req.body?.sync_id ? String(req.body.sync_id) : null;
 
     const result = await syncGmailMessages({

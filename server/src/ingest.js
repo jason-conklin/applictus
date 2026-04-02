@@ -711,11 +711,12 @@ function isIndeedApplicationConfirmationEnvelope({ sender, subject, snippet, bod
   const senderText = String(sender || '').toLowerCase();
   const subjectText = String(subject || '');
   const source = `${subject || ''}\n${snippet || ''}\n${body || ''}`;
-  const fromIndeed = /indeedapply@indeed\.com/i.test(senderText) || /@indeed\.com\b/i.test(senderText);
-  if (!fromIndeed) {
+  const senderLooksIndeed =
+    /\bindeed\b/i.test(senderText) || /@[^@\s>]*indeed[^@\s>]*\.[a-z]{2,}/i.test(senderText);
+  const hasIndeedSubject = /\bindeed application:\s*.+/i.test(subjectText);
+  if (!senderLooksIndeed && !hasIndeedSubject) {
     return false;
   }
-  const hasIndeedSubject = /\bindeed application:\s*.+/i.test(subjectText);
   const hasConfirmationCue =
     /\bapplication submitted\b/i.test(source) ||
     /\bthe following items were sent to\b/i.test(source) ||
@@ -2113,6 +2114,9 @@ async function syncGmailMessages({
     }
 
     pageToken = list.data.nextPageToken;
+    if (fetched >= limit && pageToken) {
+      stoppedReason = 'result_limit_reached';
+    }
   } while (pageToken && fetched < limit);
 
   try {
