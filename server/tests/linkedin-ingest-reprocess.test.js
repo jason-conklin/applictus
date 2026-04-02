@@ -116,3 +116,31 @@ test('Indeed confirmation envelope recognizes non-indeed.com sender variants whe
   });
   assert.equal(isIndeed, true);
 });
+
+test('generic duplicate reprocess candidate includes recoverable generic Indeed lifecycle subjects', () => {
+  const shouldReprocess = isDuplicateReprocessCandidate({
+    id: 'evt-indeed-4',
+    sender: 'Indeed <noreply@indeedemail.com>',
+    subject: 'Application Update',
+    snippet: 'Your application status has changed',
+    detected_type: 'other_job_related',
+    reason_code: 'not_relevant',
+    ingest_decision: 'unsorted',
+    role_title: 'unknown role'
+  });
+  assert.equal(shouldReprocess, true);
+});
+
+test('generic duplicate reprocess candidate does not pull in Indeed job-alert digests', () => {
+  const shouldReprocess = isDuplicateReprocessCandidate({
+    id: 'evt-indeed-5',
+    sender: 'Indeed <alerts@indeed.com>',
+    subject: 'Job Alert: New jobs in New Jersey',
+    snippet: 'Recommended jobs for you based on your search',
+    detected_type: 'other_job_related',
+    reason_code: 'not_relevant',
+    ingest_decision: 'unsorted',
+    role_title: 'unknown role'
+  });
+  assert.equal(shouldReprocess, false);
+});

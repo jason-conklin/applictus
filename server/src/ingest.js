@@ -218,7 +218,7 @@ function buildGmailSyncQuery({ afterSeconds, beforeSeconds }) {
   const safeBefore = Number.isFinite(beforeSeconds)
     ? Math.max(safeAfter + 1, Math.ceil(beforeSeconds))
     : safeAfter + 1;
-  return `in:inbox -from:me -in:sent after:${safeAfter} before:${safeBefore}`;
+  return `in:anywhere -in:trash -in:spam -from:me -in:sent after:${safeAfter} before:${safeBefore}`;
 }
 
 function applyHighSignalFallbackIdentity({
@@ -776,13 +776,24 @@ function isIndeedDuplicateReprocessCandidate(existingEvent) {
   if (!existingEvent || !existingEvent.id) {
     return false;
   }
+  const senderText = String(existingEvent.sender || '').toLowerCase();
+  const subjectText = String(existingEvent.subject || '');
+  const snippetText = String(existingEvent.snippet || '');
+  const senderLooksIndeed =
+    /\bindeed\b/i.test(senderText) || /@[^@\s>]*indeed[^@\s>]*\.[a-z]{2,}/i.test(senderText);
+  const looksLikeIndeedLifecycleSubject =
+    /\bindeed application:\s*.+/i.test(subjectText) || /\bapplication update\b/i.test(subjectText);
+  const likelyAlertEnvelope =
+    /\b(job alert|recommended jobs?|jobs? for you|new jobs? in|based on your search|view more jobs)\b/i.test(
+      `${subjectText}\n${snippetText}`
+    );
   const looksLikeIndeedConfirmation = isIndeedApplicationConfirmationEnvelope({
-    sender: existingEvent.sender || '',
-    subject: existingEvent.subject || '',
-    snippet: existingEvent.snippet || '',
+    sender: senderText,
+    subject: subjectText,
+    snippet: snippetText,
     body: ''
   });
-  if (!looksLikeIndeedConfirmation) {
+  if (!looksLikeIndeedConfirmation && !(senderLooksIndeed && looksLikeIndeedLifecycleSubject && !likelyAlertEnvelope)) {
     return false;
   }
 
@@ -1122,11 +1133,12 @@ async function syncGmailMessages({
     mode,
     days: queryDays,
     maxResults,
+    gmailQuery,
     syncId,
     timeWindowStart: safeWindowStart.toISOString(),
     timeWindowEnd: safeWindowEnd.toISOString()
   });
-  const limit = Math.max(1, Math.min(maxResults, 500));
+  const limit = Math.max(1, Math.min(maxResults, 2000));
 
   setSyncProgress(syncId, {
     status: 'running',

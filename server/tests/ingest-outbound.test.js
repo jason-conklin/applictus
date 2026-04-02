@@ -39,7 +39,9 @@ test('buildGmailSyncQuery enforces inbound-only exclusions', () => {
     afterSeconds: 1700000000,
     beforeSeconds: 1700003600
   });
-  assert.match(query, /\bin:inbox\b/);
+  assert.match(query, /\bin:anywhere\b/);
+  assert.match(query, /-in:trash/);
+  assert.match(query, /-in:spam/);
   assert.match(query, /-from:me/);
   assert.match(query, /-in:sent/);
   assert.match(query, /after:1700000000/);
@@ -103,7 +105,9 @@ test('syncGmailMessages ignores outbound sent replies and creates no application
     authenticatedUserEmailOverride: 'jasonconklin.dev@gmail.com'
   });
 
-  assert.match(String(listedQuery || ''), /\bin:inbox\b/);
+  assert.match(String(listedQuery || ''), /\bin:anywhere\b/);
+  assert.match(String(listedQuery || ''), /-in:trash/);
+  assert.match(String(listedQuery || ''), /-in:spam/);
   assert.match(String(listedQuery || ''), /-from:me/);
   assert.match(String(listedQuery || ''), /-in:sent/);
   assert.equal(result.status, 'ok');
