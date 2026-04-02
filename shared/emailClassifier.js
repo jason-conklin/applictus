@@ -48,11 +48,25 @@ const NEWSLETTER_INTERVIEW_BLOCK_PATTERNS = [
 
 const RELEVANCE_KEEP_SIGNALS = [
   { pattern: /\bindeed application:\s*.+/i, label: 'indeed_application_subject' },
+  { pattern: /\bjobs applied to on\s+\d{1,2}\/\d{1,2}\/\d{2,4}\b/i, label: 'jobs_applied_to_subject' },
+  { pattern: /\bid[:#]?\s*[A-Z0-9-]{3,}\s*[-–—]\s*[A-Za-z]/i, label: 'job_id_title_line' },
   { pattern: /\bapplication submitted\b/i, label: 'application_submitted' },
   { pattern: /\byour application was sent\b/i, label: 'application_was_sent' },
   { pattern: /\bthank you for applying\b/i, label: 'thank_you_for_applying' },
+  { pattern: /\bthanks for applying\b/i, label: 'thanks_for_applying' },
   { pattern: /\bthank you for your application\b/i, label: 'thank_you_for_your_application' },
+  {
+    pattern: /\bthank you for inquiring about employment opportunities\b/i,
+    label: 'thank_you_inquiring_employment_opportunities'
+  },
   { pattern: /\bwe (?:have )?received your application\b/i, label: 'received_application' },
+  { pattern: /\bwe are currently reviewing your resume\b/i, label: 'reviewing_resume' },
+  { pattern: /\bevaluating your professional credentials\b/i, label: 'evaluating_credentials' },
+  {
+    pattern: /\bif there is a match between our requirements and your experience\b/i,
+    label: 'requirements_experience_match'
+  },
+  { pattern: /\bwe wish you the best in your employment search\b/i, label: 'employment_search_wish' },
   { pattern: /\bthe following items were sent to\b/i, label: 'items_sent_to_employer' },
   { pattern: /\bapplication (?:received|update)\b/i, label: 'application_update' },
   { pattern: /\bwe (?:will not|are not) moving forward\b/i, label: 'moving_forward_rejection' },
@@ -231,6 +245,20 @@ const APPLIED_CONFIRMATION_SIGNAL_PATTERNS = [
   { pattern: /\bapplication submitted\b/i, label: 'application_submitted' },
   { pattern: /\byour application was sent\b/i, label: 'application_was_sent' },
   { pattern: /\bwe (?:have )?received your application\b/i, label: 'received_application' },
+  { pattern: /\bthanks for applying\b/i, label: 'thanks_for_applying' },
+  { pattern: /\bjobs applied to on\s+\d{1,2}\/\d{1,2}\/\d{2,4}\b/i, label: 'jobs_applied_to_subject' },
+  { pattern: /\bid[:#]?\s*[A-Z0-9-]{3,}\s*[-–—]\s*[A-Za-z]/i, label: 'job_id_title_line' },
+  {
+    pattern: /\bthank you for inquiring about employment opportunities\b/i,
+    label: 'thank_you_inquiring_employment_opportunities'
+  },
+  { pattern: /\bwe are currently reviewing your resume\b/i, label: 'reviewing_resume' },
+  { pattern: /\bevaluating your professional credentials\b/i, label: 'evaluating_credentials' },
+  {
+    pattern: /\bif there is a match between our requirements and your experience\b/i,
+    label: 'requirements_experience_match'
+  },
+  { pattern: /\bwe wish you the best in your employment search\b/i, label: 'employment_search_wish' },
   { pattern: /\bthe following items were sent to\b/i, label: 'items_sent_to_employer' },
   { pattern: /\bgood luck(?: with| in)? (?:your )?(?:application|job search|search)?\b/i, label: 'good_luck' },
   { pattern: /\bindeed application:\s*.+/i, label: 'indeed_application_subject' },
@@ -335,13 +363,26 @@ function hasAppliedConfirmationSignals(text) {
   const indeedConfirmationEnvelope =
     /\bindeed application:\s*.+/i.test(text) &&
     /\b(?:application submitted|the following items were sent to|good luck)\b/i.test(text);
+  const atsReviewConfirmationEnvelope =
+    /\bjobs applied to on\s+\d{1,2}\/\d{1,2}\/\d{2,4}\b/i.test(text) &&
+    /\bid[:#]?\s*[A-Z0-9-]{3,}\s*[-–—]\s*[A-Za-z]/i.test(text) &&
+    /\b(?:reviewing your resume|evaluating your professional credentials|thank you for inquiring about employment opportunities)\b/i.test(
+      text
+    );
   return (
     /\bapplication submitted\b/i.test(text) ||
     /\byour application was sent\b/i.test(text) ||
     /\bthank you for applying\b/i.test(text) ||
+    /\bthanks for applying\b/i.test(text) ||
     /\bwe (?:have )?received your application\b/i.test(text) ||
+    /\bthank you for inquiring about employment opportunities\b/i.test(text) ||
+    /\bwe are currently reviewing your resume\b/i.test(text) ||
+    /\bevaluating your professional credentials\b/i.test(text) ||
+    /\bif there is a match between our requirements and your experience\b/i.test(text) ||
+    /\bwe wish you the best in your employment search\b/i.test(text) ||
     /\bgood luck(?: with| in)? (?:your )?(?:application|job search|search)?\b/i.test(text) ||
-    indeedConfirmationEnvelope
+    indeedConfirmationEnvelope ||
+    atsReviewConfirmationEnvelope
   );
 }
 
@@ -434,13 +475,17 @@ const RULES = [
       /application (?:received|confirmation)/i,
       /application (?:submitted|submission received)/i,
       /thank you for applying/i,
+      /thank you for inquiring about employment opportunities/i,
       /thank you for your interest in the (?:position|role|opportunity)/i,
       /thank you for your application/i,
       /thanks for applying/i,
       /we (?:have )?received your application/i,
       /we received your application/i,
       /will review your (?:application|resume)/i,
+      /we are currently reviewing your resume/i,
+      /evaluating your professional credentials/i,
       /thank you for applying to/i,
+      /jobs applied to on\s+\d{1,2}\/\d{1,2}\/\d{2,4}/i,
       /your application for the .* position/i,
       /application received/i,
       /an update on your application/i

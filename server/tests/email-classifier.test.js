@@ -164,6 +164,53 @@ test("classifyEmail keeps Indeed o'clock confirmation updates as applied", () =>
   assert.notEqual(result.detectedType, 'interview_requested');
 });
 
+test('classifyEmail keeps Pereless ATS review confirmations as applied and relevant', () => {
+  const subject = 'Jobs Applied to on 04/02/2026';
+  const body = [
+    'ID: 255074 - Front End Web Application Developer',
+    'ID: 110365 - Product Support Specialist / Web Based Software',
+    '',
+    'Dear Jason,',
+    '',
+    'Thank you for inquiring about employment opportunities with Pereless Systems.',
+    'We are currently reviewing your resume and evaluating your professional credentials.',
+    'If there is a match between our requirements and your experience, we will contact you to discuss the position in further detail.',
+    'We wish you the best in your employment search!'
+  ].join('\n');
+
+  const relevance = isRelevantApplicationEmail({
+    subject,
+    body,
+    sender: 'recruiting@pereless.com'
+  });
+  assert.equal(relevance.isRelevant, true);
+  assert.ok(Array.isArray(relevance.matchedKeywords));
+  assert.ok(relevance.matchedKeywords.includes('job_id_title_line'));
+
+  const result = classifyEmail({
+    subject,
+    body,
+    sender: 'recruiting@pereless.com'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'confirmation');
+  assert.notEqual(result.detectedType, 'interview_requested');
+});
+
+test('isRelevantApplicationEmail treats "Thanks for applying" confirmations as relevant', () => {
+  const relevance = isRelevantApplicationEmail({
+    subject: 'Thanks for applying to EarthCam',
+    sender: 'noreply@candidates.workablemail.com',
+    body: [
+      'EarthCam',
+      'Your application for the Jr. Python Developer job was submitted successfully.'
+    ].join('\n')
+  });
+  assert.equal(relevance.isRelevant, true);
+  assert.ok(Array.isArray(relevance.matchedKeywords));
+  assert.ok(relevance.matchedKeywords.includes('thanks_for_applying'));
+});
+
 test('isRelevantApplicationEmail ignores job-alert digests with multiple listings', () => {
   const relevance = isRelevantApplicationEmail({
     subject: '12 new jobs for you in New York',

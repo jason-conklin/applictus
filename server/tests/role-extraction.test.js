@@ -176,3 +176,23 @@ test('extractJobTitle strips role-of prefix in workday-style body text', () => {
 
   assert.equal(result.jobTitle, 'Software Developer');
 });
+
+test('extractJobTitle prefers first ATS ID line role when multiple IDs are present', () => {
+  const result = extractJobTitle({
+    subject: 'Jobs Applied to on 04/02/2026',
+    snippet: '',
+    bodyText: [
+      'ID: 255074 - Front End Web Application Developer',
+      'ID: 110365 - Product Support Specialist / Web Based Software',
+      '',
+      'Thank you for inquiring about employment opportunities with Pereless Systems.',
+      'We are currently reviewing your resume and evaluating your professional credentials.'
+    ].join('\n'),
+    sender: 'recruiting@pereless.com',
+    companyName: 'Pereless Systems'
+  });
+
+  assert.equal(result.jobTitle, 'Front End Web Application Developer');
+  assert.ok(result.confidence >= 0.9);
+  assert.equal(result.source, 'body');
+});

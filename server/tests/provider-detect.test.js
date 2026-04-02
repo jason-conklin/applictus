@@ -41,6 +41,17 @@ test('detectProvider identifies workable confirmations', () => {
   assert.equal(detected.providerId, 'workable_candidates');
 });
 
+test('detectProvider identifies monster confirmation emails', () => {
+  const detected = detectProvider({
+    fromEmail: 'no-reply@ses.monster.com',
+    fromDomain: 'ses.monster.com',
+    subject: 'Application confirmation',
+    text:
+      'Congratulations! Synergistic it has received your application for Junior Java developer/Entry level Data Scientist/AI engineer in New York, NY'
+  });
+  assert.equal(detected.providerId, 'monster');
+});
+
 test('detectProvider identifies indeed apply and workday', () => {
   const indeed = detectProvider({
     fromEmail: 'indeedapply@indeed.com',

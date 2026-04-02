@@ -8,6 +8,7 @@ const { detectStatusSignal } = require('./parsers/common');
 const linkedinParser = require('./parsers/linkedin_jobs');
 const workableParser = require('./parsers/workable_candidates');
 const indeedParser = require('./parsers/indeed_apply');
+const monsterParser = require('./parsers/monster');
 const workdayParser = require('./parsers/workday');
 const greenhouseParser = require('./parsers/greenhouse');
 const leverParser = require('./parsers/lever');
@@ -19,6 +20,7 @@ const PARSER_MAP = {
   linkedin_jobs: linkedinParser,
   workable_candidates: workableParser,
   indeed_apply: indeedParser,
+  monster: monsterParser,
   workday: workdayParser,
   greenhouse: greenhouseParser,
   lever: leverParser,
@@ -72,10 +74,32 @@ function parseGeneric({ subject, text }) {
   }
 
   if (!roleRaw) {
+    const idLineRoleMatch = body.match(
+      /\bID[:#]?\s*[A-Z0-9-]{3,}\s*[-–—]\s*([^\n\r]+?)(?=\s*(?:\r?\n|$))/i
+    );
+    if (idLineRoleMatch && idLineRoleMatch[1]) {
+      roleRaw = idLineRoleMatch[1].trim().replace(/[.!,;:]+$/g, '');
+      candidates.role.push(roleRaw);
+      notes.push('role_phrase:id_line');
+    }
+  }
+
+  if (!roleRaw) {
     const roleOfMatch = body.match(/(?:thank you for applying for the role of|role of)\s+(.+?)(?:[\n.]|$)/i);
     if (roleOfMatch && roleOfMatch[1]) {
       roleRaw = roleOfMatch[1].trim();
       candidates.role.push(roleRaw);
+    }
+  }
+
+  if (!roleRaw) {
+    const receivedRoleMatch = body.match(
+      /(?:it\s+)?has received your application for\s+(.+?)(?:\s+in\s+[A-Z][A-Za-z .'-]+,\s*[A-Z]{2}\b|[.\n]|$)/i
+    );
+    if (receivedRoleMatch && receivedRoleMatch[1]) {
+      roleRaw = receivedRoleMatch[1].trim().replace(/[.!,;:]+$/g, '');
+      candidates.role.push(roleRaw);
+      notes.push('role_phrase:has_received_application_for');
     }
   }
 
@@ -87,6 +111,17 @@ function parseGeneric({ subject, text }) {
     }
   }
 
+  if (!companyRaw) {
+    const receivedCompanyMatch = body.match(
+      /(?:^|[.!?]\s+)(?:congratulations!?\s*)?([A-Z][A-Za-z0-9&.' -]{1,80}?)\s+(?:it\s+)?has received your application for\b/i
+    );
+    if (receivedCompanyMatch && receivedCompanyMatch[1]) {
+      companyRaw = receivedCompanyMatch[1].trim();
+      candidates.company.push(companyRaw);
+      notes.push('company_phrase:has_received_application_for');
+    }
+  }
+
   // Phrase-based company extraction for rejection-style emails
   if (!companyRaw) {
     const interestMatch = body.match(/interest in (?:employment with|employment at|joining|with)\s+([A-Z][A-Za-z0-9&.' -]{1,80})(?=[.,\n]|$)/i);
@@ -94,6 +129,17 @@ function parseGeneric({ subject, text }) {
       companyRaw = interestMatch[1].trim();
       candidates.company.push(companyRaw);
       notes.push('company_phrase:interest_in_employment');
+    }
+  }
+
+  if (!companyRaw) {
+    const opportunitiesMatch = body.match(
+      /inquiring about employment opportunities with\s+([A-Z][A-Za-z0-9&.' -]{1,80})(?=[.,\n]|$)/i
+    );
+    if (opportunitiesMatch && opportunitiesMatch[1]) {
+      companyRaw = opportunitiesMatch[1].trim();
+      candidates.company.push(companyRaw);
+      notes.push('company_phrase:employment_opportunities_with');
     }
   }
 

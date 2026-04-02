@@ -683,8 +683,41 @@ function getExternalReqId(event) {
   if (!event) {
     return null;
   }
-  const value = event.external_req_id ?? event.externalReqId ?? null;
-  return normalizeExternalReqId(value);
+  const explicitValue = event.external_req_id ?? event.externalReqId ?? null;
+  const normalizedExplicit = normalizeExternalReqId(explicitValue);
+  if (normalizedExplicit) {
+    return normalizedExplicit;
+  }
+
+  const text = [
+    event.subject,
+    event.snippet,
+    event.bodyText,
+    event.body_text
+  ]
+    .map((part) => String(part || ''))
+    .join('\n');
+  if (!text.trim()) {
+    return null;
+  }
+  const patterns = [
+    /\bR-\d{4,}\b/i,
+    /\b(?:requisition|req(?:uisition)?)\b\s*(?:id)?[:#\s-]*([A-Z0-9-]{3,})\b/i,
+    /\bjob\s*id[:#\s-]*([A-Z0-9-]{3,})\b/i,
+    /\bid[:#]?\s*([A-Z0-9-]{3,})\s*[-–—]\s*[A-Za-z]/i
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match) {
+      continue;
+    }
+    const raw = match[1] || match[0] || null;
+    const normalized = normalizeExternalReqId(raw);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return null;
 }
 
 function getRoleConfidence(value) {
@@ -1785,6 +1818,7 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
   const STRONG_REJECTION_LIST = Array.isArray(STRONG_REJECTION_PATTERNS) ? STRONG_REJECTION_PATTERNS : [];
   const eventText = buildEventText(event);
   const externalReqId = getExternalReqId(event);
+  const hasExplicitJobIdLine = /\bid[:#]?\s*[A-Z0-9-]{3,}\s*[-–—]\s*[A-Za-z]/i.test(eventText);
   const roleForMatch = identity.jobTitle || event.role_title || null;
   const isConfirmation = event.detected_type === 'confirmation';
   const isRejectionEvent =
@@ -2559,6 +2593,18 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
             });
             continue;
           }
+          if (externalReqId && !candReq && hasExplicitJobIdLine) {
+            const candidateRoleText = app.job_title || app.role || '';
+            if (isWeakRoleText(candidateRoleText) || normalizeDisplayTitle(candidateRoleText) === UNKNOWN_ROLE) {
+              logDebug('matching.confirmation_skip_missing_req_on_candidate', {
+                eventId: event.id,
+                candidateId: app.id,
+                inReq: externalReqId,
+                reason: 'incoming_has_explicit_job_id_candidate_has_no_req_and_weak_role'
+              });
+              continue;
+            }
+          }
           const appRoleRaw = app.job_title || app.role || '';
           const appRoleSlug = normalizeRoleSlug(appRoleRaw);
           const appTokens = roleTokens(appRoleSlug);
@@ -2762,6 +2808,15 @@ async function matchAndAssignEvent({ db, userId, event, identity: providedIdenti
             candidateId: app.id,
             inReq: externalReqId,
             candReq
+          });
+          continue;
+        }
+        if (externalReqId && !candReq && hasExplicitJobIdLine) {
+          logDebug('matching.confirmation_skip_missing_req_on_candidate', {
+            eventId: event.id,
+            candidateId: app.id,
+            inReq: externalReqId,
+            reason: 'incoming_has_explicit_job_id_candidate_has_no_req'
           });
           continue;
         }

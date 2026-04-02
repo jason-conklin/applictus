@@ -209,3 +209,162 @@ test('syncGmailMessages reprocesses previously ignored Indeed confirmation and c
     db.close();
   }
 });
+
+test('syncGmailMessages ingests Pereless ATS confirmations as separate applied applications by job ID', async (t) => {
+  if (!Database) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  let db;
+  try {
+    db = new Database(':memory:');
+  } catch (err) {
+    const message = String(err && err.message ? err.message : err);
+    if (/better-sqlite3|invalid ELF header|SQLITE_NATIVE_(OPEN|LOAD)_FAILED/i.test(message)) {
+      t.skip('better-sqlite3 native module unavailable in this environment');
+      return;
+    }
+    throw err;
+  }
+  runMigrations(db);
+  const userId = insertUser(db);
+  const now = Date.now();
+
+  const messageA = {
+    id: 'msg-pereless-1',
+    rfcMessageId: '<msg-pereless-1@example.com>',
+    subject: 'Jobs Applied to on 04/02/2026',
+    body: [
+      'ID: 110365 - Product Support Specialist / Web Based Software',
+      '',
+      'Dear Jason,',
+      '',
+      'Thank you for inquiring about employment opportunities with Pereless Systems.',
+      'We are currently reviewing your resume and evaluating your professional credentials.',
+      'If there is a match between our requirements and your experience, we will contact you to discuss the position in further detail.',
+      'We wish you the best in your employment search!'
+    ].join('\n')
+  };
+
+  const messageB = {
+    id: 'msg-pereless-2',
+    rfcMessageId: '<msg-pereless-2@example.com>',
+    subject: 'Jobs Applied to on 04/02/2026',
+    body: [
+      'ID: 255074 - Front End Web Application Developer',
+      'ID: 110365 - Product Support Specialist / Web Based Software',
+      '',
+      'Dear Jason,',
+      '',
+      'Thank you for inquiring about employment opportunities with Pereless Systems.',
+      'We are currently reviewing your resume and evaluating your professional credentials.',
+      'If there is a match between our requirements and your experience, we will contact you to discuss the position in further detail.',
+      'We wish you the best in your employment search!'
+    ].join('\n')
+  };
+
+  const byId = new Map([
+    [messageA.id, messageA],
+    [messageB.id, messageB]
+  ]);
+
+  const gmail = {
+    users: {
+      messages: {
+        list: async () => ({
+          data: {
+            messages: [{ id: messageA.id }, { id: messageB.id }],
+            resultSizeEstimate: 2,
+            nextPageToken: null
+          }
+        }),
+        get: async ({ id }) => {
+          const msg = byId.get(String(id));
+          if (!msg) {
+            throw new Error(`Unknown message id ${id}`);
+          }
+          return {
+            data: {
+              id: msg.id,
+              internalDate: String(now),
+              snippet: 'Thank you for inquiring about employment opportunities with Pereless Systems.',
+              labelIds: ['INBOX'],
+              payload: {
+                headers: [
+                  { name: 'From', value: 'Pereless Recruiting <recruiting@pereless.com>' },
+                  { name: 'Subject', value: msg.subject },
+                  { name: 'Message-ID', value: msg.rfcMessageId }
+                ],
+                mimeType: 'text/plain',
+                body: {
+                  data: toBase64Url(msg.body)
+                }
+              }
+            }
+          };
+        }
+      }
+    }
+  };
+
+  const originalLlm = process.env.JOBTRACK_LLM_ENABLED;
+  process.env.JOBTRACK_LLM_ENABLED = '0';
+  try {
+    const result = await syncGmailMessages({
+      db,
+      userId,
+      days: 7,
+      maxResults: 10,
+      mode: 'days',
+      timeWindowStart: new Date(now - 7 * 24 * 60 * 60 * 1000),
+      timeWindowEnd: new Date(now + 60 * 1000),
+      authClientOverride: {},
+      gmailServiceOverride: gmail,
+      authenticatedUserEmailOverride: `user-${userId}@example.com`
+    });
+
+    assert.equal(result.status, 'ok');
+    assert.equal(Number(result.reasons?.not_relevant || 0), 0);
+
+    const events = db
+      .prepare(
+        `SELECT provider_message_id, detected_type, identity_company_name, role_title, external_req_id, ingest_decision, application_id
+         FROM email_events
+         WHERE user_id = ?
+           AND provider = 'gmail'
+         ORDER BY provider_message_id ASC`
+      )
+      .all(userId);
+    assert.equal(events.length, 2);
+    assert.ok(events.every((row) => String(row.detected_type || '').toLowerCase() === 'confirmation'));
+    assert.ok(events.every((row) => String(row.identity_company_name || '').includes('Pereless Systems')));
+    assert.ok(events.every((row) => String(row.external_req_id || '').length > 0));
+    assert.ok(events.every((row) => row.application_id));
+
+    const apps = db
+      .prepare(
+        `SELECT id, company, role, current_status, external_req_id
+         FROM job_applications
+         WHERE user_id = ?
+         ORDER BY created_at ASC`
+      )
+      .all(userId);
+    assert.equal(apps.length, 2);
+    assert.ok(apps.every((row) => String(row.company || '').includes('Pereless Systems')));
+    assert.ok(apps.some((row) => String(row.role || '').includes('Product Support Specialist / Web Based Software')));
+    assert.ok(apps.some((row) => String(row.role || '').includes('Front End Web Application Developer')));
+    assert.deepEqual(
+      apps.map((row) => String(row.external_req_id || '')).sort(),
+      ['110365', '255074']
+    );
+    assert.ok(apps.every((row) => String(row.current_status || '').toUpperCase() === 'APPLIED'));
+  } finally {
+    if (originalLlm === undefined) {
+      delete process.env.JOBTRACK_LLM_ENABLED;
+    } else {
+      process.env.JOBTRACK_LLM_ENABLED = originalLlm;
+    }
+    db.close();
+  }
+});

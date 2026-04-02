@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { extractThreadIdentity, shouldAutoCreate, matchAndAssignEvent } = require('../src/matching');
-const { extractJobTitle, normalizeJobIdentity } = require('../../shared/matching');
+const { extractJobTitle, normalizeJobIdentity, extractExternalReqId } = require('../../shared/matching');
 
 test('extractThreadIdentity requires company, role, and matching domain', () => {
   const identity = extractThreadIdentity({
@@ -193,6 +193,48 @@ test('extractThreadIdentity parses Oracle Cloud confirmation with company and no
   assert.equal(identity.companyName, 'Verisk');
   assert.equal(identity.jobTitle, 'Software Engineer');
   assert.ok(!/@/.test(identity.companyName));
+});
+
+test('extractThreadIdentity parses Pereless ATS review confirmations with ID-line role + company phrase', () => {
+  const subject = 'Jobs Applied to on 04/02/2026';
+  const body = [
+    'ID: 110365 - Product Support Specialist / Web Based Software',
+    '',
+    'Dear Jason,',
+    '',
+    'Thank you for inquiring about employment opportunities with Pereless Systems.',
+    'We are currently reviewing your resume and evaluating your professional credentials.',
+    'If there is a match between our requirements and your experience, we will contact you to discuss the position in further detail.'
+  ].join('\n');
+
+  const identity = extractThreadIdentity({
+    subject,
+    sender: 'recruiting@pereless.com',
+    bodyText: body
+  });
+  assert.equal(identity.companyName, 'Pereless Systems');
+  assert.equal(identity.jobTitle, 'Product Support Specialist / Web Based Software');
+
+  const req = extractExternalReqId({ subject, bodyText: body, snippet: '' });
+  assert.equal(req.externalReqId, '110365');
+});
+
+test('extractThreadIdentity extracts employer company from Monster confirmation sentence', () => {
+  const subject = 'Application confirmation';
+  const body = [
+    'Congratulations!',
+    'Synergistic it has received your application for Junior Java developer/Entry level Data Scientist/AI engineer in New York, NY'
+  ].join('\n');
+
+  const identity = extractThreadIdentity({
+    subject,
+    sender: 'Monster.com <no-reply@ses.monster.com>',
+    bodyText: body
+  });
+
+  assert.equal(identity.companyName, 'Synergistic');
+  assert.notEqual(String(identity.companyName || '').toLowerCase(), 'monster');
+  assert.ok(String(identity.explanation || '').includes('body_has_received_application_for'));
 });
 
 test('extractThreadIdentity parses Oracle Cloud follow-up without sender-email company leak', () => {

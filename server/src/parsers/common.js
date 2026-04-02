@@ -73,10 +73,23 @@ const INTERVIEW_NEGATIVE_PATTERNS = [
 const APPLIED_SIGNAL_PATTERNS = [
   { pattern: /\bthank you for applying\b/i, label: 'thank_you_for_applying' },
   { pattern: /\bthanks for applying\b/i, label: 'thanks_for_applying' },
+  {
+    pattern: /\bthank you for inquiring about employment opportunities\b/i,
+    label: 'thank_you_inquiring_employment_opportunities'
+  },
   { pattern: /\bapplication submitted\b/i, label: 'application_submitted' },
   { pattern: /\byour application was sent\b/i, label: 'application_was_sent' },
   { pattern: /\byour application has been received\b/i, label: 'application_received' },
-  { pattern: /\bwe (?:have )?received your application\b/i, label: 'received_your_application' }
+  { pattern: /\bwe (?:have )?received your application\b/i, label: 'received_your_application' },
+  { pattern: /\bwe are currently reviewing your resume\b/i, label: 'reviewing_resume' },
+  { pattern: /\bevaluating your professional credentials\b/i, label: 'evaluating_credentials' },
+  {
+    pattern: /\bif there is a match between our requirements and your experience\b/i,
+    label: 'requirements_experience_match'
+  },
+  { pattern: /\bwe wish you the best in your employment search\b/i, label: 'employment_search_wish' },
+  { pattern: /\bjobs applied to on\s+\d{1,2}\/\d{1,2}\/\d{2,4}\b/i, label: 'jobs_applied_to_subject' },
+  { pattern: /\bid[:#]?\s*[A-Z0-9-]{3,}\s*[-–—]\s*[A-Za-z]/i, label: 'job_id_title_line' }
 ];
 
 const JOB_CONTEXT_PATTERN =

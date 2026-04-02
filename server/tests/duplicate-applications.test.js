@@ -198,6 +198,134 @@ test('Workday confirmations with different requisitions create separate applicat
   assert.notEqual(eventRows[0].application_id, eventRows[1].application_id);
 });
 
+test('Pereless ATS confirmations with different ID lines create separate applications', async () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+
+  const sender = 'Pereless Recruiting <recruiting@pereless.com>';
+  const subject = 'Jobs Applied to on 04/02/2026';
+
+  const bodyA = [
+    'ID: 110365 - Product Support Specialist / Web Based Software',
+    '',
+    'Dear Jason,',
+    '',
+    'Thank you for inquiring about employment opportunities with Pereless Systems.',
+    'We are currently reviewing your resume and evaluating your professional credentials.',
+    'If there is a match between our requirements and your experience, we will contact you to discuss the position in further detail.',
+    'We wish you the best in your employment search!'
+  ].join('\n');
+  const bodyB = [
+    'ID: 255074 - Front End Web Application Developer',
+    'ID: 110365 - Product Support Specialist / Web Based Software',
+    '',
+    'Dear Jason,',
+    '',
+    'Thank you for inquiring about employment opportunities with Pereless Systems.',
+    'We are currently reviewing your resume and evaluating your professional credentials.',
+    'If there is a match between our requirements and your experience, we will contact you to discuss the position in further detail.',
+    'We wish you the best in your employment search!'
+  ].join('\n');
+
+  const identityA = extractThreadIdentity({ subject, sender, bodyText: bodyA });
+  const identityB = extractThreadIdentity({ subject, sender, bodyText: bodyB });
+  assert.equal(identityA.companyName, 'Pereless Systems');
+  assert.equal(identityB.companyName, 'Pereless Systems');
+
+  const roleA = extractJobTitle({ subject, snippet: '', bodyText: bodyA, sender, companyName: 'Pereless Systems' });
+  const roleB = extractJobTitle({ subject, snippet: '', bodyText: bodyB, sender, companyName: 'Pereless Systems' });
+  assert.equal(roleA.jobTitle, 'Product Support Specialist / Web Based Software');
+  assert.equal(roleB.jobTitle, 'Front End Web Application Developer');
+
+  const reqA = extractExternalReqId({ subject, snippet: '', bodyText: bodyA });
+  const reqB = extractExternalReqId({ subject, snippet: '', bodyText: bodyB });
+  assert.equal(reqA.externalReqId, '110365');
+  assert.equal(reqB.externalReqId, '255074');
+
+  const eventAId = insertEmailEvent(db, {
+    userId,
+    messageId: 'pereless-msg-a',
+    sender,
+    subject,
+    detectedType: 'confirmation',
+    confidenceScore: 0.92,
+    classificationConfidence: 0.92,
+    snippet: 'Thank you for inquiring about employment opportunities with Pereless Systems.',
+    externalReqId: reqA.externalReqId
+  });
+
+  const matchA = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: eventAId,
+      sender,
+      subject,
+      snippet: 'Thank you for inquiring about employment opportunities with Pereless Systems.',
+      detected_type: 'confirmation',
+      confidence_score: 0.92,
+      classification_confidence: 0.92,
+      role_title: roleA.jobTitle,
+      role_confidence: roleA.confidence,
+      role_source: roleA.source,
+      role_explanation: roleA.explanation,
+      external_req_id: reqA.externalReqId,
+      bodyText: bodyA,
+      created_at: new Date().toISOString()
+    },
+    identity: identityA
+  });
+  assert.equal(matchA.action, 'created_application');
+
+  const eventBId = insertEmailEvent(db, {
+    userId,
+    messageId: 'pereless-msg-b',
+    sender,
+    subject,
+    detectedType: 'confirmation',
+    confidenceScore: 0.92,
+    classificationConfidence: 0.92,
+    snippet: 'Thank you for inquiring about employment opportunities with Pereless Systems.',
+    externalReqId: reqB.externalReqId
+  });
+
+  const matchB = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: eventBId,
+      sender,
+      subject,
+      snippet: 'Thank you for inquiring about employment opportunities with Pereless Systems.',
+      detected_type: 'confirmation',
+      confidence_score: 0.92,
+      classification_confidence: 0.92,
+      role_title: roleB.jobTitle,
+      role_confidence: roleB.confidence,
+      role_source: roleB.source,
+      role_explanation: roleB.explanation,
+      external_req_id: reqB.externalReqId,
+      bodyText: bodyB,
+      created_at: new Date().toISOString()
+    },
+    identity: identityB
+  });
+  assert.equal(matchB.action, 'created_application');
+
+  const apps = db
+    .prepare('SELECT external_req_id, role, current_status FROM job_applications WHERE user_id = ? ORDER BY created_at ASC')
+    .all(userId);
+  assert.equal(apps.length, 2);
+  assert.deepEqual(
+    apps.map((row) => String(row.external_req_id || '')).sort(),
+    ['110365', '255074']
+  );
+  assert.ok(apps.some((row) => String(row.role || '').includes('Product Support Specialist')));
+  assert.ok(apps.some((row) => String(row.role || '').includes('Front End Web Application Developer')));
+  assert.ok(apps.every((row) => String(row.current_status || '').toUpperCase() === ApplicationStatus.APPLIED));
+});
+
 test('Workday + corporate confirmations dedupe to one application and ignore greeting company', async () => {
   const db = new Database(':memory:');
   runMigrations(db);

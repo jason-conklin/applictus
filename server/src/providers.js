@@ -93,6 +93,28 @@ const PROVIDERS = [
     }
   },
   {
+    id: 'monster',
+    detect({ fromEmail, fromDomain, subject, text }) {
+      const sender = normalize(fromEmail);
+      const domain = normalize(fromDomain);
+      const subj = String(subject || '');
+      const body = String(text || '');
+      const senderMatch =
+        sender.includes('monster.com') ||
+        domainIncludes(domain, 'monster.com');
+      if (!senderMatch) {
+        return null;
+      }
+      const confirmationPhrase =
+        /has received your application for/i.test(`${subj}\n${body}`) ||
+        /\bcongratulations!?\b/i.test(`${subj}\n${body}`);
+      if (!confirmationPhrase) {
+        return null;
+      }
+      return buildDetection(this.id, true, 'monster sender/domain + confirmation phrase');
+    }
+  },
+  {
     id: 'workday',
     detect({ fromDomain, text }) {
       const domain = normalize(fromDomain);

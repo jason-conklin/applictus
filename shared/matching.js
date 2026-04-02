@@ -17,6 +17,7 @@ const ATS_BASE_DOMAINS = new Set([
   'greenhouse-mail',
   'workable',
   'workablemail',
+  'monster',
   'lever',
   'smartrecruiters',
   'ashbyhq',
@@ -36,6 +37,7 @@ const ATS_SENDER_HINTS = new Set([
   'greenhouse-mail',
   'workable',
   'workablemail',
+  'monster',
   'lever',
   'smartrecruiters',
   'ashbyhq',
@@ -47,6 +49,7 @@ const ATS_SENDER_HINTS = new Set([
 const PROVIDER_DISPLAY_NAMES = new Set([
   'workable',
   'workablemail',
+  'monster',
   'greenhouse',
   'icims',
   'workday',
@@ -233,6 +236,16 @@ const BODY_COMPANY_PATTERNS = [
     name: 'body_applying_to',
     regex: /applying to\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})/i,
     confidence: 0.86
+  },
+  {
+    name: 'body_has_received_application_for',
+    regex: /(?:^|[.!?]\s+)(?:congratulations!?\s*)?([A-Z][A-Za-z0-9&.'\- ]{2,80}?)\s+(?:it\s+)?has received your application for\b/i,
+    confidence: 0.93
+  },
+  {
+    name: 'body_employment_opportunities_with',
+    regex: /(?:inquiring about|interest in)\s+employment opportunities with\s+([A-Z][A-Za-z0-9&/'\- ]{2,80}?)(?=[.,\n]|$)/i,
+    confidence: 0.9
   }
 ];
 
@@ -244,8 +257,13 @@ const EXTERNAL_REQ_PATTERNS = [
   },
   {
     name: 'requisition_id',
-    regex: /\b(?:requisition|req(?:uisition)?)\s*(?:id)?[:#\s-]*([A-Z0-9-]{3,})\b/i,
+    regex: /\b(?:requisition|req(?:uisition)?)\b\s*(?:id)?[:#\s-]*([A-Z0-9-]{3,})\b/i,
     confidence: 0.9
+  },
+  {
+    name: 'id_line_job_id',
+    regex: /\bid[:#]?\s*([A-Z0-9-]{3,})\s*[-–—]\s*[A-Za-z]/i,
+    confidence: 0.92
   },
   {
     name: 'job_id',
@@ -330,6 +348,11 @@ const ROLE_PATTERNS = [
     name: 'your_application_colon_role',
     regex: /your application:\s*(.+)$/i,
     confidence: 0.94
+  },
+  {
+    name: 'id_line_role',
+    regex: /\bid[:#]?\s*[A-Z0-9-]{3,}\s*[-–—]\s*([A-Za-z][A-Za-z0-9/&.'\- ]{2,90}?)(?=\s+\bid[:#]?\s*[A-Z0-9-]{3,}\s*[-–—]|\s+(?:dear|thank you|we are currently|if there is a match|we wish)\b|$)/i,
+    confidence: 0.97
   },
   {
     name: 'recent_job_application_for_role',
@@ -758,6 +781,9 @@ function isInvalidCompanyCandidate(value) {
   if (/^(hi|hello|dear|hey)\b/.test(lower)) {
     return true;
   }
+  if (/^congratulations\b/.test(lower)) {
+    return true;
+  }
   if (/^(thanks|thank you)\b/.test(lower)) {
     return true;
   }
@@ -975,6 +1001,7 @@ function cleanCompanyCandidate(value) {
     .replace(/\b(?:and|&)\s+its\s+affiliates\b/i, '')
     .replace(/\s+(?:inc|inc\.|llc|llc\.|ltd|ltd\.|corp|corp\.|corporation|co|co\.)$/i, '')
     .replace(/\s+for\s+.*$/i, '')
+    .replace(/\s+(?:it\s+)?has received your application(?:\s+for\b.*)?$/i, '')
     .replace(
       /\s+(?:careers|jobs|recruiting|hiring|hiring team|talent acquisition|talent team|hr|human resources|applications?)$/i,
       ''
@@ -1073,6 +1100,13 @@ function extractCompanyFromBodyText(bodyText) {
     if (!candidate) {
       continue;
     }
+    if (
+      /\bhas received your application for\b/i.test(candidate) ||
+      /\bthe following items were sent to\b/i.test(candidate) ||
+      /\bapplication submitted\b/i.test(candidate)
+    ) {
+      continue;
+    }
     candidate = candidate.replace(/\b(?:and|&)\s+its\s+affiliates\b/i, '');
     const teamMatch = candidate.match(
       /^(.+?)\s+(?:recruiting|recruiting team|hiring team|talent acquisition|talent team|careers)$/i
@@ -1134,12 +1168,16 @@ function extractCompanyFromWebsiteSignature(bodyText) {
   return null;
 }
 
-function extractCompanyFromBodyPatterns(bodyText) {
+function extractCompanyFromBodyPatterns(bodyText, options = {}) {
+  const allowBroad = Boolean(options.allowBroad);
   const text = normalize(bodyText);
   if (!text) {
     return null;
   }
   for (const rule of BODY_COMPANY_PATTERNS) {
+    if (!allowBroad && rule.name !== 'body_employment_opportunities_with') {
+      continue;
+    }
     const match = text.match(rule.regex);
     if (!match) {
       continue;
@@ -1681,7 +1719,7 @@ function extractCompanyFromSignatureLines(bodyText) {
         }
       }
     }
-    const atMatch = line.match(/in\s+([A-Z][A-Za-z&.'\- ]{2,80})\b\.?$/i);
+    const atMatch = line.match(/in\s+([A-Z][A-Za-z&.'\-]*(?:\s+[A-Z][A-Za-z&.'\-]*){0,7})\b\.?$/);
     if (atMatch && atMatch[1]) {
       const candidate = cleanCompanyCandidate(atMatch[1]);
       if (candidate) {
@@ -2677,15 +2715,18 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
     bodyTextFiltered && (atsSender || providerSender)
       ? sanitizeCompanyCandidate(extractCompanyFromBodyText(bodyTextFiltered))
       : null;
-  const bodyPatternCompany =
+  const bodyPatternCompanyStrong = bodyTextFiltered
+    ? sanitizeCompanyCandidate(extractCompanyFromBodyPatterns(bodyTextFiltered))
+    : null;
+  const bodyPatternCompanyBroad =
     bodyTextFiltered && (atsSender || providerSender)
-      ? sanitizeCompanyCandidate(extractCompanyFromBodyPatterns(bodyTextFiltered))
+      ? sanitizeCompanyCandidate(extractCompanyFromBodyPatterns(bodyTextFiltered, { allowBroad: true }))
       : null;
   const localPartCompany =
     atsSender || providerSender
       ? sanitizeCompanyCandidate(extractCompanyFromSenderLocalPart(sender, bodyTextFiltered))
       : null;
-  const bodyCompany = bodySignatureCompany || bodyPatternCompany;
+  const bodyCompany = bodySignatureCompany || bodyPatternCompanyStrong || bodyPatternCompanyBroad;
   const domainCompany = companyFromDomain(senderDomain)
     ? sanitizeCompanyCandidate({
         companyName: companyFromDomain(senderDomain),
