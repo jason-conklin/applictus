@@ -194,10 +194,17 @@
         justify-items: end;
       }
       .plan-progress-marker-tick {
-        width: 1px;
-        height: 8px;
-        border-radius: 999px;
-        background: rgba(21, 52, 96, 0.54);
+        width: auto;
+        height: auto;
+        line-height: 1;
+        font-size: 13px;
+        font-weight: 700;
+        color: rgba(21, 52, 96, 0.68);
+      }
+      .plan-progress-marker-tick::before {
+        content: "⮟";
+        display: block;
+        transform: translateY(1px);
       }
       .plan-progress-marker-label {
         font-size: 11px;

@@ -194,10 +194,17 @@
         justify-items: end;
       }
       .plan-progress-marker-tick {
-        width: 1px;
-        height: 8px;
-        border-radius: 999px;
-        background: rgba(21, 52, 96, 0.54);
+        width: auto;
+        height: auto;
+        line-height: 1;
+        font-size: 13px;
+        font-weight: 700;
+        color: rgba(21, 52, 96, 0.68);
+      }
+      .plan-progress-marker-tick::before {
+        content: "⮟";
+        display: block;
+        transform: translateY(1px);
       }
       .plan-progress-marker-label {
         font-size: 11px;
@@ -883,7 +890,7 @@
               <div class="plan-progress-marker-row" aria-hidden="true">
                 <div class="plan-progress-marker is-start" id="account-plan-marker">
                   <span class="plan-progress-marker-tick"></span>
-                  <span class="plan-progress-marker-label" id="account-plan-percent">50%</span>
+                  <span class="plan-progress-marker-label" id="account-plan-percent">0%</span>
                 </div>
               </div>
               <div class="plan-warning muted small" id="account-plan-warning"></div>
