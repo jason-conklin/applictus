@@ -707,6 +707,25 @@ function updateEmailEventRecord(db, eventId, payload) {
   return db.prepare(sql).run(...values);
 }
 
+function isIndeedApplicationConfirmationEnvelope({ sender, subject, snippet, body } = {}) {
+  const senderText = String(sender || '').toLowerCase();
+  const subjectText = String(subject || '');
+  const source = `${subject || ''}\n${snippet || ''}\n${body || ''}`;
+  const fromIndeed = /indeedapply@indeed\.com/i.test(senderText) || /@indeed\.com\b/i.test(senderText);
+  if (!fromIndeed) {
+    return false;
+  }
+  const hasIndeedSubject = /\bindeed application:\s*.+/i.test(subjectText);
+  const hasConfirmationCue =
+    /\bapplication submitted\b/i.test(source) ||
+    /\bthe following items were sent to\b/i.test(source) ||
+    /\bgood luck\b/i.test(source) ||
+    /\b(?:employer|job advertiser) may reach out to you about your application\b/i.test(source);
+  const hasAlertCue =
+    /\b(job alert|recommended jobs?|jobs? for you|new jobs? in|based on your search|view more jobs)\b/i.test(source);
+  return (hasIndeedSubject || hasConfirmationCue) && hasConfirmationCue && !hasAlertCue;
+}
+
 function isLinkedInDuplicateReprocessCandidate(existingEvent) {
   if (!existingEvent || !existingEvent.id) {
     return false;
@@ -750,6 +769,63 @@ function isLinkedInDuplicateReprocessCandidate(existingEvent) {
     return true;
   }
   return detectedType !== 'rejection';
+}
+
+function isIndeedDuplicateReprocessCandidate(existingEvent) {
+  if (!existingEvent || !existingEvent.id) {
+    return false;
+  }
+  const looksLikeIndeedConfirmation = isIndeedApplicationConfirmationEnvelope({
+    sender: existingEvent.sender || '',
+    subject: existingEvent.subject || '',
+    snippet: existingEvent.snippet || '',
+    body: ''
+  });
+  if (!looksLikeIndeedConfirmation) {
+    return false;
+  }
+
+  const detectedType = String(existingEvent.detected_type || '').toLowerCase();
+  const reasonCode = String(existingEvent.reason_code || '').toLowerCase();
+  const ingestDecision = String(existingEvent.ingest_decision || '').toLowerCase();
+  const storedRole = String(existingEvent.role_title || existingEvent.identity_job_title || '').toLowerCase();
+  const malformedRole =
+    !storedRole ||
+    storedRole === 'unknown role' ||
+    /indeed o['’]clock|application submitted|next steps|company logo|indeed application:/i.test(storedRole);
+  const recoverableReason = new Set([
+    'classified_not_job_related',
+    'denylisted',
+    'below_threshold',
+    'not_relevant',
+    'missing_identity',
+    'not_confident_for_create',
+    'low_confidence',
+    'ambiguous_sender',
+    'ambiguous_match',
+    'ambiguous_match_rejection'
+  ]);
+
+  if (!detectedType) {
+    return true;
+  }
+  if (recoverableReason.has(reasonCode)) {
+    return true;
+  }
+  if (detectedType !== 'confirmation') {
+    return true;
+  }
+  if (!existingEvent.application_id && ingestDecision === 'unsorted') {
+    return true;
+  }
+  return malformedRole;
+}
+
+function isDuplicateReprocessCandidate(existingEvent) {
+  return (
+    isLinkedInDuplicateReprocessCandidate(existingEvent) ||
+    isIndeedDuplicateReprocessCandidate(existingEvent)
+  );
 }
 
 function hasLinkedInRejectionPhrase(text) {
@@ -1100,6 +1176,13 @@ async function syncGmailMessages({
           .get(userId, 'gmail', message.id, message.id)
       );
       const shouldReprocessLinkedInDuplicate = isLinkedInDuplicateReprocessCandidate(existingProvider);
+      const shouldReprocessDuplicate = isDuplicateReprocessCandidate(existingProvider);
+      const existingIndeedConfirmationEnvelope = isIndeedApplicationConfirmationEnvelope({
+        sender: existingProvider?.sender || '',
+        subject: existingProvider?.subject || '',
+        snippet: existingProvider?.snippet || '',
+        body: ''
+      });
       if (
         shouldReprocessLinkedInDuplicate &&
         process.env.DEBUG_INGEST_LINKEDIN === '1' &&
@@ -1114,7 +1197,18 @@ async function syncGmailMessages({
           existingDecision: existingProvider.ingest_decision || null
         });
       }
-      if (existingProvider && !shouldReprocessLinkedInDuplicate) {
+      if (shouldReprocessDuplicate && existingIndeedConfirmationEnvelope) {
+        logDebug('ingest.indeed_confirmation_trace', {
+          userId,
+          messageId: message.id,
+          stage: 'duplicate_reprocess_candidate',
+          reason_code: existingProvider?.reason_code || null,
+          ingest_decision: existingProvider?.ingest_decision || null,
+          existing_detected_type: existingProvider?.detected_type || null,
+          existing_role: existingProvider?.role_title || existingProvider?.identity_job_title || null
+        });
+      }
+      if (existingProvider && !shouldReprocessDuplicate) {
         skippedDuplicate += 1;
         reasons.duplicate += 1;
         reasons.duplicate_provider_message_id += 1;
@@ -1132,6 +1226,17 @@ async function syncGmailMessages({
             existingDetectedType: existingProvider.detected_type || null,
             existingReasonCode: existingProvider.reason_code || null,
             existingDecision: existingProvider.ingest_decision || null
+          });
+        }
+        if (existingIndeedConfirmationEnvelope) {
+          logDebug('ingest.indeed_confirmation_trace', {
+            userId,
+            messageId: message.id,
+            stage: 'duplicate_skipped',
+            reason: 'duplicate_provider_message_id',
+            reason_code: existingProvider.reason_code || null,
+            ingest_decision: existingProvider.ingest_decision || null,
+            existing_detected_type: existingProvider.detected_type || null
           });
         }
         logDebug('ingest.skip_duplicate', {
@@ -1205,17 +1310,32 @@ async function syncGmailMessages({
             .prepare('SELECT id FROM email_events WHERE user_id = ? AND provider = ? AND rfc_message_id = ?')
             .get(userId, 'gmail', rfcMessageId)
         );
-        const isSameLinkedInReprocessEvent =
-          shouldReprocessLinkedInDuplicate &&
+        const isSameReprocessEvent =
+          shouldReprocessDuplicate &&
           existingProvider &&
           existingRfc &&
           String(existingRfc.id) === String(existingProvider.id);
-        if (existingRfc && !isSameLinkedInReprocessEvent) {
+        if (existingRfc && !isSameReprocessEvent) {
           skippedDuplicate += 1;
           reasons.duplicate += 1;
           reasons.duplicate_rfc_message_id += 1;
           skippedDuplicatesRfc += 1;
           fetched += 1;
+          if (
+            isIndeedApplicationConfirmationEnvelope({
+              sender,
+              subject,
+              snippet,
+              body: bodyText
+            })
+          ) {
+            logDebug('ingest.indeed_confirmation_trace', {
+              userId,
+              messageId: message.id,
+              stage: 'duplicate_rfc_skipped',
+              reason: 'duplicate_rfc_message_id'
+            });
+          }
           logDebug('ingest.skip_duplicate', {
             userId,
             messageId: message.id,
@@ -1240,6 +1360,29 @@ async function syncGmailMessages({
           fetchedAttachmentBodies: shouldFetchLinkedInAttachments
         });
       }
+      const indeedConfirmationTrace = isIndeedApplicationConfirmationEnvelope({
+        sender,
+        subject,
+        snippet,
+        body: bodyText
+      });
+      if (indeedConfirmationTrace) {
+        logDebug('ingest.indeed_confirmation_trace', {
+          userId,
+          messageId: message.id,
+          stage: 'retrieved',
+          sender: sender || null,
+          normalized_subject: String(subject || '').replace(/\s+/g, ' ').trim() || null
+        });
+        logDebug('ingest.indeed_confirmation_trace', {
+          userId,
+          messageId: message.id,
+          stage: 'dedupe_decision',
+          existing_event_id: existingProvider?.id || null,
+          reprocess_duplicate: Boolean(shouldReprocessDuplicate),
+          decision: shouldReprocessDuplicate ? 'reprocess_existing' : 'process_as_new'
+        });
+      }
       const relevanceDecision = isRelevantApplicationEmail({
         subject,
         snippet,
@@ -1254,6 +1397,17 @@ async function syncGmailMessages({
         rejected_keywords: relevanceDecision.rejectedKeywords || [],
         reason: relevanceDecision.reason || null
       });
+      if (indeedConfirmationTrace) {
+        logDebug('ingest.indeed_confirmation_trace', {
+          userId,
+          messageId: message.id,
+          stage: 'relevance',
+          relevance_decision: relevanceDecision.isRelevant ? 'relevant' : 'ignored',
+          matched_keywords: relevanceDecision.matchedKeywords || [],
+          rejected_keywords: relevanceDecision.rejectedKeywords || [],
+          reason: relevanceDecision.reason || null
+        });
+      }
       if (!relevanceDecision.isRelevant) {
         skippedNotJob += 1;
         reasons.not_relevant += 1;
@@ -1273,6 +1427,13 @@ async function syncGmailMessages({
           matchedKeywords: relevanceDecision.matchedKeywords || [],
           rejectedKeywords: relevanceDecision.rejectedKeywords || []
         });
+        if (indeedConfirmationTrace) {
+          logDebug('ingest.indeed_confirmation_trace', {
+            userId,
+            messageId: message.id,
+            stage: 'skipped_not_relevant'
+          });
+        }
         continue;
       }
       const classification = classifyEmail({
@@ -1294,6 +1455,18 @@ async function syncGmailMessages({
         final_status: classificationDetails.final_status,
         detected_type: classificationDetails.detected_type
       });
+      if (indeedConfirmationTrace) {
+        logDebug('ingest.indeed_confirmation_trace', {
+          userId,
+          messageId: message.id,
+          stage: 'classification',
+          classification_reason: classificationDetails.classification_reason,
+          matched_keywords: classificationDetails.matched_keywords,
+          rejected_keywords: classificationDetails.rejected_keywords,
+          final_status: classificationDetails.final_status,
+          detected_type: classificationDetails.detected_type
+        });
+      }
       if (
         process.env.DEBUG_INGEST_LINKEDIN === '1' &&
         linkedInJobsUpdate &&
@@ -1344,6 +1517,20 @@ async function syncGmailMessages({
         parsedDetectedType &&
         Number(parseConfidence.status || 0) >= PARSE_CONFIDENCE_THRESHOLDS.status &&
         (parsedEmail?.company || parsedEmail?.role);
+      if (indeedConfirmationTrace) {
+        logDebug('ingest.indeed_confirmation_trace', {
+          userId,
+          messageId: message.id,
+          stage: 'parser',
+          provider_detected: parsedEmail?.providerId || null,
+          parser_chosen: parsedEmail?.providerId || null,
+          derived_company: parsedEmail?.company || null,
+          derived_role: parsedEmail?.role || null,
+          parser_status: parsedEmail?.status || null,
+          company_source: parsedEmail?.parserDebug?.company_source || null,
+          role_source: parsedEmail?.parserDebug?.role_source || null
+        });
+      }
 
       if (!classification.isJobRelated && !parserHasHighSignal) {
         skippedNotJob += 1;
@@ -1388,6 +1575,14 @@ async function syncGmailMessages({
           messageId: message.id,
           explanation: classification.explanation
         });
+        if (indeedConfirmationTrace) {
+          logDebug('ingest.indeed_confirmation_trace', {
+            userId,
+            messageId: message.id,
+            stage: 'skipped_not_job_related',
+            reason_code: reasonCode
+          });
+        }
         continue;
       }
       jobRelatedCandidates += 1;
@@ -1401,7 +1596,7 @@ async function syncGmailMessages({
       const usageResult = applyTrackedEmailUsage(db, {
         userId,
         isJobRelated: true,
-        newEvent: !shouldReprocessLinkedInDuplicate
+        newEvent: !shouldReprocessDuplicate
       });
 
       if (!usageResult.allowed) {
@@ -1625,11 +1820,11 @@ async function syncGmailMessages({
       }
 
       const nowIso = new Date().toISOString();
-      const eventId = shouldReprocessLinkedInDuplicate && existingProvider?.id
+      const eventId = shouldReprocessDuplicate && existingProvider?.id
         ? existingProvider.id
         : crypto.randomUUID();
       const existingCreatedAtMs =
-        shouldReprocessLinkedInDuplicate && existingProvider?.created_at
+        shouldReprocessDuplicate && existingProvider?.created_at
           ? Date.parse(String(existingProvider.created_at))
           : NaN;
       const createdAt =
@@ -1678,10 +1873,19 @@ async function syncGmailMessages({
         llmReasonCodes: llmReasonCodes.length ? JSON.stringify(llmReasonCodes) : null,
         llmRawJson: llmRaw
       };
-      if (shouldReprocessLinkedInDuplicate) {
+      if (shouldReprocessDuplicate) {
         await awaitMaybe(updateEmailEventRecord(db, eventId, eventPayload));
       } else {
         await awaitMaybe(insertEmailEventRecord(db, eventPayload));
+      }
+      if (indeedConfirmationTrace) {
+        logDebug('ingest.indeed_confirmation_trace', {
+          userId,
+          messageId: message.id,
+          stage: 'persist_event',
+          persistence_decision: shouldReprocessDuplicate ? 'updated_existing_event' : 'inserted_new_event',
+          event_id: eventId
+        });
       }
       storedEventsTotal += 1;
       if (classification.detectedType === 'confirmation') {
@@ -1715,7 +1919,7 @@ async function syncGmailMessages({
         identity: effectiveIdentity
       }));
       const priorApplicationId =
-        shouldReprocessLinkedInDuplicate && existingProvider?.application_id
+        shouldReprocessDuplicate && existingProvider?.application_id
           ? String(existingProvider.application_id)
           : null;
       const matchedApplicationId = matchResult?.applicationId ? String(matchResult.applicationId) : null;
@@ -1756,6 +1960,7 @@ async function syncGmailMessages({
         }
       }
       let rejectionApplied = false;
+      let finalIngestDecision = null;
       if (process.env.DEBUG_INGEST_LINKEDIN === '1' && linkedInJobsUpdate) {
         logDebug('ingest.linkedin_jobs_match_result', {
           providerMessageId: message.id,
@@ -1791,6 +1996,7 @@ async function syncGmailMessages({
         await awaitMaybe(
           db.prepare('UPDATE email_events SET ingest_decision = ? WHERE id = ?').run('matched', eventId)
         );
+        finalIngestDecision = 'matched';
         const inference = await awaitMaybe(
           runStatusInferenceForApplication(db, userId, matchResult.applicationId)
         );
@@ -1814,6 +2020,7 @@ async function syncGmailMessages({
         await awaitMaybe(
           db.prepare('UPDATE email_events SET ingest_decision = ? WHERE id = ?').run('auto_created', eventId)
         );
+        finalIngestDecision = 'auto_created';
         const inference = await awaitMaybe(
           runStatusInferenceForApplication(db, userId, matchResult.applicationId)
         );
@@ -1837,6 +2044,7 @@ async function syncGmailMessages({
         await awaitMaybe(
           db.prepare('UPDATE email_events SET ingest_decision = ? WHERE id = ?').run('unsorted', eventId)
         );
+        finalIngestDecision = 'unsorted';
         if (matchResult.reason || matchResult.reasonDetail) {
           await awaitMaybe(
             db
@@ -1859,6 +2067,18 @@ async function syncGmailMessages({
         } else if (matchResult.reason === 'ambiguous_linkedin_match') {
           reasons.ambiguous_linkedin_match += 1;
         }
+      }
+      if (indeedConfirmationTrace) {
+        logDebug('ingest.indeed_confirmation_trace', {
+          userId,
+          messageId: message.id,
+          stage: 'persistence_decision',
+          match_action: matchResult?.action || null,
+          ingest_decision: finalIngestDecision,
+          application_id: matchResult?.applicationId || null,
+          reason: matchResult?.reason || null,
+          reason_detail: matchResult?.reasonDetail || null
+        });
       }
       created += 1;
       fetched += 1;
@@ -3735,6 +3955,9 @@ module.exports = {
   buildGmailSyncQuery,
   extractMessageMetadata,
   insertEmailEventRecord,
+  isIndeedApplicationConfirmationEnvelope,
+  isIndeedDuplicateReprocessCandidate,
+  isDuplicateReprocessCandidate,
   isLinkedInDuplicateReprocessCandidate,
   hasLinkedInRejectionPhrase,
   repairLinkedInSplitApplications

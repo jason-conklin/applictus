@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  isIndeedDuplicateReprocessCandidate,
+  isDuplicateReprocessCandidate,
   isLinkedInDuplicateReprocessCandidate,
   hasLinkedInRejectionPhrase
 } = require('../src/ingest');
@@ -61,4 +63,45 @@ test('hasLinkedInRejectionPhrase detects moving-forward rejection phrase', () =>
     true
   );
   assert.equal(hasLinkedInRejectionPhrase('Your update from Concorde Research Technologies.'), false);
+});
+
+test('Indeed duplicate reprocess candidate is true for previously ignored confirmation', () => {
+  const shouldReprocess = isIndeedDuplicateReprocessCandidate({
+    id: 'evt-indeed-1',
+    sender: 'Indeed Apply <indeedapply@indeed.com>',
+    subject: "Indeed Application: Sr. Analyst, Business Management Indeed o'clock Application submitted",
+    snippet: 'The following items were sent to Valley National Bank. Good luck!',
+    detected_type: 'other_job_related',
+    reason_code: 'not_relevant',
+    ingest_decision: 'unsorted',
+    role_title: "Indeed o'clock Application submitted"
+  });
+  assert.equal(shouldReprocess, true);
+});
+
+test('Indeed duplicate reprocess candidate is false for already-correct confirmation', () => {
+  const shouldReprocess = isIndeedDuplicateReprocessCandidate({
+    id: 'evt-indeed-2',
+    sender: 'Indeed Apply <indeedapply@indeed.com>',
+    subject: 'Indeed Application: Sr. Analyst, Business Management',
+    snippet: 'The following items were sent to Valley National Bank. Good luck!',
+    detected_type: 'confirmation',
+    ingest_decision: 'auto_created',
+    role_title: 'Sr. Analyst, Business Management'
+  });
+  assert.equal(shouldReprocess, false);
+});
+
+test('generic duplicate reprocess candidate includes recoverable Indeed confirmations', () => {
+  const shouldReprocess = isDuplicateReprocessCandidate({
+    id: 'evt-indeed-3',
+    sender: 'Indeed Apply <indeedapply@indeed.com>',
+    subject: "Indeed Application: Sr. Analyst, Business Management Indeed o'clock Application submitted",
+    snippet: 'The following items were sent to Valley National Bank. Good luck!',
+    detected_type: 'other_job_related',
+    reason_code: 'classified_not_job_related',
+    ingest_decision: 'unsorted',
+    role_title: "Indeed o'clock Application submitted"
+  });
+  assert.equal(shouldReprocess, true);
 });
