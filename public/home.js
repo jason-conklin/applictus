@@ -322,23 +322,29 @@ function setupProductPreview(reducedMotion) {
   }
 
   const kpiEls = {
+    total: preview.querySelector('[data-preview-kpi="total"]'),
     applied: preview.querySelector('[data-preview-kpi="applied"]'),
     interviews: preview.querySelector('[data-preview-kpi="interviews"]'),
+    offers: preview.querySelector('[data-preview-kpi="offers"]'),
     rejected: preview.querySelector('[data-preview-kpi="rejected"]')
   };
 
   const deltaEls = {
+    total: preview.querySelector('[data-preview-kpi-delta="total"]'),
     applied: preview.querySelector('[data-preview-kpi-delta="applied"]'),
     interviews: preview.querySelector('[data-preview-kpi-delta="interviews"]'),
+    offers: preview.querySelector('[data-preview-kpi-delta="offers"]'),
     rejected: preview.querySelector('[data-preview-kpi-delta="rejected"]')
   };
+
+  const kpiKeys = ['total', 'applied', 'interviews', 'offers', 'rejected'];
 
   const doneTextEl = preview.querySelector('.product-preview__sync-text--done');
 
   const previewStates = [
     {
       scanCompleteCopy: 'Update detected: +1 interview request',
-      kpis: { applied: 24, interviews: 4, rejected: 7 },
+      kpis: { total: 36, applied: 24, interviews: 4, offers: 1, rejected: 7 },
       deltas: { interviews: '+1' },
       rows: [
         {
@@ -356,10 +362,10 @@ function setupProductPreview(reducedMotion) {
           statusLabel: 'Applied'
         },
         {
-          company: 'Synergistic',
-          role: 'Junior Java Developer',
-          statusKey: 'applied',
-          statusLabel: 'Applied'
+          company: 'Commonpoint',
+          role: 'IT Support Specialist',
+          statusKey: 'offer_received',
+          statusLabel: 'Offer'
         },
         {
           company: 'Pereless Systems',
@@ -371,7 +377,7 @@ function setupProductPreview(reducedMotion) {
     },
     {
       scanCompleteCopy: 'Update detected: +1 newly tracked application',
-      kpis: { applied: 25, interviews: 4, rejected: 7 },
+      kpis: { total: 37, applied: 25, interviews: 4, offers: 1, rejected: 7 },
       deltas: { applied: '+1' },
       rows: [
         {
@@ -395,23 +401,23 @@ function setupProductPreview(reducedMotion) {
           statusLabel: 'Applied'
         },
         {
-          company: 'Pereless Systems',
-          role: 'Product Support Specialist',
-          statusKey: 'applied',
-          statusLabel: 'Applied'
+          company: 'Commonpoint',
+          role: 'IT Support Specialist',
+          statusKey: 'offer_received',
+          statusLabel: 'Offer'
         }
       ]
     },
     {
-      scanCompleteCopy: 'Update detected: +1 rejection update',
-      kpis: { applied: 25, interviews: 4, rejected: 8 },
-      deltas: { rejected: '+1' },
+      scanCompleteCopy: 'Update detected: +1 offer update',
+      kpis: { total: 38, applied: 25, interviews: 4, offers: 2, rejected: 7 },
+      deltas: { offers: '+1' },
       rows: [
         {
-          company: 'Arch',
-          role: 'Data Quality Analyst',
-          statusKey: 'rejected',
-          statusLabel: 'Rejected',
+          company: 'Commonpoint',
+          role: 'IT Support Specialist',
+          statusKey: 'offer_received',
+          statusLabel: 'Offer',
           isNew: true
         },
         {
@@ -422,16 +428,16 @@ function setupProductPreview(reducedMotion) {
           isPriority: true
         },
         {
-          company: 'Commonpoint',
-          role: 'IT Support Specialist',
+          company: 'Valley National Bank',
+          role: 'Sr. Analyst, Business Management',
           statusKey: 'applied',
           statusLabel: 'Applied'
         },
         {
-          company: 'Synergistic',
-          role: 'Junior Java Developer',
-          statusKey: 'applied',
-          statusLabel: 'Applied'
+          company: 'Arch',
+          role: 'Data Quality Analyst',
+          statusKey: 'rejected',
+          statusLabel: 'Rejected'
         }
       ]
     }
@@ -506,7 +512,7 @@ function setupProductPreview(reducedMotion) {
     rows
       .map((row) => {
         const rowClasses = [];
-        if (row.isPriority || row.statusKey === 'interview_requested' || row.statusKey === 'offer_received') {
+        if (row.isPriority || row.statusKey === 'interview_requested') {
           rowClasses.push('product-preview__row--priority');
         }
         if (row.isNew) {
@@ -529,7 +535,7 @@ function setupProductPreview(reducedMotion) {
       doneTextEl.textContent = state.scanCompleteCopy;
     }
 
-    ['applied', 'interviews', 'rejected'].forEach((key) => {
+    kpiKeys.forEach((key) => {
       const kpiEl = kpiEls[key];
       if (kpiEl) {
         kpiEl.textContent = String(state.kpis?.[key] ?? '--');
