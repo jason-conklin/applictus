@@ -246,6 +246,69 @@ test('classifyEmail keeps CBRE-style received/under-review confirmations as appl
   assert.ok(result.debug.negativeMatches.includes('recruitment_stages_overview'));
 });
 
+test('classifyEmail detects interview-stage assessment invite emails as interview requested', () => {
+  const subject = 'Thank you for your interest in Remote Accounts Receivable Specialist role';
+  const body = [
+    'Thank you for your interest in joining our team. We’re pleased to invite you to the next step in our hiring process.',
+    '',
+    'Attached, you’ll find the screening test and job description, which together will serve as your initial interview.',
+    'We kindly ask that you review and respond to the attached questions at your earliest convenience.',
+    'Please submit your responses via email. Your answers will play a key role in helping us determine your progression to the next stage of the process.',
+    '',
+    'We look forward to reviewing your submission.',
+    '',
+    'Kind Regards,',
+    'Adrian Berley',
+    'Human Resources Team | HR Manager',
+    'Fulcrum Vets, LLC'
+  ].join('\n');
+
+  const relevance = isRelevantApplicationEmail({
+    subject,
+    body,
+    sender: 'Adrian Berley <adrian.berley@fulcrumvets.com>'
+  });
+  assert.equal(relevance.isRelevant, true);
+  assert.ok(Array.isArray(relevance.matchedKeywords));
+  assert.ok(
+    relevance.matchedKeywords.includes('next_step_hiring_process') ||
+      relevance.matchedKeywords.includes('initial_interview') ||
+      relevance.matchedKeywords.includes('screening_test')
+  );
+
+  const result = classifyEmail({
+    subject,
+    body,
+    sender: 'Adrian Berley <adrian.berley@fulcrumvets.com>'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'interview_requested');
+  assert.equal(result.reason, 'interview_stage_assessment');
+  assert.ok(Array.isArray(result?.debug?.interviewMatches));
+  assert.ok(
+    result.debug.interviewMatches.includes('next_step_hiring_process') ||
+      result.debug.interviewMatches.includes('invite_next_step_hiring_process')
+  );
+  assert.ok(result.debug.interviewMatches.includes('screening_test'));
+  assert.ok(result.debug.interviewMatches.includes('initial_interview'));
+  assert.ok(result.debug.interviewMatches.includes('submit_responses'));
+});
+
+test('classifyEmail detects written assessment invitation as interview requested without scheduling link', () => {
+  const result = classifyEmail({
+    subject: 'Next step in our hiring process',
+    sender: 'Hiring Team <careers@northstarlabs.com>',
+    body: [
+      'We are pleased to invite you to the next step in our hiring process for the Product Analyst role.',
+      'This assessment will serve as your initial interview.',
+      'Please review and respond to the attached questions and submit your responses by email.'
+    ].join('\n')
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'interview_requested');
+  assert.equal(result.reason, 'interview_stage_assessment');
+});
+
 test('classifyEmail keeps generic ATS process-stage language as confirmation without interview upgrade', () => {
   const subject = 'Thank you for applying at Acme Corp - 99123 Product Analyst';
   const body = [

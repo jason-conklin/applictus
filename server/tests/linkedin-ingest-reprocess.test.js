@@ -131,6 +131,20 @@ test('generic duplicate reprocess candidate includes recoverable generic Indeed 
   assert.equal(shouldReprocess, true);
 });
 
+test('generic duplicate reprocess candidate includes recoverable interview-stage assessment envelopes', () => {
+  const shouldReprocess = isDuplicateReprocessCandidate({
+    id: 'evt-fulcrum-1',
+    sender: 'Adrian Berley <adrian.berley@fulcrumvets.com>',
+    subject: 'Thank you for your interest in Remote Accounts Receivable Specialist role',
+    snippet: 'We’re pleased to invite you to the next step in our hiring process.',
+    detected_type: 'other_job_related',
+    reason_code: 'not_relevant',
+    ingest_decision: 'unsorted',
+    role_title: null
+  });
+  assert.equal(shouldReprocess, true);
+});
+
 test('generic duplicate reprocess candidate does not pull in Indeed job-alert digests', () => {
   const shouldReprocess = isDuplicateReprocessCandidate({
     id: 'evt-indeed-5',

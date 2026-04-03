@@ -372,6 +372,11 @@ const ROLE_PATTERNS = [
     confidence: 0.95
   },
   {
+    name: 'thank_you_interest_in_role',
+    regex: /thank you for your interest in\s+(?:the\s+)?(.+?)\s+(?:role|position)\b/i,
+    confidence: 0.95
+  },
+  {
     name: 'thank_you_application_to_our_role',
     regex: /thank you for your application\s+(?:to|for)\s+(?:our\s+|the\s+)?(.+?)\s+(?:role|position|job|opening)\b/i,
     confidence: 0.95
@@ -940,6 +945,50 @@ function isGenericSenderName(name) {
     return true;
   }
   return GENERIC_SENDER_NAMES.some((term) => text === term || text.startsWith(`${term} `));
+}
+
+function isLikelyPersonalSenderName(name, sender) {
+  const text = normalize(name);
+  if (!text) {
+    return false;
+  }
+  if (
+    /\b(recruit(?:ing|ment)?|talent|hiring|careers?|jobs?|team|department|hr|human resources|staffing)\b/i.test(
+      text
+    )
+  ) {
+    return false;
+  }
+  if (/\b(?:inc|llc|ltd|corp|co|company|systems?|solutions?|technologies?|group|labs?)\b/i.test(text)) {
+    return false;
+  }
+  const tokens = text
+    .replace(/[^A-Za-z' -]/g, ' ')
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (tokens.length < 2 || tokens.length > 3) {
+    return false;
+  }
+  if (!tokens.every((token) => /^[A-Z][a-z]+(?:['-][A-Z][a-z]+)?$/.test(token))) {
+    return false;
+  }
+
+  const email = String(extractEmailAddress(sender) || '').toLowerCase();
+  const [localPart = '', domainPart = ''] = email.split('@');
+  const localTokens = localPart
+    .replace(/[^a-z]/g, ' ')
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!localTokens.length) {
+    return false;
+  }
+
+  const [firstName, lastName] = [tokens[0].toLowerCase(), tokens[tokens.length - 1].toLowerCase()];
+  const localMatchesPerson = localTokens.includes(firstName) || localTokens.includes(lastName);
+  const genericDomain = /(?:^|\.)(gmail|yahoo|outlook|hotmail|protonmail|icloud)\./i.test(domainPart);
+  return localMatchesPerson || genericDomain;
 }
 
 function companyFromDomain(senderDomain) {
@@ -1692,6 +1741,9 @@ function extractCompanyFromSender(sender) {
     };
   }
   if (!isGenericSenderName(name)) {
+    if (isLikelyPersonalSenderName(name, sender)) {
+      return null;
+    }
     const company = cleanCompanyCandidate(name);
     if (company) {
       return {
@@ -2715,11 +2767,12 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   const senderCompany = sanitizeCompanyCandidate(extractCompanyFromSender(sender));
   const senderDomain = extractSenderDomain(sender);
   const providerSender = senderName ? isProviderName(senderName) : false;
+  const personalSender = senderName ? isLikelyPersonalSenderName(senderName, sender) : false;
   const atsSender = isAtsDomain(senderDomain);
   const signatureCompany = sanitizeCompanyCandidate(extractCompanyFromSignatureLines(bodyTextFiltered));
   const websiteSignatureCompany = sanitizeCompanyCandidate(extractCompanyFromWebsiteSignature(bodyTextFiltered));
   const bodySignatureCompany =
-    bodyTextFiltered && (atsSender || providerSender)
+    bodyTextFiltered && (atsSender || providerSender || personalSender)
       ? sanitizeCompanyCandidate(extractCompanyFromBodyText(bodyTextFiltered))
       : null;
   const bodyPatternCompanyStrong = bodyTextFiltered

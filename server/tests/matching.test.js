@@ -253,6 +253,30 @@ test('extractThreadIdentity parses "Thank you for applying at {Company} - {ID} {
   );
 });
 
+test('extractThreadIdentity parses Fulcrum interview-stage subject role and signature company', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Thank you for your interest in Remote Accounts Receivable Specialist role',
+    sender: 'Adrian Berley <adrian.berley@fulcrumvets.com>',
+    bodyText: [
+      'Thank you for your interest in joining our team. We’re pleased to invite you to the next step in our hiring process.',
+      '',
+      'Attached, you’ll find the screening test and job description, which together will serve as your initial interview.',
+      'We kindly ask that you review and respond to the attached questions at your earliest convenience.',
+      'Please submit your responses via email.',
+      '',
+      'Kind Regards,',
+      'Adrian Berley',
+      'Human Resources Team | HR Manager',
+      'Fulcrum Vets, LLC'
+    ].join('\n')
+  });
+
+  assert.ok(identity);
+  assert.match(String(identity.companyName || ''), /Fulcrum Vets/i);
+  assert.equal(identity.jobTitle, 'Remote Accounts Receivable Specialist');
+  assert.equal(/Adrian Berley/i.test(String(identity.companyName || '')), false);
+});
+
 test('extractThreadIdentity parses Oracle Cloud follow-up without sender-email company leak', () => {
   const identity = extractThreadIdentity({
     subject: 'Application Follow Up',

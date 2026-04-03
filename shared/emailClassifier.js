@@ -73,6 +73,18 @@ const RELEVANCE_KEEP_SIGNALS = [
     label: 'check_application_status'
   },
   {
+    pattern: /\bthank you for your interest in\s+.+\s+(?:role|position)\b/i,
+    label: 'thank_you_interest_in_role'
+  },
+  { pattern: /\b(?:we(?:'|’)re|we are)\s+pleased to invite you to\b/i, label: 'pleased_to_invite' },
+  { pattern: /\bnext step in our hiring process\b/i, label: 'next_step_hiring_process' },
+  { pattern: /\binitial interview\b/i, label: 'initial_interview' },
+  { pattern: /\bscreening test\b/i, label: 'screening_test' },
+  { pattern: /\battached questions?\b/i, label: 'attached_questions' },
+  { pattern: /\bsubmit your responses?\b/i, label: 'submit_responses' },
+  { pattern: /\bprogression to the next stage\b/i, label: 'progression_next_stage' },
+  { pattern: /\bjob description\b/i, label: 'job_description' },
+  {
     pattern: /\bthank you for inquiring about employment opportunities\b/i,
     label: 'thank_you_inquiring_employment_opportunities'
   },
@@ -135,6 +147,28 @@ const INTERVIEW_DIRECT_CTA_PATTERNS = [
   { pattern: /\bplease (?:select|choose|book).{0,25}\b(?:time|slot)\b/i, label: 'select_slot' },
   { pattern: /\bare you available\b/i, label: 'are_you_available' },
   { pattern: /\bhere are some times?\b/i, label: 'here_are_times' }
+];
+
+const INTERVIEW_STAGE_INVITE_PATTERNS = [
+  { pattern: /\b(?:we(?:'|’)re|we are)\s+pleased to invite you to\b/i, label: 'pleased_to_invite' },
+  { pattern: /\binvite you to the next step in our hiring process\b/i, label: 'invite_next_step_hiring_process' },
+  { pattern: /\bnext step in our hiring process\b/i, label: 'next_step_hiring_process' }
+];
+
+const INTERVIEW_STAGE_ASSESSMENT_PATTERNS = [
+  { pattern: /\binitial interview\b/i, label: 'initial_interview' },
+  { pattern: /\bscreening test\b/i, label: 'screening_test' },
+  { pattern: /\battached questions?\b/i, label: 'attached_questions' },
+  { pattern: /\bassessment\b/i, label: 'assessment' },
+  { pattern: /\bjob description\b/i, label: 'job_description' }
+];
+
+const INTERVIEW_STAGE_ACTION_PATTERNS = [
+  { pattern: /\bsubmit your responses?\b/i, label: 'submit_responses' },
+  { pattern: /\breview and respond\b/i, label: 'review_and_respond' },
+  { pattern: /\bat your earliest convenience\b/i, label: 'earliest_convenience' },
+  { pattern: /\bprogression to the next stage\b/i, label: 'progression_to_next_stage' },
+  { pattern: /\breviewing your submission\b/i, label: 'reviewing_submission' }
 ];
 
 const INTERVIEW_VAGUE_SIGNAL_PATTERNS = [
@@ -1073,6 +1107,78 @@ function detectSchedulingInterview({ subject, snippet, sender, body }) {
   };
 }
 
+function detectAssessmentInterviewStage({ subject, snippet, sender, body }) {
+  const rawSubject = String(subject || '');
+  const rawSnippet = String(snippet || '');
+  const rawBody = String(body || '');
+  const textSource = `${rawSubject}\n${rawSnippet}\n${rawBody}`.trim();
+  if (!textSource) {
+    return null;
+  }
+
+  const inviteHits = collectSignalMatches(INTERVIEW_STAGE_INVITE_PATTERNS, textSource);
+  const assessmentHits = collectSignalMatches(INTERVIEW_STAGE_ASSESSMENT_PATTERNS, textSource);
+  const actionHits = collectSignalMatches(INTERVIEW_STAGE_ACTION_PATTERNS, textSource);
+  const vagueHits = collectSignalMatches(INTERVIEW_VAGUE_SIGNAL_PATTERNS, textSource);
+  const processOnlyHits = collectSignalMatches(INTERVIEW_PROCESS_ONLY_SIGNAL_PATTERNS, textSource);
+  const relevanceScreen = isRelevantApplicationEmail({
+    subject: rawSubject,
+    snippet: rawSnippet,
+    sender,
+    body: rawBody
+  });
+  const rejectedRelevanceKeywords = Array.isArray(relevanceScreen.rejectedKeywords)
+    ? relevanceScreen.rejectedKeywords
+    : [];
+  const listingPenaltySignals = rejectedRelevanceKeywords.filter((label) =>
+    ['multi_listing_email', 'listing_cta_burst', 'jobs_for_you', 'recommended_jobs', 'job_alert', 'jobs_you_may_like'].includes(
+      String(label || '')
+    )
+  );
+  const hasDigestNegativeMarker = NEWSLETTER_INTERVIEW_BLOCK_PATTERNS.some((pattern) =>
+    pattern.test(textSource)
+  );
+  if (hasDigestNegativeMarker || listingPenaltySignals.length > 0) {
+    return null;
+  }
+
+  const hasStrongInvite = inviteHits.length > 0;
+  const hasStrongAssessment =
+    assessmentHits.some((label) => ['initial_interview', 'screening_test', 'attached_questions'].includes(label)) ||
+    /\bserve as your initial interview\b/i.test(textSource);
+  const hasAssessmentContext = hasStrongAssessment || assessmentHits.length >= 2;
+  const hasActionPrompt =
+    actionHits.length > 0 || /\bsubmit (?:your )?(?:answers?|responses?)\b/i.test(textSource);
+  const hasJobSignal = hasJobContext(textSource);
+  const processOnlyWithoutInvite = processOnlyHits.length > 0 && !hasStrongInvite;
+  const vagueOnlySignal = vagueHits.length > 0 && !hasStrongInvite && !hasActionPrompt;
+  if (processOnlyWithoutInvite || vagueOnlySignal) {
+    return null;
+  }
+
+  if (!(hasStrongInvite && hasAssessmentContext && hasActionPrompt && hasJobSignal)) {
+    return null;
+  }
+
+  const combinedInterviewHits = Array.from(new Set([...inviteHits, ...assessmentHits, ...actionHits]));
+  const confidenceBoost = Math.min(0.06, combinedInterviewHits.length * 0.01);
+  return {
+    isJobRelated: true,
+    detectedType: 'interview_requested',
+    confidenceScore: Math.min(0.96, 0.9 + confidenceBoost),
+    explanation:
+      'Detected interview-stage assessment invite (next-step invitation with screening/initial interview instructions).',
+    reason: 'interview_stage_assessment',
+    debug: {
+      interviewMatches: combinedInterviewHits,
+      rejectedKeywords: Array.from(new Set([...vagueHits, ...listingPenaltySignals])),
+      negativeMatches: processOnlyHits,
+      finalDecision: 'interview_requested',
+      decisionReason: 'assessment_interview_stage_signals'
+    }
+  };
+}
+
 function findRuleMatch(rules, text, minConfidence, jobContext) {
   for (const rule of rules) {
     if (rule.confidence < minConfidence) {
@@ -1172,6 +1278,9 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
   }
 
   const schedulingSignal = detectSchedulingInterview({ subject, snippet, sender, body });
+  const assessmentInterviewSignal = schedulingSignal
+    ? null
+    : detectAssessmentInterviewStage({ subject, snippet, sender, body });
 
   const minConfidence = 0.6;
   const rules = [PROFILE_SUBMITTED_RULE, ...RULES];
@@ -1276,6 +1385,10 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
 
   if (schedulingSignal) {
     return schedulingSignal;
+  }
+
+  if (assessmentInterviewSignal) {
+    return assessmentInterviewSignal;
   }
 
   const confirmationRules = rules.filter((rule) => rule.detectedType === 'confirmation');

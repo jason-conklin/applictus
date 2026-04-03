@@ -532,3 +532,165 @@ test('syncGmailMessages reprocesses CBRE received/under-review confirmation and 
     db.close();
   }
 });
+
+test('syncGmailMessages reprocesses Fulcrum interview-stage assessment invite and creates interview application', async (t) => {
+  if (!Database) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  let db;
+  try {
+    db = new Database(':memory:');
+  } catch (err) {
+    const message = String(err && err.message ? err.message : err);
+    if (/better-sqlite3|invalid ELF header|SQLITE_NATIVE_(OPEN|LOAD)_FAILED/i.test(message)) {
+      t.skip('better-sqlite3 native module unavailable in this environment');
+      return;
+    }
+    throw err;
+  }
+  runMigrations(db);
+  const userId = insertUser(db);
+  const now = Date.now();
+
+  const messageId = 'msg-fulcrum-1';
+  const rfcMessageId = '<msg-fulcrum-1@example.com>';
+  const subject = 'Thank you for your interest in Remote Accounts Receivable Specialist role';
+  const body = [
+    'Thank you for your interest in joining our team. We’re pleased to invite you to the next step in our hiring process.',
+    '',
+    'Attached, you’ll find the screening test and job description, which together will serve as your initial interview.',
+    'This format allows us to better understand your thought process and approach to challenges.',
+    'We kindly ask that you review and respond to the attached questions at your earliest convenience.',
+    'Please submit your responses via email. Your answers will play a key role in helping us determine your progression to the next stage of the process.',
+    '',
+    'We look forward to reviewing your submission.',
+    '',
+    'Kind Regards,',
+    'Adrian Berley',
+    'Human Resources Team | HR Manager',
+    'Fulcrum Vets, LLC'
+  ].join('\n');
+
+  insertEmailEventRecord(db, {
+    id: 'evt-legacy-fulcrum-1',
+    userId,
+    provider: 'gmail',
+    messageId,
+    providerMessageId: messageId,
+    rfcMessageId,
+    sender: 'Adrian Berley <adrian.berley@fulcrumvets.com>',
+    subject,
+    internalDate: now - 30 * 60 * 1000,
+    snippet: 'We’re pleased to invite you to the next step in our hiring process.',
+    detectedType: 'other_job_related',
+    confidenceScore: 0.22,
+    classificationConfidence: 0.22,
+    identityConfidence: 0,
+    identityCompanyName: null,
+    identityJobTitle: null,
+    identityCompanyConfidence: null,
+    identityExplanation: null,
+    explanation: 'legacy_not_relevant',
+    reasonCode: 'not_relevant',
+    reasonDetail: null,
+    roleTitle: null,
+    roleConfidence: null,
+    roleSource: null,
+    roleExplanation: null,
+    externalReqId: null,
+    ingestDecision: 'unsorted',
+    createdAt: new Date(now - 30 * 60 * 1000).toISOString()
+  });
+
+  const gmail = {
+    users: {
+      messages: {
+        list: async () => ({
+          data: {
+            messages: [{ id: messageId }],
+            resultSizeEstimate: 1,
+            nextPageToken: null
+          }
+        }),
+        get: async () => ({
+          data: {
+            id: messageId,
+            internalDate: String(now),
+            snippet: 'We’re pleased to invite you to the next step in our hiring process.',
+            labelIds: ['INBOX'],
+            payload: {
+              headers: [
+                { name: 'From', value: 'Adrian Berley <adrian.berley@fulcrumvets.com>' },
+                { name: 'Subject', value: subject },
+                { name: 'Message-ID', value: rfcMessageId }
+              ],
+              mimeType: 'text/plain',
+              body: {
+                data: toBase64Url(body)
+              }
+            }
+          }
+        })
+      }
+    }
+  };
+
+  const originalLlm = process.env.JOBTRACK_LLM_ENABLED;
+  process.env.JOBTRACK_LLM_ENABLED = '0';
+  try {
+    const result = await syncGmailMessages({
+      db,
+      userId,
+      days: 30,
+      maxResults: 20,
+      mode: 'days',
+      timeWindowStart: new Date(now - 30 * 24 * 60 * 60 * 1000),
+      timeWindowEnd: new Date(now + 60 * 1000),
+      authClientOverride: {},
+      gmailServiceOverride: gmail,
+      authenticatedUserEmailOverride: `user-${userId}@example.com`
+    });
+
+    assert.equal(result.status, 'ok');
+    assert.equal(result.skippedDuplicate, 0);
+    assert.ok((result.createdApplications || 0) + (result.matchedExisting || 0) >= 1);
+
+    const storedEvent = db
+      .prepare(
+        `SELECT detected_type, reason_code, identity_company_name, role_title, ingest_decision, application_id
+         FROM email_events
+         WHERE user_id = ? AND provider = 'gmail' AND provider_message_id = ?`
+      )
+      .get(userId, messageId);
+    assert.ok(storedEvent);
+    assert.notEqual(String(storedEvent.reason_code || '').toLowerCase(), 'not_relevant');
+    assert.equal(String(storedEvent.detected_type || '').toLowerCase(), 'interview_requested');
+    assert.match(String(storedEvent.identity_company_name || ''), /Fulcrum Vets/i);
+    assert.match(String(storedEvent.role_title || ''), /Remote Accounts Receivable Specialist/i);
+    assert.ok(storedEvent.application_id);
+    assert.ok(['matched', 'auto_created', 'unsorted'].includes(String(storedEvent.ingest_decision || '')));
+
+    const app = db
+      .prepare(
+        `SELECT company, role, current_status
+         FROM job_applications
+         WHERE user_id = ?
+         ORDER BY created_at DESC
+         LIMIT 1`
+      )
+      .get(userId);
+    assert.ok(app);
+    assert.match(String(app.company || ''), /Fulcrum Vets/i);
+    assert.match(String(app.role || ''), /Remote Accounts Receivable Specialist/i);
+    assert.equal(String(app.current_status || '').toUpperCase(), 'INTERVIEW_REQUESTED');
+  } finally {
+    if (originalLlm === undefined) {
+      delete process.env.JOBTRACK_LLM_ENABLED;
+    } else {
+      process.env.JOBTRACK_LLM_ENABLED = originalLlm;
+    }
+    db.close();
+  }
+});

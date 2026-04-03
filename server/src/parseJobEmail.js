@@ -51,6 +51,8 @@ function parseGeneric({ subject, text }) {
   const candidates = { company: [], role: [] };
   let companyRaw;
   let roleRaw;
+  const isGenericCompanyPhrase = (value) =>
+    /^(?:our|the)\s+(?:team|company|organization)$/i.test(String(value || '').trim());
 
   const subj = String(subject || '');
   const body = String(text || '');
@@ -103,6 +105,17 @@ function parseGeneric({ subject, text }) {
   }
 
   if (!roleRaw) {
+    const interestRoleSubjectMatch = subj.match(
+      /thank you for your interest in\s+(?:the\s+)?(.+?)\s+(?:role|position)\b/i
+    );
+    if (interestRoleSubjectMatch && interestRoleSubjectMatch[1]) {
+      roleRaw = interestRoleSubjectMatch[1].trim().replace(/[.!,;:]+$/g, '');
+      candidates.role.push(roleRaw);
+      notes.push('role_phrase:subject_interest_in_role');
+    }
+  }
+
+  if (!roleRaw) {
     const roleOfMatch = body.match(/(?:thank you for applying for the role of|role of)\s+(.+?)(?:[\n.]|$)/i);
     if (roleOfMatch && roleOfMatch[1]) {
       roleRaw = roleOfMatch[1].trim();
@@ -124,8 +137,11 @@ function parseGeneric({ subject, text }) {
   if (!companyRaw) {
     const applyingTo = body.match(/(?:position\s+to|joining)\s+([A-Z][A-Za-z0-9&.' -]{1,80})(?:[\n.]|$)/i);
     if (applyingTo && applyingTo[1]) {
-      companyRaw = applyingTo[1].trim();
-      candidates.company.push(companyRaw);
+      const candidate = applyingTo[1].trim();
+      if (!isGenericCompanyPhrase(candidate)) {
+        companyRaw = candidate;
+        candidates.company.push(companyRaw);
+      }
     }
   }
 
@@ -144,9 +160,12 @@ function parseGeneric({ subject, text }) {
   if (!companyRaw) {
     const interestMatch = body.match(/interest in (?:employment with|employment at|joining|with)\s+([A-Z][A-Za-z0-9&.' -]{1,80})(?=[.,\n]|$)/i);
     if (interestMatch && interestMatch[1]) {
-      companyRaw = interestMatch[1].trim();
-      candidates.company.push(companyRaw);
-      notes.push('company_phrase:interest_in_employment');
+      const candidate = interestMatch[1].trim();
+      if (!isGenericCompanyPhrase(candidate)) {
+        companyRaw = candidate;
+        candidates.company.push(companyRaw);
+        notes.push('company_phrase:interest_in_employment');
+      }
     }
   }
 
@@ -155,9 +174,35 @@ function parseGeneric({ subject, text }) {
       /inquiring about employment opportunities with\s+([A-Z][A-Za-z0-9&.' -]{1,80})(?=[.,\n]|$)/i
     );
     if (opportunitiesMatch && opportunitiesMatch[1]) {
-      companyRaw = opportunitiesMatch[1].trim();
-      candidates.company.push(companyRaw);
-      notes.push('company_phrase:employment_opportunities_with');
+      const candidate = opportunitiesMatch[1].trim();
+      if (!isGenericCompanyPhrase(candidate)) {
+        companyRaw = candidate;
+        candidates.company.push(companyRaw);
+        notes.push('company_phrase:employment_opportunities_with');
+      }
+    }
+  }
+
+  if (!companyRaw) {
+    const tailLines = body
+      .split(/\r?\n/)
+      .map((line) => String(line || '').trim())
+      .filter(Boolean)
+      .slice(-10);
+    for (let i = tailLines.length - 1; i >= 0; i -= 1) {
+      const line = tailLines[i];
+      if (
+        /\b(?:human resources|talent|recruiting|hr manager|manager|team)\b/i.test(line) ||
+        /^(?:kind regards|best regards|regards|sincerely|thanks|thank you|dear|hi|hello)\b/i.test(line)
+      ) {
+        continue;
+      }
+      if (/\b(?:llc|inc\.?|corp\.?|corporation|systems?|solutions?|technologies|group|labs?)\b/i.test(line)) {
+        companyRaw = line.replace(/[.!,;:]+$/g, '').trim();
+        candidates.company.push(companyRaw);
+        notes.push('company_phrase:signature_company_line');
+        break;
+      }
     }
   }
 

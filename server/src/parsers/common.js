@@ -34,7 +34,7 @@ const REJECTION_SIGNAL_PATTERNS = [
   { pattern: /\bwish you success in your job search\b/i, label: 'wish you success in your job search', strength: 'soft' }
 ];
 
-// Interview detection must be explicit and actionable; vague "next steps" language should not match.
+// Interview detection supports both explicit scheduling and interview-stage assessment invites.
 const INTERVIEW_CONTEXT_PATTERNS = [
   { pattern: /\binterview\b/i, label: 'interview_keyword' },
   { pattern: /\bphone screen\b|\bscreening call\b/i, label: 'phone_screen' },
@@ -51,6 +51,28 @@ const INTERVIEW_ACTION_PATTERNS = [
   { pattern: /\btime slots?\b/i, label: 'time_slots' },
   { pattern: /\bcalendar invite\b|\bzoom (?:invitation|invite)\b/i, label: 'calendar_or_zoom_invite' },
   { pattern: /\bbook (?:a )?time\b/i, label: 'book_time' }
+];
+
+const INTERVIEW_STAGE_INVITE_PATTERNS = [
+  { pattern: /\b(?:we(?:'|’)re|we are)\s+pleased to invite you to\b/i, label: 'pleased_to_invite' },
+  { pattern: /\binvite you to the next step in our hiring process\b/i, label: 'invite_next_step_hiring_process' },
+  { pattern: /\bnext step in our hiring process\b/i, label: 'next_step_hiring_process' }
+];
+
+const INTERVIEW_STAGE_ASSESSMENT_PATTERNS = [
+  { pattern: /\binitial interview\b/i, label: 'initial_interview' },
+  { pattern: /\bscreening test\b/i, label: 'screening_test' },
+  { pattern: /\battached questions?\b/i, label: 'attached_questions' },
+  { pattern: /\bassessment\b/i, label: 'assessment' },
+  { pattern: /\bjob description\b/i, label: 'job_description' }
+];
+
+const INTERVIEW_STAGE_ACTION_PATTERNS = [
+  { pattern: /\bsubmit your responses?\b/i, label: 'submit_responses' },
+  { pattern: /\breview and respond\b/i, label: 'review_and_respond' },
+  { pattern: /\bat your earliest convenience\b/i, label: 'earliest_convenience' },
+  { pattern: /\bprogression to the next stage\b/i, label: 'progression_to_next_stage' },
+  { pattern: /\breviewing your submission\b/i, label: 'reviewing_submission' }
 ];
 
 const INTERVIEW_VAGUE_PATTERNS = [
@@ -229,6 +251,9 @@ function detectStatusSignal({
   const digestVeto = DIGEST_VETO_PATTERN.test(corpus) && /\bunsubscribe\b/i.test(corpus);
   const interviewContextHits = collectPatternHits(INTERVIEW_CONTEXT_PATTERNS, corpus);
   const interviewActionHits = collectPatternHits(INTERVIEW_ACTION_PATTERNS, corpus);
+  const interviewStageInviteHits = collectPatternHits(INTERVIEW_STAGE_INVITE_PATTERNS, corpus);
+  const interviewStageAssessmentHits = collectPatternHits(INTERVIEW_STAGE_ASSESSMENT_PATTERNS, corpus);
+  const interviewStageActionHits = collectPatternHits(INTERVIEW_STAGE_ACTION_PATTERNS, corpus);
   const interviewVagueHits = collectPatternHits(INTERVIEW_VAGUE_PATTERNS, corpus);
   const interviewProcessOnlyHits = collectPatternHits(INTERVIEW_PROCESS_ONLY_PATTERNS, corpus);
   const interviewNegativeHits = collectPatternHits(INTERVIEW_NEGATIVE_PATTERNS, corpus);
@@ -240,19 +265,55 @@ function detectStatusSignal({
     new Set([
       ...interviewContextHits.map((hit) => hit.label),
       ...interviewActionHits.map((hit) => hit.label),
+      ...interviewStageInviteHits.map((hit) => hit.label),
+      ...interviewStageAssessmentHits.map((hit) => hit.label),
+      ...interviewStageActionHits.map((hit) => hit.label),
       ...(hasDirectInterviewCta ? ['direct_interview_cta'] : [])
     ])
   );
 
-  const hasInterviewContext = interviewContextHits.length > 0;
-  const hasInterviewAction = interviewActionHits.length > 0 || hasDirectInterviewCta;
-  const hasExplicitSchedulingRequest = hasDirectInterviewCta;
+  const hasInterviewStageInvite = interviewStageInviteHits.length > 0;
+  const hasInterviewStageAssessment =
+    interviewStageAssessmentHits.some((hit) =>
+      ['initial_interview', 'screening_test', 'attached_questions'].includes(hit.label)
+    ) || /\bserve as your initial interview\b/i.test(corpus);
+  const hasInterviewStageAction =
+    interviewStageActionHits.length > 0 || /\bsubmit (?:your )?(?:answers?|responses?)\b/i.test(corpus);
   const hasContext = Boolean(
     (company && cleanLine(company)) ||
     (role && cleanLine(role)) ||
     JOB_CONTEXT_PATTERN.test(corpus) ||
     /\binterview\b/i.test(corpus)
   );
+  const shouldTreatAsInterviewStageAssessment =
+    hasInterviewStageInvite &&
+    hasInterviewStageAssessment &&
+    hasInterviewStageAction &&
+    hasContext &&
+    !digestVeto &&
+    interviewNegativeHits.length === 0;
+  if (shouldTreatAsInterviewStageAssessment) {
+    return {
+      status: 'interview_requested',
+      confidence: 90,
+      source: `interview_stage:${interviewStageInviteHits[0]?.label || 'assessment_stage_invite'}`,
+      matched: interviewStageInviteHits[0]?.label || null,
+      rejectionMatches: rejectionHits.map((hit) => hit.label),
+      interviewMatches,
+      appliedMatches: appliedHits.map((hit) => hit.label),
+      negativeMatches: [
+        ...interviewNegativeHits.map((hit) => hit.label),
+        ...interviewProcessOnlyHits.map((hit) => hit.label),
+        ...interviewVagueHits.map((hit) => hit.label)
+      ],
+      interviewSuppressionMatches: interviewProcessOnlyHits.map((hit) => hit.label),
+      decisionReason: 'assessment_interview_stage_signals'
+    };
+  }
+
+  const hasInterviewContext = interviewContextHits.length > 0;
+  const hasInterviewAction = interviewActionHits.length > 0 || hasDirectInterviewCta;
+  const hasExplicitSchedulingRequest = hasDirectInterviewCta;
   const interviewSuppressedByProcessOnlyLanguage =
     interviewProcessOnlyHits.length > 0 && !hasExplicitSchedulingRequest;
   const interviewSuppressedByNegatives =

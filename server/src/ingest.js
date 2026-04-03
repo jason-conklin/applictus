@@ -737,6 +737,15 @@ function isGenericAppliedConfirmationEnvelope({ sender, subject, snippet, body }
     /\b(?:it is|your application is)\s+currently under review\b/i.test(source) ||
     /\bcheck the status of your application\b/i.test(source) ||
     /\bapplication (?:status|update)\b/i.test(source);
+  const hasInterviewStageCue =
+    /\b(?:we(?:'|’)re|we are)\s+pleased to invite you to\b/i.test(source) ||
+    /\binvite you to the next step in our hiring process\b/i.test(source) ||
+    /\bnext step in our hiring process\b/i.test(source) ||
+    /\binitial interview\b/i.test(source) ||
+    /\bscreening test\b/i.test(source) ||
+    /\battached questions?\b/i.test(source) ||
+    /\bsubmit your responses?\b/i.test(source) ||
+    /\bprogression to the next stage\b/i.test(source);
   const hasLifecycleCue =
     /\b(application|role|position|candidate|under review|recruit(?:ment|ing)|talent acquisition)\b/i.test(source) ||
     /\b(?:@|^)(?:careers?|jobs?|recruit(?:ing|ment)|talent)\b/i.test(senderText);
@@ -744,7 +753,7 @@ function isGenericAppliedConfirmationEnvelope({ sender, subject, snippet, body }
     /\b(job alert|recommended jobs?|jobs? for you|new jobs? in|based on your search|view more jobs|jobs you may like)\b/i.test(
       source
     );
-  return hasConfirmationCue && hasLifecycleCue && !hasAlertCue;
+  return (hasConfirmationCue || hasInterviewStageCue) && hasLifecycleCue && !hasAlertCue;
 }
 
 function isLinkedInDuplicateReprocessCandidate(existingEvent) {
