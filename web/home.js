@@ -310,6 +310,314 @@ function setupHowStepperConnector() {
   }
 }
 
+function setupProductPreview(reducedMotion) {
+  const preview = document.querySelector('[data-product-preview]');
+  if (!preview) {
+    return;
+  }
+
+  const rowsEl = preview.querySelector('[data-preview-rows]');
+  if (!rowsEl) {
+    return;
+  }
+
+  const kpiEls = {
+    applied: preview.querySelector('[data-preview-kpi="applied"]'),
+    interviews: preview.querySelector('[data-preview-kpi="interviews"]'),
+    rejected: preview.querySelector('[data-preview-kpi="rejected"]')
+  };
+
+  const deltaEls = {
+    applied: preview.querySelector('[data-preview-kpi-delta="applied"]'),
+    interviews: preview.querySelector('[data-preview-kpi-delta="interviews"]'),
+    rejected: preview.querySelector('[data-preview-kpi-delta="rejected"]')
+  };
+
+  const doneTextEl = preview.querySelector('.product-preview__sync-text--done');
+
+  const previewStates = [
+    {
+      scanCompleteCopy: 'Update detected: +1 interview request',
+      kpis: { applied: 24, interviews: 4, rejected: 7 },
+      deltas: { interviews: '+1' },
+      rows: [
+        {
+          company: 'CBRE',
+          role: 'Data Center Change Management Coordinator',
+          statusKey: 'interview_requested',
+          statusLabel: 'Interview requested',
+          isPriority: true,
+          isNew: true
+        },
+        {
+          company: 'Valley National Bank',
+          role: 'Sr. Analyst, Business Management',
+          statusKey: 'applied',
+          statusLabel: 'Applied'
+        },
+        {
+          company: 'Synergistic',
+          role: 'Junior Java Developer',
+          statusKey: 'applied',
+          statusLabel: 'Applied'
+        },
+        {
+          company: 'Pereless Systems',
+          role: 'Product Support Specialist',
+          statusKey: 'rejected',
+          statusLabel: 'Rejected'
+        }
+      ]
+    },
+    {
+      scanCompleteCopy: 'Update detected: +1 newly tracked application',
+      kpis: { applied: 25, interviews: 4, rejected: 7 },
+      deltas: { applied: '+1' },
+      rows: [
+        {
+          company: 'Commonpoint',
+          role: 'IT Support Specialist',
+          statusKey: 'applied',
+          statusLabel: 'Applied',
+          isNew: true
+        },
+        {
+          company: 'Fulcrum Vets, LLC',
+          role: 'Remote Accounts Receivable Specialist',
+          statusKey: 'interview_requested',
+          statusLabel: 'Interview requested',
+          isPriority: true
+        },
+        {
+          company: 'Valley National Bank',
+          role: 'Sr. Analyst, Business Management',
+          statusKey: 'applied',
+          statusLabel: 'Applied'
+        },
+        {
+          company: 'Pereless Systems',
+          role: 'Product Support Specialist',
+          statusKey: 'applied',
+          statusLabel: 'Applied'
+        }
+      ]
+    },
+    {
+      scanCompleteCopy: 'Update detected: +1 rejection update',
+      kpis: { applied: 25, interviews: 4, rejected: 8 },
+      deltas: { rejected: '+1' },
+      rows: [
+        {
+          company: 'Arch',
+          role: 'Data Quality Analyst',
+          statusKey: 'rejected',
+          statusLabel: 'Rejected',
+          isNew: true
+        },
+        {
+          company: 'Fulcrum Vets, LLC',
+          role: 'Remote Accounts Receivable Specialist',
+          statusKey: 'interview_requested',
+          statusLabel: 'Interview requested',
+          isPriority: true
+        },
+        {
+          company: 'Commonpoint',
+          role: 'IT Support Specialist',
+          statusKey: 'applied',
+          statusLabel: 'Applied'
+        },
+        {
+          company: 'Synergistic',
+          role: 'Junior Java Developer',
+          statusKey: 'applied',
+          statusLabel: 'Applied'
+        }
+      ]
+    }
+  ];
+
+  const timing = {
+    idleMs: 1300,
+    scanMs: 2500,
+    swapOutMs: 200,
+    swapInMs: 320,
+    updatedMs: 2100,
+    settleMs: 900
+  };
+
+  const statusClassByKey = {
+    applied: 'appl-status-applied',
+    interview_requested: 'appl-status-interview_requested',
+    rejected: 'appl-status-rejected',
+    offer_received: 'appl-status-offer_received',
+    under_review: 'appl-status-under_review'
+  };
+
+  const timeoutIds = new Set();
+  let rafId = 0;
+  let isStopped = false;
+  let stateIndex = 0;
+
+  const escapeHtml = (value) =>
+    String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const setScanProgress = (value) => {
+    const clamped = Math.max(0, Math.min(1, Number(value) || 0));
+    preview.style.setProperty('--scan-progress', clamped.toFixed(3));
+  };
+
+  const wait = (ms) =>
+    new Promise((resolve) => {
+      const id = window.setTimeout(() => {
+        timeoutIds.delete(id);
+        resolve();
+      }, ms);
+      timeoutIds.add(id);
+    });
+
+  const animateProgress = (durationMs) =>
+    new Promise((resolve) => {
+      const start = performance.now();
+      const tick = (now) => {
+        if (isStopped) {
+          resolve();
+          return;
+        }
+        const progress = Math.min(1, (now - start) / durationMs);
+        setScanProgress(progress);
+        if (progress >= 1) {
+          rafId = 0;
+          resolve();
+          return;
+        }
+        rafId = window.requestAnimationFrame(tick);
+      };
+      setScanProgress(0);
+      rafId = window.requestAnimationFrame(tick);
+    });
+
+  const renderRows = (rows) =>
+    rows
+      .map((row) => {
+        const rowClasses = [];
+        if (row.isPriority || row.statusKey === 'interview_requested' || row.statusKey === 'offer_received') {
+          rowClasses.push('product-preview__row--priority');
+        }
+        if (row.isNew) {
+          rowClasses.push('product-preview__row--new');
+        }
+        const statusClass = statusClassByKey[row.statusKey] || 'appl-status-unknown';
+        const newChip = row.isNew ? '<span class="product-preview__row-update is-active">NEW</span>' : '';
+        return `
+          <tr${rowClasses.length ? ` class="${rowClasses.join(' ')}"` : ''}>
+            <td>${escapeHtml(row.company)}</td>
+            <td>${escapeHtml(row.role)}</td>
+            <td>${newChip}<span class="appl-statusPill ${statusClass}"><span class="dot" aria-hidden="true"></span>${escapeHtml(row.statusLabel)}</span></td>
+          </tr>
+        `;
+      })
+      .join('');
+
+  const applyState = (state) => {
+    if (doneTextEl && state.scanCompleteCopy) {
+      doneTextEl.textContent = state.scanCompleteCopy;
+    }
+
+    ['applied', 'interviews', 'rejected'].forEach((key) => {
+      const kpiEl = kpiEls[key];
+      if (kpiEl) {
+        kpiEl.textContent = String(state.kpis?.[key] ?? '--');
+      }
+      const deltaEl = deltaEls[key];
+      if (deltaEl) {
+        const deltaText = state.deltas?.[key] || '';
+        deltaEl.textContent = deltaText;
+        deltaEl.classList.toggle('is-active', Boolean(deltaText));
+      }
+    });
+
+    rowsEl.innerHTML = renderRows(state.rows || []);
+  };
+
+  const swapToState = async (nextStateIndex) => {
+    preview.classList.add('is-swapping-out');
+    await wait(timing.swapOutMs);
+    if (isStopped) {
+      return;
+    }
+    stateIndex = nextStateIndex;
+    applyState(previewStates[stateIndex]);
+    preview.classList.remove('is-swapping-out');
+    preview.classList.add('is-swapping-in');
+    await wait(timing.swapInMs);
+    preview.classList.remove('is-swapping-in');
+  };
+
+  const cleanup = () => {
+    isStopped = true;
+    timeoutIds.forEach((id) => window.clearTimeout(id));
+    timeoutIds.clear();
+    if (rafId) {
+      window.cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+  };
+
+  applyState(previewStates[stateIndex]);
+
+  if (reducedMotion) {
+    preview.classList.remove('is-scanning', 'is-swapping-out', 'is-swapping-in');
+    preview.classList.add('is-updated');
+    setScanProgress(1);
+    window.addEventListener('pagehide', cleanup, { once: true });
+    return;
+  }
+
+  const runLoop = async () => {
+    while (!isStopped) {
+      if (document.visibilityState === 'hidden') {
+        preview.classList.remove('is-scanning');
+        setScanProgress(0);
+        await wait(600);
+        continue;
+      }
+
+      preview.classList.remove('is-updated', 'is-swapping-out', 'is-swapping-in');
+      setScanProgress(0);
+      await wait(timing.idleMs);
+      if (isStopped) {
+        return;
+      }
+
+      preview.classList.add('is-scanning');
+      await animateProgress(timing.scanMs);
+      preview.classList.remove('is-scanning');
+      if (isStopped) {
+        return;
+      }
+
+      const nextStateIndex = (stateIndex + 1) % previewStates.length;
+      await swapToState(nextStateIndex);
+      if (isStopped) {
+        return;
+      }
+
+      preview.classList.add('is-updated');
+      await wait(timing.updatedMs);
+      await wait(timing.settleMs);
+    }
+  };
+
+  runLoop().catch(() => {});
+  window.addEventListener('pagehide', cleanup, { once: true });
+}
+
 function revealAllSections() {
   const revealNodes = getRevealNodes();
   revealNodes.forEach((node) => node.classList.add('is-visible'));
@@ -369,6 +677,7 @@ function bootHomepage() {
   setupHomeIntroPlayback(reducedEffects);
   setupHeroBanner(reducedEffects);
   setupHowStepperConnector();
+  setupProductPreview(reducedMotion);
   setupScrollCtas(reducedMotion);
   setupScrollReveal(reducedMotion);
 

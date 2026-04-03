@@ -10055,7 +10055,7 @@ body.home-page .product-preview__sync-dot {
   border-radius: 999px;
   background: #2f6bff;
   box-shadow: 0 0 0 0 rgba(47, 107, 255, 0.35);
-  animation: productPreviewSyncDot var(--preview-loop-duration) ease-in-out infinite;
+  transition: box-shadow 220ms ease, background-color 220ms ease;
 }
 
 body.home-page .product-preview__sync-text {
@@ -10069,14 +10069,14 @@ body.home-page .product-preview__sync-text {
 
 body.home-page .product-preview__sync-text--scan {
   opacity: 1;
-  animation: productPreviewScanTextScan var(--preview-loop-duration) ease-in-out infinite;
+  transition: opacity 260ms ease;
 }
 
 body.home-page .product-preview__sync-text--done {
   opacity: 0;
   color: #295f9f;
   font-weight: 600;
-  animation: productPreviewScanTextDone var(--preview-loop-duration) ease-in-out infinite;
+  transition: opacity 260ms ease;
 }
 
 body.home-page .product-preview__sync-track {
@@ -10093,9 +10093,21 @@ body.home-page .product-preview__sync-bar {
   height: 100%;
   border-radius: inherit;
   transform-origin: left center;
-  transform: scaleX(0);
+  transform: scaleX(var(--scan-progress, 0));
   background: linear-gradient(90deg, #2f6bff, #4f8dff);
-  animation: productPreviewScanBar var(--preview-loop-duration) ease-in-out infinite;
+  transition: transform 120ms linear;
+}
+
+body.home-page .product-preview.is-scanning .product-preview__sync-dot {
+  animation: productPreviewDotPulse 1.7s ease-in-out infinite;
+}
+
+body.home-page .product-preview.is-updated .product-preview__sync-text--scan {
+  opacity: 0;
+}
+
+body.home-page .product-preview.is-updated .product-preview__sync-text--done {
+  opacity: 1;
 }
 
 body.home-page .product-preview__stats {
@@ -10151,7 +10163,7 @@ body.home-page .product-preview__delta {
   text-transform: uppercase;
   opacity: 0;
   transform: translateY(2px);
-  animation: productPreviewUpdateIndicator var(--preview-loop-duration) ease-in-out infinite;
+  transition: opacity 220ms ease, transform 220ms ease;
 }
 
 body.home-page .product-preview__delta--primary {
@@ -10238,7 +10250,7 @@ body.home-page .product-preview__table td:nth-child(2) {
 
 body.home-page .product-preview__row--priority td {
   background: linear-gradient(90deg, rgba(219, 234, 254, 0.55), rgba(219, 234, 254, 0.16) 58%, rgba(255, 255, 255, 0) 100%);
-  animation: productPreviewInterviewRow var(--preview-loop-duration) ease-in-out infinite;
+  transition: background 260ms ease;
 }
 
 body.home-page .product-preview__row--priority td:first-child {
@@ -10255,7 +10267,7 @@ body.home-page .product-preview__row--priority td:first-child::before {
   width: 3px;
   border-radius: 0 4px 4px 0;
   background: rgba(96, 165, 250, 0.6);
-  animation: productPreviewInterviewAccent var(--preview-loop-duration) ease-in-out infinite;
+  transition: background 260ms ease;
 }
 
 body.home-page .product-preview__table .appl-statusPill {
@@ -10265,7 +10277,7 @@ body.home-page .product-preview__table .appl-statusPill {
 }
 
 body.home-page .product-preview__row--priority .appl-statusPill {
-  animation: productPreviewInterviewBadge var(--preview-loop-duration) ease-in-out infinite;
+  transition: box-shadow 260ms ease;
 }
 
 body.home-page .product-preview__table .appl-statusPill .dot {
@@ -10290,93 +10302,77 @@ body.home-page .product-preview__row-update {
   text-transform: uppercase;
   opacity: 0;
   transform: translateY(2px);
-  animation: productPreviewUpdateIndicator var(--preview-loop-duration) ease-in-out infinite;
+  transition: opacity 220ms ease, transform 220ms ease;
 }
 
-@keyframes productPreviewScanBar {
-  0%, 8% {
-    transform: scaleX(0);
-    opacity: 0.85;
+body.home-page .product-preview__stats,
+body.home-page .product-preview__table-wrap {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 260ms ease, transform 260ms ease;
+}
+
+body.home-page .product-preview.is-swapping-out .product-preview__stats,
+body.home-page .product-preview.is-swapping-out .product-preview__table-wrap {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+body.home-page .product-preview.is-swapping-in [data-preview-rows] tr {
+  animation: productPreviewRowIn 320ms ease both;
+}
+
+body.home-page .product-preview.is-swapping-in [data-preview-rows] tr:nth-child(2) {
+  animation-delay: 40ms;
+}
+
+body.home-page .product-preview.is-swapping-in [data-preview-rows] tr:nth-child(3) {
+  animation-delay: 75ms;
+}
+
+body.home-page .product-preview.is-swapping-in [data-preview-rows] tr:nth-child(4) {
+  animation-delay: 110ms;
+}
+
+body.home-page .product-preview.is-updated .product-preview__delta.is-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+body.home-page .product-preview.is-updated .product-preview__row-update.is-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+body.home-page .product-preview.is-updated .product-preview__row--priority td {
+  background: linear-gradient(90deg, rgba(219, 234, 254, 0.75), rgba(219, 234, 254, 0.24) 58%, rgba(255, 255, 255, 0) 100%);
+}
+
+body.home-page .product-preview.is-updated .product-preview__row--priority td:first-child::before {
+  background: rgba(47, 107, 255, 0.74);
+}
+
+body.home-page .product-preview.is-updated .product-preview__row--priority .appl-statusPill {
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.16);
+}
+
+@keyframes productPreviewDotPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(47, 107, 255, 0.24);
   }
-  44%, 74% {
-    transform: scaleX(1);
-    opacity: 1;
-  }
-  100% {
-    transform: scaleX(0);
-    opacity: 0.85;
+  50% {
+    box-shadow: 0 0 0 5px rgba(47, 107, 255, 0.06);
   }
 }
 
-@keyframes productPreviewSyncDot {
-  0%, 42%, 100% {
-    box-shadow: 0 0 0 0 rgba(47, 107, 255, 0.35);
-  }
-  52%, 70% {
-    box-shadow: 0 0 0 5px rgba(47, 107, 255, 0.08);
-  }
-}
-
-@keyframes productPreviewScanTextScan {
-  0%, 42% {
-    opacity: 1;
-  }
-  48%, 100% {
+@keyframes productPreviewRowIn {
+  from {
     opacity: 0;
+    transform: translateY(8px);
   }
-}
-
-@keyframes productPreviewScanTextDone {
-  0%, 46% {
-    opacity: 0;
-  }
-  52%, 82% {
-    opacity: 1;
-  }
-  90%, 100% {
-    opacity: 0;
-  }
-}
-
-@keyframes productPreviewUpdateIndicator {
-  0%, 48% {
-    opacity: 0;
-    transform: translateY(2px);
-  }
-  54%, 84% {
+  to {
     opacity: 1;
     transform: translateY(0);
-  }
-  92%, 100% {
-    opacity: 0;
-    transform: translateY(2px);
-  }
-}
-
-@keyframes productPreviewInterviewRow {
-  0%, 48%, 100% {
-    background: linear-gradient(90deg, rgba(219, 234, 254, 0.52), rgba(219, 234, 254, 0.14) 58%, rgba(255, 255, 255, 0) 100%);
-  }
-  56%, 76% {
-    background: linear-gradient(90deg, rgba(219, 234, 254, 0.74), rgba(219, 234, 254, 0.24) 58%, rgba(255, 255, 255, 0) 100%);
-  }
-}
-
-@keyframes productPreviewInterviewAccent {
-  0%, 50%, 100% {
-    background: rgba(96, 165, 250, 0.48);
-  }
-  58%, 78% {
-    background: rgba(47, 107, 255, 0.72);
-  }
-}
-
-@keyframes productPreviewInterviewBadge {
-  0%, 52%, 100% {
-    box-shadow: none;
-  }
-  58%, 78% {
-    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.16);
   }
 }
 
@@ -10839,6 +10835,7 @@ body.home-page .info-step:hover .how-step-card__icon {
   body.home-page .product-preview__sync-bar,
   body.home-page .product-preview__delta,
   body.home-page .product-preview__row-update,
+  body.home-page .product-preview.is-swapping-in [data-preview-rows] tr,
   body.home-page .product-preview__row--priority td,
   body.home-page .product-preview__row--priority td:first-child::before,
   body.home-page .product-preview__row--priority .appl-statusPill {
@@ -10848,7 +10845,7 @@ body.home-page .info-step:hover .how-step-card__icon {
   }
 
   body.home-page .product-preview__sync-bar {
-    transform: scaleX(0.62) !important;
+    transform: scaleX(1) !important;
   }
 
   body.home-page .product-preview__sync-text--scan {

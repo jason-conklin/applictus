@@ -140,7 +140,7 @@
                     </div>
                   </div>
                   <div class="info-section__right">
-                    <article class="product-preview tile" aria-label="Applictus dashboard preview">
+                    <article class="product-preview tile" aria-label="Applictus dashboard preview" data-product-preview>
                       <header class="product-preview__header">
                         <p class="product-preview__kicker">Dashboard Preview</p>
                         <h3>Applications at a glance</h3>
@@ -159,22 +159,22 @@
                         <article class="product-preview__stat">
                           <p>Applied</p>
                           <div class="product-preview__stat-value">
-                            <strong>24</strong>
-                            <span class="product-preview__delta">NEW</span>
+                            <strong data-preview-kpi="applied">24</strong>
+                            <span class="product-preview__delta" data-preview-kpi-delta="applied">NEW</span>
                           </div>
                         </article>
                         <article class="product-preview__stat product-preview__stat--interview">
                           <p>Interviews</p>
                           <div class="product-preview__stat-value">
-                            <strong>4</strong>
-                            <span class="product-preview__delta product-preview__delta--primary">+1</span>
+                            <strong data-preview-kpi="interviews">4</strong>
+                            <span class="product-preview__delta product-preview__delta--primary" data-preview-kpi-delta="interviews">+1</span>
                           </div>
                         </article>
                         <article class="product-preview__stat product-preview__stat--rejected">
                           <p>Rejected</p>
                           <div class="product-preview__stat-value">
-                            <strong>7</strong>
-                            <span class="product-preview__delta">+1</span>
+                            <strong data-preview-kpi="rejected">7</strong>
+                            <span class="product-preview__delta" data-preview-kpi-delta="rejected">+1</span>
                           </div>
                         </article>
                       </div>
@@ -187,7 +187,7 @@
                               <th scope="col">Status</th>
                             </tr>
                           </thead>
-                          <tbody>
+                          <tbody data-preview-rows>
                             <tr class="product-preview__row--priority">
                               <td>CBRE</td>
                               <td>Data Center Change Management Coordinator</td>
@@ -358,6 +358,6 @@
         </div>
       </footer>
     </div>
-    <script type="module" src="/home.js?v=5"></script>
+    <script type="module" src="/home.js?v=6"></script>
   </body>
 </html>
