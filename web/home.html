@@ -145,18 +145,37 @@
                         <p class="product-preview__kicker">Dashboard Preview</p>
                         <h3>Applications at a glance</h3>
                       </header>
+                      <div class="product-preview__sync" aria-hidden="true">
+                        <div class="product-preview__sync-head">
+                          <span class="product-preview__sync-dot"></span>
+                          <span class="product-preview__sync-text product-preview__sync-text--scan">Scanning inbox for new updates...</span>
+                          <span class="product-preview__sync-text product-preview__sync-text--done">Update detected: 1 interview request</span>
+                        </div>
+                        <div class="product-preview__sync-track">
+                          <span class="product-preview__sync-bar"></span>
+                        </div>
+                      </div>
                       <div class="product-preview__stats" role="presentation">
                         <article class="product-preview__stat">
                           <p>Applied</p>
-                          <strong>24</strong>
+                          <div class="product-preview__stat-value">
+                            <strong>24</strong>
+                            <span class="product-preview__delta">NEW</span>
+                          </div>
                         </article>
                         <article class="product-preview__stat product-preview__stat--interview">
                           <p>Interviews</p>
-                          <strong>4</strong>
+                          <div class="product-preview__stat-value">
+                            <strong>4</strong>
+                            <span class="product-preview__delta product-preview__delta--primary">+1</span>
+                          </div>
                         </article>
                         <article class="product-preview__stat product-preview__stat--rejected">
                           <p>Rejected</p>
-                          <strong>7</strong>
+                          <div class="product-preview__stat-value">
+                            <strong>7</strong>
+                            <span class="product-preview__delta">+1</span>
+                          </div>
                         </article>
                       </div>
                       <div class="product-preview__table-wrap">
@@ -172,7 +191,7 @@
                             <tr class="product-preview__row--priority">
                               <td>CBRE</td>
                               <td>Data Center Change Management Coordinator</td>
-                              <td><span class="appl-statusPill appl-status-interview_requested"><span class="dot" aria-hidden="true"></span>Interview requested</span></td>
+                              <td><span class="product-preview__row-update">NEW</span><span class="appl-statusPill appl-status-interview_requested"><span class="dot" aria-hidden="true"></span>Interview requested</span></td>
                             </tr>
                             <tr>
                               <td>Valley National Bank</td>
