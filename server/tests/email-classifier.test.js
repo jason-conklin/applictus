@@ -197,6 +197,77 @@ test('classifyEmail keeps Pereless ATS review confirmations as applied and relev
   assert.notEqual(result.detectedType, 'interview_requested');
 });
 
+test('classifyEmail keeps CBRE-style received/under-review confirmations as applied and relevant', () => {
+  const subject = 'Thank you for applying at CBRE - 267657 Data Center Change Management Coordinator';
+  const body = [
+    'Hello Michelle,',
+    '',
+    'Thank you for applying to the Data Center Change Management Coordinator role. We have successfully received your application and it is currently under review.',
+    '',
+    'Over the coming weeks, we will be assessing applicants for this role. If your qualifications prove to be a match, we will reach out to you to schedule an interview.',
+    '',
+    'We may invite you to some or all of the below recruitment stages, as they help us to get a more accurate picture of who you are. Some of your interactions with us may include:',
+    '- A screening interview',
+    '- Face-to-face interview or Zoom Call',
+    '- Assessment exercises',
+    '',
+    'To check the status of your application at any time, login to your profile by clicking here.',
+    '',
+    'Thank you,',
+    'CBRE Talent Acquisition'
+  ].join('\n');
+
+  const relevance = isRelevantApplicationEmail({
+    subject,
+    body,
+    sender: 'CBRE Talent Acquisition <donotreply@cbre.com>'
+  });
+  assert.equal(relevance.isRelevant, true);
+  assert.ok(Array.isArray(relevance.matchedKeywords));
+  assert.ok(
+    relevance.matchedKeywords.includes('thank_you_for_applying_at') ||
+      relevance.matchedKeywords.includes('thank_you_for_applying')
+  );
+
+  const result = classifyEmail({
+    subject,
+    body,
+    sender: 'CBRE Talent Acquisition <donotreply@cbre.com>'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'confirmation');
+  assert.notEqual(result.detectedType, 'interview_requested');
+  assert.ok(Array.isArray(result?.debug?.appliedMatches));
+  assert.ok(
+    result.debug.appliedMatches.includes('thank_you_for_applying_at') ||
+      result.debug.appliedMatches.includes('thank_you_for_applying')
+  );
+  assert.ok(Array.isArray(result?.debug?.negativeMatches));
+  assert.ok(result.debug.negativeMatches.includes('recruitment_stages_overview'));
+});
+
+test('classifyEmail keeps generic ATS process-stage language as confirmation without interview upgrade', () => {
+  const subject = 'Thank you for applying at Acme Corp - 99123 Product Analyst';
+  const body = [
+    'Thank you for applying to the Product Analyst role.',
+    'We have successfully received your application and it is currently under review.',
+    'If your qualifications are a match, we will contact you.',
+    'We may invite you to some or all of the below recruitment stages:',
+    '- Screening interview',
+    '- Team interview',
+    '- Assessment'
+  ].join('\n');
+
+  const result = classifyEmail({
+    subject,
+    body,
+    sender: 'Acme Talent Acquisition <donotreply@acme.com>'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'confirmation');
+  assert.notEqual(result.detectedType, 'interview_requested');
+});
+
 test('isRelevantApplicationEmail treats "Thanks for applying" confirmations as relevant', () => {
   const relevance = isRelevantApplicationEmail({
     subject: 'Thanks for applying to EarthCam',

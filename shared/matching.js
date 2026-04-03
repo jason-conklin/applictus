@@ -171,6 +171,13 @@ const ROLE_COMPANY_PATTERNS = [
     confidence: 0.93
   },
   {
+    name: 'thank_you_applying_at_company_id_role_subject',
+    regex: /thank you for applying at\s+([A-Z][A-Za-z0-9&.'\- ]{2,80})\s*[-–—]\s*[A-Z0-9-]{2,}\s+([A-Z][A-Za-z0-9/&.'\- ]{2,120})$/i,
+    roleIndex: 2,
+    companyIndex: 1,
+    confidence: 0.96
+  },
+  {
     name: 'subject_update_from_company',
     regex: /update on your application from\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})/i,
     roleIndex: null,

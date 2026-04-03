@@ -237,6 +237,22 @@ test('extractThreadIdentity extracts employer company from Monster confirmation 
   assert.ok(String(identity.explanation || '').includes('body_has_received_application_for'));
 });
 
+test('extractThreadIdentity parses "Thank you for applying at {Company} - {ID} {Role}" subject pattern', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Thank you for applying at CBRE - 267657 Data Center Change Management Coordinator',
+    sender: 'CBRE Talent Acquisition <donotreply@cbre.com>',
+    bodyText:
+      'Thank you for applying to the Data Center Change Management Coordinator role. We have successfully received your application and it is currently under review.'
+  });
+
+  assert.equal(identity.companyName, 'CBRE');
+  assert.equal(identity.jobTitle, 'Data Center Change Management Coordinator');
+  assert.ok(
+    String(identity.explanation || '').includes('thank_you_applying_at_company_id_role_subject') ||
+      String(identity.explanation || '').includes('Matched signature company line')
+  );
+});
+
 test('extractThreadIdentity parses Oracle Cloud follow-up without sender-email company leak', () => {
   const identity = extractThreadIdentity({
     subject: 'Application Follow Up',

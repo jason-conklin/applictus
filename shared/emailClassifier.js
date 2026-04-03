@@ -50,11 +50,28 @@ const RELEVANCE_KEEP_SIGNALS = [
   { pattern: /\bindeed application:\s*.+/i, label: 'indeed_application_subject' },
   { pattern: /\bjobs applied to on\s+\d{1,2}\/\d{1,2}\/\d{2,4}\b/i, label: 'jobs_applied_to_subject' },
   { pattern: /\bid[:#]?\s*[A-Z0-9-]{3,}\s*[-–—]\s*[A-Za-z]/i, label: 'job_id_title_line' },
+  { pattern: /\bthank you for applying at\b/i, label: 'thank_you_for_applying_at' },
   { pattern: /\bapplication submitted\b/i, label: 'application_submitted' },
   { pattern: /\byour application was sent\b/i, label: 'application_was_sent' },
   { pattern: /\bthank you for applying\b/i, label: 'thank_you_for_applying' },
   { pattern: /\bthanks for applying\b/i, label: 'thanks_for_applying' },
   { pattern: /\bthank you for your application\b/i, label: 'thank_you_for_your_application' },
+  {
+    pattern: /\bwe have successfully received your application\b/i,
+    label: 'successfully_received_application'
+  },
+  {
+    pattern: /\b(?:it is|your application is)\s+currently under review\b/i,
+    label: 'currently_under_review'
+  },
+  {
+    pattern: /\bwe will be assessing applicants\b/i,
+    label: 'assessing_applicants'
+  },
+  {
+    pattern: /\bcheck the status of your application\b/i,
+    label: 'check_application_status'
+  },
   {
     pattern: /\bthank you for inquiring about employment opportunities\b/i,
     label: 'thank_you_inquiring_employment_opportunities'
@@ -126,6 +143,23 @@ const INTERVIEW_VAGUE_SIGNAL_PATTERNS = [
   { pattern: /\bwe will contact you\b/i, label: 'will_contact_you' },
   { pattern: /\breviewing your application\b/i, label: 'reviewing_application' },
   { pattern: /\bunder consideration\b/i, label: 'under_consideration' }
+];
+
+const INTERVIEW_PROCESS_ONLY_SIGNAL_PATTERNS = [
+  { pattern: /\bover the coming weeks\b/i, label: 'future_process_timeline' },
+  {
+    pattern: /\bif your qualifications (?:prove to be|are) a match\b/i,
+    label: 'conditional_match_language'
+  },
+  {
+    pattern: /\bwe (?:may|might) invite you to some or all of the (?:below )?recruitment stages\b/i,
+    label: 'recruitment_stages_overview'
+  },
+  {
+    pattern: /\bsome of your interactions with us may include\b/i,
+    label: 'process_stage_examples'
+  },
+  { pattern: /\bwe will be assessing applicants\b/i, label: 'assessment_phase_language' }
 ];
 
 const INTERVIEW_DIRECT_INTENT_PATTERNS = [
@@ -242,8 +276,13 @@ const APPLIED_COURTESY_SIGNALS = [
 ];
 
 const APPLIED_CONFIRMATION_SIGNAL_PATTERNS = [
+  { pattern: /\bthank you for applying at\b/i, label: 'thank_you_for_applying_at' },
   { pattern: /\bapplication submitted\b/i, label: 'application_submitted' },
   { pattern: /\byour application was sent\b/i, label: 'application_was_sent' },
+  { pattern: /\bwe have successfully received your application\b/i, label: 'successfully_received_application' },
+  { pattern: /\b(?:it is|your application is)\s+currently under review\b/i, label: 'currently_under_review' },
+  { pattern: /\bwe will be assessing applicants\b/i, label: 'assessing_applicants' },
+  { pattern: /\bcheck the status of your application\b/i, label: 'check_application_status' },
   { pattern: /\bwe (?:have )?received your application\b/i, label: 'received_application' },
   { pattern: /\bthanks for applying\b/i, label: 'thanks_for_applying' },
   { pattern: /\bjobs applied to on\s+\d{1,2}\/\d{1,2}\/\d{2,4}\b/i, label: 'jobs_applied_to_subject' },
@@ -370,8 +409,13 @@ function hasAppliedConfirmationSignals(text) {
       text
     );
   return (
+    /\bthank you for applying at\b/i.test(text) ||
     /\bapplication submitted\b/i.test(text) ||
     /\byour application was sent\b/i.test(text) ||
+    /\bwe have successfully received your application\b/i.test(text) ||
+    /\b(?:it is|your application is)\s+currently under review\b/i.test(text) ||
+    /\bwe will be assessing applicants\b/i.test(text) ||
+    /\bcheck the status of your application\b/i.test(text) ||
     /\bthank you for applying\b/i.test(text) ||
     /\bthanks for applying\b/i.test(text) ||
     /\bwe (?:have )?received your application\b/i.test(text) ||
@@ -869,6 +913,7 @@ function detectSchedulingInterview({ subject, snippet, sender, body }) {
   const interviewActionHits = collectSignalMatches(INTERVIEW_ACTION_SIGNAL_PATTERNS, textSource);
   const directCtaHits = collectSignalMatches(INTERVIEW_DIRECT_CTA_PATTERNS, textSource);
   const vagueInterviewHits = collectSignalMatches(INTERVIEW_VAGUE_SIGNAL_PATTERNS, textSource);
+  const processOnlyInterviewHits = collectSignalMatches(INTERVIEW_PROCESS_ONLY_SIGNAL_PATTERNS, textSource);
   const relevanceScreen = isRelevantApplicationEmail({
     subject: rawSubject,
     snippet: rawSnippet,
@@ -924,6 +969,12 @@ function detectSchedulingInterview({ subject, snippet, sender, body }) {
   const hasCandidateOwnershipSignal =
     hasPersonalizationSignal || hasSecondPersonSignal || hasExplicitDirectRequest || hasAnyTimeEvidence;
   const hasCandidateDirectSignal = hasDirectIntent || hasExplicitDirectRequest || hasSubjectInterviewSignal;
+  const hasExplicitSchedulingRequest = hasStrongTimeEvidence || directCtaHits.length > 0 || hasExplicitDirectRequest;
+  const interviewSuppressedByProcessOnlyLanguage =
+    processOnlyInterviewHits.length > 0 && !hasExplicitSchedulingRequest;
+  if (interviewSuppressedByProcessOnlyLanguage) {
+    return null;
+  }
   const passesInterviewGate =
     hasCandidateDirectSignal && hasCandidateOwnershipSignal && hasStrongInterviewContext && hasActionIntent;
   const passesMeetingGate =
@@ -1016,6 +1067,7 @@ function detectSchedulingInterview({ subject, snippet, sender, body }) {
     debug: {
       interviewMatches: Array.from(new Set([...interviewContextHits, ...interviewActionHits, ...directCtaHits])),
       rejectedKeywords: Array.from(new Set([...vagueInterviewHits, ...listingPenaltySignals])),
+      negativeMatches: processOnlyInterviewHits,
       finalDecision: detectedType
     }
   };
@@ -1061,6 +1113,7 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
 
   const linkedInJobsUpdate = isLinkedInJobsUpdateEmail({ subject, snippet, sender, body });
   const linkedInApplicationSent = isLinkedInJobsApplicationSentEmail({ subject, snippet, sender, body });
+  const interviewSuppressionMatches = collectSignalMatches(INTERVIEW_PROCESS_ONLY_SIGNAL_PATTERNS, textSource);
 
   // Early guard: LinkedIn social/notification emails should not be classified as interview.
   if (!linkedInJobsUpdate && isLinkedInSocialNotification(textSource, sender)) {
@@ -1270,7 +1323,8 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
           ...[String(confirmationMatch.matched || '')].filter(Boolean),
           ...appliedConfirmationMatches
         ],
-        rejectedKeywords: [],
+        rejectedKeywords: interviewSuppressionMatches,
+        negativeMatches: interviewSuppressionMatches,
         appliedMatches: appliedConfirmationMatches,
         finalDecision: 'confirmation'
       }
@@ -1287,7 +1341,8 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
       reason: 'confirmation_fallback',
       debug: {
         matchedKeywords: appliedConfirmationMatches,
-        rejectedKeywords: [],
+        rejectedKeywords: interviewSuppressionMatches,
+        negativeMatches: interviewSuppressionMatches,
         appliedMatches: appliedConfirmationMatches,
         finalDecision: 'confirmation'
       }

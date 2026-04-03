@@ -368,3 +368,167 @@ test('syncGmailMessages ingests Pereless ATS confirmations as separate applied a
     db.close();
   }
 });
+
+test('syncGmailMessages reprocesses CBRE received/under-review confirmation and creates applied application', async (t) => {
+  if (!Database) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  let db;
+  try {
+    db = new Database(':memory:');
+  } catch (err) {
+    const message = String(err && err.message ? err.message : err);
+    if (/better-sqlite3|invalid ELF header|SQLITE_NATIVE_(OPEN|LOAD)_FAILED/i.test(message)) {
+      t.skip('better-sqlite3 native module unavailable in this environment');
+      return;
+    }
+    throw err;
+  }
+  runMigrations(db);
+  const userId = insertUser(db);
+  const now = Date.now();
+
+  const messageId = 'msg-cbre-1';
+  const rfcMessageId = '<msg-cbre-1@example.com>';
+  const subject = 'Thank you for applying at CBRE - 267657 Data Center Change Management Coordinator';
+  const body = [
+    'Hello Michelle,',
+    '',
+    'Thank you for applying to the Data Center Change Management Coordinator role. We have successfully received your application and it is currently under review.',
+    '',
+    'Over the coming weeks, we will be assessing applicants for this role. If your qualifications prove to be a match, we will reach out to you to schedule an interview.',
+    '',
+    'We may invite you to some or all of the below recruitment stages, as they help us to get a more accurate picture of who you are. Some of your interactions with us may include:',
+    '- A screening interview',
+    '- Face-to-face interview or Zoom Call',
+    '- Assessment exercises',
+    '',
+    'To check the status of your application at any time, login to your profile by clicking here.',
+    '',
+    'Thank you,',
+    'CBRE Talent Acquisition'
+  ].join('\n');
+
+  insertEmailEventRecord(db, {
+    id: 'evt-legacy-cbre-1',
+    userId,
+    provider: 'gmail',
+    messageId,
+    providerMessageId: messageId,
+    rfcMessageId,
+    sender: 'CBRE Talent Acquisition <donotreply@cbre.com>',
+    subject,
+    internalDate: now - 60 * 60 * 1000,
+    snippet: 'Thank you for applying to the Data Center Change Management Coordinator role.',
+    detectedType: 'other_job_related',
+    confidenceScore: 0.21,
+    classificationConfidence: 0.21,
+    identityConfidence: 0,
+    identityCompanyName: null,
+    identityJobTitle: null,
+    identityCompanyConfidence: null,
+    identityExplanation: null,
+    explanation: 'legacy_not_relevant',
+    reasonCode: 'not_relevant',
+    reasonDetail: null,
+    roleTitle: null,
+    roleConfidence: null,
+    roleSource: null,
+    roleExplanation: null,
+    externalReqId: '267657',
+    ingestDecision: 'unsorted',
+    createdAt: new Date(now - 60 * 60 * 1000).toISOString()
+  });
+
+  const gmail = {
+    users: {
+      messages: {
+        list: async () => ({
+          data: {
+            messages: [{ id: messageId }],
+            resultSizeEstimate: 1,
+            nextPageToken: null
+          }
+        }),
+        get: async () => ({
+          data: {
+            id: messageId,
+            internalDate: String(now),
+            snippet: 'Thank you for applying to the Data Center Change Management Coordinator role.',
+            labelIds: ['INBOX'],
+            payload: {
+              headers: [
+                { name: 'From', value: 'CBRE Talent Acquisition <donotreply@cbre.com>' },
+                { name: 'Subject', value: subject },
+                { name: 'Message-ID', value: rfcMessageId }
+              ],
+              mimeType: 'text/plain',
+              body: {
+                data: toBase64Url(body)
+              }
+            }
+          }
+        })
+      }
+    }
+  };
+
+  const originalLlm = process.env.JOBTRACK_LLM_ENABLED;
+  process.env.JOBTRACK_LLM_ENABLED = '0';
+  try {
+    const result = await syncGmailMessages({
+      db,
+      userId,
+      days: 30,
+      maxResults: 20,
+      mode: 'days',
+      timeWindowStart: new Date(now - 30 * 24 * 60 * 60 * 1000),
+      timeWindowEnd: new Date(now + 60 * 1000),
+      authClientOverride: {},
+      gmailServiceOverride: gmail,
+      authenticatedUserEmailOverride: `user-${userId}@example.com`
+    });
+
+    assert.equal(result.status, 'ok');
+    assert.equal(result.skippedDuplicate, 0);
+    assert.ok((result.createdApplications || 0) + (result.matchedExisting || 0) >= 1);
+
+    const storedEvent = db
+      .prepare(
+        `SELECT detected_type, reason_code, identity_company_name, role_title, ingest_decision, application_id
+         FROM email_events
+         WHERE user_id = ? AND provider = 'gmail' AND provider_message_id = ?`
+      )
+      .get(userId, messageId);
+    assert.ok(storedEvent);
+    assert.notEqual(String(storedEvent.reason_code || '').toLowerCase(), 'not_relevant');
+    assert.ok(['confirmation', 'under_review'].includes(String(storedEvent.detected_type || '').toLowerCase()));
+    assert.match(String(storedEvent.identity_company_name || ''), /CBRE/i);
+    assert.match(String(storedEvent.role_title || ''), /Data Center Change Management Coordinator/i);
+    assert.ok(storedEvent.application_id);
+    assert.ok(['matched', 'auto_created', 'unsorted'].includes(String(storedEvent.ingest_decision || '')));
+
+    const app = db
+      .prepare(
+        `SELECT company, role, current_status
+         FROM job_applications
+         WHERE user_id = ?
+         ORDER BY created_at DESC
+         LIMIT 1`
+      )
+      .get(userId);
+    assert.ok(app);
+    assert.match(String(app.company || ''), /CBRE/i);
+    assert.match(String(app.role || ''), /Data Center Change Management Coordinator/i);
+    assert.equal(String(app.current_status || '').toUpperCase(), 'APPLIED');
+  } finally {
+    if (originalLlm === undefined) {
+      delete process.env.JOBTRACK_LLM_ENABLED;
+    } else {
+      process.env.JOBTRACK_LLM_ENABLED = originalLlm;
+    }
+    db.close();
+  }
+});

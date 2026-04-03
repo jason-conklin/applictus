@@ -73,6 +73,24 @@ function parseGeneric({ subject, text }) {
     }
   }
 
+  if (!companyRaw || !roleRaw) {
+    const applyingAtCompanyIdRole = subj.match(
+      /thank you for applying at\s+([A-Z][A-Za-z0-9&.' -]{1,80})\s*[-–—]\s*[A-Z0-9-]{2,}\s+([A-Z][A-Za-z0-9/&.' -]{2,120})$/i
+    );
+    if (applyingAtCompanyIdRole) {
+      if (!companyRaw && applyingAtCompanyIdRole[1]) {
+        companyRaw = applyingAtCompanyIdRole[1].trim();
+        candidates.company.push(companyRaw);
+        notes.push('company_phrase:subject_applying_at_company_id');
+      }
+      if (!roleRaw && applyingAtCompanyIdRole[2]) {
+        roleRaw = applyingAtCompanyIdRole[2].trim().replace(/[.!,;:]+$/g, '');
+        candidates.role.push(roleRaw);
+        notes.push('role_phrase:subject_applying_at_company_id');
+      }
+    }
+  }
+
   if (!roleRaw) {
     const idLineRoleMatch = body.match(
       /\bID[:#]?\s*[A-Z0-9-]{3,}\s*[-–—]\s*([^\n\r]+?)(?=\s*(?:\r?\n|$))/i
@@ -239,6 +257,10 @@ async function parseJobEmail(payload = {}) {
     rejection_matches: Array.isArray(statusSignal?.rejectionMatches) ? statusSignal.rejectionMatches : [],
     applied_matches: Array.isArray(statusSignal?.appliedMatches) ? statusSignal.appliedMatches : [],
     interview_matches: Array.isArray(statusSignal?.interviewMatches) ? statusSignal.interviewMatches : [],
+    negative_matches: Array.isArray(statusSignal?.negativeMatches) ? statusSignal.negativeMatches : [],
+    interview_suppression_matches: Array.isArray(statusSignal?.interviewSuppressionMatches)
+      ? statusSignal.interviewSuppressionMatches
+      : [],
     selected_status: statusSignal?.status || null,
     selected_source: statusSignal?.source || null,
     selected_match: statusSignal?.matched || null,

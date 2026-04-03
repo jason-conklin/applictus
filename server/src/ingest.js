@@ -727,6 +727,26 @@ function isIndeedApplicationConfirmationEnvelope({ sender, subject, snippet, bod
   return (hasIndeedSubject || hasConfirmationCue) && hasConfirmationCue && !hasAlertCue;
 }
 
+function isGenericAppliedConfirmationEnvelope({ sender, subject, snippet, body } = {}) {
+  const source = `${subject || ''}\n${snippet || ''}\n${body || ''}`;
+  const senderText = String(sender || '').toLowerCase();
+  const hasConfirmationCue =
+    /\bthank you for applying(?:\s+(?:at|to))?\b/i.test(source) ||
+    /\bwe have successfully received your application\b/i.test(source) ||
+    /\bwe (?:have )?received your application\b/i.test(source) ||
+    /\b(?:it is|your application is)\s+currently under review\b/i.test(source) ||
+    /\bcheck the status of your application\b/i.test(source) ||
+    /\bapplication (?:status|update)\b/i.test(source);
+  const hasLifecycleCue =
+    /\b(application|role|position|candidate|under review|recruit(?:ment|ing)|talent acquisition)\b/i.test(source) ||
+    /\b(?:@|^)(?:careers?|jobs?|recruit(?:ing|ment)|talent)\b/i.test(senderText);
+  const hasAlertCue =
+    /\b(job alert|recommended jobs?|jobs? for you|new jobs? in|based on your search|view more jobs|jobs you may like)\b/i.test(
+      source
+    );
+  return hasConfirmationCue && hasLifecycleCue && !hasAlertCue;
+}
+
 function isLinkedInDuplicateReprocessCandidate(existingEvent) {
   if (!existingEvent || !existingEvent.id) {
     return false;
@@ -836,8 +856,52 @@ function isIndeedDuplicateReprocessCandidate(existingEvent) {
 function isDuplicateReprocessCandidate(existingEvent) {
   return (
     isLinkedInDuplicateReprocessCandidate(existingEvent) ||
-    isIndeedDuplicateReprocessCandidate(existingEvent)
+    isIndeedDuplicateReprocessCandidate(existingEvent) ||
+    isGenericDuplicateReprocessCandidate(existingEvent)
   );
+}
+
+function isGenericDuplicateReprocessCandidate(existingEvent) {
+  if (!existingEvent || !existingEvent.id) {
+    return false;
+  }
+  const looksLikeGenericConfirmation = isGenericAppliedConfirmationEnvelope({
+    sender: existingEvent.sender || '',
+    subject: existingEvent.subject || '',
+    snippet: existingEvent.snippet || '',
+    body: ''
+  });
+  if (!looksLikeGenericConfirmation) {
+    return false;
+  }
+  const detectedType = String(existingEvent.detected_type || '').toLowerCase();
+  const reasonCode = String(existingEvent.reason_code || '').toLowerCase();
+  const ingestDecision = String(existingEvent.ingest_decision || '').toLowerCase();
+  const recoverableReason = new Set([
+    'classified_not_job_related',
+    'denylisted',
+    'below_threshold',
+    'not_relevant',
+    'missing_identity',
+    'not_confident_for_create',
+    'low_confidence',
+    'ambiguous_sender',
+    'ambiguous_match',
+    'ambiguous_match_rejection'
+  ]);
+  if (!detectedType) {
+    return true;
+  }
+  if (recoverableReason.has(reasonCode)) {
+    return true;
+  }
+  if (['interview', 'interview_requested', 'interview_scheduled', 'meeting_requested'].includes(detectedType)) {
+    return true;
+  }
+  if (!existingEvent.application_id && ingestDecision === 'unsorted') {
+    return true;
+  }
+  return false;
 }
 
 function hasLinkedInRejectionPhrase(text) {

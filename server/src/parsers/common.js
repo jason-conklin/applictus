@@ -61,6 +61,23 @@ const INTERVIEW_VAGUE_PATTERNS = [
   { pattern: /\bunder consideration\b/i, label: 'under_consideration' }
 ];
 
+const INTERVIEW_PROCESS_ONLY_PATTERNS = [
+  { pattern: /\bover the coming weeks\b/i, label: 'future_process_timeline' },
+  {
+    pattern: /\bif your qualifications (?:prove to be|are) a match\b/i,
+    label: 'conditional_match_language'
+  },
+  {
+    pattern: /\bwe (?:may|might) invite you to some or all of the (?:below )?recruitment stages\b/i,
+    label: 'recruitment_stages_overview'
+  },
+  {
+    pattern: /\bsome of your interactions with us may include\b/i,
+    label: 'process_stage_examples'
+  },
+  { pattern: /\bwe will be assessing applicants\b/i, label: 'assessment_phase_language' }
+];
+
 const INTERVIEW_NEGATIVE_PATTERNS = [
   { pattern: /\bjobs? for you\b/i, label: 'jobs_for_you' },
   { pattern: /\brecommended jobs?\b/i, label: 'recommended_jobs' },
@@ -71,6 +88,7 @@ const INTERVIEW_NEGATIVE_PATTERNS = [
 ];
 
 const APPLIED_SIGNAL_PATTERNS = [
+  { pattern: /\bthank you for applying at\b/i, label: 'thank_you_for_applying_at' },
   { pattern: /\bthank you for applying\b/i, label: 'thank_you_for_applying' },
   { pattern: /\bthanks for applying\b/i, label: 'thanks_for_applying' },
   {
@@ -80,7 +98,11 @@ const APPLIED_SIGNAL_PATTERNS = [
   { pattern: /\bapplication submitted\b/i, label: 'application_submitted' },
   { pattern: /\byour application was sent\b/i, label: 'application_was_sent' },
   { pattern: /\byour application has been received\b/i, label: 'application_received' },
+  { pattern: /\bwe have successfully received your application\b/i, label: 'successfully_received_application' },
   { pattern: /\bwe (?:have )?received your application\b/i, label: 'received_your_application' },
+  { pattern: /\b(?:it is|your application is)\s+currently under review\b/i, label: 'currently_under_review' },
+  { pattern: /\bwe will be assessing applicants\b/i, label: 'assessing_applicants' },
+  { pattern: /\bcheck the status of your application\b/i, label: 'check_application_status' },
   { pattern: /\bwe are currently reviewing your resume\b/i, label: 'reviewing_resume' },
   { pattern: /\bevaluating your professional credentials\b/i, label: 'evaluating_credentials' },
   {
@@ -208,6 +230,7 @@ function detectStatusSignal({
   const interviewContextHits = collectPatternHits(INTERVIEW_CONTEXT_PATTERNS, corpus);
   const interviewActionHits = collectPatternHits(INTERVIEW_ACTION_PATTERNS, corpus);
   const interviewVagueHits = collectPatternHits(INTERVIEW_VAGUE_PATTERNS, corpus);
+  const interviewProcessOnlyHits = collectPatternHits(INTERVIEW_PROCESS_ONLY_PATTERNS, corpus);
   const interviewNegativeHits = collectPatternHits(INTERVIEW_NEGATIVE_PATTERNS, corpus);
   const hasDirectInterviewCta =
     /\bplease (?:share|send|provide).{0,40}\b(?:availability|time slots?)\b/i.test(corpus) ||
@@ -223,15 +246,19 @@ function detectStatusSignal({
 
   const hasInterviewContext = interviewContextHits.length > 0;
   const hasInterviewAction = interviewActionHits.length > 0 || hasDirectInterviewCta;
+  const hasExplicitSchedulingRequest = hasDirectInterviewCta;
   const hasContext = Boolean(
     (company && cleanLine(company)) ||
     (role && cleanLine(role)) ||
     JOB_CONTEXT_PATTERN.test(corpus) ||
     /\binterview\b/i.test(corpus)
   );
+  const interviewSuppressedByProcessOnlyLanguage =
+    interviewProcessOnlyHits.length > 0 && !hasExplicitSchedulingRequest;
   const interviewSuppressedByNegatives =
     digestVeto ||
     interviewNegativeHits.length > 0 ||
+    interviewSuppressedByProcessOnlyLanguage ||
     (interviewVagueHits.length > 0 && !hasInterviewAction);
   if (hasInterviewContext && hasInterviewAction && hasContext && !interviewSuppressedByNegatives) {
     return {
@@ -242,6 +269,12 @@ function detectStatusSignal({
       rejectionMatches: rejectionHits.map((hit) => hit.label),
       interviewMatches,
       appliedMatches: appliedHits.map((hit) => hit.label),
+      negativeMatches: [
+        ...interviewNegativeHits.map((hit) => hit.label),
+        ...interviewProcessOnlyHits.map((hit) => hit.label),
+        ...interviewVagueHits.map((hit) => hit.label)
+      ],
+      interviewSuppressionMatches: interviewProcessOnlyHits.map((hit) => hit.label),
       decisionReason: 'explicit_interview_signal'
     };
   }
@@ -256,7 +289,16 @@ function detectStatusSignal({
       rejectionMatches: rejectionHits.map((hit) => hit.label),
       interviewMatches,
       appliedMatches: appliedHits.map((hit) => hit.label),
-      decisionReason: 'applied_phrase_match'
+      negativeMatches: [
+        ...interviewNegativeHits.map((hit) => hit.label),
+        ...interviewProcessOnlyHits.map((hit) => hit.label),
+        ...interviewVagueHits.map((hit) => hit.label)
+      ],
+      interviewSuppressionMatches: interviewProcessOnlyHits.map((hit) => hit.label),
+      decisionReason:
+        interviewProcessOnlyHits.length > 0
+          ? 'interview_process_language_suppressed_to_applied'
+          : 'applied_phrase_match'
     };
   }
 
@@ -269,6 +311,12 @@ function detectStatusSignal({
       rejectionMatches: rejectionHits.map((hit) => hit.label),
       interviewMatches,
       appliedMatches: appliedHits.map((hit) => hit.label),
+      negativeMatches: [
+        ...interviewNegativeHits.map((hit) => hit.label),
+        ...interviewProcessOnlyHits.map((hit) => hit.label),
+        ...interviewVagueHits.map((hit) => hit.label)
+      ],
+      interviewSuppressionMatches: interviewProcessOnlyHits.map((hit) => hit.label),
       decisionReason: 'fallback_default_status'
     };
   }
@@ -280,6 +328,12 @@ function detectStatusSignal({
     rejectionMatches: rejectionHits.map((hit) => hit.label),
     interviewMatches,
     appliedMatches: appliedHits.map((hit) => hit.label),
+    negativeMatches: [
+      ...interviewNegativeHits.map((hit) => hit.label),
+      ...interviewProcessOnlyHits.map((hit) => hit.label),
+      ...interviewVagueHits.map((hit) => hit.label)
+    ],
+    interviewSuppressionMatches: interviewProcessOnlyHits.map((hit) => hit.label),
     decisionReason: 'no_status_signal'
   };
 }
