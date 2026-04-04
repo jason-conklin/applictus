@@ -12350,7 +12350,7 @@ body.app-page-bg .topbar .nav-link.active {
 
 /* Applications table refinement (true column layout) */
 #dashboard-view #applications-table {
-  --applications-grid-template: minmax(0, 1.52fr) minmax(0, 1.58fr) minmax(138px, 1.08fr) minmax(112px, 0.9fr) 58px;
+  --applications-grid-template: minmax(0, 1.48fr) minmax(0, 1.52fr) minmax(136px, 1.02fr) minmax(124px, 0.94fr) minmax(96px, 0.74fr);
   display: grid;
   gap: 7px;
 }
@@ -12379,9 +12379,26 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #dashboard-view #applications-table .applications-header .sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
   min-height: 30px;
   padding-top: 0;
   padding-bottom: 0;
+}
+
+#dashboard-view #applications-table .applications-header .sort-btn > span:first-child {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#dashboard-view #applications-table .applications-header .sort-btn .arrow {
+  flex: 0 0 auto;
+  margin-left: 1px;
 }
 
 #dashboard-view #applications-table .applications-header .table-col-company,
@@ -12397,7 +12414,20 @@ body.app-page-bg .topbar .nav-link.active {
 #dashboard-view #applications-table .applications-header .table-col-select {
   justify-content: flex-end;
   padding-right: 10px;
-  padding-left: 4px;
+  padding-left: 8px;
+}
+
+#dashboard-view #applications-table .applications-header .table-select-header-label {
+  max-width: 100%;
+  gap: 4px;
+  overflow: hidden;
+}
+
+#dashboard-view #applications-table .applications-header .table-select-all-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.06em;
 }
 
 #dashboard-view #applications-table .table-row.application-row {
@@ -12741,7 +12771,7 @@ body.app-page-bg .topbar .nav-link.active {
 
   #dashboard-view #applications-table .applications-header,
   #dashboard-view #applications-table .table-row.application-row {
-    grid-template-columns: minmax(0, 1.38fr) minmax(0, 1.5fr) minmax(122px, 1.1fr) minmax(92px, 0.82fr) 52px;
+    grid-template-columns: minmax(0, 1.36fr) minmax(0, 1.42fr) minmax(118px, 1.02fr) minmax(108px, 0.9fr) minmax(84px, 0.72fr);
   }
 
   #dashboard-view #applications-table .applications-header > *,
@@ -12860,7 +12890,7 @@ body.app-page-bg .topbar .nav-link.active {
 
   #dashboard-view #applications-table .applications-header,
   #dashboard-view #applications-table .table-row.application-row {
-    grid-template-columns: minmax(0, 1.22fr) minmax(0, 1.3fr) minmax(108px, 1fr) minmax(80px, 0.75fr) 44px;
+    grid-template-columns: minmax(0, 1.16fr) minmax(0, 1.18fr) minmax(98px, 0.95fr) minmax(96px, 0.86fr) minmax(58px, 0.58fr);
   }
 
   #dashboard-view #applications-table .applications-header > *,
@@ -12872,6 +12902,10 @@ body.app-page-bg .topbar .nav-link.active {
   #dashboard-view #applications-table .applications-header .sort-btn,
   #dashboard-view #applications-table .applications-header .table-select-all-text {
     font-size: 10px;
+  }
+
+  #dashboard-view #applications-table .applications-header .table-select-all-text {
+    display: none;
   }
 
   #dashboard-view #applications-table .table-row.application-row {
