@@ -10219,6 +10219,25 @@ body.home-page .product-preview__table-wrap {
   background: #ffffff;
 }
 
+body.home-page .product-preview__table-meta {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-height: 28px;
+  padding: 6px 10px 5px;
+  border-bottom: 1px solid rgba(23, 66, 123, 0.09);
+  background: #fbfdff;
+}
+
+body.home-page .product-preview__table-scale {
+  font-size: 0.63rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5b7aa0;
+  white-space: nowrap;
+}
+
 body.home-page .product-preview__table {
   width: 100%;
   border-collapse: separate;
@@ -10782,6 +10801,16 @@ body.home-page .info-step:hover .how-step-card__icon {
   body.home-page .product-preview__table th,
   body.home-page .product-preview__table td {
     padding: 9px 8px;
+  }
+
+  body.home-page .product-preview__table-meta {
+    min-height: 26px;
+    padding: 5px 8px 4px;
+  }
+
+  body.home-page .product-preview__table-scale {
+    font-size: 0.58rem;
+    letter-spacing: 0.03em;
   }
 
   body.home-page .product-preview__table th {

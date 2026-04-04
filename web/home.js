@@ -340,6 +340,7 @@ function setupProductPreview(reducedMotion) {
   const kpiKeys = ['total', 'applied', 'interviews', 'offers', 'rejected'];
 
   const doneTextEl = preview.querySelector('.product-preview__sync-text--done');
+  const scaleEl = preview.querySelector('[data-preview-scale]');
 
   const previewStates = [
     {
@@ -372,6 +373,12 @@ function setupProductPreview(reducedMotion) {
           role: 'Product Support Specialist',
           statusKey: 'rejected',
           statusLabel: 'Rejected'
+        },
+        {
+          company: 'Greenhouse Labs',
+          role: 'Front End Web Application Developer',
+          statusKey: 'under_review',
+          statusLabel: 'Under review'
         }
       ]
     },
@@ -405,6 +412,12 @@ function setupProductPreview(reducedMotion) {
           role: 'IT Support Specialist',
           statusKey: 'offer_received',
           statusLabel: 'Offer'
+        },
+        {
+          company: 'Pereless Systems',
+          role: 'Product Support Specialist',
+          statusKey: 'under_review',
+          statusLabel: 'Under review'
         }
       ]
     },
@@ -438,6 +451,12 @@ function setupProductPreview(reducedMotion) {
           role: 'Data Quality Analyst',
           statusKey: 'rejected',
           statusLabel: 'Rejected'
+        },
+        {
+          company: 'Greenhouse Labs',
+          role: 'Front End Web Application Developer',
+          statusKey: 'under_review',
+          statusLabel: 'Under review'
         }
       ]
     }
@@ -533,6 +552,13 @@ function setupProductPreview(reducedMotion) {
   const applyState = (state) => {
     if (doneTextEl && state.scanCompleteCopy) {
       doneTextEl.textContent = state.scanCompleteCopy;
+    }
+
+    if (scaleEl) {
+      const visibleCount = Array.isArray(state.rows) ? state.rows.length : 0;
+      const totalCount = Number(state.kpis?.total || 0);
+      const safeTotal = totalCount > 0 ? totalCount : visibleCount;
+      scaleEl.textContent = `Showing ${visibleCount} of ${safeTotal} tracked`;
     }
 
     kpiKeys.forEach((key) => {
