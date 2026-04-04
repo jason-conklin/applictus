@@ -6233,23 +6233,26 @@ details summary {
 }
 
 .account-section-title {
-  display: grid;
-  grid-template-columns: var(--account-header-icon-size) minmax(0, 1fr);
-  align-items: start;
-  column-gap: var(--account-header-icon-gap);
+  position: relative;
+  display: block;
+  min-height: 0;
+  padding-left: calc(var(--account-header-icon-size) + var(--account-header-icon-gap));
   line-height: 1.22;
 }
 
 .account-section-title > span:last-child {
   display: block;
   min-width: 0;
-  padding-top: 2px;
+  padding-top: 0;
 }
 
 .account-section-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  position: absolute;
+  left: 0;
+  top: -1px;
   width: var(--account-header-icon-size);
   height: var(--account-header-icon-size);
   flex: 0 0 var(--account-header-icon-size);
@@ -6271,7 +6274,7 @@ details summary {
 }
 
 .account-inbox-head-main p {
-  margin: 8px 0 0 calc(var(--account-header-icon-size) + var(--account-header-icon-gap));
+  margin: 2px 0 0 calc(var(--account-header-icon-size) + var(--account-header-icon-gap));
   max-width: 72ch;
   line-height: 1.45;
 }
@@ -7065,7 +7068,7 @@ button.inbound-diagnostics-row:hover {
 
 .account-card-header {
   display: grid;
-  gap: 4px;
+  gap: 2px;
   margin-bottom: 14px;
   padding-bottom: 14px;
   border-bottom: 1px solid rgba(25, 55, 103, 0.12);
@@ -7081,6 +7084,7 @@ button.inbound-diagnostics-row:hover {
 
 .account-card-header .account-section-title + p {
   margin-left: calc(var(--account-header-icon-size) + var(--account-header-icon-gap));
+  margin-top: 0;
 }
 
 .account-panel-body {
