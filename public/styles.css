@@ -12117,6 +12117,7 @@ body.app-page-bg .topbar .nav-link.active {
 #dashboard-view .kpi-card.kpi-card--filterable {
   cursor: pointer;
   user-select: none;
+  isolation: isolate;
   transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, background-color 150ms ease;
 }
 
@@ -12135,12 +12136,26 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #dashboard-view .kpi-card.kpi-card--filterable.is-filter-active {
-  border-color: rgba(37, 93, 178, 0.34);
-  background: linear-gradient(180deg, #ffffff 0%, #f2f7ff 100%);
+  border-color: var(--kpi-filter-ring, rgba(37, 93, 178, 0.52));
+  background: linear-gradient(180deg, #ffffff 0%, #edf4ff 100%);
   box-shadow:
+    0 0 0 2px var(--kpi-filter-glow, rgba(37, 93, 178, 0.2)),
     0 12px 24px rgba(20, 52, 102, 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.96),
     inset 0 -1px 0 rgba(12, 33, 66, 0.06);
+}
+
+#dashboard-view .kpi-row.is-status-filtered .kpi-card.kpi-card--filterable:not(.is-filter-active) {
+  opacity: 0.86;
+}
+
+#dashboard-view .kpi-card.kpi-card--filterable.is-filter-active .kpi-label {
+  opacity: 0.98;
+  font-weight: 700;
+}
+
+#dashboard-view .kpi-card.kpi-card--filterable.is-filter-active .kpi-dot {
+  box-shadow: 0 0 0 4px var(--kpi-filter-glow, rgba(37, 93, 178, 0.2));
 }
 
 #dashboard-view .kpi-new-tag {
@@ -12298,11 +12313,15 @@ body.app-page-bg .topbar .nav-link.active {
 
 #dashboard-view .kpi-card.status-total {
   --kpi-accent: rgba(71, 85, 105, 0.66);
+  --kpi-filter-ring: rgba(71, 85, 105, 0.56);
+  --kpi-filter-glow: rgba(71, 85, 105, 0.19);
   color: #1e293b;
 }
 
 #dashboard-view .kpi-card.status-applied {
   --kpi-accent: rgba(217, 119, 6, 0.72);
+  --kpi-filter-ring: rgba(217, 119, 6, 0.58);
+  --kpi-filter-glow: rgba(217, 119, 6, 0.2);
   background: linear-gradient(180deg, #ffffff 0%, #fff8ea 100%);
   border-color: rgba(217, 119, 6, 0.26);
   color: #8f4e00;
@@ -12310,6 +12329,8 @@ body.app-page-bg .topbar .nav-link.active {
 
 #dashboard-view .kpi-card.status-offer {
   --kpi-accent: rgba(22, 163, 74, 0.76);
+  --kpi-filter-ring: rgba(22, 163, 74, 0.58);
+  --kpi-filter-glow: rgba(22, 163, 74, 0.19);
   background: linear-gradient(180deg, #ffffff 0%, #eefdf3 100%);
   border-color: rgba(22, 163, 74, 0.26);
   color: #166534;
@@ -12317,6 +12338,8 @@ body.app-page-bg .topbar .nav-link.active {
 
 #dashboard-view .kpi-card.status-interview {
   --kpi-accent: rgba(37, 99, 235, 0.76);
+  --kpi-filter-ring: rgba(37, 99, 235, 0.58);
+  --kpi-filter-glow: rgba(37, 99, 235, 0.2);
   background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
   border-color: rgba(37, 99, 235, 0.24);
   color: #1d4ed8;
@@ -12324,6 +12347,8 @@ body.app-page-bg .topbar .nav-link.active {
 
 #dashboard-view .kpi-card.status-rejected {
   --kpi-accent: rgba(220, 38, 38, 0.74);
+  --kpi-filter-ring: rgba(220, 38, 38, 0.56);
+  --kpi-filter-glow: rgba(220, 38, 38, 0.19);
   background: linear-gradient(180deg, #ffffff 0%, #fff1f1 100%);
   border-color: rgba(220, 38, 38, 0.24);
   color: #991b1b;

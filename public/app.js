@@ -592,6 +592,7 @@ const kpiRejected = document.getElementById('kpi-rejected');
 const dashboardKpiFilterCards = Array.from(
   document.querySelectorAll('#dashboard-view .kpi-card[data-kpi-filter]')
 );
+const dashboardKpiRow = document.querySelector('#dashboard-view .kpi-row');
 const accountEmailSync = document.getElementById('account-email-sync');
 const accountSyncMenuButton = document.getElementById('account-sync-menu-button');
 const accountSyncRangeMenu = document.getElementById('account-sync-range-menu');
@@ -3458,16 +3459,51 @@ function getKpiFilterOption(card) {
   return STATUS_FILTER_BY_UI.get(raw) || STATUS_FILTER_OPTIONS[0];
 }
 
+function getActiveDashboardKpiFilterValue() {
+  const raw = String(filterStatus?.value || state.filters.status || '').trim();
+  if (!raw) {
+    return '';
+  }
+  const normalizedFilter = normalizeStatusFilterValue(raw);
+  if (normalizedFilter) {
+    return getStatusFilterOptionFromValue(normalizedFilter).value;
+  }
+  const normalizedStatus = normalizeStatusValue(raw);
+  if (normalizedStatus === 'APPLIED') {
+    return 'applied';
+  }
+  if (normalizedStatus === 'REJECTED') {
+    return 'rejected';
+  }
+  if (isOfferStatus(normalizedStatus)) {
+    return 'offer_received';
+  }
+  if (isInterviewStatus(normalizedStatus)) {
+    return 'interview_requested';
+  }
+  return '';
+}
+
 function updateDashboardKpiFilterState() {
   if (!dashboardKpiFilterCards.length) {
     return;
   }
-  const selectedOption = getStatusFilterOptionFromValue(filterStatus?.value || state.filters.status);
+  const rawStatus = String(filterStatus?.value || state.filters.status || '').trim();
+  const hasStatusFilter = Boolean(rawStatus);
+  const activeFilterValue = getActiveDashboardKpiFilterValue();
+  if (dashboardKpiRow) {
+    dashboardKpiRow.classList.toggle('is-status-filtered', hasStatusFilter);
+  }
   dashboardKpiFilterCards.forEach((card) => {
     const option = getKpiFilterOption(card);
-    const isActive = option.api === selectedOption.api;
+    const isActive = hasStatusFilter ? option.value === activeFilterValue : option.value === '';
     card.classList.toggle('is-filter-active', isActive);
     card.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    if (isActive) {
+      card.setAttribute('aria-current', 'true');
+    } else {
+      card.removeAttribute('aria-current');
+    }
   });
 }
 
