@@ -9897,9 +9897,34 @@ body.home-page .info-section--how .info-section__grid {
 }
 
 body.home-page .info-section--how .info-section__right {
+  display: grid;
+  align-content: start;
+  gap: 10px;
   width: 100%;
   max-width: 560px;
   justify-self: end;
+}
+
+body.home-page .how-stepper-meta {
+  display: grid;
+  gap: 3px;
+  padding: 0 2px;
+}
+
+body.home-page .how-stepper-meta__label {
+  margin: 0;
+  font-size: 0.71rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #3f648f;
+}
+
+body.home-page .how-stepper-meta__copy {
+  margin: 0;
+  color: #57799f;
+  font-size: 0.84rem;
+  line-height: 1.4;
 }
 
 body.home-page .info-section__kicker {
@@ -10885,6 +10910,7 @@ body.home-page .security-trust-item .home-check {
   body.home-page .info-section--how .info-section__right {
     max-width: none;
     justify-self: stretch;
+    gap: 9px;
   }
 
   body.home-page .info-feature-grid {
@@ -10959,6 +10985,18 @@ body.home-page .security-trust-item .home-check {
   body.home-page .info-workflow-points li {
     font-size: 0.9rem;
     padding-left: 17px;
+  }
+
+  body.home-page .how-stepper-meta {
+    gap: 2px;
+  }
+
+  body.home-page .how-stepper-meta__label {
+    font-size: 0.66rem;
+  }
+
+  body.home-page .how-stepper-meta__copy {
+    font-size: 0.79rem;
   }
 
   body.home-page .info-feature,
