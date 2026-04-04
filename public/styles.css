@@ -6228,8 +6228,8 @@ details summary {
 
 .account-inbox-head-main,
 .account-card-header {
-  --account-header-icon-size: 36px;
-  --account-header-icon-gap: 12px;
+  --account-header-icon-size: 42px;
+  --account-header-icon-gap: 13px;
 }
 
 .account-section-title {
@@ -6261,8 +6261,8 @@ details summary {
 }
 
 .account-section-icon svg {
-  width: 21px;
-  height: 21px;
+  width: 24px;
+  height: 24px;
   stroke: currentColor;
   fill: none;
   stroke-width: 1.9;
@@ -7690,8 +7690,8 @@ button.inbound-diagnostics-row:hover {
 
   .account-inbox-head-main,
   .account-card-header {
-    --account-header-icon-size: 34px;
-    --account-header-icon-gap: 11px;
+    --account-header-icon-size: 38px;
+    --account-header-icon-gap: 12px;
   }
 
   .account-inbox-actions {
