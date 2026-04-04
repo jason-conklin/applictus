@@ -6226,21 +6226,34 @@ details summary {
   margin: 0;
 }
 
+.account-inbox-head-main,
+.account-card-header {
+  --account-header-icon-size: 36px;
+  --account-header-icon-gap: 12px;
+}
+
 .account-section-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  line-height: 1.2;
+  display: grid;
+  grid-template-columns: var(--account-header-icon-size) minmax(0, 1fr);
+  align-items: start;
+  column-gap: var(--account-header-icon-gap);
+  line-height: 1.22;
+}
+
+.account-section-title > span:last-child {
+  display: block;
+  min-width: 0;
+  padding-top: 2px;
 }
 
 .account-section-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
-  border-radius: 8px;
+  width: var(--account-header-icon-size);
+  height: var(--account-header-icon-size);
+  flex: 0 0 var(--account-header-icon-size);
+  border-radius: 11px;
   border: 1px solid rgba(34, 74, 133, 0.2);
   background: linear-gradient(180deg, rgba(237, 244, 255, 0.92), rgba(228, 238, 252, 0.82));
   color: #28508a;
@@ -6248,8 +6261,8 @@ details summary {
 }
 
 .account-section-icon svg {
-  width: 17px;
-  height: 17px;
+  width: 21px;
+  height: 21px;
   stroke: currentColor;
   fill: none;
   stroke-width: 1.9;
@@ -6258,7 +6271,7 @@ details summary {
 }
 
 .account-inbox-head-main p {
-  margin: 8px 0 0;
+  margin: 8px 0 0 calc(var(--account-header-icon-size) + var(--account-header-icon-gap));
   max-width: 72ch;
   line-height: 1.45;
 }
@@ -7066,6 +7079,10 @@ button.inbound-diagnostics-row:hover {
   margin: 0;
 }
 
+.account-card-header .account-section-title + p {
+  margin-left: calc(var(--account-header-icon-size) + var(--account-header-icon-gap));
+}
+
 .account-panel-body {
   display: grid;
   gap: 14px;
@@ -7669,6 +7686,12 @@ button.inbound-diagnostics-row:hover {
 
   .account-inbox-head {
     grid-template-columns: 1fr;
+  }
+
+  .account-inbox-head-main,
+  .account-card-header {
+    --account-header-icon-size: 34px;
+    --account-header-icon-gap: 11px;
   }
 
   .account-inbox-actions {
