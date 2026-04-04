@@ -12798,10 +12798,9 @@ body.app-page-bg .topbar .nav-link.active {
   justify-content: center;
 }
 
-#dashboard-view #applications-table .applications-header .table-col-activity,
 #dashboard-view #applications-table .table-row.application-row .table-col-activity {
-  justify-content: flex-end;
-  text-align: right;
+  justify-content: center;
+  text-align: center;
 }
 
 #dashboard-view #applications-table .applications-header .table-col-select {
@@ -12853,8 +12852,8 @@ body.app-page-bg .topbar .nav-link.active {
 #dashboard-view #applications-table .table-row.application-row .table-col-activity {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  text-align: right;
+  justify-content: center;
+  text-align: center;
 }
 
 #dashboard-view #applications-table .table-row.application-row .table-col-status {
