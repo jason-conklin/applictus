@@ -12733,7 +12733,7 @@ body.app-page-bg .topbar .nav-link.active {
 
 /* Applications table refinement (true column layout) */
 #dashboard-view #applications-table {
-  --applications-grid-template: minmax(0, 1.48fr) minmax(0, 1.52fr) minmax(136px, 1.02fr) minmax(124px, 0.94fr) minmax(96px, 0.74fr);
+  --applications-grid-template: minmax(0, 1.5fr) minmax(0, 1.56fr) minmax(136px, 1.02fr) minmax(104px, 0.78fr) minmax(84px, 0.56fr);
   display: grid;
   gap: 7px;
 }
@@ -12772,6 +12772,10 @@ body.app-page-bg .topbar .nav-link.active {
   padding-bottom: 0;
 }
 
+#dashboard-view #applications-table .applications-header.sortable > button.sort-btn > span:first-child {
+  padding: 2px 4px;
+}
+
 #dashboard-view #applications-table .applications-header .sort-btn > span:first-child {
   min-width: 0;
   white-space: nowrap;
@@ -12794,23 +12798,30 @@ body.app-page-bg .topbar .nav-link.active {
   justify-content: center;
 }
 
+#dashboard-view #applications-table .applications-header .table-col-activity,
+#dashboard-view #applications-table .table-row.application-row .table-col-activity {
+  justify-content: flex-end;
+  text-align: right;
+}
+
 #dashboard-view #applications-table .applications-header .table-col-select {
   justify-content: flex-end;
-  padding-right: 10px;
-  padding-left: 8px;
+  padding-right: 7px;
+  padding-left: 4px;
 }
 
 #dashboard-view #applications-table .applications-header .table-select-header-label {
   max-width: 100%;
-  gap: 4px;
+  gap: 2px;
   overflow: hidden;
 }
 
 #dashboard-view #applications-table .applications-header .table-select-all-text {
+  font-size: 11px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
 }
 
 #dashboard-view #applications-table .table-row.application-row {
@@ -12832,12 +12843,18 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #dashboard-view #applications-table .table-row.application-row .table-col-company,
-#dashboard-view #applications-table .table-row.application-row .table-col-role,
-#dashboard-view #applications-table .table-row.application-row .table-col-activity {
+#dashboard-view #applications-table .table-row.application-row .table-col-role {
   display: flex;
   align-items: center;
   justify-content: flex-start;
   text-align: left;
+}
+
+#dashboard-view #applications-table .table-row.application-row .table-col-activity {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  text-align: right;
 }
 
 #dashboard-view #applications-table .table-row.application-row .table-col-status {
@@ -12857,7 +12874,7 @@ body.app-page-bg .topbar .nav-link.active {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding-right: 10px;
+  padding-right: 7px;
   padding-left: 4px;
 }
 
@@ -13154,7 +13171,7 @@ body.app-page-bg .topbar .nav-link.active {
 
   #dashboard-view #applications-table .applications-header,
   #dashboard-view #applications-table .table-row.application-row {
-    grid-template-columns: minmax(0, 1.36fr) minmax(0, 1.42fr) minmax(118px, 1.02fr) minmax(108px, 0.9fr) minmax(84px, 0.72fr);
+    grid-template-columns: minmax(0, 1.36fr) minmax(0, 1.46fr) minmax(118px, 1fr) minmax(96px, 0.8fr) minmax(72px, 0.54fr);
   }
 
   #dashboard-view #applications-table .applications-header > *,
@@ -13273,7 +13290,7 @@ body.app-page-bg .topbar .nav-link.active {
 
   #dashboard-view #applications-table .applications-header,
   #dashboard-view #applications-table .table-row.application-row {
-    grid-template-columns: minmax(0, 1.16fr) minmax(0, 1.18fr) minmax(98px, 0.95fr) minmax(96px, 0.86fr) minmax(58px, 0.58fr);
+    grid-template-columns: minmax(0, 1.16fr) minmax(0, 1.2fr) minmax(98px, 0.95fr) minmax(88px, 0.8fr) minmax(54px, 0.52fr);
   }
 
   #dashboard-view #applications-table .applications-header > *,

@@ -4031,7 +4031,13 @@ async function refreshDashboardKpis() {
     const params = buildListParams();
     params.set('per_status_limit', '1');
     const data = await api(`/api/applications/pipeline?${params.toString()}`);
-    updateKpiCounts(getKpiCountsFromColumns(data.columns || []));
+    const counts = getKpiCountsFromColumns(data.columns || []);
+    const tableTotal = Number(state.table.total);
+    if (Number.isFinite(tableTotal) && tableTotal >= 0) {
+      // Keep Total KPI aligned with the table count from the same list query.
+      counts.total = tableTotal;
+    }
+    updateKpiCounts(counts);
   } catch (err) {
     // Keep existing counts on fetch failure.
   }
