@@ -9887,6 +9887,10 @@ body.home-page .info-section__left {
   gap: 12px;
 }
 
+body.home-page .info-section--how .info-section__left {
+  gap: 10px;
+}
+
 body.home-page .info-section__kicker {
   margin: 0;
   font-size: 0.76rem;
@@ -9976,6 +9980,13 @@ body.home-page .info-time-pill {
   width: fit-content;
   margin-top: 2px;
   background: #f2f7ff;
+}
+
+body.home-page .info-workflow-note {
+  margin: 2px 0 0;
+  max-width: 46ch;
+  color: #45668f;
+  line-height: 1.5;
 }
 
 body.home-page .info-section .tile {
@@ -10534,22 +10545,32 @@ body.home-page .how-stepper {
   --node-center: calc(var(--node-size) / 2);
   --connector-top: var(--node-center);
   --connector-bottom-offset: var(--node-center);
+  --stepper-inset-top: 10px;
+  --stepper-inset-bottom: 10px;
   position: relative;
+  padding: var(--stepper-inset-top) 10px var(--stepper-inset-bottom) 0;
+  border-radius: 20px;
+  border: 1px solid rgba(22, 63, 121, 0.16);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 251, 255, 0.94));
+  box-shadow:
+    0 14px 28px rgba(10, 39, 82, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -8px 14px rgba(10, 39, 82, 0.045);
 }
 
 body.home-page .how-stepper::before {
   content: '';
   position: absolute;
   left: calc(var(--node-col-width) / 2);
-  top: var(--connector-top);
-  bottom: var(--connector-bottom-offset);
-  width: 2px;
+  top: calc(var(--connector-top) + var(--stepper-inset-top));
+  bottom: calc(var(--connector-bottom-offset) + var(--stepper-inset-bottom));
+  width: 3px;
   border-radius: 999px;
   background: linear-gradient(
     180deg,
-    rgba(21, 59, 115, 0.2),
-    rgba(21, 59, 115, 0.38),
-    rgba(21, 59, 115, 0.18)
+    rgba(46, 98, 185, 0.18),
+    rgba(46, 98, 185, 0.36),
+    rgba(46, 98, 185, 0.16)
   );
   pointer-events: none;
 }
@@ -10560,7 +10581,7 @@ body.home-page .info-stepper {
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 body.home-page .info-stepper::before {
@@ -10594,16 +10615,21 @@ body.home-page .info-step__node {
   color: #f4f9ff;
   font-size: 0.84rem;
   font-weight: 700;
-  background: linear-gradient(160deg, #3f75ce, #1f58b5);
+  background: linear-gradient(160deg, #4c81d5, #2a63c2);
   border: 1px solid rgba(255, 255, 255, 0.32);
   box-shadow:
-    0 10px 18px rgba(12, 45, 90, 0.24),
+    0 10px 18px rgba(14, 48, 94, 0.22),
     inset 0 1px 0 rgba(255, 255, 255, 0.32);
   transition: transform 220ms ease;
 }
 
 body.home-page .info-step__card {
-  padding: 14px;
+  padding: 15px;
+  border-color: rgba(21, 60, 117, 0.15);
+  box-shadow:
+    0 12px 24px rgba(10, 37, 78, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -9px 16px rgba(8, 34, 74, 0.038);
 }
 
 body.home-page .how-step-card__head {
@@ -10622,10 +10648,10 @@ body.home-page .how-step-card__icon {
   justify-content: center;
   color: #163a7a;
   background: #f2f6ff;
-  border: 1px solid rgba(20, 40, 90, 0.12);
+  border: 1px solid rgba(20, 40, 90, 0.14);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 10px 22px rgba(15, 35, 80, 0.1);
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 9px 20px rgba(15, 35, 80, 0.11);
   transition: transform 220ms ease;
 }
 
@@ -10642,11 +10668,41 @@ body.home-page .how-step-card__titleWrap h3 {
   font-size: 0.96rem;
 }
 
+body.home-page .how-step-card__eyebrow {
+  margin: 0 0 5px;
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #52729a;
+  font-weight: 700;
+}
+
 body.home-page .how-step-card__titleWrap p {
   margin: 6px 0 0;
   color: #4c6b93;
   font-size: 0.88rem;
   line-height: 1.4;
+}
+
+body.home-page .info-step--active .info-step__node {
+  background: linear-gradient(160deg, #3f75ce, #1f58b5);
+  box-shadow:
+    0 12px 22px rgba(14, 48, 94, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+body.home-page .info-step--active .info-step__card {
+  border-color: rgba(34, 88, 170, 0.28);
+  box-shadow:
+    0 16px 30px rgba(11, 43, 90, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -10px 16px rgba(8, 34, 74, 0.045);
+}
+
+body.home-page .info-step--active .how-step-card__icon {
+  color: #1b4b93;
+  border-color: rgba(28, 73, 145, 0.2);
+  background: #edf4ff;
 }
 
 body.home-page .info-step:hover .info-step__card {
@@ -10664,6 +10720,104 @@ body.home-page .info-step:hover .info-step__node {
 
 body.home-page .info-step:hover .how-step-card__icon {
   transform: scale(1.05) rotate(-3deg);
+}
+
+body.home-page .home-panel-permissions {
+  padding: clamp(24px, 3.1vw, 34px) !important;
+}
+
+body.home-page .security-trust-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.06fr) minmax(0, 0.94fr);
+  gap: clamp(18px, 2.5vw, 30px);
+  align-items: start;
+}
+
+body.home-page .security-trust-main {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+body.home-page .security-trust-main .home-panel-head {
+  margin: 0;
+  align-items: flex-start;
+}
+
+body.home-page .security-trust-main .home-panel-copy h2 {
+  margin-bottom: 0;
+}
+
+body.home-page .security-trust-main .home-panel-copy p {
+  margin-top: 6px;
+  color: #4c6f98;
+  max-width: 44ch;
+  line-height: 1.48;
+}
+
+body.home-page .security-trust-lead {
+  margin: 0;
+  color: #3d608a;
+  line-height: 1.58;
+  max-width: 52ch;
+}
+
+body.home-page .security-scope-wrap {
+  margin-top: 2px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 11px 13px;
+  border-radius: 14px;
+  border: 1px solid rgba(23, 64, 120, 0.16);
+  background: linear-gradient(180deg, rgba(246, 251, 255, 0.96), rgba(238, 246, 255, 0.92));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 9px 18px rgba(11, 41, 86, 0.08);
+}
+
+body.home-page .security-scope-wrap .home-scope-label {
+  margin: 0;
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+}
+
+body.home-page .security-scope-wrap .home-scope-badge {
+  margin: 5px 0 0;
+}
+
+body.home-page .security-scope-wrap .home-scope-badge code {
+  padding: 7px 10px;
+  border-radius: 9px;
+  font-size: 0.8rem;
+  background: rgba(18, 58, 112, 0.1);
+  border-color: rgba(18, 58, 112, 0.2);
+}
+
+body.home-page .security-trust-list {
+  margin: 0;
+  gap: 11px;
+  align-content: start;
+}
+
+body.home-page .security-trust-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 13px;
+  border-radius: 14px;
+  border: 1px solid rgba(21, 62, 120, 0.15);
+  background: linear-gradient(180deg, #ffffff, #f6fbff);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 10px 20px rgba(10, 39, 82, 0.08);
+  color: #2f4f78;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+body.home-page .security-trust-item .home-check {
+  margin-top: 1px;
 }
 
 @media (max-width: 980px) {
@@ -10718,6 +10872,20 @@ body.home-page .info-step:hover .how-step-card__icon {
   body.home-page .how-stepper {
     --node-size: 36px;
     --node-col-width: 48px;
+  }
+
+  body.home-page .security-trust-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  body.home-page .security-trust-main .home-panel-copy p,
+  body.home-page .security-trust-lead {
+    max-width: 66ch;
+  }
+
+  body.home-page .security-trust-list {
+    gap: 10px;
   }
 }
 
@@ -10844,6 +11012,8 @@ body.home-page .info-step:hover .how-step-card__icon {
   body.home-page .how-stepper {
     --node-size: 34px;
     --node-col-width: 44px;
+    --stepper-inset-top: 8px;
+    --stepper-inset-bottom: 8px;
   }
 
   body.home-page .how-step-card__head {
@@ -10858,6 +11028,39 @@ body.home-page .info-step:hover .how-step-card__icon {
   body.home-page .how-step-card__icon svg {
     width: 17px;
     height: 17px;
+  }
+
+  body.home-page .security-trust-main {
+    gap: 10px;
+  }
+
+  body.home-page .security-trust-main .home-panel-copy p {
+    font-size: 0.9rem;
+  }
+
+  body.home-page .security-trust-lead {
+    font-size: 0.9rem;
+    line-height: 1.52;
+  }
+
+  body.home-page .security-scope-wrap {
+    width: 100%;
+    padding: 10px 11px;
+  }
+
+  body.home-page .security-scope-wrap .home-scope-label {
+    font-size: 0.62rem;
+  }
+
+  body.home-page .security-scope-wrap .home-scope-badge code {
+    font-size: 0.76rem;
+    padding: 6px 8px;
+  }
+
+  body.home-page .security-trust-item {
+    padding: 11px;
+    border-radius: 12px;
+    font-size: 0.88rem;
   }
 }
 

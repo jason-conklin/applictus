@@ -55,7 +55,7 @@
             </div>
             <div class="home-billboard-cta hero-animate-cta" data-animate="billboard-cta">
               <a class="btn btn-bevel btn-primary" href="/app" data-cta-btn="primary">Start tracking your applications</a>
-              <button class="btn btn-bevel btn-secondary" type="button" data-scrollto="#how" data-cta-btn="secondary">
+              <button class="btn btn-bevel btn-secondary" type="button" data-scrollto="#how-it-works" data-cta-btn="secondary">
                 See how it works
               </button>
             </div>
@@ -247,16 +247,12 @@
                     <h2>Set up your inbox in minutes</h2>
                     <p class="info-section__lead">Set up once and Applictus keeps every application update organized automatically.</p>
                     <span class="info-time-pill">Time to set up: ~2 minutes</span>
-                    <ul class="info-bullets">
-                      <li>Get your Applictus inbox.</li>
-                      <li>Add it to your email once.</li>
-                      <li>Everything updates automatically.</li>
-                    </ul>
+                    <p class="info-workflow-note">Three quick setup steps on the right, and your dashboard starts tracking updates automatically.</p>
                   </div>
                   <div class="info-section__right">
                     <div class="how-stepper" aria-label="Applictus setup workflow">
                       <ol class="info-stepper">
-                        <li class="info-step">
+                        <li class="info-step info-step--active">
                           <span class="info-step__node-col"><span class="info-step__node">1</span></span>
                           <article class="info-step__card tile how-step-card">
                             <div class="how-step-card__head">
@@ -271,6 +267,7 @@
                                 </svg>
                               </span>
                               <div class="how-step-card__titleWrap">
+                                <p class="how-step-card__eyebrow">Start here</p>
                                 <h3>Get your Applictus inbox</h3>
                                 <p>Create your personal Applictus forwarding address in seconds.</p>
                               </div>
@@ -288,6 +285,7 @@
                                 </svg>
                               </span>
                               <div class="how-step-card__titleWrap">
+                                <p class="how-step-card__eyebrow">One-time setup</p>
                                 <h3>Add it to your email once</h3>
                                 <p>Add your Applictus inbox to forwarding or a filter one time.</p>
                               </div>
@@ -309,6 +307,7 @@
                                 </svg>
                               </span>
                               <div class="how-step-card__titleWrap">
+                                <p class="how-step-card__eyebrow">Runs in the background</p>
                                 <h3>Everything updates automatically</h3>
                                 <p>Confirmations, interviews, and rejections flow into one live timeline automatically.</p>
                               </div>
@@ -323,34 +322,38 @@
             </section>
 
             <section class="home-panel home-panel-permissions reveal" data-reveal>
-              <header class="home-panel-head">
-                <span class="home-panel-badge home-panel-badge-lock" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" role="img" aria-label="Lock">
-                    <path
-                      d="M7.5 10V8.2A4.5 4.5 0 0 1 12 3.7a4.5 4.5 0 0 1 4.5 4.5V10m-9 0h9a1.8 1.8 0 0 1 1.8 1.8v6.5A1.8 1.8 0 0 1 16.5 20h-9a1.8 1.8 0 0 1-1.8-1.8v-6.5A1.8 1.8 0 0 1 7.5 10Z"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.6"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                </span>
-                <div class="home-panel-copy">
-                  <h2>Secure sign-in with minimal permissions</h2>
-                  <p>Built with clear boundaries from day one.</p>
+              <div class="security-trust-grid">
+                <div class="security-trust-main">
+                  <header class="home-panel-head">
+                    <span class="home-panel-badge home-panel-badge-lock" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" role="img" aria-label="Lock">
+                        <path
+                          d="M7.5 10V8.2A4.5 4.5 0 0 1 12 3.7a4.5 4.5 0 0 1 4.5 4.5V10m-9 0h9a1.8 1.8 0 0 1 1.8 1.8v6.5A1.8 1.8 0 0 1 16.5 20h-9a1.8 1.8 0 0 1-1.8-1.8v-6.5A1.8 1.8 0 0 1 7.5 10Z"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.6"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        />
+                      </svg>
+                    </span>
+                    <div class="home-panel-copy">
+                      <h2>Secure sign-in with minimal permissions</h2>
+                      <p>Built with clear boundaries from day one.</p>
+                    </div>
+                  </header>
+                  <p class="security-trust-lead">Authentication and inbox forwarding stay separate, so account access remains secure while tracking stays reliable.</p>
+                  <div class="security-scope-wrap">
+                    <p class="home-scope-label">Scope requested</p>
+                    <p class="home-scope-badge"><code>openid email profile</code></p>
+                  </div>
                 </div>
-              </header>
-              <p class="home-scope-label">Scope requested</p>
-              <p class="home-scope-badge"><code>openid email profile</code></p>
-              <ul class="home-check-list">
-                <li><span class="home-check" aria-hidden="true">✓</span><span>No Gmail inbox access or reading permissions.</span></li>
-                <li>
-                  <span class="home-check" aria-hidden="true">✓</span>
-                  <span>Google is used only for authentication.</span>
-                </li>
-                <li><span class="home-check" aria-hidden="true">✓</span><span>Your data flows through controlled forwarding &mdash; not direct inbox access.</span></li>
-              </ul>
+                <ul class="home-check-list security-trust-list">
+                  <li class="security-trust-item"><span class="home-check" aria-hidden="true">✓</span><span>No Gmail inbox access or reading permissions.</span></li>
+                  <li class="security-trust-item"><span class="home-check" aria-hidden="true">✓</span><span>Google is used only for authentication.</span></li>
+                  <li class="security-trust-item"><span class="home-check" aria-hidden="true">✓</span><span>Your data flows through controlled forwarding &mdash; not direct inbox access.</span></li>
+                </ul>
+              </div>
             </section>
 
             <section class="home-panel home-panel-cta reveal" data-reveal>
