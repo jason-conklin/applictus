@@ -12253,7 +12253,7 @@ body.app-page-bg .topbar .nav-link.active {
   color: rgba(24, 52, 92, 0.72);
   font-size: 12px;
   line-height: 1.35;
-  max-width: 26ch;
+  max-width: none;
 }
 
 #dashboard-view .dashboard-onboarding-inbox-preview {
