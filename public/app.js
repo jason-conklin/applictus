@@ -442,7 +442,6 @@ const accountPasswordHint = document.getElementById('account-password-hint');
 const accountHelpStatus = document.getElementById('account-help-status');
 const accountHelpLastEmail = document.getElementById('account-help-last-email');
 const accountHelpNote = document.getElementById('account-help-note');
-const accountHelpSetupType = document.getElementById('account-help-setup-type');
 const accountHelpProgress = document.getElementById('account-help-progress');
 const accountHelpProgressCount = document.getElementById('account-help-progress-count');
 const accountHelpProgressStep1 = document.getElementById('account-help-progress-step-1');
@@ -1871,9 +1870,6 @@ function updateInboundStatusPresentation() {
     if (accountHelpStatus) {
       accountHelpStatus.textContent = statusText;
     }
-    if (accountHelpSetupType) {
-      accountHelpSetupType.textContent = 'Gmail API';
-    }
     if (accountHelpLastEmail) {
       accountHelpLastEmail.textContent = connectedEmail || '—';
     }
@@ -2008,9 +2004,6 @@ function updateInboundStatusPresentation() {
   }
   if (accountHelpNote) {
     accountHelpNote.textContent = helpNoteText;
-  }
-  if (accountHelpSetupType) {
-    accountHelpSetupType.textContent = 'Forwarding-based';
   }
   if (accountHelpLastEmail) {
     const lastSeen = formatSyncDateTime(inboundState.lastReceivedAt);
