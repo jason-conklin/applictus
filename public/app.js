@@ -526,6 +526,7 @@ const applicationsTable = document.getElementById('applications-table');
 const appCount = document.getElementById('app-count');
 const dashboardOnboardingCard = document.getElementById('dashboard-onboarding');
 const dashboardOnboardingInboxAddress = document.getElementById('dashboard-onboarding-inbox-address');
+const dashboardOnboardingInboxLink = document.querySelector('#dashboard-onboarding .dashboard-onboarding-inbox-link');
 const dashboardFiltersInline = document.getElementById('filters-inline');
 const archivedTable = document.getElementById('archived-table');
 const archivedCount = document.getElementById('archived-count');
@@ -3900,6 +3901,10 @@ function renderDashboardOnboardingInboxPreview() {
   }
   const address = getDashboardOnboardingInboxAddress();
   dashboardOnboardingInboxAddress.textContent = address;
+  const hasSavedCustomInboxUsername = Boolean(normalizeInboxUsernameInput(sessionUser?.inbox_username || ''));
+  if (dashboardOnboardingInboxLink) {
+    dashboardOnboardingInboxLink.classList.toggle('hidden', hasSavedCustomInboxUsername);
+  }
 }
 
 function hasCompletedDashboardInboxSetup() {
