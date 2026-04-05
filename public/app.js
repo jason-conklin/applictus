@@ -1870,8 +1870,8 @@ function updateInboundStatusPresentation() {
     renderAccountHelpProgressInternal();
     if (accountHelpNote) {
       accountHelpNote.textContent = connected
-        ? 'Run Sync inbox to pull updates. Applictus keeps your tracking timeline current after each sync.'
-        : 'Connect Gmail to enable sync, then run your first inbox scan to start tracking.';
+        ? 'Run Sync inbox to pull updates and keep your timeline current.'
+        : 'Connect Gmail, then run your first sync to start tracking.';
     }
     if (inboundHelpOpenSetup) {
       inboundHelpOpenSetup.textContent = connected ? 'Reconnect Gmail' : 'Connect Gmail';
@@ -1900,8 +1900,7 @@ function updateInboundStatusPresentation() {
   let dashboardState = 'idle';
   let syncText = 'Setup needed';
   let helpStatusText = 'Not connected';
-  let helpNoteText =
-    'Verify forwarding in Gmail, then send a test email or forward one recent application email to begin tracking.';
+  let helpNoteText = 'Verify forwarding in Gmail, then send a test email or forward one recent application email.';
 
   if (readiness === 'forwarding_active') {
     pillText = 'Receiving forwarded emails';
@@ -1910,7 +1909,7 @@ function updateInboundStatusPresentation() {
     dashboardState = 'connected';
     syncText = 'Forwarding active';
     helpStatusText = 'Connected · Receiving forwarded emails';
-    helpNoteText = 'Forwarding is active. Use Send test email anytime to confirm inbox health.';
+    helpNoteText = 'Forwarding is active. Send a test email anytime to confirm setup.';
   } else if (readiness === 'gmail_verification_pending') {
     pillText = 'Address reachable — Gmail verification pending';
     pillState = 'info';
@@ -1918,8 +1917,7 @@ function updateInboundStatusPresentation() {
     dashboardState = 'info';
     syncText = 'Address reachable';
     helpStatusText = 'Address reachable · Gmail verification pending';
-    helpNoteText =
-      'Verify forwarding in Gmail, then send a test email or forward one recent application email to begin tracking.';
+    helpNoteText = 'Verify forwarding in Gmail, then send a test email or forward one recent application email.';
   } else if (readiness === 'address_reachable') {
     pillText = 'Address reachable';
     pillState = 'info';
@@ -1927,7 +1925,7 @@ function updateInboundStatusPresentation() {
     dashboardState = 'info';
     syncText = 'Address reachable';
     helpStatusText = 'Address reachable';
-    helpNoteText = 'Great progress. Forward one recent application email or use Send test email to activate tracking.';
+    helpNoteText = 'Great progress. Forward one recent application email or send a test email.';
   } else if (readiness === 'awaiting_first_email') {
     pillText = 'Forwarding enabled — waiting for first email';
     pillState = 'info';
@@ -1935,7 +1933,7 @@ function updateInboundStatusPresentation() {
     dashboardState = 'info';
     syncText = 'Waiting for first email';
     helpStatusText = 'Waiting for first forwarded email';
-    helpNoteText = 'Setup is complete. Forward one recent application email to start populating your timeline.';
+    helpNoteText = 'Setup is complete. Forward one recent application email to start tracking.';
   } else if (readiness === 'awaiting_confirmation') {
     pillText = 'Waiting for forwarding verification';
     pillState = 'idle';
@@ -1943,10 +1941,9 @@ function updateInboundStatusPresentation() {
     dashboardState = 'idle';
     syncText = 'Waiting for verification';
     helpStatusText = 'Waiting for forwarding verification';
-    helpNoteText =
-      'Verify forwarding in Gmail, then send a test email or forward one recent application email to begin tracking.';
+    helpNoteText = 'Verify forwarding in Gmail, then send a test email or forward one recent application email.';
   } else {
-    helpNoteText = 'Open the setup guide to add your Applictus inbox, then verify forwarding in Gmail.';
+    helpNoteText = 'Open setup, add your Applictus inbox, then verify forwarding in Gmail.';
   }
 
   setPillState(inboundStatusPill, pillText, pillState);
