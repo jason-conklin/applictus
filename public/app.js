@@ -443,6 +443,7 @@ const accountHelpStatus = document.getElementById('account-help-status');
 const accountHelpLastEmail = document.getElementById('account-help-last-email');
 const accountHelpNote = document.getElementById('account-help-note');
 const accountHelpSetupType = document.getElementById('account-help-setup-type');
+const accountHelpProgress = document.getElementById('account-help-progress');
 const accountHelpProgressCount = document.getElementById('account-help-progress-count');
 const accountHelpProgressStep1 = document.getElementById('account-help-progress-step-1');
 const accountHelpProgressStep1Label = document.getElementById('account-help-progress-step-1-label');
@@ -1691,6 +1692,18 @@ function setAccountHelpProgressStep(stepEl, labelEl, stateEl, { label, stateText
   }
 }
 
+function setAccountHelpProgressSummary(completeCount, totalCount = 3) {
+  const safeComplete = Number.isFinite(completeCount) ? completeCount : 0;
+  const safeTotal = Number.isFinite(totalCount) && totalCount > 0 ? totalCount : 3;
+  const isComplete = safeComplete >= safeTotal;
+  if (accountHelpProgressCount) {
+    accountHelpProgressCount.textContent = isComplete ? 'Complete' : `${safeComplete} of ${safeTotal} complete`;
+  }
+  if (accountHelpProgress) {
+    accountHelpProgress.classList.toggle('is-complete', isComplete);
+  }
+}
+
 function renderAccountHelpProgressForwarding(readiness) {
   const hasAddress = Boolean(inboundState.addressEmail);
   let step1 = { label: 'Address created', stateText: hasAddress ? 'Complete' : 'Pending', tone: hasAddress ? 'done' : 'pending' };
@@ -1720,9 +1733,7 @@ function renderAccountHelpProgressForwarding(readiness) {
   setAccountHelpProgressStep(accountHelpProgressStep3, accountHelpProgressStep3Label, accountHelpProgressStep3State, step3);
 
   const completeCount = [step1, step2, step3].filter((step) => step.tone === 'done').length;
-  if (accountHelpProgressCount) {
-    accountHelpProgressCount.textContent = `${completeCount} of 3 complete`;
-  }
+  setAccountHelpProgressSummary(completeCount, 3);
 }
 
 function renderAccountHelpProgressInternal() {
@@ -1750,9 +1761,7 @@ function renderAccountHelpProgressInternal() {
   setAccountHelpProgressStep(accountHelpProgressStep3, accountHelpProgressStep3Label, accountHelpProgressStep3State, step3);
 
   const completeCount = [step1, step2, step3].filter((step) => step.tone === 'done').length;
-  if (accountHelpProgressCount) {
-    accountHelpProgressCount.textContent = `${completeCount} of 3 complete`;
-  }
+  setAccountHelpProgressSummary(completeCount, 3);
 }
 
 function updateDashboardPrimarySyncUI() {
