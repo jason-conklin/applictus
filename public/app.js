@@ -4735,7 +4735,7 @@ function openPricingModal() {
   const proCard = buildPlanCard({
     title: 'Pro',
     context: 'For active job search',
-    price: '$4 / month',
+    price: '$3.99 / month',
     details: 'Up to 500 application updates per month',
     features: [
       'Never miss interview requests or important updates',
