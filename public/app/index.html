@@ -800,8 +800,20 @@
                 Save
               </button>
             </div>
+            <div class="muted small account-inbox-username-preview">
+              Address preview:
+              <code id="account-inbox-username-preview">&lt;username&gt;@mail.applictus.com</code>
+            </div>
+            <div
+              class="muted small account-inbox-username-status"
+              id="account-inbox-username-status"
+              role="status"
+              aria-live="polite"
+            >
+              Choose a username to create your Applictus inbox address.
+            </div>
             <div class="muted small account-inbox-username-hint" id="account-inbox-username-hint">
-              Pick a unique username. Your inbox address will be <code>&lt;username&gt;@mail.applictus.com</code>.
+              Use 3-30 characters: lowercase letters, numbers, and hyphens.
             </div>
             <div
               class="account-inbox-username-suggestions hidden"
@@ -1207,8 +1219,20 @@
                   <li class="dashboard-stepper__step is-active">
                     <span class="dashboard-stepper__index">1</span>
                     <div class="dashboard-stepper__body">
-                      <div class="dashboard-stepper__title">Get your Applictus inbox</div>
-                      <p>Create your personal tracking address.</p>
+                      <div class="dashboard-stepper__title">Choose your Applictus inbox</div>
+                      <p>Pick the forwarding address Applictus will use to track updates.</p>
+                      <div class="dashboard-onboarding-inbox-preview">
+                        <div class="dashboard-onboarding-inbox-label">Your Applictus inbox</div>
+                        <code class="dashboard-onboarding-inbox-address" id="dashboard-onboarding-inbox-address"
+                          >yourname@mail.applictus.com</code
+                        >
+                        <p class="dashboard-onboarding-inbox-note" id="dashboard-onboarding-inbox-note">
+                          This is the forwarding address Applictus uses to track your timeline.
+                        </p>
+                        <button class="link-button dashboard-onboarding-inbox-link" type="button" data-action="open-account-inbox">
+                          Choose username on Account
+                        </button>
+                      </div>
                     </div>
                   </li>
                   <li class="dashboard-stepper__step">

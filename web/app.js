@@ -464,6 +464,8 @@ const accountInboxUsernamePrompt = document.getElementById('account-inbox-userna
 const accountInboxUsernameInput = document.getElementById('account-inbox-username-input');
 const accountInboxUsernameSave = document.getElementById('account-inbox-username-save');
 const accountInboxUsernameHint = document.getElementById('account-inbox-username-hint');
+const accountInboxUsernamePreview = document.getElementById('account-inbox-username-preview');
+const accountInboxUsernameStatus = document.getElementById('account-inbox-username-status');
 const accountInboxUsernameSuggestions = document.getElementById('account-inbox-username-suggestions');
 const contactForm = document.getElementById('contact-form');
 const contactError = document.getElementById('contact-error');
@@ -513,6 +515,8 @@ const filterCount = document.getElementById('filter-count');
 const applicationsTable = document.getElementById('applications-table');
 const appCount = document.getElementById('app-count');
 const dashboardOnboardingCard = document.getElementById('dashboard-onboarding');
+const dashboardOnboardingInboxAddress = document.getElementById('dashboard-onboarding-inbox-address');
+const dashboardOnboardingInboxNote = document.getElementById('dashboard-onboarding-inbox-note');
 const dashboardFiltersInline = document.getElementById('filters-inline');
 const archivedTable = document.getElementById('archived-table');
 const archivedCount = document.getElementById('archived-count');
@@ -843,7 +847,13 @@ const signupUsernameState = {
 };
 const accountUsernameState = {
   debounceTimer: null,
-  requestToken: 0
+  requestToken: 0,
+  checkedUsername: '',
+  checkedResult: null,
+  status: 'idle',
+  lastSavedValue: '',
+  savedFlashUntil: 0,
+  savedFlashTimer: null
 };
 const INBOUND_AUTO_SYNC_INTERVAL_MS = 9000;
 const INBOUND_AUTO_SYNC_DEBOUNCE_MS = 15000;
@@ -1247,6 +1257,55 @@ function deriveDefaultInboxUsernameSeed() {
   return normalizeInboxUsernameInput(fromEmail);
 }
 
+function setAccountUsernameStatus(state, message) {
+  accountUsernameState.status = state || 'idle';
+  setInlineHintState(accountInboxUsernameStatus, message || '', state || null);
+}
+
+function setAccountUsernamePreview(username) {
+  if (!accountInboxUsernamePreview) {
+    return;
+  }
+  const previewAddress = buildInboxAddressPreview(username);
+  const fallback = `<username>@${getInboundDomainForDisplay()}`;
+  accountInboxUsernamePreview.textContent = previewAddress || fallback;
+}
+
+function buildAccountUsernameSuggestions(normalized, { preferAlternatives = false } = {}) {
+  const suggestions = buildInboxUsernameSuggestions({
+    name: sessionUser?.name || '',
+    email: sessionUser?.email || '',
+    currentValue: normalized
+  });
+  const filtered = suggestions.filter((value) => value && (!preferAlternatives || value !== normalized));
+  if (preferAlternatives && normalized) {
+    for (let suffix = 1; suffix <= 20 && filtered.length < 3; suffix += 1) {
+      const candidate = normalizeInboxUsernameInput(`${normalized}${suffix}`);
+      if (!candidate || filtered.includes(candidate) || candidate === normalized) {
+        continue;
+      }
+      const validation = validateInboxUsernameInput(candidate, { allowEmpty: false });
+      if (!validation.ok) {
+        continue;
+      }
+      filtered.push(candidate);
+    }
+  }
+  return filtered.slice(0, 3);
+}
+
+function renderAccountUsernameSuggestions(normalized, { preferAlternatives = false } = {}) {
+  const suggestions = buildAccountUsernameSuggestions(normalized, { preferAlternatives });
+  renderInboxSuggestionButtons(accountInboxUsernameSuggestions, suggestions, (value) => {
+    if (!accountInboxUsernameInput) {
+      return;
+    }
+    accountInboxUsernameInput.value = value;
+    renderAccountInboxUsernamePrompt({ checkAvailability: true });
+    accountInboxUsernameInput.focus();
+  });
+}
+
 function renderSignupInboxUsernameUi({ checkAvailability = true } = {}) {
   if (!signupInboxUsernameInput) {
     return;
@@ -1314,56 +1373,110 @@ function renderSignupInboxUsernameUi({ checkAvailability = true } = {}) {
 }
 
 function renderAccountInboxUsernamePrompt({ checkAvailability = true } = {}) {
-  const showPrompt = Boolean(!isInternalGmailMode() && sessionUser && !sessionUser.inbox_username);
+  const now = Date.now();
+  const savedFlashActive =
+    accountUsernameState.savedFlashUntil > now &&
+    normalizeInboxUsernameInput(accountUsernameState.lastSavedValue || '') ===
+      normalizeInboxUsernameInput(sessionUser?.inbox_username || '');
+  const showPrompt = Boolean(!isInternalGmailMode() && sessionUser && (!sessionUser.inbox_username || savedFlashActive));
   if (!accountInboxUsernamePrompt) {
     return;
   }
   accountInboxUsernamePrompt.classList.toggle('hidden', !showPrompt);
   if (!showPrompt) {
+    if (accountUsernameState.debounceTimer) {
+      window.clearTimeout(accountUsernameState.debounceTimer);
+      accountUsernameState.debounceTimer = null;
+    }
     return;
   }
 
-  if (accountInboxUsernameInput && !accountInboxUsernameInput.value.trim()) {
-    accountInboxUsernameInput.value = deriveDefaultInboxUsernameSeed();
+  const persistedUsername = normalizeInboxUsernameInput(sessionUser?.inbox_username || '');
+  if (accountInboxUsernameHint) {
+    setInlineHintState(accountInboxUsernameHint, 'Use 3-30 characters: lowercase letters, numbers, and hyphens.', null);
   }
-  const normalized = normalizeInboxUsernameInput(accountInboxUsernameInput?.value || '');
-  if (accountInboxUsernameInput && accountInboxUsernameInput.value !== normalized) {
-    accountInboxUsernameInput.value = normalized;
-  }
-
-  const suggestions = buildInboxUsernameSuggestions({
-    name: sessionUser?.name || '',
-    email: sessionUser?.email || '',
-    currentValue: normalized
-  });
-  renderInboxSuggestionButtons(accountInboxUsernameSuggestions, suggestions, (value) => {
-    if (!accountInboxUsernameInput) {
-      return;
+  if (savedFlashActive && persistedUsername) {
+    if (accountInboxUsernameInput) {
+      accountInboxUsernameInput.value = persistedUsername;
+      accountInboxUsernameInput.disabled = true;
     }
-    accountInboxUsernameInput.value = value;
-    renderAccountInboxUsernamePrompt({ checkAvailability: true });
-    accountInboxUsernameInput.focus();
-  });
-
-  const validation = validateInboxUsernameInput(normalized, { allowEmpty: false });
-  const previewAddress = buildInboxAddressPreview(normalized);
-  if (!validation.ok) {
-    setInlineHintState(
-      accountInboxUsernameHint,
-      authErrorMessage(validation.code) ||
-        'Pick a unique username. Your inbox address will be username@mail.applictus.com.',
-      'error'
-    );
+    setAccountUsernamePreview(persistedUsername);
+    setAccountUsernameStatus('saved', 'Saved. Your Applictus inbox is ready.');
+    if (accountInboxUsernameSuggestions) {
+      accountInboxUsernameSuggestions.innerHTML = '';
+      accountInboxUsernameSuggestions.classList.add('hidden');
+    }
     if (accountInboxUsernameSave) {
       accountInboxUsernameSave.disabled = true;
     }
     return;
   }
-  if (!checkAvailability) {
-    setInlineHintState(accountInboxUsernameHint, `Inbox address: ${previewAddress}`, null);
-    if (accountInboxUsernameSave) {
-      accountInboxUsernameSave.disabled = false;
+
+  if (accountInboxUsernameInput) {
+    accountInboxUsernameInput.disabled = false;
+    if (!accountInboxUsernameInput.value.trim()) {
+      accountInboxUsernameInput.value = deriveDefaultInboxUsernameSeed();
     }
+  }
+  const normalized = normalizeInboxUsernameInput(accountInboxUsernameInput?.value || '');
+  if (accountInboxUsernameInput && accountInboxUsernameInput.value !== normalized) {
+    accountInboxUsernameInput.value = normalized;
+  }
+  setAccountUsernamePreview(normalized);
+  renderAccountUsernameSuggestions(normalized);
+
+  const hasChanged = normalized !== persistedUsername;
+  const validation = validateInboxUsernameInput(normalized, { allowEmpty: false });
+  const canSave = accountUsernameState.checkedUsername === normalized && accountUsernameState.checkedResult?.available;
+  const setSaveEnabled = (enabled) => {
+    if (!accountInboxUsernameSave) {
+      return;
+    }
+    accountInboxUsernameSave.disabled = !enabled;
+  };
+
+  if (!normalized) {
+    setAccountUsernameStatus('idle', 'Choose a username to create your Applictus inbox address.');
+    setSaveEnabled(false);
+    return;
+  }
+  if (!validation.ok) {
+    setAccountUsernameStatus('invalid', authErrorMessage(validation.code));
+    setSaveEnabled(false);
+    return;
+  }
+  if (!hasChanged) {
+    setAccountUsernameStatus(
+      'saved',
+      persistedUsername ? 'Saved. This username is already set for your inbox.' : 'Choose a username to continue.'
+    );
+    setSaveEnabled(false);
+    return;
+  }
+  if (canSave) {
+    setAccountUsernameStatus('available', 'Available. You can save this inbox username.');
+    setSaveEnabled(true);
+    return;
+  }
+
+  if (accountUsernameState.checkedUsername === normalized && accountUsernameState.checkedResult) {
+    const availability = accountUsernameState.checkedResult;
+    if (!availability.valid) {
+      setAccountUsernameStatus('invalid', authErrorMessage(availability.error));
+      setSaveEnabled(false);
+      return;
+    }
+    if (!availability.available) {
+      setAccountUsernameStatus('taken', 'That username is already taken. Try one of these.');
+      renderAccountUsernameSuggestions(normalized, { preferAlternatives: true });
+      setSaveEnabled(false);
+      return;
+    }
+  }
+
+  if (!checkAvailability) {
+    setAccountUsernameStatus('idle', 'Looks good. We’ll check availability as you type.');
+    setSaveEnabled(false);
     return;
   }
 
@@ -1372,10 +1485,8 @@ function renderAccountInboxUsernamePrompt({ checkAvailability = true } = {}) {
     accountUsernameState.debounceTimer = null;
   }
   const expectedToken = ++accountUsernameState.requestToken;
-  setInlineHintState(accountInboxUsernameHint, 'Checking availability…', null);
-  if (accountInboxUsernameSave) {
-    accountInboxUsernameSave.disabled = true;
-  }
+  setAccountUsernameStatus('checking', 'Checking availability...');
+  setSaveEnabled(false);
   accountUsernameState.debounceTimer = window.setTimeout(async () => {
     const availability = await checkInboxUsernameAvailability(normalized, {
       currentToken: accountUsernameState.requestToken,
@@ -1384,24 +1495,21 @@ function renderAccountInboxUsernamePrompt({ checkAvailability = true } = {}) {
     if (!availability || expectedToken !== accountUsernameState.requestToken) {
       return;
     }
+    accountUsernameState.checkedUsername = normalized;
+    accountUsernameState.checkedResult = availability;
     if (!availability.valid) {
-      setInlineHintState(accountInboxUsernameHint, authErrorMessage(availability.error), 'error');
-      if (accountInboxUsernameSave) {
-        accountInboxUsernameSave.disabled = true;
-      }
+      setAccountUsernameStatus('invalid', authErrorMessage(availability.error));
+      setSaveEnabled(false);
       return;
     }
     if (!availability.available) {
-      setInlineHintState(accountInboxUsernameHint, 'That username is already taken.', 'error');
-      if (accountInboxUsernameSave) {
-        accountInboxUsernameSave.disabled = true;
-      }
+      setAccountUsernameStatus('taken', 'That username is already taken. Try one of these.');
+      renderAccountUsernameSuggestions(normalized, { preferAlternatives: true });
+      setSaveEnabled(false);
       return;
     }
-    setInlineHintState(accountInboxUsernameHint, `Inbox address: ${previewAddress}`, 'ok');
-    if (accountInboxUsernameSave) {
-      accountInboxUsernameSave.disabled = false;
-    }
+    setAccountUsernameStatus('available', 'Available. You can save this inbox username.');
+    setSaveEnabled(true);
   }, 220);
 }
 
@@ -3682,6 +3790,36 @@ function applyArchivedStatusFilterValue(uiValue) {
   }
 }
 
+function getDashboardOnboardingInboxAddress() {
+  const fromInbound = String(inboundState.addressEmail || '').trim();
+  if (fromInbound) {
+    return fromInbound;
+  }
+  const fromSession = buildInboxAddressPreview(sessionUser?.inbox_username || '');
+  if (fromSession) {
+    return fromSession;
+  }
+  const fromSeed = buildInboxAddressPreview(deriveDefaultInboxUsernameSeed());
+  if (fromSeed) {
+    return fromSeed;
+  }
+  return `yourname@${getInboundDomainForDisplay()}`;
+}
+
+function renderDashboardOnboardingInboxPreview() {
+  if (!dashboardOnboardingInboxAddress) {
+    return;
+  }
+  const address = getDashboardOnboardingInboxAddress();
+  const hasConcreteAddress = Boolean(inboundState.addressEmail || sessionUser?.inbox_username);
+  dashboardOnboardingInboxAddress.textContent = address;
+  if (dashboardOnboardingInboxNote) {
+    dashboardOnboardingInboxNote.textContent = hasConcreteAddress
+      ? 'Use this forwarding address so Applictus can track updates automatically.'
+      : 'This is the forwarding address you’ll choose on Account and add once in your email settings.';
+  }
+}
+
 function hasCompletedDashboardInboxSetup() {
   if (isInternalGmailMode()) {
     return Boolean(emailState.connected);
@@ -3706,6 +3844,7 @@ function shouldShowDashboardOnboarding(total = state.table.total) {
 function applyDashboardOnboardingState(total = state.table.total) {
   const safeTotal = Number.isFinite(Number(total)) ? Number(total) : 0;
   const active = shouldShowDashboardOnboarding(safeTotal);
+  renderDashboardOnboardingInboxPreview();
   dashboardView?.classList.toggle('dashboard-first-time-onboarding', active);
   if (dashboardOnboardingCard) {
     dashboardOnboardingCard.classList.toggle('hidden', !active);
@@ -6455,11 +6594,47 @@ async function saveAccountInboxUsername() {
   if (!sessionUser || !accountInboxUsernameInput) {
     return;
   }
-  const validation = validateInboxUsernameInput(accountInboxUsernameInput.value, { allowEmpty: false });
+  const currentUsername = normalizeInboxUsernameInput(accountInboxUsernameInput.value);
+  const persistedUsername = normalizeInboxUsernameInput(sessionUser.inbox_username || '');
+  const validation = validateInboxUsernameInput(currentUsername, { allowEmpty: false });
   if (!validation.ok) {
-    setInlineHintState(accountInboxUsernameHint, authErrorMessage(validation.code), 'error');
+    setAccountUsernameStatus('invalid', authErrorMessage(validation.code));
     if (accountInboxUsernameSave) {
-      accountInboxUsernameSave.disabled = false;
+      accountInboxUsernameSave.disabled = true;
+    }
+    return;
+  }
+  if (validation.value === persistedUsername) {
+    setAccountUsernameStatus('saved', 'Saved. This username is already set for your inbox.');
+    if (accountInboxUsernameSave) {
+      accountInboxUsernameSave.disabled = true;
+    }
+    return;
+  }
+
+  setAccountUsernameStatus('checking', 'Checking availability...');
+  const availability = await checkInboxUsernameAvailability(validation.value).catch(() => null);
+  if (!availability) {
+    setAccountUsernameStatus('idle', 'Unable to verify availability right now. Try again.');
+    if (accountInboxUsernameSave) {
+      accountInboxUsernameSave.disabled = true;
+    }
+    return;
+  }
+  accountUsernameState.checkedUsername = validation.value;
+  accountUsernameState.checkedResult = availability;
+  if (!availability.valid) {
+    setAccountUsernameStatus('invalid', authErrorMessage(availability.error));
+    if (accountInboxUsernameSave) {
+      accountInboxUsernameSave.disabled = true;
+    }
+    return;
+  }
+  if (!availability.available) {
+    setAccountUsernameStatus('taken', 'That username is already taken. Try one of these.');
+    renderAccountUsernameSuggestions(validation.value, { preferAlternatives: true });
+    if (accountInboxUsernameSave) {
+      accountInboxUsernameSave.disabled = true;
     }
     return;
   }
@@ -6468,6 +6643,7 @@ async function saveAccountInboxUsername() {
     accountInboxUsernameSave.disabled = true;
   }
   accountInboxUsernameInput.disabled = true;
+  setAccountUsernameStatus('checking', 'Saving...');
 
   try {
     const payload = await api('/api/account/inbox-username', {
@@ -6476,6 +6652,8 @@ async function saveAccountInboxUsername() {
     });
     if (payload?.user) {
       sessionUser = payload.user;
+      accountUsernameState.lastSavedValue = normalizeInboxUsernameInput(payload.user.inbox_username || validation.value);
+      accountUsernameState.savedFlashUntil = Date.now() + 1800;
       renderAccountPanel(sessionUser);
       syncAccountAvatarIdentity(sessionUser);
     }
@@ -6484,12 +6662,26 @@ async function saveAccountInboxUsername() {
     } else {
       await refreshInboundStatus({ ensureAddress: true });
     }
+    setAccountUsernameStatus('saved', 'Saved. Your Applictus inbox is ready.');
     showToast('Inbox username saved.', { tone: 'success' });
   } catch (err) {
-    setInlineHintState(accountInboxUsernameHint, authErrorMessage(err?.message || err?.code), 'error');
+    setAccountUsernameStatus('invalid', authErrorMessage(err?.message || err?.code));
   } finally {
-    accountInboxUsernameInput.disabled = false;
-    renderAccountInboxUsernamePrompt({ checkAvailability: true });
+    if (accountInboxUsernameInput) {
+      accountInboxUsernameInput.disabled = false;
+    }
+    renderAccountInboxUsernamePrompt({ checkAvailability: false });
+    if (accountUsernameState.savedFlashTimer) {
+      window.clearTimeout(accountUsernameState.savedFlashTimer);
+      accountUsernameState.savedFlashTimer = null;
+    }
+    if (accountUsernameState.savedFlashUntil > Date.now()) {
+      accountUsernameState.savedFlashTimer = window.setTimeout(() => {
+        accountUsernameState.savedFlashUntil = 0;
+        accountUsernameState.savedFlashTimer = null;
+        renderAccountInboxUsernamePrompt({ checkAvailability: false });
+      }, 1900);
+    }
   }
 }
 
@@ -9371,6 +9563,10 @@ dashboardView?.addEventListener('click', async (event) => {
     openInboundSetupModal({ startStep: 0 });
     return;
   }
+  if (action === 'open-account-inbox') {
+    window.location.hash = '#account';
+    return;
+  }
   if (action === 'onboarding-later') {
     state.dashboard.onboardingDismissed = true;
     applyDashboardOnboardingState(state.table.total);
@@ -9901,6 +10097,9 @@ accountInboxUsernameInput?.addEventListener('keydown', (event) => {
     return;
   }
   event.preventDefault();
+  if (accountInboxUsernameSave?.disabled) {
+    return;
+  }
   void saveAccountInboxUsername();
 });
 
