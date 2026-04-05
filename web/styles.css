@@ -7342,7 +7342,8 @@ button.inbound-diagnostics-row:hover {
 .account-help-row {
   display: grid;
   grid-template-columns: 142px minmax(0, 1fr);
-  gap: 10px;
+  column-gap: 18px;
+  row-gap: 10px;
   align-items: center;
 }
 
