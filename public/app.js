@@ -443,6 +443,16 @@ const accountHelpStatus = document.getElementById('account-help-status');
 const accountHelpLastEmail = document.getElementById('account-help-last-email');
 const accountHelpNote = document.getElementById('account-help-note');
 const accountHelpSetupType = document.getElementById('account-help-setup-type');
+const accountHelpProgressCount = document.getElementById('account-help-progress-count');
+const accountHelpProgressStep1 = document.getElementById('account-help-progress-step-1');
+const accountHelpProgressStep1Label = document.getElementById('account-help-progress-step-1-label');
+const accountHelpProgressStep1State = document.getElementById('account-help-progress-step-1-state');
+const accountHelpProgressStep2 = document.getElementById('account-help-progress-step-2');
+const accountHelpProgressStep2Label = document.getElementById('account-help-progress-step-2-label');
+const accountHelpProgressStep2State = document.getElementById('account-help-progress-step-2-state');
+const accountHelpProgressStep3 = document.getElementById('account-help-progress-step-3');
+const accountHelpProgressStep3Label = document.getElementById('account-help-progress-step-3-label');
+const accountHelpProgressStep3State = document.getElementById('account-help-progress-step-3-state');
 const inboundStatusPill = document.getElementById('inbound-status-pill');
 const inboundAddressLabel = document.getElementById('inbound-address-label');
 const inboundAddressEmail = document.getElementById('inbound-address-email');
@@ -1668,6 +1678,82 @@ function renderForwardingSummary() {
   applySyncDetailsVisibility(false, false, false);
 }
 
+function setAccountHelpProgressStep(stepEl, labelEl, stateEl, { label, stateText, tone }) {
+  if (stepEl) {
+    stepEl.dataset.state = tone || 'pending';
+  }
+  if (labelEl) {
+    labelEl.textContent = label || '';
+  }
+  if (stateEl) {
+    stateEl.textContent = stateText || '';
+  }
+}
+
+function renderAccountHelpProgressForwarding(readiness) {
+  const hasAddress = Boolean(inboundState.addressEmail);
+  let step1 = { label: 'Address created', stateText: hasAddress ? 'Complete' : 'Pending', tone: hasAddress ? 'done' : 'pending' };
+  let step2 = { label: 'Forwarding configured', stateText: 'Pending', tone: 'pending' };
+  let step3 = { label: 'Verification complete', stateText: 'Pending', tone: 'pending' };
+
+  if (readiness === 'forwarding_active') {
+    step1 = { label: 'Address created', stateText: 'Complete', tone: 'done' };
+    step2 = { label: 'Forwarding configured', stateText: 'Complete', tone: 'done' };
+    step3 = { label: 'Verification complete', stateText: 'Complete', tone: 'done' };
+  } else if (readiness === 'awaiting_first_email') {
+    step1 = { label: 'Address created', stateText: 'Complete', tone: 'done' };
+    step2 = { label: 'Forwarding configured', stateText: 'Complete', tone: 'done' };
+    step3 = { label: 'Verification complete', stateText: 'Complete', tone: 'done' };
+  } else if (readiness === 'address_reachable') {
+    step1 = { label: 'Address created', stateText: 'Complete', tone: 'done' };
+    step2 = { label: 'Forwarding configured', stateText: 'Complete', tone: 'done' };
+    step3 = { label: 'Verification complete', stateText: 'In progress', tone: 'active' };
+  } else if (readiness === 'gmail_verification_pending' || readiness === 'awaiting_confirmation') {
+    step1 = { label: 'Address created', stateText: 'Complete', tone: 'done' };
+    step2 = { label: 'Forwarding configured', stateText: 'In progress', tone: 'active' };
+    step3 = { label: 'Verification complete', stateText: 'Pending', tone: 'pending' };
+  }
+
+  setAccountHelpProgressStep(accountHelpProgressStep1, accountHelpProgressStep1Label, accountHelpProgressStep1State, step1);
+  setAccountHelpProgressStep(accountHelpProgressStep2, accountHelpProgressStep2Label, accountHelpProgressStep2State, step2);
+  setAccountHelpProgressStep(accountHelpProgressStep3, accountHelpProgressStep3Label, accountHelpProgressStep3State, step3);
+
+  const completeCount = [step1, step2, step3].filter((step) => step.tone === 'done').length;
+  if (accountHelpProgressCount) {
+    accountHelpProgressCount.textContent = `${completeCount} of 3 complete`;
+  }
+}
+
+function renderAccountHelpProgressInternal() {
+  const connected = Boolean(emailState.connected);
+  const hasSynced = Boolean(
+    emailState.lastSyncStats?.last_synced_at ||
+      emailState.lastSyncedAt ||
+      emailState.lastSyncStats?.time_window_end
+  );
+  const step1 = { label: 'Gmail connected', stateText: connected ? 'Complete' : 'Pending', tone: connected ? 'done' : 'pending' };
+  const step2 = {
+    label: 'Sync permissions ready',
+    stateText: connected ? 'Complete' : 'Pending',
+    tone: connected ? 'done' : 'pending'
+  };
+  let step3 = { label: 'First sync completed', stateText: 'Pending', tone: 'pending' };
+  if (connected && hasSynced) {
+    step3 = { label: 'First sync completed', stateText: 'Complete', tone: 'done' };
+  } else if (connected) {
+    step3 = { label: 'First sync completed', stateText: 'Run sync', tone: 'active' };
+  }
+
+  setAccountHelpProgressStep(accountHelpProgressStep1, accountHelpProgressStep1Label, accountHelpProgressStep1State, step1);
+  setAccountHelpProgressStep(accountHelpProgressStep2, accountHelpProgressStep2Label, accountHelpProgressStep2State, step2);
+  setAccountHelpProgressStep(accountHelpProgressStep3, accountHelpProgressStep3Label, accountHelpProgressStep3State, step3);
+
+  const completeCount = [step1, step2, step3].filter((step) => step.tone === 'done').length;
+  if (accountHelpProgressCount) {
+    accountHelpProgressCount.textContent = `${completeCount} of 3 complete`;
+  }
+}
+
 function updateDashboardPrimarySyncUI() {
   if (!emailSync) {
     return;
@@ -1729,9 +1815,6 @@ function updateInboundStatusPresentation() {
     const connected = Boolean(emailState.connected);
     const connectedEmail = emailState.email || sessionUser?.email || null;
     const statusText = connected ? 'Connected ✓' : 'Not connected';
-    const helpText = connected
-      ? `Connected via Gmail API${connectedEmail ? ` · ${connectedEmail}` : ''}`
-      : 'Connect Gmail to enable inbox sync.';
     setPillState(inboundStatusPill, statusText, connected ? 'connected' : 'idle');
     setPillState(dashboardInboxStatus, statusText, connected ? 'connected' : 'idle');
     if (dashboardInboxEmail) {
@@ -1778,14 +1861,17 @@ function updateInboundStatusPresentation() {
     if (accountHelpStatus) {
       accountHelpStatus.textContent = statusText;
     }
-    if (accountHelpNote) {
-      accountHelpNote.textContent = helpText;
-    }
     if (accountHelpSetupType) {
       accountHelpSetupType.textContent = 'Gmail API';
     }
     if (accountHelpLastEmail) {
       accountHelpLastEmail.textContent = connectedEmail || '—';
+    }
+    renderAccountHelpProgressInternal();
+    if (accountHelpNote) {
+      accountHelpNote.textContent = connected
+        ? 'Run Sync inbox to pull updates. Applictus keeps your tracking timeline current after each sync.'
+        : 'Connect Gmail to enable sync, then run your first inbox scan to start tracking.';
     }
     if (inboundHelpOpenSetup) {
       inboundHelpOpenSetup.textContent = connected ? 'Reconnect Gmail' : 'Connect Gmail';
@@ -1814,7 +1900,8 @@ function updateInboundStatusPresentation() {
   let dashboardState = 'idle';
   let syncText = 'Setup needed';
   let helpStatusText = 'Not connected';
-  let helpNoteText = 'Applictus only processes emails you forward.';
+  let helpNoteText =
+    'Verify forwarding in Gmail, then send a test email or forward one recent application email to begin tracking.';
 
   if (readiness === 'forwarding_active') {
     pillText = 'Receiving forwarded emails';
@@ -1823,7 +1910,7 @@ function updateInboundStatusPresentation() {
     dashboardState = 'connected';
     syncText = 'Forwarding active';
     helpStatusText = 'Connected · Receiving forwarded emails';
-    helpNoteText = 'Forwarding is active. New job-email updates are processed automatically.';
+    helpNoteText = 'Forwarding is active. Use Send test email anytime to confirm inbox health.';
   } else if (readiness === 'gmail_verification_pending') {
     pillText = 'Address reachable — Gmail verification pending';
     pillState = 'info';
@@ -1831,7 +1918,8 @@ function updateInboundStatusPresentation() {
     dashboardState = 'info';
     syncText = 'Address reachable';
     helpStatusText = 'Address reachable · Gmail verification pending';
-    helpNoteText = 'Your inbox is reachable. Complete Gmail verification to finish setup.';
+    helpNoteText =
+      'Verify forwarding in Gmail, then send a test email or forward one recent application email to begin tracking.';
   } else if (readiness === 'address_reachable') {
     pillText = 'Address reachable';
     pillState = 'info';
@@ -1839,7 +1927,7 @@ function updateInboundStatusPresentation() {
     dashboardState = 'info';
     syncText = 'Address reachable';
     helpStatusText = 'Address reachable';
-    helpNoteText = 'Applictus can receive forwarded mail. Forward one application email to activate full tracking.';
+    helpNoteText = 'Great progress. Forward one recent application email or use Send test email to activate tracking.';
   } else if (readiness === 'awaiting_first_email') {
     pillText = 'Forwarding enabled — waiting for first email';
     pillState = 'info';
@@ -1847,7 +1935,7 @@ function updateInboundStatusPresentation() {
     dashboardState = 'info';
     syncText = 'Waiting for first email';
     helpStatusText = 'Waiting for first forwarded email';
-    helpNoteText = 'Setup is complete. Forward one application email to activate tracking.';
+    helpNoteText = 'Setup is complete. Forward one recent application email to start populating your timeline.';
   } else if (readiness === 'awaiting_confirmation') {
     pillText = 'Waiting for forwarding verification';
     pillState = 'idle';
@@ -1855,7 +1943,10 @@ function updateInboundStatusPresentation() {
     dashboardState = 'idle';
     syncText = 'Waiting for verification';
     helpStatusText = 'Waiting for forwarding verification';
-    helpNoteText = 'Follow the setup guide to add and verify your Applictus inbox address.';
+    helpNoteText =
+      'Verify forwarding in Gmail, then send a test email or forward one recent application email to begin tracking.';
+  } else {
+    helpNoteText = 'Open the setup guide to add your Applictus inbox, then verify forwarding in Gmail.';
   }
 
   setPillState(inboundStatusPill, pillText, pillState);
@@ -1923,6 +2014,7 @@ function updateInboundStatusPresentation() {
       accountHelpLastEmail.textContent = subject ? `${lastSeen} · ${subject}` : lastSeen;
     }
   }
+  renderAccountHelpProgressForwarding(readiness);
   if (inboundHelpSendTest) {
     inboundHelpSendTest.disabled = !inboundState.addressEmail;
   }

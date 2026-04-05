@@ -7331,7 +7331,7 @@ button.inbound-diagnostics-row:hover {
 }
 
 .account-help-body {
-  gap: 12px;
+  gap: 13px;
 }
 
 .account-help-row {
@@ -7348,10 +7348,115 @@ button.inbound-diagnostics-row:hover {
   line-height: 1.45;
 }
 
+.account-help-progress {
+  margin-top: 2px;
+  padding: 11px 12px;
+  border-radius: 13px;
+  border: 1px solid rgba(26, 62, 117, 0.14);
+  background: linear-gradient(180deg, rgba(250, 253, 255, 0.96), rgba(243, 248, 255, 0.92));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84);
+  display: grid;
+  gap: 10px;
+}
+
+.account-help-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.account-help-progress-title {
+  color: #173f74;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.account-help-progress-count {
+  color: #56729b;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.account-help-progress-list {
+  display: grid;
+  gap: 7px;
+}
+
+.account-help-progress-step {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  border: 1px solid rgba(28, 62, 116, 0.12);
+  background: rgba(255, 255, 255, 0.84);
+  color: #24466f;
+  position: relative;
+}
+
+.account-help-progress-step::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(92, 123, 168, 0.54);
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.account-help-progress-step-label {
+  padding-left: 13px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.account-help-progress-step-state {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #607b9f;
+  white-space: nowrap;
+}
+
+.account-help-progress-step[data-state='done'] {
+  border-color: rgba(29, 118, 69, 0.25);
+  background: rgba(235, 248, 240, 0.88);
+}
+
+.account-help-progress-step[data-state='done']::before {
+  background: rgba(29, 118, 69, 0.9);
+}
+
+.account-help-progress-step[data-state='done'] .account-help-progress-step-state {
+  color: #1a7b44;
+}
+
+.account-help-progress-step[data-state='active'] {
+  border-color: rgba(44, 95, 171, 0.25);
+  background: rgba(238, 246, 255, 0.9);
+}
+
+.account-help-progress-step[data-state='active']::before {
+  background: rgba(44, 95, 171, 0.88);
+}
+
+.account-help-progress-step[data-state='active'] .account-help-progress-step-state {
+  color: #2e5f9b;
+}
+
 .account-help-note {
-  padding-top: 8px;
-  border-top: 1px solid rgba(25, 55, 103, 0.1);
+  margin: 0;
   line-height: 1.45;
+  color: #486284;
+  padding-top: 6px;
+  border-top: 1px solid rgba(25, 55, 103, 0.1);
 }
 
 .account-help-actions {
@@ -7359,6 +7464,51 @@ button.inbound-diagnostics-row:hover {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
+  margin-top: 2px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(25, 55, 103, 0.12);
+}
+
+.account-help-actions .btn--secondary {
+  box-shadow: 0 8px 16px rgba(19, 49, 95, 0.14);
+}
+
+.account-help-actions .btn {
+  min-height: 34px;
+}
+
+.account-help-actions .btn:last-child {
+  margin-left: auto;
+}
+
+@media (max-width: 1180px) {
+  .account-help-actions .btn:last-child {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .account-help-progress-head {
+    flex-wrap: wrap;
+  }
+
+  .account-help-progress-step {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .account-help-progress-step-state {
+    padding-left: 13px;
+  }
+
+  .account-help-actions {
+    align-items: stretch;
+  }
+
+  .account-help-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .account-row--identity {
