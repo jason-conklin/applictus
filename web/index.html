@@ -800,17 +800,19 @@
                 Save
               </button>
             </div>
-            <div class="muted small account-inbox-username-preview">
-              Address preview:
-              <code id="account-inbox-username-preview">&lt;username&gt;@mail.applictus.com</code>
-            </div>
-            <div
-              class="muted small account-inbox-username-status"
-              id="account-inbox-username-status"
-              role="status"
-              aria-live="polite"
-            >
-              Choose a username to create your Applictus inbox address.
+            <div class="account-inbox-username-feedback-row">
+              <div class="muted small account-inbox-username-preview">
+                Address preview:
+                <code id="account-inbox-username-preview">&lt;username&gt;@mail.applictus.com</code>
+              </div>
+              <div
+                class="muted small account-inbox-username-status"
+                id="account-inbox-username-status"
+                role="status"
+                aria-live="polite"
+              >
+                Choose a username to create your Applictus inbox address.
+              </div>
             </div>
             <div class="muted small account-inbox-username-hint" id="account-inbox-username-hint">
               Use 3-30 characters: lowercase letters, numbers, and hyphens.
@@ -1226,9 +1228,6 @@
                         <code class="dashboard-onboarding-inbox-address" id="dashboard-onboarding-inbox-address"
                           >yourname@mail.applictus.com</code
                         >
-                        <p class="dashboard-onboarding-inbox-note" id="dashboard-onboarding-inbox-note">
-                          This is the forwarding address Applictus uses to track your timeline.
-                        </p>
                         <button class="link-button dashboard-onboarding-inbox-link" type="button" data-action="open-account-inbox">
                           Choose username on Account
                         </button>

@@ -516,7 +516,6 @@ const applicationsTable = document.getElementById('applications-table');
 const appCount = document.getElementById('app-count');
 const dashboardOnboardingCard = document.getElementById('dashboard-onboarding');
 const dashboardOnboardingInboxAddress = document.getElementById('dashboard-onboarding-inbox-address');
-const dashboardOnboardingInboxNote = document.getElementById('dashboard-onboarding-inbox-note');
 const dashboardFiltersInline = document.getElementById('filters-inline');
 const archivedTable = document.getElementById('archived-table');
 const archivedCount = document.getElementById('archived-count');
@@ -3811,13 +3810,7 @@ function renderDashboardOnboardingInboxPreview() {
     return;
   }
   const address = getDashboardOnboardingInboxAddress();
-  const hasConcreteAddress = Boolean(inboundState.addressEmail || sessionUser?.inbox_username);
   dashboardOnboardingInboxAddress.textContent = address;
-  if (dashboardOnboardingInboxNote) {
-    dashboardOnboardingInboxNote.textContent = hasConcreteAddress
-      ? 'Use this forwarding address so Applictus can track updates automatically.'
-      : 'This is the forwarding address you’ll choose on Account and add once in your email settings.';
-  }
 }
 
 function hasCompletedDashboardInboxSetup() {

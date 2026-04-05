@@ -6437,6 +6437,13 @@ details summary {
   min-width: 180px;
 }
 
+.account-inbox-username-feedback-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
 .account-inbox-username-preview {
   display: inline-flex;
   align-items: center;
@@ -6466,6 +6473,8 @@ details summary {
   color: #4c6489;
   min-height: 18px;
   font-weight: 600;
+  white-space: nowrap;
+  flex: 0 1 auto;
 }
 
 .account-inbox-username-status::before {
@@ -6511,6 +6520,17 @@ details summary {
 
 .account-inbox-username-hint {
   color: #5e7393;
+}
+
+@media (max-width: 900px) {
+  .account-inbox-username-feedback-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .account-inbox-username-status {
+    white-space: normal;
+  }
 }
 
 .account-inbox-username-hint[data-state='error'] {
