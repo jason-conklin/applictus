@@ -277,6 +277,61 @@
         color: #4f617d;
         line-height: 1.45;
       }
+      .plan-billing-wrap {
+        display: grid;
+        gap: 8px;
+        margin-top: 2px;
+      }
+      .plan-billing-label {
+        margin: 0;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #567097;
+      }
+      .plan-billing-toggle {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+        padding: 4px;
+        border: 1px solid rgba(22, 69, 143, 0.18);
+        border-radius: 12px;
+        background: rgba(29, 78, 157, 0.06);
+      }
+      .plan-billing-option {
+        border: 1px solid transparent;
+        border-radius: 10px;
+        background: transparent;
+        color: #24446f;
+        display: grid;
+        gap: 1px;
+        justify-items: center;
+        padding: 7px 8px;
+        cursor: pointer;
+        transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+      }
+      .plan-billing-option:hover {
+        background: rgba(255, 255, 255, 0.6);
+      }
+      .plan-billing-option.is-active {
+        background: #ffffff;
+        border-color: rgba(34, 87, 166, 0.4);
+        color: #15355d;
+        box-shadow:
+          0 7px 16px rgba(22, 69, 143, 0.14),
+          inset 0 1px 0 rgba(255, 255, 255, 0.85);
+      }
+      .plan-billing-option-label {
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.25;
+      }
+      .plan-billing-option-meta {
+        font-size: 11px;
+        line-height: 1.2;
+        color: #4f678d;
+      }
       .plan-price {
         font-size: 36px;
         font-weight: 700;
@@ -288,6 +343,11 @@
       .plan-limit {
         margin-bottom: 15px;
         color: #4f6079;
+        line-height: 1.45;
+      }
+      .plan-billing-note {
+        margin: -3px 0 12px;
+        color: #35557f;
         line-height: 1.45;
       }
       .plan-features {
@@ -380,6 +440,12 @@
         }
         .plan-price {
           font-size: 32px;
+        }
+        .plan-billing-option {
+          padding: 7px 6px;
+        }
+        .plan-billing-option-label {
+          font-size: 11px;
         }
       }
     </style>
