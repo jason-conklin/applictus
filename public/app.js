@@ -4973,7 +4973,10 @@ function buildPlanCard({
   priceTerm = '',
   details,
   billingNote = '',
+  priceHint = '',
   features,
+  summaryTitle = '',
+  summaryLines = [],
   ctaText,
   ctaSubtext = '',
   reinforcement = '',
@@ -5030,17 +5033,52 @@ function buildPlanCard({
     billingNoteEl.textContent = billingNote;
   }
 
+  let priceHintEl = null;
+  if (priceHint) {
+    priceHintEl = document.createElement('div');
+    priceHintEl.className = 'plan-price-hint muted small';
+    priceHintEl.textContent = priceHint;
+  }
+
   const dividerEl = document.createElement('div');
   dividerEl.className = 'plan-card-divider';
   dividerEl.setAttribute('aria-hidden', 'true');
 
-  const ul = document.createElement('ul');
-  ul.className = 'plan-features';
-  features.forEach((feat) => {
-    const li = document.createElement('li');
-    li.textContent = feat;
-    ul.appendChild(li);
-  });
+  const hasFeatureList = Array.isArray(features) && features.length > 0;
+  const hasSummary = Boolean(summaryTitle) || (Array.isArray(summaryLines) && summaryLines.length > 0);
+  let contentEl = null;
+  if (hasFeatureList) {
+    const ul = document.createElement('ul');
+    ul.className = 'plan-features';
+    features.forEach((feat) => {
+      const li = document.createElement('li');
+      li.textContent = feat;
+      ul.appendChild(li);
+    });
+    contentEl = ul;
+  } else if (hasSummary) {
+    const summary = document.createElement('div');
+    summary.className = 'plan-summary';
+    if (summaryTitle) {
+      const summaryHeading = document.createElement('div');
+      summaryHeading.className = 'plan-summary-title';
+      summaryHeading.textContent = summaryTitle;
+      summary.appendChild(summaryHeading);
+    }
+    const lines = Array.isArray(summaryLines) ? summaryLines : [];
+    if (lines.length) {
+      const summaryBody = document.createElement('div');
+      summaryBody.className = 'plan-summary-lines';
+      lines.forEach((line) => {
+        const row = document.createElement('div');
+        row.className = 'plan-summary-line';
+        row.textContent = line;
+        summaryBody.appendChild(row);
+      });
+      summary.appendChild(summaryBody);
+    }
+    contentEl = summary;
+  }
 
   let reinforcementEl = null;
   if (reinforcement) {
@@ -5075,7 +5113,12 @@ function buildPlanCard({
   if (billingNoteEl) {
     card.appendChild(billingNoteEl);
   }
-  card.append(dividerEl, ul);
+  if (priceHintEl) {
+    card.appendChild(priceHintEl);
+  }
+  if (contentEl) {
+    card.append(dividerEl, contentEl);
+  }
   if (reinforcementEl) {
     card.appendChild(reinforcementEl);
   }
@@ -5139,9 +5182,13 @@ function openPricingModal() {
     priceMain: '$9.99',
     priceTerm: '/ 3 months',
     details: 'Up to 500 tracked updates per month',
-    billingNote: 'A commitment option tailored to a typical search cycle',
-    features: SHARED_PRO_FEATURES,
-    reinforcement: 'One payment for a typical 2–3 month job search cycle',
+    priceHint: '≈ $3.33/month effective rate',
+    features: [],
+    summaryTitle: 'All Pro features included',
+    summaryLines: [
+      'Track every update, stay organized, and never miss important messages.',
+      'One payment for a typical 2–3 month job search cycle.'
+    ],
     badgeText: 'Best for 2–3 month search',
     badgeVariant: 'commitment',
     ctaText: 'Start Job Search Plan',

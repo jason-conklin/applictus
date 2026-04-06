@@ -323,6 +323,11 @@
         color: #3d5e88;
         line-height: 1.45;
       }
+      .plan-price-hint {
+        margin: -4px 0 12px;
+        color: #56739a;
+        line-height: 1.35;
+      }
       .plan-card-divider {
         height: 1px;
         margin: 0 0 12px;
@@ -349,6 +354,30 @@
         top: 0;
         color: #2e63b0;
         font-weight: 700;
+      }
+      .plan-summary {
+        border: 1px solid rgba(30, 76, 147, 0.14);
+        border-radius: 12px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(242, 248, 255, 0.94));
+        padding: 10px 11px;
+        display: grid;
+        gap: 7px;
+        min-height: 120px;
+      }
+      .plan-summary-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: #234a7f;
+        letter-spacing: 0.01em;
+      }
+      .plan-summary-lines {
+        display: grid;
+        gap: 6px;
+      }
+      .plan-summary-line {
+        color: #385983;
+        font-size: 12px;
+        line-height: 1.42;
       }
       .plan-pill {
         display: inline-flex;
@@ -478,6 +507,9 @@
         }
         .plan-price-term {
           font-size: 13px;
+        }
+        .plan-summary {
+          min-height: 0;
         }
         .pricing-modal-hero {
           padding: 11px 12px;
