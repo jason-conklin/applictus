@@ -1537,7 +1537,6 @@ function setDashboardScanButtonLabel(label) {
 
 function formatInboundMetaText() {
   if (isInternalGmailMode()) {
-    const parts = [];
     const lastSync =
       emailState.lastSyncStats?.last_synced_at ||
       emailState.lastSyncedAt ||
@@ -1545,16 +1544,12 @@ function formatInboundMetaText() {
       null;
     const lastSyncedAt = formatSyncDateTime(lastSync);
     if (lastSyncedAt) {
-      parts.push(`Last inbox sync • ${lastSyncedAt}`);
+      return `Last inbox sync • ${lastSyncedAt}`;
     }
-    if (emailState.email) {
-      parts.push(`Connected Gmail • ${emailState.email}`);
-    } else if (emailState.connected) {
-      parts.push('Connected Gmail');
-    } else {
-      parts.push('Connect Gmail to start internal ingestion.');
+    if (emailState.connected) {
+      return 'Last inbox sync not run yet.';
     }
-    return parts.join(' • ');
+    return 'Connect Gmail to start internal ingestion.';
   }
   const readiness = resolveForwardingReadiness();
   const syncMeta = inboundState.lastInboundSync || null;
@@ -1639,9 +1634,7 @@ function renderForwardingSummary() {
     return;
   }
   if (isInternalGmailMode()) {
-    syncSummaryStatus.textContent = emailState.connected
-      ? 'Gmail connected'
-      : 'Gmail not connected';
+    syncSummaryStatus.textContent = emailState.connected ? '' : 'Gmail not connected';
     syncSummaryMetrics.textContent = formatInboundMetaText();
     syncSummary.classList.remove('hidden');
     if (syncResult) {
@@ -1830,7 +1823,7 @@ function updateInboundStatusPresentation() {
       dashboardInboxEmail.textContent = connectedEmail || 'Connect Gmail to begin ingestion';
     }
     if (syncStatus) {
-      syncStatus.textContent = connected ? 'Ready' : 'Connect Gmail';
+      syncStatus.textContent = connected ? '' : 'Connect Gmail';
     }
     if (inboundAddressLabel) {
       inboundAddressLabel.textContent = 'Connected Gmail account';
