@@ -246,6 +246,75 @@ test('classifyEmail keeps CBRE-style received/under-review confirmations as appl
   assert.ok(result.debug.negativeMatches.includes('recruitment_stages_overview'));
 });
 
+test('classifyEmail keeps employer-branded SmartRecruiters confirmations as applied despite footer unsubscribe text', () => {
+  const subject = 'Thank you for applying for the Digital Marketing Summer Intern (Remote & Paid) position';
+  const body = [
+    'Thank you for applying for the Digital Marketing Summer Intern (Remote & Paid) position.',
+    'We look forward to reviewing your application and will be in touch soon.',
+    'Access My Application',
+    '',
+    'Our mission is to build an inclusive workplace.',
+    'Follow us on social media for company updates.',
+    'Privacy Policy · Terms',
+    'Unsubscribe',
+    'Powered by SmartRecruiters'
+  ].join('\n');
+
+  const relevance = isRelevantApplicationEmail({
+    subject,
+    body,
+    sender: 'Acme Recruiting <notifications@smartrecruiters.com>'
+  });
+  assert.equal(relevance.isRelevant, true);
+  assert.ok(Array.isArray(relevance.matchedKeywords));
+  assert.ok(
+    relevance.matchedKeywords.includes('thank_you_for_applying_for_position') ||
+      relevance.matchedKeywords.includes('thank_you_for_applying')
+  );
+
+  const result = classifyEmail({
+    subject,
+    body,
+    sender: 'Acme Recruiting <notifications@smartrecruiters.com>'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'confirmation');
+  assert.notEqual(result.reason, 'denylisted');
+  assert.ok(Array.isArray(result?.debug?.appliedMatches));
+  assert.ok(
+    result.debug.appliedMatches.includes('look_forward_reviewing_application') ||
+      result.debug.appliedMatches.includes('access_my_application')
+  );
+});
+
+test('classifyEmail keeps careers marketing newsletter ignored when it lacks application-specific signals', () => {
+  const subject = 'Thanks for your interest in Acme careers';
+  const body = [
+    'Thanks for your interest in Acme.',
+    'Jobs for you this week',
+    'Recommended jobs based on your search',
+    'View more jobs',
+    'Read more',
+    'Unsubscribe'
+  ].join('\n');
+
+  const relevance = isRelevantApplicationEmail({
+    subject,
+    body,
+    sender: 'careers-news@acme.com'
+  });
+  assert.equal(relevance.isRelevant, false);
+  assert.equal(relevance.reason, 'not_relevant');
+
+  const result = classifyEmail({
+    subject,
+    body,
+    sender: 'careers-news@acme.com'
+  });
+  assert.equal(result.isJobRelated, false);
+  assert.ok(['denylisted', 'newsletter_digest'].includes(String(result.reason || '')));
+});
+
 test('classifyEmail detects interview-stage assessment invite emails as interview requested', () => {
   const subject = 'Thank you for your interest in Remote Accounts Receivable Specialist role';
   const body = [

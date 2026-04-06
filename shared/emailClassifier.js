@@ -51,6 +51,10 @@ const RELEVANCE_KEEP_SIGNALS = [
   { pattern: /\bjobs applied to on\s+\d{1,2}\/\d{1,2}\/\d{2,4}\b/i, label: 'jobs_applied_to_subject' },
   { pattern: /\bid[:#]?\s*[A-Z0-9-]{3,}\s*[-–—]\s*[A-Za-z]/i, label: 'job_id_title_line' },
   { pattern: /\bthank you for applying at\b/i, label: 'thank_you_for_applying_at' },
+  {
+    pattern: /\bthank you for applying for\b.{0,160}\b(?:role|position)\b/i,
+    label: 'thank_you_for_applying_for_position'
+  },
   { pattern: /\bapplication submitted\b/i, label: 'application_submitted' },
   { pattern: /\byour application was sent\b/i, label: 'application_was_sent' },
   { pattern: /\bthank you for applying\b/i, label: 'thank_you_for_applying' },
@@ -75,6 +79,15 @@ const RELEVANCE_KEEP_SIGNALS = [
   {
     pattern: /\bthank you for your interest in\s+.+\s+(?:role|position)\b/i,
     label: 'thank_you_interest_in_role'
+  },
+  {
+    pattern: /\bwe look forward to reviewing your application\b/i,
+    label: 'look_forward_reviewing_application'
+  },
+  { pattern: /\baccess my application\b/i, label: 'access_my_application' },
+  {
+    pattern: /\byour application for\b.{0,120}\b(?:role|position)\b/i,
+    label: 'your_application_for_role_position'
   },
   { pattern: /\b(?:we(?:'|’)re|we are)\s+pleased to invite you to\b/i, label: 'pleased_to_invite' },
   { pattern: /\bnext step in our hiring process\b/i, label: 'next_step_hiring_process' },
@@ -311,6 +324,10 @@ const APPLIED_COURTESY_SIGNALS = [
 
 const APPLIED_CONFIRMATION_SIGNAL_PATTERNS = [
   { pattern: /\bthank you for applying at\b/i, label: 'thank_you_for_applying_at' },
+  {
+    pattern: /\bthank you for applying for\b.{0,160}\b(?:role|position)\b/i,
+    label: 'thank_you_for_applying_for_position'
+  },
   { pattern: /\bapplication submitted\b/i, label: 'application_submitted' },
   { pattern: /\byour application was sent\b/i, label: 'application_was_sent' },
   { pattern: /\bwe have successfully received your application\b/i, label: 'successfully_received_application' },
@@ -336,10 +353,34 @@ const APPLIED_CONFIRMATION_SIGNAL_PATTERNS = [
   { pattern: /\bgood luck(?: with| in)? (?:your )?(?:application|job search|search)?\b/i, label: 'good_luck' },
   { pattern: /\bindeed application:\s*.+/i, label: 'indeed_application_subject' },
   {
+    pattern: /\bwe look forward to reviewing your application\b/i,
+    label: 'look_forward_reviewing_application'
+  },
+  { pattern: /\baccess my application\b/i, label: 'access_my_application' },
+  {
+    pattern: /\byour application for\b.{0,120}\b(?:role|position)\b/i,
+    label: 'your_application_for_role_position'
+  },
+  {
     pattern: /\b(?:employer|job advertiser) may reach out to you about your application\b/i,
     label: 'may_reach_out_about_application'
   }
 ];
+
+const APPLIED_DENYLIST_OVERRIDE_SIGNAL_LABELS = new Set([
+  'thank_you_for_applying_at',
+  'thank_you_for_applying_for_position',
+  'thank_you_for_applying',
+  'thanks_for_applying',
+  'thank_you_for_your_application',
+  'application_submitted',
+  'application_was_sent',
+  'successfully_received_application',
+  'received_application',
+  'your_application_for_role_position',
+  'look_forward_reviewing_application',
+  'access_my_application'
+]);
 
 const SCHEDULING_INTENT_PATTERNS = [
   { pattern: /i would like to speak with you/i, score: 18 },
@@ -444,6 +485,7 @@ function hasAppliedConfirmationSignals(text) {
     );
   return (
     /\bthank you for applying at\b/i.test(text) ||
+    /\bthank you for applying for\b.{0,160}\b(?:role|position)\b/i.test(text) ||
     /\bapplication submitted\b/i.test(text) ||
     /\byour application was sent\b/i.test(text) ||
     /\bwe have successfully received your application\b/i.test(text) ||
@@ -457,6 +499,9 @@ function hasAppliedConfirmationSignals(text) {
     /\bwe are currently reviewing your resume\b/i.test(text) ||
     /\bevaluating your professional credentials\b/i.test(text) ||
     /\bif there is a match between our requirements and your experience\b/i.test(text) ||
+    /\bwe look forward to reviewing your application\b/i.test(text) ||
+    /\baccess my application\b/i.test(text) ||
+    /\byour application for\b.{0,120}\b(?:role|position)\b/i.test(text) ||
     /\bwe wish you the best in your employment search\b/i.test(text) ||
     /\bgood luck(?: with| in)? (?:your )?(?:application|job search|search)?\b/i.test(text) ||
     indeedConfirmationEnvelope ||
@@ -466,6 +511,19 @@ function hasAppliedConfirmationSignals(text) {
 
 function collectAppliedConfirmationSignals(text) {
   return collectSignalMatches(APPLIED_CONFIRMATION_SIGNAL_PATTERNS, text);
+}
+
+function hasStrongAppliedConfirmationBypass(matches, text) {
+  const signalLabels = Array.isArray(matches) ? matches : [];
+  const strongCount = signalLabels.filter((label) =>
+    APPLIED_DENYLIST_OVERRIDE_SIGNAL_LABELS.has(String(label || ''))
+  ).length;
+  const sourceText = String(text || '');
+  const hasApplicationContext = /\b(?:application|applied)\b/i.test(sourceText);
+  const hasRoleContext = /\b(?:role|position)\b/i.test(sourceText);
+  const hasPortalCue = /\baccess my application\b/i.test(sourceText);
+  const hasReviewCue = /\bwe look forward to reviewing your application\b/i.test(sourceText);
+  return strongCount >= 2 || (strongCount >= 1 && hasApplicationContext && hasRoleContext && (hasPortalCue || hasReviewCue));
 }
 
 const RULES = [
@@ -1220,6 +1278,7 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
   const linkedInJobsUpdate = isLinkedInJobsUpdateEmail({ subject, snippet, sender, body });
   const linkedInApplicationSent = isLinkedInJobsApplicationSentEmail({ subject, snippet, sender, body });
   const interviewSuppressionMatches = collectSignalMatches(INTERVIEW_PROCESS_ONLY_SIGNAL_PATTERNS, textSource);
+  const appliedConfirmationMatches = collectAppliedConfirmationSignals(textSource);
 
   // Early guard: LinkedIn social/notification emails should not be classified as interview.
   if (!linkedInJobsUpdate && isLinkedInSocialNotification(textSource, sender)) {
@@ -1346,7 +1405,11 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
     };
   }
 
-  // Denylist overrides generic allowlist (except for the strong rejection rule above).
+  // Denylist overrides generic allowlist, unless we have strong multi-signal applied confirmation evidence.
+  const denylistBypassForAppliedConfirmation = hasStrongAppliedConfirmationBypass(
+    appliedConfirmationMatches,
+    textSource
+  );
   for (const pattern of DENYLIST) {
     if (pattern.test(text)) {
       if (linkedInJobsUpdate) {
@@ -1357,6 +1420,9 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
           explanation: 'LinkedIn jobs update allowlisted.',
           reason: 'linkedin_jobs_update_allowlisted'
         };
+      }
+      if (denylistBypassForAppliedConfirmation) {
+        break;
       }
       return {
         isJobRelated: false,
@@ -1424,7 +1490,6 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
 
   const confirmationMatch = findRuleMatch(confirmationRules, text, 0.9, jobContext);
   if (confirmationMatch) {
-    const appliedConfirmationMatches = collectAppliedConfirmationSignals(textSource);
     return {
       isJobRelated: true,
       detectedType: confirmationMatch.rule.detectedType,
@@ -1445,7 +1510,6 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
   }
 
   if (hasAppliedConfirmationSignals(textSource)) {
-    const appliedConfirmationMatches = collectAppliedConfirmationSignals(textSource);
     return {
       isJobRelated: true,
       detectedType: 'confirmation',
