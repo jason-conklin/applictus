@@ -6409,7 +6409,7 @@ function buildInboundSetupSecondaryHelp() {
   secondary.className = 'forwarding-secondary-help';
 
   const filterPanel = createForwardingCollapsible({
-    title: 'Optional: reduce noise with a Gmail filter',
+    title: 'Optional: reduce usage with a Gmail filter',
     open: false
   });
   const filterIntro = document.createElement('p');
