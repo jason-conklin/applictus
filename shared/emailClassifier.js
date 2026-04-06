@@ -220,6 +220,29 @@ const INTERVIEW_PROCESS_ONLY_SIGNAL_PATTERNS = [
   { pattern: /\bwe will be assessing applicants\b/i, label: 'assessment_phase_language' }
 ];
 
+const INTERVIEW_CONDITIONAL_SIGNAL_PATTERNS = [
+  {
+    pattern: /\bif\b.{0,140}\b(?:wish|want|would like|plan|need)\b.{0,60}\bschedule\b.{0,40}\binterview\b/i,
+    label: 'if_wish_to_schedule_interview'
+  },
+  {
+    pattern: /\bif we need additional information or wish to schedule an interview\b/i,
+    label: 'if_need_info_or_schedule_interview'
+  },
+  {
+    pattern: /\bif selected for (?:an )?interview\b/i,
+    label: 'if_selected_for_interview'
+  },
+  {
+    pattern: /\b(?:may|might|will)\s+contact you\b.{0,90}\b(?:schedule\b.{0,30}\binterview|interview)\b/i,
+    label: 'may_contact_you_to_interview'
+  },
+  {
+    pattern: /\bwe will contact you if\b.{0,120}\binterview\b/i,
+    label: 'will_contact_you_if_interview'
+  }
+];
+
 const MESSAGE_NOTIFICATION_SIGNAL_PATTERNS = [
   { pattern: /\bnew message from\b/i, label: 'new_message_from' },
   {
@@ -1053,6 +1076,7 @@ function detectSchedulingInterview({ subject, snippet, sender, body }) {
   const directCtaHits = collectSignalMatches(INTERVIEW_DIRECT_CTA_PATTERNS, textSource);
   const vagueInterviewHits = collectSignalMatches(INTERVIEW_VAGUE_SIGNAL_PATTERNS, textSource);
   const processOnlyInterviewHits = collectSignalMatches(INTERVIEW_PROCESS_ONLY_SIGNAL_PATTERNS, textSource);
+  const conditionalInterviewHits = collectSignalMatches(INTERVIEW_CONDITIONAL_SIGNAL_PATTERNS, textSource);
   const relevanceScreen = isRelevantApplicationEmail({
     subject: rawSubject,
     snippet: rawSnippet,
@@ -1111,7 +1135,11 @@ function detectSchedulingInterview({ subject, snippet, sender, body }) {
   const hasExplicitSchedulingRequest = hasStrongTimeEvidence || directCtaHits.length > 0 || hasExplicitDirectRequest;
   const interviewSuppressedByProcessOnlyLanguage =
     processOnlyInterviewHits.length > 0 && !hasExplicitSchedulingRequest;
-  if (interviewSuppressedByProcessOnlyLanguage) {
+  const interviewSuppressedByConditionalLanguage =
+    conditionalInterviewHits.length > 0 &&
+    !hasExplicitSchedulingRequest &&
+    !hasStrongTimeEvidence;
+  if (interviewSuppressedByProcessOnlyLanguage || interviewSuppressedByConditionalLanguage) {
     return null;
   }
   const passesInterviewGate =
@@ -1205,8 +1233,10 @@ function detectSchedulingInterview({ subject, snippet, sender, body }) {
     reason: 'human_recruiting_scheduling',
     debug: {
       interviewMatches: Array.from(new Set([...interviewContextHits, ...interviewActionHits, ...directCtaHits])),
-      rejectedKeywords: Array.from(new Set([...vagueInterviewHits, ...listingPenaltySignals])),
-      negativeMatches: processOnlyInterviewHits,
+      rejectedKeywords: Array.from(
+        new Set([...vagueInterviewHits, ...listingPenaltySignals, ...conditionalInterviewHits])
+      ),
+      negativeMatches: [...processOnlyInterviewHits, ...conditionalInterviewHits],
       finalDecision: detectedType
     }
   };

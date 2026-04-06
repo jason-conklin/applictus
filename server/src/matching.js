@@ -71,6 +71,37 @@ const SYSTEM_INBOX_COMPANY_TERMS = new Set([
   'notifications'
 ]);
 
+const INVALID_ROLE_TERMS = new Set([
+  'you',
+  'your',
+  'yours',
+  'we',
+  'us',
+  'our',
+  'ours',
+  'me',
+  'my',
+  'mine',
+  'myself',
+  'yourself',
+  'application',
+  'applications',
+  'submission',
+  'submissions',
+  'candidate',
+  'candidates',
+  'candidacy',
+  'profile',
+  'profiles',
+  'resume',
+  'resumes',
+  'information',
+  'details',
+  'status',
+  'update',
+  'updates'
+]);
+
 async function awaitMaybe(value) {
   return value && typeof value.then === 'function' ? await value : value;
 }
@@ -185,6 +216,20 @@ function isLowQualityCompanyCandidate(value) {
 function isLowQualityRoleCandidate(value) {
   const text = normalizeRole(value) || String(value || '').trim();
   if (!text) {
+    return true;
+  }
+  const normalizedToken = String(text)
+    .toLowerCase()
+    .replace(/[^a-z]/g, '');
+  if (INVALID_ROLE_TERMS.has(normalizedToken)) {
+    return true;
+  }
+  const words = String(text)
+    .toLowerCase()
+    .split(/\s+/)
+    .map((part) => part.replace(/[^a-z]/g, ''))
+    .filter(Boolean);
+  if (words.length > 0 && words.every((word) => INVALID_ROLE_TERMS.has(word))) {
     return true;
   }
   if (text.length > 80 && /\b(thank you|time and effort|we regret|after careful consideration)\b/i.test(text)) {

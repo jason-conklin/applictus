@@ -3519,6 +3519,14 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
       const detectedType = String(
         statusGuard.detectedType || parserDetectedType || classification.detectedType || 'other_job_related'
       ).toLowerCase();
+      const classifierDetectedType = String(classification.detectedType || '').toLowerCase();
+      const statusDecisionOverride =
+        Boolean(classifierDetectedType) && Boolean(detectedType) && classifierDetectedType !== detectedType;
+      const finalStatusExplanation = statusGuard.demotedReason
+        ? `Status guard adjusted classification (${statusGuard.demotedReason}).`
+        : statusDecisionOverride
+          ? `Final status set to ${detectedType} (classifier suggested ${classifierDetectedType}).`
+          : classification.explanation || 'Forwarded inbound email processed.';
       debugMeta.extracted.status_candidates = Array.from(
         new Set(
           [
@@ -3577,7 +3585,7 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
           parsedEmail?.notes?.length
             ? `${parsedEmail.providerId || providerHint} parser: ${parsedEmail.notes.join('; ')}`
             : deterministic.explanation || identity.explanation || null,
-        explanation: classification.explanation || 'Forwarded inbound email processed.',
+        explanation: finalStatusExplanation,
         reasonCode: statusGuard.demotedReason || classification.reason || null,
         reasonDetail: null,
         roleTitle: derivedRole || null,

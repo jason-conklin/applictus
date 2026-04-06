@@ -939,6 +939,26 @@ test('classifyEmail does not misclassify conditional not selected in receipts', 
   assert.equal(result.detectedType, 'confirmation');
 });
 
+test('classifyEmail keeps confirmation when interview language is conditional in receipt copy', () => {
+  const result = classifyEmail({
+    subject: 'Thank you for your submission',
+    snippet: 'We have received your application.',
+    body: [
+      'Thank you for your submission.',
+      'We have received your application.',
+      'You will be contacted if we need additional information or wish to schedule an interview with you.',
+      'We look forward to reviewing your application.'
+    ].join('\n')
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'confirmation');
+  assert.ok(
+    Array.isArray(result.debug?.matchedKeywords)
+      ? result.debug.matchedKeywords.includes('received_application')
+      : true
+  );
+});
+
 test('classifyEmail still rejects decisive not selected wording', () => {
   const result = classifyEmail({
     subject: 'Application update',

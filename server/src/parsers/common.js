@@ -100,6 +100,23 @@ const INTERVIEW_PROCESS_ONLY_PATTERNS = [
   { pattern: /\bwe will be assessing applicants\b/i, label: 'assessment_phase_language' }
 ];
 
+const INTERVIEW_CONDITIONAL_PATTERNS = [
+  {
+    pattern: /\bif\b.{0,140}\b(?:wish|want|would like|plan|need)\b.{0,60}\bschedule\b.{0,40}\binterview\b/i,
+    label: 'if_wish_to_schedule_interview'
+  },
+  {
+    pattern: /\bif we need additional information or wish to schedule an interview\b/i,
+    label: 'if_need_info_or_schedule_interview'
+  },
+  { pattern: /\bif selected for (?:an )?interview\b/i, label: 'if_selected_for_interview' },
+  {
+    pattern: /\b(?:may|might|will)\s+contact you\b.{0,90}\b(?:schedule\b.{0,30}\binterview|interview)\b/i,
+    label: 'may_contact_you_to_interview'
+  },
+  { pattern: /\bwe will contact you if\b.{0,120}\binterview\b/i, label: 'will_contact_you_if_interview' }
+];
+
 const INTERVIEW_NEGATIVE_PATTERNS = [
   { pattern: /\bjobs? for you\b/i, label: 'jobs_for_you' },
   { pattern: /\brecommended jobs?\b/i, label: 'recommended_jobs' },
@@ -272,6 +289,7 @@ function detectStatusSignal({
   const interviewStageActionHits = collectPatternHits(INTERVIEW_STAGE_ACTION_PATTERNS, corpus);
   const interviewVagueHits = collectPatternHits(INTERVIEW_VAGUE_PATTERNS, corpus);
   const interviewProcessOnlyHits = collectPatternHits(INTERVIEW_PROCESS_ONLY_PATTERNS, corpus);
+  const interviewConditionalHits = collectPatternHits(INTERVIEW_CONDITIONAL_PATTERNS, corpus);
   const interviewNegativeHits = collectPatternHits(INTERVIEW_NEGATIVE_PATTERNS, corpus);
   const hasDirectInterviewCta =
     /\bplease (?:share|send|provide).{0,40}\b(?:availability|time slots?)\b/i.test(corpus) ||
@@ -332,10 +350,13 @@ function detectStatusSignal({
   const hasExplicitSchedulingRequest = hasDirectInterviewCta;
   const interviewSuppressedByProcessOnlyLanguage =
     interviewProcessOnlyHits.length > 0 && !hasExplicitSchedulingRequest;
+  const interviewSuppressedByConditionalLanguage =
+    interviewConditionalHits.length > 0 && !hasExplicitSchedulingRequest;
   const interviewSuppressedByNegatives =
     digestVeto ||
     interviewNegativeHits.length > 0 ||
     interviewSuppressedByProcessOnlyLanguage ||
+    interviewSuppressedByConditionalLanguage ||
     (interviewVagueHits.length > 0 && !hasInterviewAction);
   if (hasInterviewContext && hasInterviewAction && hasContext && !interviewSuppressedByNegatives) {
     return {
@@ -349,9 +370,13 @@ function detectStatusSignal({
       negativeMatches: [
         ...interviewNegativeHits.map((hit) => hit.label),
         ...interviewProcessOnlyHits.map((hit) => hit.label),
+        ...interviewConditionalHits.map((hit) => hit.label),
         ...interviewVagueHits.map((hit) => hit.label)
       ],
-      interviewSuppressionMatches: interviewProcessOnlyHits.map((hit) => hit.label),
+      interviewSuppressionMatches: [
+        ...interviewProcessOnlyHits.map((hit) => hit.label),
+        ...interviewConditionalHits.map((hit) => hit.label)
+      ],
       decisionReason: 'explicit_interview_signal'
     };
   }
@@ -385,10 +410,14 @@ function detectStatusSignal({
       negativeMatches: [
         ...interviewNegativeHits.map((hit) => hit.label),
         ...interviewProcessOnlyHits.map((hit) => hit.label),
+        ...interviewConditionalHits.map((hit) => hit.label),
         ...interviewVagueHits.map((hit) => hit.label),
         ...messageNegativeHits.map((hit) => hit.label)
       ],
-      interviewSuppressionMatches: interviewProcessOnlyHits.map((hit) => hit.label),
+      interviewSuppressionMatches: [
+        ...interviewProcessOnlyHits.map((hit) => hit.label),
+        ...interviewConditionalHits.map((hit) => hit.label)
+      ],
       decisionReason: 'message_notification_signal'
     };
   }
@@ -406,11 +435,15 @@ function detectStatusSignal({
       negativeMatches: [
         ...interviewNegativeHits.map((hit) => hit.label),
         ...interviewProcessOnlyHits.map((hit) => hit.label),
+        ...interviewConditionalHits.map((hit) => hit.label),
         ...interviewVagueHits.map((hit) => hit.label)
       ],
-      interviewSuppressionMatches: interviewProcessOnlyHits.map((hit) => hit.label),
+      interviewSuppressionMatches: [
+        ...interviewProcessOnlyHits.map((hit) => hit.label),
+        ...interviewConditionalHits.map((hit) => hit.label)
+      ],
       decisionReason:
-        interviewProcessOnlyHits.length > 0
+        interviewProcessOnlyHits.length > 0 || interviewConditionalHits.length > 0
           ? 'interview_process_language_suppressed_to_applied'
           : 'applied_phrase_match'
     };
@@ -428,9 +461,13 @@ function detectStatusSignal({
       negativeMatches: [
         ...interviewNegativeHits.map((hit) => hit.label),
         ...interviewProcessOnlyHits.map((hit) => hit.label),
+        ...interviewConditionalHits.map((hit) => hit.label),
         ...interviewVagueHits.map((hit) => hit.label)
       ],
-      interviewSuppressionMatches: interviewProcessOnlyHits.map((hit) => hit.label),
+      interviewSuppressionMatches: [
+        ...interviewProcessOnlyHits.map((hit) => hit.label),
+        ...interviewConditionalHits.map((hit) => hit.label)
+      ],
       decisionReason: 'fallback_default_status'
     };
   }
@@ -445,9 +482,13 @@ function detectStatusSignal({
     negativeMatches: [
       ...interviewNegativeHits.map((hit) => hit.label),
       ...interviewProcessOnlyHits.map((hit) => hit.label),
+      ...interviewConditionalHits.map((hit) => hit.label),
       ...interviewVagueHits.map((hit) => hit.label)
     ],
-    interviewSuppressionMatches: interviewProcessOnlyHits.map((hit) => hit.label),
+    interviewSuppressionMatches: [
+      ...interviewProcessOnlyHits.map((hit) => hit.label),
+      ...interviewConditionalHits.map((hit) => hit.label)
+    ],
     decisionReason: 'no_status_signal'
   };
 }

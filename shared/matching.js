@@ -533,7 +533,33 @@ const GENERIC_ROLE_TERMS = new Set([
   'opening',
   'job',
   'requisition',
-  'the'
+  'the',
+  'you',
+  'your',
+  'yours',
+  'we',
+  'us',
+  'our',
+  'ours',
+  'me',
+  'my',
+  'mine',
+  'myself',
+  'yourself',
+  'submission',
+  'submissions',
+  'candidate',
+  'candidates',
+  'candidacy',
+  'profile',
+  'profiles',
+  'resume',
+  'resumes',
+  'information',
+  'details',
+  'status',
+  'update',
+  'updates'
 ]);
 
 function normalize(text) {
@@ -1377,6 +1403,9 @@ function isGenericRole(value) {
     return true;
   }
   if (/^(thanks|thank you)\b/.test(text)) {
+    return true;
+  }
+  if (/^(?:you|your|we|us|our|me|my)\b/.test(text)) {
     return true;
   }
   if (GENERIC_ROLE_TERMS.has(text)) {

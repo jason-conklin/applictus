@@ -88,3 +88,23 @@ test('Generic CTA does not upgrade to interview', async () => {
   });
   assert.equal(parsed.status, 'applied');
 });
+
+test('application receipt with conditional interview phrasing stays applied and does not emit pronoun role', async () => {
+  const parsed = await parseJobEmail({
+    fromEmail: 'noreply@adp.com',
+    fromDomain: 'adp.com',
+    subject: 'Thank you for your submission',
+    text: [
+      'Thank you for your submission.',
+      'We have received your application.',
+      'You will be contacted if we need additional information or wish to schedule an interview with you.',
+      'We look forward to reviewing your application and will be in touch soon.',
+      'Guidepost Solutions Talent Acquisition'
+    ].join('\n')
+  });
+  assert.equal(parsed.status, 'applied');
+  assert.ok(parsed.role === null || parsed.role === undefined);
+  assert.notEqual(String(parsed.role || '').toLowerCase(), 'you');
+  assert.ok(Array.isArray(parsed.parserDebug?.status_signal?.applied_matches));
+  assert.ok(parsed.parserDebug.status_signal.applied_matches.includes('received_your_application'));
+});

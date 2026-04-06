@@ -139,6 +139,18 @@ test('extractJobTitle rejects generic role strings', () => {
   assert.equal(result.jobTitle, null);
 });
 
+test('extractJobTitle rejects pronoun-like role candidates', () => {
+  const result = extractJobTitle({
+    subject: 'Application update',
+    snippet: '',
+    bodyText:
+      'You will be contacted if we need additional information or wish to schedule an interview with you.',
+    companyName: 'Guidepost Solutions'
+  });
+
+  assert.equal(result.jobTitle, null);
+});
+
 test('extractJobTitle ignores generic sender name', () => {
   const result = extractJobTitle({
     subject: 'Update',

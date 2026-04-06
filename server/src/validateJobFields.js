@@ -16,6 +16,39 @@ const FORBIDDEN_COMPANY_VALUES = new Set([
 const LOCATION_ONLY_ROLE_PATTERN =
   /^(?:[a-z .'-]+,\s*[a-z]{2}(?:\s+\d{5}(?:-\d{4})?)?(?:\s*\([^)]*\))?|remote|hybrid|on[- ]?site)$/i;
 
+const FORBIDDEN_ROLE_VALUES = new Set([
+  'you',
+  'your',
+  'yours',
+  'we',
+  'us',
+  'our',
+  'ours',
+  'me',
+  'my',
+  'mine',
+  'myself',
+  'yourself',
+  'application',
+  'applications',
+  'submission',
+  'submissions',
+  'candidate',
+  'candidates',
+  'candidacy',
+  'profile',
+  'profiles',
+  'resume',
+  'resumes',
+  'information',
+  'details',
+  'status',
+  'update',
+  'updates'
+]);
+
+const FORBIDDEN_ROLE_WORDS = new Set(FORBIDDEN_ROLE_VALUES);
+
 function normalizeForbiddenToken(value) {
   return String(value || '')
     .toLowerCase()
@@ -87,6 +120,22 @@ function normalizeRole(value, { notes } = {}) {
 
   if (LOCATION_ONLY_ROLE_PATTERN.test(normalized) || normalizeJobFields.isLikelyLocationRole(normalized)) {
     pushNote(notes, `role_rejected:location_like:${normalized}`);
+    return undefined;
+  }
+
+  const normalizedToken = normalizeForbiddenToken(normalized);
+  if (FORBIDDEN_ROLE_VALUES.has(normalizedToken)) {
+    pushNote(notes, `role_rejected:forbidden:${normalized}`);
+    return undefined;
+  }
+
+  const words = String(normalized)
+    .toLowerCase()
+    .split(/\s+/)
+    .map((part) => part.replace(/[^a-z]/g, ''))
+    .filter(Boolean);
+  if (words.length > 0 && words.every((word) => FORBIDDEN_ROLE_WORDS.has(word))) {
+    pushNote(notes, `role_rejected:forbidden_phrase:${normalized}`);
     return undefined;
   }
 
