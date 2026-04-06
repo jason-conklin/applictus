@@ -4959,41 +4959,40 @@ function updateAdminAnalyticsVisibility() {
   }
 }
 
-const PRO_BILLING_OPTIONS = [
-  {
-    key: 'monthly',
-    selectorLabel: 'Monthly',
-    selectorMeta: 'Recurring',
-    context: 'For active job search',
-    price: '$3.99 / month',
-    details: 'Up to 500 application updates per month',
-    billingNote: 'Billed monthly. Cancel anytime.',
-    ctaText: 'Upgrade to Pro Monthly',
-    ctaSubtext: 'Cancel anytime'
-  },
-  {
-    key: 'job_search_plan',
-    selectorLabel: 'Job Search Plan',
-    selectorMeta: '3 months',
-    context: 'Designed for active job seekers',
-    price: '$9.99 / 3 months',
-    details: 'Up to 500 application updates per month',
-    billingNote: 'One payment for a typical 2–3 month search cycle.',
-    ctaText: 'Start Job Search Plan',
-    ctaSubtext: 'One upfront payment for 3 months'
-  }
+const SHARED_PRO_FEATURES = [
+  'Never miss interview requests or important updates',
+  'Track your entire job search automatically',
+  'Stay organized across all your applications',
+  'Built for active job seekers applying regularly'
 ];
 
-function buildPlanCard({ title, context, price, details, features, ctaText, ctaSubtext = '', reinforcement = '', tier }) {
+function buildPlanCard({
+  title,
+  context,
+  price,
+  details,
+  features,
+  ctaText,
+  ctaSubtext = '',
+  reinforcement = '',
+  cardClassName = '',
+  badgeText = '',
+  badgeVariant = '',
+  ctaClassName = 'btn btn--ghost btn--sm plan-cta plan-cta--free',
+  onCtaClick = null
+}) {
   const card = document.createElement('div');
-  card.className = `plan-card ${tier === 'pro' ? 'plan-card--pro' : 'plan-card--free'}`;
+  card.className = `plan-card ${cardClassName}`.trim();
 
   const top = document.createElement('div');
   top.className = 'plan-card-top';
 
-  const pill = document.createElement('div');
-  pill.className = `plan-pill ${tier === 'pro' ? 'plan-pill--popular' : 'plan-pill--included'}`;
-  pill.textContent = tier === 'pro' ? 'Most popular' : 'Included';
+  if (badgeText) {
+    const pill = document.createElement('div');
+    pill.className = `plan-pill ${badgeVariant ? `plan-pill--${badgeVariant}` : ''}`.trim();
+    pill.textContent = badgeText;
+    top.appendChild(pill);
+  }
 
   const h4 = document.createElement('h4');
   h4.className = 'plan-title';
@@ -5003,7 +5002,7 @@ function buildPlanCard({ title, context, price, details, features, ctaText, ctaS
   contextEl.className = 'plan-context muted small';
   contextEl.textContent = context;
 
-  top.append(pill, h4, contextEl);
+  top.append(h4, contextEl);
 
   const priceEl = document.createElement('div');
   priceEl.className = 'plan-price';
@@ -5030,11 +5029,11 @@ function buildPlanCard({ title, context, price, details, features, ctaText, ctaS
 
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = tier === 'pro' ? 'btn btn--primary btn--md plan-cta plan-cta--pro' : 'btn btn--ghost btn--sm plan-cta plan-cta--free';
+  btn.className = ctaClassName;
   btn.textContent = ctaText;
   btn.addEventListener('click', () => {
-    if (tier === 'pro') {
-      requestUpgrade('monthly');
+    if (typeof onCtaClick === 'function') {
+      onCtaClick();
     } else {
       closeModal('confirm');
     }
@@ -5058,126 +5057,6 @@ function buildPlanCard({ title, context, price, details, features, ctaText, ctaS
   return card;
 }
 
-function buildProPlanCard() {
-  const sharedFeatures = [
-    'Never miss interview requests or important updates',
-    'Track your entire job search automatically',
-    'Stay organized across all your applications',
-    'Built for active job seekers applying regularly'
-  ];
-  const card = document.createElement('div');
-  card.className = 'plan-card plan-card--pro';
-
-  const top = document.createElement('div');
-  top.className = 'plan-card-top';
-
-  const pill = document.createElement('div');
-  pill.className = 'plan-pill plan-pill--popular';
-  pill.textContent = 'Most popular';
-
-  const h4 = document.createElement('h4');
-  h4.className = 'plan-title';
-  h4.textContent = 'Pro';
-
-  const contextEl = document.createElement('div');
-  contextEl.className = 'plan-context muted small';
-
-  const billingWrap = document.createElement('div');
-  billingWrap.className = 'plan-billing-wrap';
-
-  const billingLabel = document.createElement('div');
-  billingLabel.className = 'plan-billing-label';
-  billingLabel.textContent = 'Choose billing';
-
-  const billingToggle = document.createElement('div');
-  billingToggle.className = 'plan-billing-toggle';
-  billingToggle.setAttribute('role', 'tablist');
-  billingToggle.setAttribute('aria-label', 'Pro billing options');
-
-  billingWrap.append(billingLabel, billingToggle);
-  top.append(pill, h4, contextEl, billingWrap);
-
-  const priceEl = document.createElement('div');
-  priceEl.className = 'plan-price';
-
-  const limitEl = document.createElement('div');
-  limitEl.className = 'plan-limit muted small';
-
-  const billingNoteEl = document.createElement('div');
-  billingNoteEl.className = 'plan-billing-note muted small';
-
-  const ul = document.createElement('ul');
-  ul.className = 'plan-features';
-  sharedFeatures.forEach((feat) => {
-    const li = document.createElement('li');
-    li.textContent = feat;
-    ul.appendChild(li);
-  });
-
-  const reinforcementEl = document.createElement('div');
-  reinforcementEl.className = 'plan-reinforcement muted small';
-  reinforcementEl.textContent = "Recommended if you're applying to multiple jobs per week";
-
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'btn btn--primary btn--md plan-cta plan-cta--pro';
-
-  const ctaWrap = document.createElement('div');
-  ctaWrap.className = 'plan-cta-wrap';
-  ctaWrap.appendChild(btn);
-
-  const ctaSubtextEl = document.createElement('div');
-  ctaSubtextEl.className = 'plan-cta-subtext muted small';
-  ctaWrap.appendChild(ctaSubtextEl);
-
-  let selectedOptionKey = PRO_BILLING_OPTIONS[0].key;
-  const optionButtons = new Map();
-
-  function renderOption(option) {
-    selectedOptionKey = option.key;
-    contextEl.textContent = option.context;
-    priceEl.textContent = option.price;
-    limitEl.textContent = option.details;
-    billingNoteEl.textContent = option.billingNote;
-    btn.textContent = option.ctaText;
-    ctaSubtextEl.textContent = option.ctaSubtext;
-    optionButtons.forEach((optionBtn, key) => {
-      const isActive = key === option.key;
-      optionBtn.classList.toggle('is-active', isActive);
-      optionBtn.setAttribute('aria-selected', isActive ? 'true' : 'false');
-    });
-  }
-
-  PRO_BILLING_OPTIONS.forEach((option) => {
-    const optionBtn = document.createElement('button');
-    optionBtn.type = 'button';
-    optionBtn.className = 'plan-billing-option';
-    optionBtn.setAttribute('role', 'tab');
-
-    const optionLabel = document.createElement('span');
-    optionLabel.className = 'plan-billing-option-label';
-    optionLabel.textContent = option.selectorLabel;
-    optionBtn.appendChild(optionLabel);
-
-    const optionMeta = document.createElement('span');
-    optionMeta.className = 'plan-billing-option-meta';
-    optionMeta.textContent = option.selectorMeta;
-    optionBtn.appendChild(optionMeta);
-
-    optionBtn.addEventListener('click', () => renderOption(option));
-    billingToggle.appendChild(optionBtn);
-    optionButtons.set(option.key, optionBtn);
-  });
-
-  btn.addEventListener('click', () => {
-    requestUpgrade(selectedOptionKey);
-  });
-
-  renderOption(PRO_BILLING_OPTIONS[0]);
-  card.append(top, priceEl, limitEl, billingNoteEl, ul, reinforcementEl, ctaWrap);
-  return card;
-}
-
 function openPricingModal() {
   const container = document.createElement('div');
   container.className = 'plan-card-grid';
@@ -5191,11 +5070,42 @@ function openPricingModal() {
       'Basic application timeline view',
       'Best for light or infrequent job searches'
     ],
+    badgeText: 'Included',
+    badgeVariant: 'included',
     ctaText: 'Stay on Free',
-    tier: 'free'
+    ctaClassName: 'btn btn--ghost btn--sm plan-cta plan-cta--free'
   });
-  const proCard = buildProPlanCard();
-  container.append(freeCard, proCard);
+  const proCard = buildPlanCard({
+    title: 'Pro',
+    context: 'For active job search',
+    price: '$3.99 / month',
+    details: 'Up to 500 application updates per month',
+    features: SHARED_PRO_FEATURES,
+    reinforcement: "Recommended if you're applying to multiple jobs per week",
+    badgeText: 'Most popular',
+    badgeVariant: 'popular',
+    ctaText: 'Upgrade to Pro',
+    ctaSubtext: 'Billed monthly • Cancel anytime',
+    cardClassName: 'plan-card--pro',
+    ctaClassName: 'btn btn--primary btn--md plan-cta plan-cta--pro',
+    onCtaClick: () => requestUpgrade('monthly')
+  });
+  const jobSearchPlanCard = buildPlanCard({
+    title: 'Job Search Plan',
+    context: 'Designed for a typical job search',
+    price: '$9.99 / 3 months',
+    details: 'Up to 500 application updates per month',
+    features: SHARED_PRO_FEATURES,
+    reinforcement: 'One payment for a typical 2–3 month job search cycle',
+    badgeText: 'Best for 2–3 month search',
+    badgeVariant: 'commitment',
+    ctaText: 'Start Job Search Plan',
+    ctaSubtext: 'One upfront payment for 3 months',
+    cardClassName: 'plan-card--jobsearch',
+    ctaClassName: 'btn btn--ghost btn--md plan-cta plan-cta--jobsearch',
+    onCtaClick: () => requestUpgrade('job_search_plan')
+  });
+  container.append(freeCard, proCard, jobSearchPlanCard);
 
   const body = document.createElement('div');
   body.appendChild(container);
@@ -5217,7 +5127,8 @@ function openPricingModal() {
     description: "Stay on top of every job update. Upgrade while you're actively applying — cancel anytime.",
     body,
     footer,
-    allowBackdropClose: true
+    allowBackdropClose: true,
+    variantClass: 'modal--pricing'
   });
 }
 
