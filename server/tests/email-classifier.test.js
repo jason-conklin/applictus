@@ -315,6 +315,89 @@ test('classifyEmail keeps careers marketing newsletter ignored when it lacks app
   assert.ok(['denylisted', 'newsletter_digest'].includes(String(result.reason || '')));
 });
 
+test('classifyEmail detects job-platform message notifications as message_received', () => {
+  const subject = 'New Message from United OM - Sales and Marketing Associate for Retail Pharmacy';
+  const body = [
+    "You've received a new message from United OM.",
+    'View Message',
+    'This message is nonrepliable. View this message and reply from your account.',
+    'Indeed'
+  ].join('\n');
+
+  const relevance = isRelevantApplicationEmail({
+    subject,
+    body,
+    sender: 'alerts@indeed.com'
+  });
+  assert.equal(relevance.isRelevant, true);
+  assert.ok(
+    relevance.matchedKeywords.includes('new_message_from') ||
+      relevance.matchedKeywords.includes('received_new_message')
+  );
+
+  const result = classifyEmail({
+    subject,
+    body,
+    sender: 'alerts@indeed.com'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'message_received');
+  assert.ok(result.confidenceScore >= 0.84);
+  assert.equal(result.reason, 'message_notification');
+});
+
+test('classifyEmail does not classify generic non-job messages as message_received', () => {
+  const subject = 'New message from Community Team';
+  const body = [
+    'You have a new message in your account.',
+    'View message',
+    'Community digest',
+    'Unsubscribe'
+  ].join('\n');
+
+  const relevance = isRelevantApplicationEmail({
+    subject,
+    body,
+    sender: 'updates@example.com'
+  });
+  assert.equal(relevance.isRelevant, false);
+
+  const result = classifyEmail({
+    subject,
+    body,
+    sender: 'updates@example.com'
+  });
+  assert.equal(result.isJobRelated, false);
+  assert.notEqual(result.detectedType, 'message_received');
+});
+
+test('classifyEmail keeps rejection/interview precedence over message_received', () => {
+  const rejectionResult = classifyEmail({
+    subject: 'New message from Acme Recruiting',
+    body: [
+      "You've received a new message from Acme.",
+      'View Message',
+      'We have decided to pursue other candidates for this role.'
+    ].join('\n'),
+    sender: 'messages@indeed.com'
+  });
+  assert.equal(rejectionResult.isJobRelated, true);
+  assert.equal(rejectionResult.detectedType, 'rejection');
+
+  const interviewResult = classifyEmail({
+    subject: 'New message from Acme Recruiting',
+    body: [
+      "You've received a new message from Acme.",
+      'Please share your availability for an interview this week.',
+      'What time works for you? Tue 3/5 2:00 PM',
+      'View Message'
+    ].join('\n'),
+    sender: 'messages@indeed.com'
+  });
+  assert.equal(interviewResult.isJobRelated, true);
+  assert.ok(['interview', 'interview_requested', 'interview_scheduled'].includes(interviewResult.detectedType));
+});
+
 test('classifyEmail detects interview-stage assessment invite emails as interview requested', () => {
   const subject = 'Thank you for your interest in Remote Accounts Receivable Specialist role';
   const body = [

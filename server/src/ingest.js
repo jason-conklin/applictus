@@ -2516,6 +2516,7 @@ function extractDeterministicForwardedIdentity({ subject, bodyText }) {
 
 function mapDetectedTypeToDerivedStatus(detectedType) {
   const value = String(detectedType || '').toLowerCase();
+  if (value === 'message_received') return null;
   if (value === 'confirmation') return 'applied';
   if (value === 'rejection') return 'rejected';
   if (value === 'offer') return 'offer_received';
@@ -2529,6 +2530,7 @@ function mapDetectedTypeToDerivedStatus(detectedType) {
 function mapParsedStatusToDetectedType(status) {
   const value = String(status || '').toLowerCase();
   if (value === 'applied') return 'confirmation';
+  if (value === 'message_received') return 'message_received';
   if (value === 'interview_requested') return 'interview_requested';
   if (value === 'offer_received') return 'offer';
   if (value === 'rejected') return 'rejection';

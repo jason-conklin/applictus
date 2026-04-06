@@ -80,6 +80,7 @@ function insertApplication(db, {
   role,
   appliedAt,
   lastActivityAt,
+  status = ApplicationStatus.APPLIED,
   archived = 0
 }) {
   const id = crypto.randomUUID();
@@ -96,8 +97,8 @@ function insertApplication(db, {
     company,
     role,
     role,
-    ApplicationStatus.APPLIED,
-    ApplicationStatus.APPLIED,
+    status,
+    status,
     appliedAt || nowIso,
     nowIso,
     nowIso,
@@ -105,6 +106,32 @@ function insertApplication(db, {
     lastActivityAt || appliedAt || nowIso,
     archived,
     0
+  );
+  return id;
+}
+
+function attachEventToApplication(db, { userId, applicationId, detectedType, subject, sender, snippet }) {
+  const id = crypto.randomUUID();
+  const timestamp = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO email_events
+     (id, user_id, application_id, provider, message_id, provider_message_id, sender, subject, snippet,
+      detected_type, confidence_score, classification_confidence, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    userId,
+    applicationId,
+    'gmail',
+    `msg-${id}`,
+    `msg-${id}`,
+    sender,
+    subject,
+    snippet || null,
+    detectedType,
+    0.93,
+    0.93,
+    timestamp
   );
   return id;
 }
@@ -291,6 +318,37 @@ Applied on February 1, 2026`;
 
   runStatusInferenceForApplication(db, userId, appId);
   const updated = db.prepare('SELECT current_status FROM job_applications WHERE id = ?').get(appId);
+  assert.equal(updated.current_status, ApplicationStatus.REJECTED);
+  db.close();
+});
+
+test('message_received events do not downgrade an application already in a stronger stage', async () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+
+  const appId = insertApplication(db, {
+    userId,
+    company: 'Acme Labs',
+    role: 'Data Analyst',
+    status: ApplicationStatus.REJECTED
+  });
+
+  attachEventToApplication(db, {
+    userId,
+    applicationId: appId,
+    detectedType: 'message_received',
+    sender: 'messages@indeed.com',
+    subject: 'New message from Acme Labs',
+    snippet: "You've received a new message from Acme Labs. View Message."
+  });
+
+  const inference = await runStatusInferenceForApplication(db, userId, appId);
+  assert.equal(inference.applied, false);
+
+  const updated = db
+    .prepare('SELECT current_status FROM job_applications WHERE id = ?')
+    .get(appId);
   assert.equal(updated.current_status, ApplicationStatus.REJECTED);
   db.close();
 });

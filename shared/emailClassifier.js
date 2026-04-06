@@ -89,6 +89,10 @@ const RELEVANCE_KEEP_SIGNALS = [
     pattern: /\byour application for\b.{0,120}\b(?:role|position)\b/i,
     label: 'your_application_for_role_position'
   },
+  { pattern: /\bnew message from\b/i, label: 'new_message_from' },
+  { pattern: /\byou(?:'|’)ve received a new message(?:\s+from)?\b/i, label: 'received_new_message' },
+  { pattern: /\bview message\b/i, label: 'view_message' },
+  { pattern: /\breply from your account\b/i, label: 'reply_from_account' },
   { pattern: /\b(?:we(?:'|’)re|we are)\s+pleased to invite you to\b/i, label: 'pleased_to_invite' },
   { pattern: /\bnext step in our hiring process\b/i, label: 'next_step_hiring_process' },
   { pattern: /\binitial interview\b/i, label: 'initial_interview' },
@@ -136,6 +140,13 @@ const RELEVANCE_MARKETING_SIGNALS = [
   { pattern: /\bdigest\b/i, label: 'digest' },
   { pattern: /\brecommended for you\b/i, label: 'recommended_for_you' }
 ];
+
+const MESSAGE_RELEVANCE_LABELS = new Set([
+  'new_message_from',
+  'received_new_message',
+  'view_message',
+  'reply_from_account'
+]);
 
 const INTERVIEW_CONTEXT_SIGNAL_PATTERNS = [
   { pattern: /\binterview\b/i, label: 'interview_keyword' },
@@ -207,6 +218,25 @@ const INTERVIEW_PROCESS_ONLY_SIGNAL_PATTERNS = [
     label: 'process_stage_examples'
   },
   { pattern: /\bwe will be assessing applicants\b/i, label: 'assessment_phase_language' }
+];
+
+const MESSAGE_NOTIFICATION_SIGNAL_PATTERNS = [
+  { pattern: /\bnew message from\b/i, label: 'new_message_from' },
+  {
+    pattern: /\byou(?:'|’)ve received a new message(?:\s+from)?\b/i,
+    label: 'received_new_message'
+  },
+  { pattern: /\bview message\b/i, label: 'view_message' },
+  { pattern: /\breply from your account\b/i, label: 'reply_from_account' },
+  { pattern: /\b(?:non[- ]?repliable|do not reply directly)\b/i, label: 'non_repliable' }
+];
+
+const MESSAGE_NOTIFICATION_NEGATIVE_PATTERNS = [
+  /\b(commented on|reacted to|liked your post|community|digest|newsletter)\b/i,
+  /\bpassword reset\b/i,
+  /\bsecurity alert\b/i,
+  /\border (?:update|confirmation)\b/i,
+  /\bsupport ticket\b/i
 ];
 
 const INTERVIEW_DIRECT_INTENT_PATTERNS = [
@@ -795,6 +825,23 @@ function isRelevantApplicationEmail({ subject, snippet, sender, body } = {}) {
   const listingCtaCount =
     countMatches(/\b(?:apply now|view job|save job)\b/i, textSource) +
     countMatches(/\b(?:jobs? for you|recommended jobs?|new jobs? in)\b/i, textSource);
+  const hasMessageJobAnchor =
+    /\b(?:application|position|role|candidate|hiring|job|interview|offer|rejection)\b/i.test(
+      textSource
+    ) || /\bnew message from\b.{0,140}[-–—].{0,140}\b(?:associate|specialist|engineer|developer|analyst|manager|intern)\b/i.test(
+      textSource
+    );
+  const hasOnlyMessageSignals =
+    matchedKeywords.length > 0 &&
+    matchedKeywords.every((label) => MESSAGE_RELEVANCE_LABELS.has(String(label || '')));
+  if (hasOnlyMessageSignals && !hasMessageJobAnchor) {
+    return {
+      isRelevant: false,
+      reason: 'not_relevant',
+      matchedKeywords,
+      rejectedKeywords: ['message_notification_missing_job_context']
+    };
+  }
   const hasRoleCompanyReference =
     /\byour application to\s+.+\s+at\s+.+/i.test(textSource) ||
     /\b(?:position|role)\b.{0,90}\b(?:at|with)\b/i.test(textSource);
@@ -1237,6 +1284,73 @@ function detectAssessmentInterviewStage({ subject, snippet, sender, body }) {
   };
 }
 
+function detectMessageReceivedEvent({ subject, snippet, sender, body }) {
+  const rawSubject = String(subject || '');
+  const rawSnippet = String(snippet || '');
+  const rawBody = String(body || '');
+  const textSource = `${rawSubject}\n${rawSnippet}\n${rawBody}`.trim();
+  if (!textSource) {
+    return null;
+  }
+
+  if (hasAppliedConfirmationSignals(textSource)) {
+    return null;
+  }
+
+  if (MESSAGE_NOTIFICATION_NEGATIVE_PATTERNS.some((pattern) => pattern.test(textSource))) {
+    return null;
+  }
+
+  const messageMatches = collectSignalMatches(MESSAGE_NOTIFICATION_SIGNAL_PATTERNS, textSource);
+  if (!messageMatches.length) {
+    return null;
+  }
+
+  const hasSubjectEnvelope =
+    /\bnew message from\b/i.test(rawSubject) ||
+    /\byou(?:'|’)ve received a new message\b/i.test(rawSubject);
+  const hasActionCue =
+    /\bview message\b/i.test(textSource) || /\breply from your account\b/i.test(textSource);
+  const hasPlatformContext =
+    /\b(?:indeed|linkedin|smartrecruiters|workday|greenhouse|lever|icims|workable|monster|ziprecruiter|glassdoor|jobvite|successfactors|taleo|ashby)\b/i.test(
+      `${sender || ''}\n${textSource}`
+    );
+  const hasJobContextCue =
+    /\b(?:application|position|role|interview|offer|rejection|candidate|hiring|job)\b/i.test(
+      textSource
+    ) || /\bnew message from\b.{0,140}[-–—].{0,140}\b(?:associate|specialist|engineer|developer|analyst|manager|intern)\b/i.test(
+      textSource
+    );
+
+  const hasMinimumEnvelope = hasSubjectEnvelope || (messageMatches.length >= 2 && hasActionCue);
+  const hasJobAnchor = hasJobContextCue || hasPlatformContext;
+  if (!hasMinimumEnvelope || !hasJobAnchor) {
+    return null;
+  }
+
+  const confidence = Math.min(
+    0.92,
+    0.84 +
+      Math.min(0.04, messageMatches.length * 0.01) +
+      (hasActionCue ? 0.02 : 0) +
+      (hasPlatformContext ? 0.02 : 0)
+  );
+  return {
+    isJobRelated: true,
+    detectedType: 'message_received',
+    confidenceScore: confidence,
+    explanation: 'Detected job-platform employer message notification.',
+    reason: 'message_notification',
+    debug: {
+      messageMatches,
+      matchedKeywords: messageMatches,
+      rejectedKeywords: [],
+      finalDecision: 'message_received',
+      decisionReason: 'message_notification_signals'
+    }
+  };
+}
+
 function findRuleMatch(rules, text, minConfidence, jobContext) {
   for (const rule of rules) {
     if (rule.confidence < minConfidence) {
@@ -1340,6 +1454,7 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
   const assessmentInterviewSignal = schedulingSignal
     ? null
     : detectAssessmentInterviewStage({ subject, snippet, sender, body });
+  const messageNotificationSignal = detectMessageReceivedEvent({ subject, snippet, sender, body });
 
   const minConfidence = 0.6;
   const rules = [PROFILE_SUBMITTED_RULE, ...RULES];
@@ -1424,6 +1539,9 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
       if (denylistBypassForAppliedConfirmation) {
         break;
       }
+      if (messageNotificationSignal) {
+        break;
+      }
       return {
         isJobRelated: false,
         explanation: `Denied by ${pattern}.`,
@@ -1455,6 +1573,10 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
 
   if (assessmentInterviewSignal) {
     return assessmentInterviewSignal;
+  }
+
+  if (messageNotificationSignal) {
+    return messageNotificationSignal;
   }
 
   const confirmationRules = rules.filter((rule) => rule.detectedType === 'confirmation');

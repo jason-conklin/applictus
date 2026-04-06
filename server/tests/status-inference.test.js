@@ -86,6 +86,37 @@ test('inferStatus maps interview_requested type to interview requested status', 
   assert.equal(result.suggested_only, false);
 });
 
+test('inferStatus treats message_received as a communication event (no stage change by itself)', () => {
+  const result = inferStatus(baseApplication(), [
+    event({
+      detected_type: 'message_received',
+      confidence_score: 0.9,
+      subject: 'New message from Acme'
+    })
+  ]);
+  assert.equal(result.inferred_status, ApplicationStatus.UNKNOWN);
+  assert.equal(result.suggested_only, false);
+});
+
+test('inferStatus keeps stronger lifecycle statuses ahead of message_received', () => {
+  const result = inferStatus(baseApplication(), [
+    event({
+      id: 'event-msg',
+      detected_type: 'message_received',
+      confidence_score: 0.95,
+      subject: 'New message from Acme'
+    }),
+    event({
+      id: 'event-int',
+      detected_type: 'interview_requested',
+      confidence_score: 0.93,
+      subject: 'Interview requested'
+    })
+  ]);
+  assert.equal(result.inferred_status, ApplicationStatus.INTERVIEW_REQUESTED);
+  assert.equal(result.suggested_only, false);
+});
+
 test('inferStatus prefers terminal statuses over lower priority', () => {
   const result = inferStatus(baseApplication(), [
     event({

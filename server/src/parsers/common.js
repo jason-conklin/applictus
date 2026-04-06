@@ -109,6 +109,22 @@ const INTERVIEW_NEGATIVE_PATTERNS = [
   { pattern: /\bnew jobs? in\b/i, label: 'new_jobs_in' }
 ];
 
+const MESSAGE_NOTIFICATION_PATTERNS = [
+  { pattern: /\bnew message from\b/i, label: 'new_message_from' },
+  { pattern: /\byou(?:'|’)ve received a new message(?:\s+from)?\b/i, label: 'received_new_message' },
+  { pattern: /\bview message\b/i, label: 'view_message' },
+  { pattern: /\breply from your account\b/i, label: 'reply_from_account' },
+  { pattern: /\b(?:non[- ]?repliable|do not reply directly)\b/i, label: 'non_repliable' }
+];
+
+const MESSAGE_NOTIFICATION_NEGATIVE_PATTERNS = [
+  { pattern: /\b(commented on|reacted to|liked your post|community|digest|newsletter)\b/i, label: 'social_digest_noise' },
+  { pattern: /\bpassword reset\b/i, label: 'password_reset' },
+  { pattern: /\bsecurity alert\b/i, label: 'security_alert' },
+  { pattern: /\border (?:update|confirmation)\b/i, label: 'commerce_message' },
+  { pattern: /\bsupport ticket\b/i, label: 'support_ticket' }
+];
+
 const APPLIED_SIGNAL_PATTERNS = [
   { pattern: /\bthank you for applying at\b/i, label: 'thank_you_for_applying_at' },
   { pattern: /\bthank you for applying\b/i, label: 'thank_you_for_applying' },
@@ -337,6 +353,43 @@ function detectStatusSignal({
       ],
       interviewSuppressionMatches: interviewProcessOnlyHits.map((hit) => hit.label),
       decisionReason: 'explicit_interview_signal'
+    };
+  }
+
+  const messageHits = collectPatternHits(MESSAGE_NOTIFICATION_PATTERNS, corpus);
+  const messageNegativeHits = collectPatternHits(MESSAGE_NOTIFICATION_NEGATIVE_PATTERNS, corpus);
+  const hasMessageEnvelope =
+    /\bnew message from\b/i.test(corpus) ||
+    /\byou(?:'|’)ve received a new message(?:\s+from)?\b/i.test(corpus);
+  const hasMessageAction = /\bview message\b/i.test(corpus) || /\breply from your account\b/i.test(corpus);
+  const hasMessageJobAnchor =
+    hasContext ||
+    /\bnew message from\b.{0,140}[-–—].{0,140}\b(?:associate|specialist|engineer|developer|analyst|manager|intern)\b/i.test(
+      corpus
+    );
+  const shouldTreatAsMessageNotification =
+    messageHits.length > 0 &&
+    messageNegativeHits.length === 0 &&
+    !digestVeto &&
+    hasMessageJobAnchor &&
+    (hasMessageEnvelope || (messageHits.length >= 2 && hasMessageAction));
+  if (shouldTreatAsMessageNotification) {
+    return {
+      status: 'message_received',
+      confidence: 84,
+      source: `message_notification:${messageHits[0]?.label || 'message_notification'}`,
+      matched: messageHits[0]?.label || null,
+      rejectionMatches: rejectionHits.map((hit) => hit.label),
+      interviewMatches,
+      appliedMatches: appliedHits.map((hit) => hit.label),
+      negativeMatches: [
+        ...interviewNegativeHits.map((hit) => hit.label),
+        ...interviewProcessOnlyHits.map((hit) => hit.label),
+        ...interviewVagueHits.map((hit) => hit.label),
+        ...messageNegativeHits.map((hit) => hit.label)
+      ],
+      interviewSuppressionMatches: interviewProcessOnlyHits.map((hit) => hit.label),
+      decisionReason: 'message_notification_signal'
     };
   }
 

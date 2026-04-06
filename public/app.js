@@ -8961,6 +8961,7 @@ function renderDetail(application, events) {
         if (lower === 'interview_requested' || lower === 'interview_request') return 'Interview requested';
         if (lower === 'interview_scheduled') return 'Interview scheduled';
         if (lower === 'meeting_requested') return 'Meeting requested';
+        if (lower === 'message_received') return 'Message received';
         if (lower === 'under_review') return 'Under review';
         return String(type || 'other')
           .replace(/_/g, ' ')
@@ -8982,6 +8983,9 @@ function renderDetail(application, events) {
         }
         if (t.includes('offer')) {
           return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.8 1-6.1-4.4-4.3 6.1-.9z"/></svg>';
+        }
+        if (t === 'message_received') {
+          return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg>';
         }
         return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/></svg>';
       };
