@@ -5194,7 +5194,7 @@ function openPricingModal() {
     ctaText: 'Start Job Search Plan',
     ctaSubtext: 'One upfront payment for 3 months',
     cardClassName: 'plan-card--jobsearch',
-    ctaClassName: 'btn btn--ghost btn--md plan-cta plan-cta--jobsearch',
+    ctaClassName: 'btn btn--md plan-cta plan-cta--jobsearch',
     onCtaClick: () => requestUpgrade('job_search_plan')
   });
   container.append(freeCard, proCard, jobSearchPlanCard);
