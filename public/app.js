@@ -4960,17 +4960,19 @@ function updateAdminAnalyticsVisibility() {
 }
 
 const SHARED_PRO_FEATURES = [
-  'Never miss interview requests or important updates',
-  'Track your entire job search automatically',
-  'Stay organized across all your applications',
-  'Built for active job seekers applying regularly'
+  'Track confirmations, interviews, offers, and rejections automatically',
+  'Catch critical updates before they get buried in your inbox',
+  'Keep every company and role organized in one timeline',
+  'Built for active job seekers managing multiple applications'
 ];
 
 function buildPlanCard({
   title,
   context,
-  price,
+  priceMain,
+  priceTerm = '',
   details,
+  billingNote = '',
   features,
   ctaText,
   ctaSubtext = '',
@@ -5006,11 +5008,31 @@ function buildPlanCard({
 
   const priceEl = document.createElement('div');
   priceEl.className = 'plan-price';
-  priceEl.textContent = price;
+  const priceMainEl = document.createElement('span');
+  priceMainEl.className = 'plan-price-main';
+  priceMainEl.textContent = priceMain;
+  priceEl.appendChild(priceMainEl);
+  if (priceTerm) {
+    const priceTermEl = document.createElement('span');
+    priceTermEl.className = 'plan-price-term';
+    priceTermEl.textContent = priceTerm;
+    priceEl.appendChild(priceTermEl);
+  }
 
   const limitEl = document.createElement('div');
   limitEl.className = 'plan-limit muted small';
   limitEl.textContent = details || '';
+
+  let billingNoteEl = null;
+  if (billingNote) {
+    billingNoteEl = document.createElement('div');
+    billingNoteEl.className = 'plan-billing-note muted small';
+    billingNoteEl.textContent = billingNote;
+  }
+
+  const dividerEl = document.createElement('div');
+  dividerEl.className = 'plan-card-divider';
+  dividerEl.setAttribute('aria-hidden', 'true');
 
   const ul = document.createElement('ul');
   ul.className = 'plan-features';
@@ -5049,7 +5071,11 @@ function buildPlanCard({
     ctaWrap.appendChild(ctaSubtextEl);
   }
 
-  card.append(top, priceEl, limitEl, ul);
+  card.append(top, priceEl, limitEl);
+  if (billingNoteEl) {
+    card.appendChild(billingNoteEl);
+  }
+  card.append(dividerEl, ul);
   if (reinforcementEl) {
     card.appendChild(reinforcementEl);
   }
@@ -5060,28 +5086,45 @@ function buildPlanCard({
 function openPricingModal() {
   const container = document.createElement('div');
   container.className = 'plan-card-grid';
+
+  const hero = document.createElement('div');
+  hero.className = 'pricing-modal-hero';
+  const heroTitle = document.createElement('div');
+  heroTitle.className = 'pricing-modal-hero-title';
+  heroTitle.textContent = 'Pick the plan that matches your job-search pace';
+  const heroCopy = document.createElement('p');
+  heroCopy.className = 'pricing-modal-hero-copy';
+  heroCopy.textContent =
+    'Keep confirmations, interviews, offers, and rejections in one organized timeline while you apply.';
+  hero.append(heroTitle, heroCopy);
+
   const freeCard = buildPlanCard({
     title: 'Free',
-    context: 'For occasional tracking',
-    price: '$0 / month',
-    details: 'Up to 50 application updates per month',
+    context: 'Best for occasional or light tracking',
+    priceMain: '$0',
+    priceTerm: '/ month',
+    details: 'Up to 50 tracked updates per month',
+    billingNote: 'A simple starting point for trying Applictus',
     features: [
       'Track a limited number of job updates',
-      'Basic application timeline view',
-      'Best for light or infrequent job searches'
+      'Basic timeline view of your applications',
+      'Good fit for infrequent applications'
     ],
     badgeText: 'Included',
     badgeVariant: 'included',
     ctaText: 'Stay on Free',
+    cardClassName: 'plan-card--free',
     ctaClassName: 'btn btn--ghost btn--sm plan-cta plan-cta--free'
   });
   const proCard = buildPlanCard({
     title: 'Pro',
-    context: 'For active job search',
-    price: '$3.99 / month',
-    details: 'Up to 500 application updates per month',
+    context: 'Best for an active ongoing search',
+    priceMain: '$3.99',
+    priceTerm: '/ month',
+    details: 'Up to 500 tracked updates per month',
+    billingNote: 'Monthly billing for full, always-on tracking',
     features: SHARED_PRO_FEATURES,
-    reinforcement: "Recommended if you're applying to multiple jobs per week",
+    reinforcement: "Recommended if you're applying to multiple jobs each week",
     badgeText: 'Most popular',
     badgeVariant: 'popular',
     ctaText: 'Upgrade to Pro',
@@ -5092,9 +5135,11 @@ function openPricingModal() {
   });
   const jobSearchPlanCard = buildPlanCard({
     title: 'Job Search Plan',
-    context: 'Designed for a typical job search',
-    price: '$9.99 / 3 months',
-    details: 'Up to 500 application updates per month',
+    context: 'Best for a focused 2–3 month search',
+    priceMain: '$9.99',
+    priceTerm: '/ 3 months',
+    details: 'Up to 500 tracked updates per month',
+    billingNote: 'A commitment option tailored to a typical search cycle',
     features: SHARED_PRO_FEATURES,
     reinforcement: 'One payment for a typical 2–3 month job search cycle',
     badgeText: 'Best for 2–3 month search',
@@ -5108,10 +5153,10 @@ function openPricingModal() {
   container.append(freeCard, proCard, jobSearchPlanCard);
 
   const body = document.createElement('div');
-  body.appendChild(container);
+  body.append(hero, container);
   const trust = document.createElement('div');
   trust.className = 'pricing-trust muted small';
-  trust.textContent = 'Cancel anytime • No hidden fees • No commitment';
+  trust.textContent = 'Transparent billing • Cancel anytime • No hidden fees';
   body.appendChild(trust);
   const footer = document.createElement('div');
   footer.className = 'modal-footer-actions';
@@ -5124,7 +5169,7 @@ function openPricingModal() {
 
   openModal({
     title: 'Never miss an interview or opportunity',
-    description: "Stay on top of every job update. Upgrade while you're actively applying — cancel anytime.",
+    description: 'Choose the plan that gives you the right level of tracking support while you apply.',
     body,
     footer,
     allowBackdropClose: true,
