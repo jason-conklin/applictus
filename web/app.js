@@ -686,6 +686,7 @@ let currentDetail = null;
 let csrfToken = null;
 const PAGE_SIZE = 25;
 const SYNC_DETAILS_KEY = 'applictus:syncDetailsOpen';
+const LAST_SYNC_SUMMARY_KEY = 'applictus:lastSyncSummary';
 const SESSION_NEW_APPLIED_KEY = 'applictus_new_applied';
 const SESSION_NEW_OFFERS_KEY = 'applictus_new_offers';
 const SESSION_NEW_INTERVIEWS_KEY = 'applictus_new_interviews';
@@ -748,6 +749,90 @@ function formatSyncDateTime(value) {
     hour: 'numeric',
     minute: '2-digit'
   });
+}
+
+function getLastSyncSummaryStorageKey() {
+  const identity = sessionUser?.id || sessionUser?.email || 'anonymous';
+  return `${LAST_SYNC_SUMMARY_KEY}:${identity}`;
+}
+
+function readStoredLastSyncSummary() {
+  try {
+    const raw = localStorage.getItem(getLastSyncSummaryStorageKey());
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.status !== 'success' || !parsed.result || typeof parsed.result !== 'object') {
+      return null;
+    }
+    return parsed;
+  } catch (err) {
+    return null;
+  }
+}
+
+function persistLastSyncSummary(result, rawDetails = '') {
+  if (!isInternalGmailMode()) {
+    return;
+  }
+  const metrics = deriveSyncMetrics(result, rawDetails);
+  const storedResult = {
+    last_synced_at: metrics.lastSyncedAt || null,
+    time_window_end: metrics.windowEnd || null,
+    total_messages_listed: Number.isFinite(metrics.scanned) ? metrics.scanned : null,
+    applications_updated: Number.isFinite(metrics.appsUpdated) ? metrics.appsUpdated : null,
+    pages_fetched: Number.isFinite(metrics.pages) ? metrics.pages : null
+  };
+  try {
+    localStorage.setItem(
+      getLastSyncSummaryStorageKey(),
+      JSON.stringify({
+        status: 'success',
+        saved_at: new Date().toISOString(),
+        result: storedResult
+      })
+    );
+  } catch (err) {
+    // ignore
+  }
+}
+
+function clearStoredLastSyncSummary() {
+  try {
+    localStorage.removeItem(getLastSyncSummaryStorageKey());
+  } catch (err) {
+    // ignore
+  }
+}
+
+function hydrateStoredLastSyncSummary() {
+  if (!isInternalGmailMode() || !emailState.connected || emailState.lastSyncStats) {
+    return;
+  }
+  const stored = readStoredLastSyncSummary();
+  if (!stored?.result) {
+    return;
+  }
+  emailState.lastSyncStats = stored.result;
+  emailState.lastSyncedAt = stored.result.last_synced_at || stored.result.time_window_end || null;
+}
+
+function setSyncSummaryMainInteractive(isInteractive) {
+  if (!syncSummaryMain) {
+    return;
+  }
+  const active = Boolean(isInteractive);
+  syncSummaryMain.classList.toggle('is-interactive', active);
+  if (active) {
+    syncSummaryMain.setAttribute('role', 'button');
+    syncSummaryMain.setAttribute('tabindex', '0');
+    syncSummaryMain.setAttribute('aria-disabled', 'false');
+    return;
+  }
+  syncSummaryMain.removeAttribute('role');
+  syncSummaryMain.setAttribute('tabindex', '-1');
+  syncSummaryMain.setAttribute('aria-disabled', 'true');
 }
 
 const state = {
@@ -1634,12 +1719,21 @@ function renderForwardingSummary() {
     return;
   }
   if (isInternalGmailMode()) {
+    if (emailState.connected && emailState.lastSyncStats) {
+      renderSyncSummary({
+        status: 'success',
+        result: emailState.lastSyncStats,
+        rawDetails: ''
+      });
+      return;
+    }
     syncSummaryStatus.textContent = emailState.connected ? '' : 'Gmail not connected';
     syncSummaryMetrics.textContent = formatInboundMetaText();
     syncSummary.classList.remove('hidden');
     if (syncResult) {
       syncResult.textContent = '';
     }
+    setSyncSummaryMainInteractive(false);
     applySyncDetailsVisibility(false, false, false);
     return;
   }
@@ -1669,6 +1763,7 @@ function renderForwardingSummary() {
   if (syncResult) {
     syncResult.textContent = '';
   }
+  setSyncSummaryMainInteractive(false);
   applySyncDetailsVisibility(false, false, false);
 }
 
@@ -7267,6 +7362,7 @@ async function refreshEmailStatus() {
     emailState.email = null;
     emailState.lastSyncedAt = null;
     emailState.lastSyncStats = null;
+    clearStoredLastSyncSummary();
     return;
   }
   try {
@@ -7278,6 +7374,9 @@ async function refreshEmailStatus() {
     if (!emailState.connected) {
       emailState.lastSyncedAt = null;
       emailState.lastSyncStats = null;
+      clearStoredLastSyncSummary();
+    } else {
+      hydrateStoredLastSyncSummary();
     }
   } catch (err) {
     emailState.configured = false;
@@ -7462,7 +7561,7 @@ function storeSyncDetailsOpen(open) {
 }
 
 function applySyncDetailsVisibility(open, hasDetails, allowToggle = true) {
-  if (!syncDetailsWrapper || !syncDetailsToggle) return;
+  if (!syncDetailsWrapper) return;
   const effectiveOpen = hasDetails && allowToggle && open;
   syncDetailsWrapper.classList.toggle('hidden', !effectiveOpen);
   if (syncSummaryMain) {
@@ -7478,6 +7577,7 @@ function renderSyncSummary({ status = 'idle', result = null, rawDetails = '', la
   if (status === 'running') {
     // While sync is in progress, rely on the progress bar and hide the summary/disclosure to reduce noise.
     syncSummary.classList.add('hidden');
+    setSyncSummaryMainInteractive(false);
     applySyncDetailsVisibility(false, false, false);
     return;
   }
@@ -7520,6 +7620,10 @@ function renderSyncSummary({ status = 'idle', result = null, rawDetails = '', la
     hasDetails &&
     (syncDetailsToggle?.dataset.open === 'true' || getStoredSyncDetailsOpen());
   const allowToggle = status !== 'running';
+  setSyncSummaryMainInteractive(false);
+  if (status === 'success') {
+    persistLastSyncSummary(result || {}, rawDetails);
+  }
   applySyncDetailsVisibility(shouldOpen, hasDetails, allowToggle);
 }
 
@@ -10566,6 +10670,9 @@ syncErrorToggle?.addEventListener('click', async () => {
 
 if (syncSummaryMain) {
   syncSummaryMain.addEventListener('click', () => {
+    if (!syncSummaryMain.classList.contains('is-interactive')) {
+      return;
+    }
     const selection = window.getSelection();
     if (selection && selection.toString().length > 0) return;
     const current = syncSummaryMain.dataset.open === 'true';
@@ -10575,6 +10682,9 @@ if (syncSummaryMain) {
     applySyncDetailsVisibility(next, Boolean(syncResult?.textContent?.trim()));
   });
   syncSummaryMain.addEventListener('keydown', (event) => {
+    if (!syncSummaryMain.classList.contains('is-interactive')) {
+      return;
+    }
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       const current = syncSummaryMain.dataset.open === 'true';
