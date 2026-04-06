@@ -194,7 +194,8 @@ const inboundSyncLocks = new Map();
 const INTERNAL_GMAIL_DEFAULT_USERS = Object.freeze([
   'jasonconklin.dev@gmail.com',
   'shaneconklin14@gmail.com',
-  'mconklin246@gmail.com'
+  'mconklin246@gmail.com',
+  'wesleywright.lew@gmail.com'
 ]);
 const INTERNAL_GMAIL_SCOPES = Object.freeze([
   'openid',

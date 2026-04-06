@@ -219,7 +219,8 @@ const RESERVED_INBOX_USERNAMES = new Set([
 const ADMIN_EMAIL_ALLOWLIST = new Set([
   'jasonconklin.dev@gmail.com',
   'shaneconklin14@gmail.com',
-  'mconklin246@gmail.com'
+  'mconklin246@gmail.com',
+  'wesleywright.lew@gmail.com'
 ]);
 const ADMIN_METRIC_LABELS = {
   tracked_emails: 'Tracked emails',
