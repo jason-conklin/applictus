@@ -5585,8 +5585,143 @@ function syncInboundAutoPolling() {
   }, INBOUND_AUTO_SYNC_INTERVAL_MS);
 }
 
-const FORWARDING_FILTER_QUERY =
-  '(subject:(application OR interview OR offer OR rejection) OR from:(workday OR greenhouse OR lever OR icims OR smartrecruiters OR workablemail OR linkedin.com))';
+const FORWARDING_FILTER_PROVIDER_TERMS = [
+  'linkedin.com',
+  'indeed.com',
+  'ziprecruiter.com',
+  'glassdoor.com',
+  'monster.com',
+  'workday.com',
+  'greenhouse.io',
+  'lever.co',
+  'icims.com',
+  'smartrecruiters.com',
+  'workablemail.com',
+  'jobvite.com',
+  'successfactors.com',
+  'taleo.net',
+  'bamboohr.com',
+  'ashbyhq.com'
+];
+
+const FORWARDING_FILTER_PRESETS = [
+  {
+    id: 'all_updates',
+    label: 'All job updates',
+    summary: 'Full timeline coverage with broader ATS/job-platform matching.',
+    description:
+      'Captures full timeline coverage: confirmations, interviews, offers, rejections, and common hiring-platform senders.',
+    subjectTerms: [
+      'application',
+      'application submitted',
+      'application received',
+      'thank you for applying',
+      'under review',
+      'next steps',
+      'interview',
+      'assessment',
+      'phone screen',
+      'onsite',
+      'final round',
+      'offer',
+      'rejection',
+      'not selected',
+      'declined'
+    ],
+    includeProviders: true,
+    negativeSubjectTerms: [
+      'job alert',
+      'jobs you may like',
+      'jobs for you',
+      'recommended jobs',
+      'recommended for you',
+      'new jobs in',
+      'based on your search',
+      'daily job alert',
+      'weekly job alert'
+    ]
+  },
+  {
+    id: 'status_changes',
+    label: 'Only status changes',
+    summary: 'Higher-signal updates focused on movement in the hiring process.',
+    description:
+      'Reduces noise by focusing on movement in the process: interviews, assessments, offers, rejections, and next steps.',
+    subjectTerms: [
+      'interview',
+      'phone screen',
+      'onsite',
+      'final round',
+      'assessment',
+      'next steps',
+      'offer',
+      'rejection',
+      'not selected',
+      'declined'
+    ],
+    includeProviders: false,
+    negativeSubjectTerms: [
+      'application submitted',
+      'application received',
+      'thank you for applying',
+      'job alert',
+      'jobs you may like',
+      'jobs for you',
+      'recommended jobs',
+      'recommended for you',
+      'new jobs in',
+      'based on your search',
+      'daily job alert',
+      'weekly job alert'
+    ]
+  }
+];
+
+function quoteGmailQueryToken(term) {
+  const value = String(term || '').trim();
+  if (!value) {
+    return '';
+  }
+  return /[\s()"]/u.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
+}
+
+function buildGmailSubjectClause(terms) {
+  const tokens = (Array.isArray(terms) ? terms : []).map(quoteGmailQueryToken).filter(Boolean);
+  if (!tokens.length) {
+    return '';
+  }
+  return `subject:(${tokens.join(' OR ')})`;
+}
+
+function buildGmailFromClause(terms) {
+  const tokens = (Array.isArray(terms) ? terms : []).map(quoteGmailQueryToken).filter(Boolean);
+  if (!tokens.length) {
+    return '';
+  }
+  return `from:(${tokens.join(' OR ')})`;
+}
+
+function buildForwardingFilterQuery(presetId = 'all_updates') {
+  const fallbackPreset = FORWARDING_FILTER_PRESETS[0];
+  const preset =
+    FORWARDING_FILTER_PRESETS.find((candidate) => candidate.id === presetId) || fallbackPreset;
+  const positiveClauses = [];
+  const subjectClause = buildGmailSubjectClause(preset.subjectTerms);
+  if (subjectClause) {
+    positiveClauses.push(subjectClause);
+  }
+  if (preset.includeProviders) {
+    const providerClause = buildGmailFromClause(FORWARDING_FILTER_PROVIDER_TERMS);
+    if (providerClause) {
+      positiveClauses.push(providerClause);
+    }
+  }
+  const positiveQuery =
+    positiveClauses.length > 1 ? `(${positiveClauses.join(' OR ')})` : positiveClauses[0] || '';
+  const negativeClause = buildGmailSubjectClause(preset.negativeSubjectTerms);
+  const negatives = negativeClause ? `-${negativeClause}` : '';
+  return [positiveQuery, negatives].filter(Boolean).join(' ').trim();
+}
 
 const OUTLOOK_FORWARDING_HELP = [
   'Outlook (optional): Settings → Mail → Forwarding.',
@@ -6281,26 +6416,90 @@ function buildInboundSetupSecondaryHelp() {
   secondary.className = 'forwarding-secondary-help';
 
   const filterPanel = createForwardingCollapsible({
-    title: 'Optional: forward only job emails',
+    title: 'Optional: reduce noise with a Gmail filter',
     open: false
   });
   const filterIntro = document.createElement('p');
   filterIntro.className = 'muted small';
-  filterIntro.textContent = 'Use a Gmail filter to keep Applictus focused on application updates.';
+  filterIntro.textContent = 'Optional helper: Applictus works without this. Choose a preset if you want to limit noisy inbox traffic.';
+
+  const presetList = document.createElement('div');
+  presetList.className = 'forwarding-filter-presets';
+
+  const presetDescription = document.createElement('p');
+  presetDescription.className = 'forwarding-filter-preset-description muted small';
+
+  const queryWrap = document.createElement('div');
+  queryWrap.className = 'forwarding-filter-query-wrap';
+
+  const queryLabel = document.createElement('div');
+  queryLabel.className = 'forwarding-filter-query-label muted small';
+  queryLabel.textContent = 'Gmail filter query';
+
   const filterSnippet = document.createElement('pre');
-  filterSnippet.className = 'forwarding-filter-snippet';
-  filterSnippet.textContent = FORWARDING_FILTER_QUERY;
+  filterSnippet.className = 'forwarding-filter-query';
+
   const filterActions = document.createElement('div');
-  filterActions.className = 'forwarding-step-actions';
+  filterActions.className = 'forwarding-step-actions forwarding-filter-actions';
   const copyFilterBtn = document.createElement('button');
   copyFilterBtn.type = 'button';
-  copyFilterBtn.className = 'btn btn--ghost btn--sm';
+  copyFilterBtn.className = 'btn btn--secondary btn--sm';
   copyFilterBtn.textContent = 'Copy filter query';
-  copyFilterBtn.addEventListener('click', () => {
-    void copyTextToClipboard(FORWARDING_FILTER_QUERY, 'Copied filter query');
-  });
   filterActions.append(copyFilterBtn);
-  filterPanel.body.append(filterIntro, filterSnippet, filterActions);
+  queryWrap.append(queryLabel, filterSnippet, filterActions);
+
+  let selectedPresetId = FORWARDING_FILTER_PRESETS[0]?.id || 'all_updates';
+  let selectedQuery = buildForwardingFilterQuery(selectedPresetId);
+  const presetButtons = [];
+
+  const renderFilterPresetUi = () => {
+    const activePreset =
+      FORWARDING_FILTER_PRESETS.find((preset) => preset.id === selectedPresetId) || FORWARDING_FILTER_PRESETS[0];
+    selectedQuery = buildForwardingFilterQuery(selectedPresetId);
+    filterSnippet.textContent = selectedQuery;
+    presetDescription.textContent = activePreset?.description || '';
+    presetButtons.forEach(({ id, button }) => {
+      const selected = id === selectedPresetId;
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+  };
+
+  FORWARDING_FILTER_PRESETS.forEach((preset) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'forwarding-filter-preset';
+    button.dataset.preset = preset.id;
+    button.setAttribute('aria-pressed', 'false');
+
+    const title = document.createElement('span');
+    title.className = 'forwarding-filter-preset-title';
+    title.textContent = preset.label;
+    button.appendChild(title);
+    if (preset.summary) {
+      const summary = document.createElement('span');
+      summary.className = 'forwarding-filter-preset-summary';
+      summary.textContent = preset.summary;
+      button.appendChild(summary);
+    }
+
+    button.addEventListener('click', () => {
+      selectedPresetId = preset.id;
+      renderFilterPresetUi();
+    });
+    presetButtons.push({ id: preset.id, button });
+    presetList.appendChild(button);
+  });
+
+  copyFilterBtn.addEventListener('click', () => {
+    const activePreset =
+      FORWARDING_FILTER_PRESETS.find((preset) => preset.id === selectedPresetId) || FORWARDING_FILTER_PRESETS[0];
+    const copiedLabel = activePreset?.label ? `${activePreset.label} filter` : 'filter query';
+    void copyTextToClipboard(selectedQuery, `Copied ${copiedLabel}`);
+  });
+
+  renderFilterPresetUi();
+  filterPanel.body.append(filterIntro, presetList, presetDescription, queryWrap);
   secondary.appendChild(filterPanel.details);
 
   const outlookPanel = createForwardingCollapsible({
