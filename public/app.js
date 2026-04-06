@@ -8011,18 +8011,8 @@ async function openEditModal(application) {
     value: application.source || '',
     placeholder: 'Referral, LinkedIn, etc.'
   });
-  const isManualStatus = application.status_source === 'user' || application.user_override;
-  const manualToggleRow = document.createElement('label');
-  manualToggleRow.className = 'checkbox-row modal-checkbox-row';
-  const manualToggle = document.createElement('input');
-  manualToggle.type = 'checkbox';
-  manualToggle.checked = isManualStatus;
-  const manualLabel = document.createElement('span');
-  manualLabel.textContent = 'Manual status override';
-  manualToggleRow.append(manualToggle, manualLabel);
-
   const statusFields = document.createElement('div');
-  statusFields.className = `stack modal-edit-status ${isManualStatus ? '' : 'hidden'}`;
+  statusFields.className = 'stack modal-edit-status';
   const statusField = createModalStatusSelectField({
     label: 'Status',
     name: 'current_status',
@@ -8039,10 +8029,6 @@ async function openEditModal(application) {
   helper.className = 'form-help';
   helper.textContent = 'Manual status locks this application and prevents automatic changes.';
   statusFields.append(statusField.wrapper, noteField.wrapper, helper);
-
-  manualToggle.addEventListener('change', () => {
-    statusFields.classList.toggle('hidden', !manualToggle.checked);
-  });
 
   const errorEl = document.createElement('div');
   errorEl.className = 'form-error hidden';
@@ -8062,7 +8048,6 @@ async function openEditModal(application) {
     companyField.wrapper,
     titleField.wrapper,
     detailsRow,
-    manualToggleRow,
     statusFields,
     errorEl
   );
@@ -8085,7 +8070,8 @@ async function openEditModal(application) {
     const title = titleField.input.value.trim();
     const location = locationField.input.value.trim();
     const source = sourceField.input.value.trim();
-    const manualStatus = manualToggle.checked;
+    const selectedStatus = String(statusField.select.value || 'UNKNOWN').trim().toUpperCase();
+    const currentStatus = String(application.current_status || 'UNKNOWN').trim().toUpperCase();
 
     if (!company || !title) {
       setFormError(errorEl, 'Company name and role title are required.');
@@ -8108,14 +8094,12 @@ async function openEditModal(application) {
       if (application.last_inbound_message_id) {
         payload.last_inbound_message_id = application.last_inbound_message_id;
       }
-      if (manualStatus) {
-        payload.current_status = statusField.select.value;
+      if (selectedStatus && selectedStatus !== currentStatus) {
+        payload.current_status = selectedStatus;
         const note = noteField.input.value.trim();
         if (note) {
           payload.status_explanation = note;
         }
-      } else if (application.status_source === 'user' || application.user_override) {
-        payload.user_override = 0;
       }
       await api(`/api/applications/${application.id}`, {
         method: 'PATCH',
@@ -8857,9 +8841,6 @@ function renderDetail(application, events) {
   }
   const statusValue = application.current_status || 'UNKNOWN';
   const statusLabel = STATUS_LABELS[statusValue] || statusValue;
-  const confidenceValue = getConfidence(application);
-  const confidenceLabel = formatConfidencePercent(confidenceValue);
-  const sourceLabel = statusSourceLabel(getStatusSource(application));
   if (detailPanel) {
     detailPanel.dataset.status = statusValue.toLowerCase();
   }
@@ -8873,12 +8854,6 @@ function renderDetail(application, events) {
   if (detailStatus) {
     detailStatus.textContent = statusLabel;
     detailStatus.className = `pill pill-status pill-${statusValue.toLowerCase()}`;
-  }
-  if (detailSource) {
-    detailSource.textContent = sourceLabel;
-  }
-  if (detailConfidence) {
-    detailConfidence.textContent = confidenceLabel === '—' ? 'Confidence —' : `${confidenceLabel} confidence`;
   }
 
   if (detailMeta) {
