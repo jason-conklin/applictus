@@ -76,6 +76,24 @@ function parseGeneric({ subject, text }) {
   }
 
   if (!companyRaw || !roleRaw) {
+    const applicationForRoleAtCompany = subj.match(
+      /\byour application for\s+(?:the\s+)?([\p{L}0-9][\p{L}\p{M}0-9/&.'\- ]{2,120}?)\s+at\s+([\p{L}0-9][\p{L}\p{M}0-9&.'\- ]{1,100}?)(?=\s*(?:[.!?,]|$))/iu
+    );
+    if (applicationForRoleAtCompany) {
+      if (!roleRaw && applicationForRoleAtCompany[1]) {
+        roleRaw = applicationForRoleAtCompany[1].trim().replace(/[.!,;:]+$/g, '');
+        candidates.role.push(roleRaw);
+        notes.push('role_phrase:subject_application_for_role_at_company');
+      }
+      if (!companyRaw && applicationForRoleAtCompany[2]) {
+        companyRaw = applicationForRoleAtCompany[2].trim().replace(/[.!,;:]+$/g, '');
+        candidates.company.push(companyRaw);
+        notes.push('company_phrase:subject_application_for_role_at_company');
+      }
+    }
+  }
+
+  if (!companyRaw || !roleRaw) {
     const applyingAtCompanyIdRole = subj.match(
       /thank you for applying at\s+([A-Z][A-Za-z0-9&.' -]{1,80})\s*[-–—]\s*[A-Z0-9-]{2,}\s+([A-Z][A-Za-z0-9/&.' -]{2,120})$/i
     );
@@ -165,6 +183,20 @@ function parseGeneric({ subject, text }) {
         companyRaw = candidate;
         candidates.company.push(companyRaw);
         notes.push('company_phrase:interest_in_employment');
+      }
+    }
+  }
+
+  if (!companyRaw) {
+    const careerAtMatch = body.match(
+      /interest in (?:a\s+)?career at\s+([\p{L}0-9][\p{L}\p{M}0-9&.'\- ]{1,100}?)(?=[.,\n]|$)/iu
+    );
+    if (careerAtMatch && careerAtMatch[1]) {
+      const candidate = careerAtMatch[1].trim();
+      if (!isGenericCompanyPhrase(candidate)) {
+        companyRaw = candidate;
+        candidates.company.push(companyRaw);
+        notes.push('company_phrase:interest_in_career_at');
       }
     }
   }

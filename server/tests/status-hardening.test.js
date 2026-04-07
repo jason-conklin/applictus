@@ -108,3 +108,22 @@ test('application receipt with conditional interview phrasing stays applied and 
   assert.ok(Array.isArray(parsed.parserDebug?.status_signal?.applied_matches));
   assert.ok(parsed.parserDebug.status_signal.applied_matches.includes('received_your_application'));
 });
+
+test('jobvite-style receipt keeps employer company and never stores "The" from team signature', async () => {
+  const parsed = await parseJobEmail({
+    fromEmail: 'no-reply@jobs.jobvite.com',
+    fromDomain: 'jobs.jobvite.com',
+    subject: 'Your application for Field System Engineer - NJ at bioMérieux',
+    text: [
+      'Thank you for your interest in a career at bioMérieux.',
+      'We have received your application for our Field System Engineer - NJ position.',
+      'You will be contacted if we need additional information or wish to schedule an interview with you.',
+      'The Talent Acquisition Team'
+    ].join('\n')
+  });
+
+  assert.equal(parsed.status, 'applied');
+  assert.equal(parsed.company, 'bioMérieux');
+  assert.equal(parsed.role, 'Field System Engineer - NJ');
+  assert.notEqual(String(parsed.company || '').toLowerCase(), 'the');
+});

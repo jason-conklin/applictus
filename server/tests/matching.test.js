@@ -237,6 +237,41 @@ test('extractThreadIdentity extracts employer company from Monster confirmation 
   assert.ok(String(identity.explanation || '').includes('body_has_received_application_for'));
 });
 
+test('extractThreadIdentity keeps subject company for unicode "your application for ... at ..." and ignores weak team signature', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Your application for Field System Engineer - NJ at bioMérieux',
+    sender: 'no-reply@jobs.jobvite.com',
+    bodyText: [
+      'Thank you for your interest in a career at bioMérieux.',
+      'We have received your application for our Field System Engineer - NJ position.',
+      'The Talent Acquisition Team'
+    ].join('\n')
+  });
+
+  assert.equal(identity.companyName, 'bioMérieux');
+  assert.equal(identity.jobTitle, 'Field System Engineer - NJ');
+  assert.notEqual(String(identity.companyName || '').toLowerCase(), 'the');
+});
+
+test('extractThreadIdentity does not treat "The Talent Acquisition Team" as company', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Application update',
+    sender: 'No Reply <noreply@gmail.com>',
+    bodyText: ['Thank you for applying.', 'The Talent Acquisition Team'].join('\n')
+  });
+  assert.equal(identity.companyName, null);
+});
+
+test('extractThreadIdentity preserves legitimate employer names that begin with "The"', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Your application for Data Engineer at The Hartford',
+    sender: 'No Reply <noreply@jobs.thehartford.com>',
+    bodyText: 'Thank you for your interest in a career at The Hartford.'
+  });
+  assert.equal(identity.companyName, 'The Hartford');
+  assert.equal(identity.jobTitle, 'Data Engineer');
+});
+
 test('extractThreadIdentity parses "Thank you for applying at {Company} - {ID} {Role}" subject pattern', () => {
   const identity = extractThreadIdentity({
     subject: 'Thank you for applying at CBRE - 267657 Data Center Change Management Coordinator',

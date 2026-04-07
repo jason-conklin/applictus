@@ -119,7 +119,11 @@ const INVALID_COMPANY_TERMS = new Set([
   'position',
   'job',
   'hr',
-  'human resources'
+  'human resources',
+  'the',
+  'department',
+  'talent acquisition team',
+  'human resources team'
 ]);
 
 const SYSTEM_INBOX_COMPANY_TERMS = new Set([
@@ -204,6 +208,13 @@ const ROLE_COMPANY_PATTERNS = [
     roleIndex: 2,
     companyIndex: 1,
     confidence: 0.93
+  },
+  {
+    name: 'your_application_for_role_at_company',
+    regex: /\byour application for\s+(?:the\s+)?([\p{L}0-9][\p{L}\p{M}0-9/&.'\- ]{2,120}?)\s+at\s+([\p{L}0-9][\p{L}\p{M}0-9&.'\- ]{1,100}?)(?=\s*(?:[.!?,\n]|$))/iu,
+    roleIndex: 1,
+    companyIndex: 2,
+    confidence: 0.97
   },
   {
     name: 'for_role_at_company',
@@ -299,6 +310,11 @@ const COMPANY_ONLY_PATTERNS = [
     name: 'your_application_to',
     regex: /your application (?:to|at|with)\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})/i,
     confidence: 0.9
+  },
+  {
+    name: 'your_application_for_role_at_company',
+    regex: /\byour application for\s+(?:the\s+)?[\p{L}0-9][\p{L}\p{M}0-9/&.'\- ]{2,120}?\s+at\s+([\p{L}0-9][\p{L}\p{M}0-9&.'\- ]{1,100}?)(?=\s*(?:[.!?,\n]|$))/iu,
+    confidence: 0.95
   },
   {
     name: 'application_received_to',
@@ -1085,7 +1101,7 @@ function cleanCompanyCandidate(value) {
     .replace(/\s+for\s+.*$/i, '')
     .replace(/\s+(?:it\s+)?has received your application(?:\s+for\b.*)?$/i, '')
     .replace(
-      /\s+(?:careers|jobs|recruiting|hiring|hiring team|talent acquisition|talent team|hr|human resources|applications?)$/i,
+      /\s+(?:careers|jobs|recruiting|recruiting team|hiring|hiring team|talent acquisition|talent acquisition team|talent team|hr|human resources|human resources team|applications?)$/i,
       ''
     )
     .replace(/^(?:no[-\s]?reply|noreply|do not reply)\b[: ]*/i, '')
@@ -1093,6 +1109,10 @@ function cleanCompanyCandidate(value) {
     .trim();
   const normalizedCompany = normalizeCompany(cleaned);
   const lower = String(normalizedCompany || '').toLowerCase();
+  const tokenized = lower
+    .split(/\s+/)
+    .map((part) => part.replace(/[^a-z]/g, ''))
+    .filter(Boolean);
   const stopPhrases = [
     'taking the time to apply',
     'thank you for your interest',
@@ -1106,6 +1126,22 @@ function cleanCompanyCandidate(value) {
     'joining us'
   ];
   if (!normalizedCompany || normalizedCompany.length > 60) {
+    return null;
+  }
+  if (
+    /^(?:the\s+)?(?:talent acquisition|recruiting|hiring|human resources)(?:\s+team)?$/i.test(
+      normalizedCompany
+    ) ||
+    /^(?:the\s+)?(?:team|department)$/i.test(normalizedCompany)
+  ) {
+    return null;
+  }
+  if (
+    tokenized.length === 1 &&
+    ['the', 'team', 'department', 'recruiting', 'hiring', 'hr', 'talent', 'acquisition'].includes(
+      tokenized[0]
+    )
+  ) {
     return null;
   }
   if (stopPhrases.some((p) => lower.includes(p))) {
@@ -1801,7 +1837,7 @@ function extractCompanyFromSignatureLines(bodyText) {
         if (candidate) {
           return {
             companyName: candidate,
-            companyConfidence: 0.96,
+            companyConfidence: 0.86,
             explanation: 'Matched signature company line.'
           };
         }
@@ -1813,7 +1849,7 @@ function extractCompanyFromSignatureLines(bodyText) {
       if (candidate) {
         return {
           companyName: candidate,
-          companyConfidence: 0.88,
+          companyConfidence: 0.82,
           explanation: 'Matched company from closing sentence.'
         };
       }
