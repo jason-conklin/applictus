@@ -8512,6 +8512,10 @@ function setApplicationSelected(applicationId, selected, { rerender = true } = {
   updateTableBulkBar();
 }
 
+function isMobileDashboardLayout() {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+}
+
 function renderApplicationsTable(applications) {
   const visibleIdSet = new Set(applications.map((app) => app.id));
   state.table.selectedIds = new Set(
@@ -8531,6 +8535,63 @@ function renderApplicationsTable(applications) {
   const sortKey = state.sort.key;
   const sortDir = state.sort.dir;
   const arrow = sortDir === 'asc' ? '▲' : '▼';
+
+  if (isMobileDashboardLayout()) {
+    const cards = applications
+      .map((app, index) => {
+        const statusValue = normalizeStatusValue(app.current_status || 'UNKNOWN');
+        const statusPill = renderStatusPill(statusValue);
+        const activityMeta = formatActivityRecency(getActivityDate(app));
+        const activity = activityMeta.label;
+        const suggestionLabel = app.suggested_status
+          ? STATUS_LABELS[app.suggested_status] || app.suggested_status
+          : null;
+        const isSelected = state.table.selectedIds.has(app.id);
+        const statusBandTone = getStatusBandTone(statusValue);
+        const rowId = String(app.id);
+        const isOffer = isOfferStatus(statusValue);
+        const isInterviewRequested = statusValue === 'INTERVIEW_REQUESTED';
+        const isPriority = isInterviewRequested || isOffer;
+        const isNewSignal =
+          state.signals.pulseOfferIds.has(rowId) || state.signals.pulseInterviewIds.has(rowId);
+        const isRecentUpdate = activityMeta.isRecent;
+        const roleText = app.job_title || '—';
+        const companyText = app.company_name || '—';
+        return `
+          <div class="table-row application-row application-mobile-card${isSelected ? ' table-row-selected' : ''}${isOffer ? ' is-offer' : ''}${isInterviewRequested ? ' is-interview' : ''}${isPriority ? ' is-priority' : ''}${isOffer ? ' is-priority-offer' : ''}${isInterviewRequested ? ' is-priority-interview' : ''}${isNewSignal ? ' is-new-signal' : ''}${isRecentUpdate ? ' is-recent-update' : ''}" style="--stagger: ${index}" data-id="${app.id}" data-status-tone="${statusBandTone}">
+            <div class="status-band" aria-hidden="true"></div>
+            <div class="application-mobile-card__top">
+              <div class="cell-company table-col-company"><strong>${escapeHtml(companyText)}</strong></div>
+              <div class="table-col-status status-col application-mobile-card__status">
+                ${statusPill}
+                ${suggestionLabel ? `<div class="explanation">Suggestion: ${escapeHtml(suggestionLabel)}</div>` : ''}
+              </div>
+            </div>
+            <div class="cell-role table-col-role application-mobile-card__role" title="${escapeHtml(roleText)}">${escapeHtml(roleText)}</div>
+            <div class="application-mobile-card__meta">
+              <div class="table-col-activity activity-cell application-mobile-card__activity${isRecentUpdate ? ' activity-cell--recent' : ''}" title="${escapeHtml(activityMeta.title)}">
+                <span class="application-mobile-card__activity-label">Last activity</span>
+                <span class="application-mobile-card__activity-value">${escapeHtml(activity)}</span>
+              </div>
+              <div class="table-select-cell table-col-select">
+                <label class="table-select-control" aria-label="Select application">
+                  <input class="table-select-input table-row-select" type="checkbox" data-id="${app.id}" ${
+                    isSelected ? 'checked' : ''
+                  } />
+                  <span class="table-select-mark" aria-hidden="true"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+
+    applicationsTable.innerHTML = `<div class="applications-mobile-list">${cards}</div>`;
+    updateTableBulkBar();
+    return;
+  }
+
   const header = `
     <div class="table-header sortable applications-header">
       <button type="button" class="sort-btn table-col-company${sortKey === 'company' ? ' active' : ''}" data-sort="company" aria-label="Sort by company">
@@ -8743,8 +8804,15 @@ function setTablePaginationLoading(isLoading) {
   if (!isLoading) {
     return;
   }
+  const mobileLayout = isMobileDashboardLayout();
+  if (tablePrev) {
+    tablePrev.textContent = mobileLayout ? '←' : 'Prev';
+  }
+  if (tableNext) {
+    tableNext.textContent = mobileLayout ? '→' : 'Next';
+  }
   if (tablePageInfo) {
-    tablePageInfo.textContent = 'Page - of -';
+    tablePageInfo.textContent = mobileLayout ? '- / -' : 'Page - of -';
   }
   if (tablePageInfoTop) {
     tablePageInfoTop.textContent = '- / -';
@@ -8760,6 +8828,7 @@ function updateTablePagination() {
   if (!tablePageInfo) {
     return;
   }
+  const mobileLayout = isMobileDashboardLayout();
   const hasRecords = state.table.total > 0;
   const currentPage = hasRecords ? Math.floor(state.table.offset / PAGE_SIZE) + 1 : null;
   const totalPages = hasRecords ? Math.max(Math.ceil(state.table.total / PAGE_SIZE), 1) : null;
@@ -8767,10 +8836,24 @@ function updateTablePagination() {
   if (pagination) {
     pagination.classList.toggle('hidden', !hasRecords);
   }
+  if (tablePrev) {
+    tablePrev.textContent = mobileLayout ? '←' : 'Prev';
+    tablePrev.setAttribute('aria-label', 'Previous page');
+  }
+  if (tableNext) {
+    tableNext.textContent = mobileLayout ? '→' : 'Next';
+    tableNext.setAttribute('aria-label', 'Next page');
+  }
   if (tablePageInfoTop) {
     tablePageInfoTop.textContent = hasRecords ? `${currentPage} / ${totalPages}` : '- / -';
   }
-  tablePageInfo.textContent = hasRecords ? `Page ${currentPage} of ${totalPages}` : 'Page - of -';
+  tablePageInfo.textContent = hasRecords
+    ? mobileLayout
+      ? `${currentPage} / ${totalPages}`
+      : `Page ${currentPage} of ${totalPages}`
+    : mobileLayout
+      ? '- / -'
+      : 'Page - of -';
   const canGoPrev = hasRecords && state.table.offset > 0;
   const canGoNext = hasRecords && state.table.offset + PAGE_SIZE < state.table.total;
   if (tablePrev) {
@@ -10399,6 +10482,19 @@ tablePrev?.addEventListener('click', goPrevPage);
 tableNext?.addEventListener('click', goNextPage);
 tablePrevTop?.addEventListener('click', goPrevPage);
 tableNextTop?.addEventListener('click', goNextPage);
+
+let wasMobileDashboardLayout = isMobileDashboardLayout();
+window.addEventListener('resize', () => {
+  const isMobileNow = isMobileDashboardLayout();
+  if (isMobileNow === wasMobileDashboardLayout) {
+    return;
+  }
+  wasMobileDashboardLayout = isMobileNow;
+  updateTablePagination();
+  if (state.table?.data?.length) {
+    renderApplicationsTable(sortApplications(state.table.data));
+  }
+});
 
 archivedPrev?.addEventListener('click', async () => {
   if (state.archived.offset <= 0) {

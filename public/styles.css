@@ -13992,3 +13992,351 @@ body.app-page-bg .topbar .nav-link.active {
 .chart-tooltip .tooltip-value { font-size: 14px; font-weight: 700; }
 .chart-point { fill: #2d5cff; stroke: #fff; stroke-width: 1.5; opacity: 0.9; }
 .chart-point.active { r: 6.5; opacity: 1; filter: drop-shadow(0 2px 6px rgba(45, 92, 255, 0.35)); }
+
+@media (max-width: 768px) {
+  #dashboard-view {
+    gap: 10px;
+  }
+
+  #dashboard-view .dashboard {
+    gap: 14px;
+  }
+
+  #dashboard-view .sync-band {
+    padding: 8px 10px;
+  }
+
+  #dashboard-view .sync-strip.status-strip {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    column-gap: 10px;
+    row-gap: 3px;
+  }
+
+  #dashboard-view .status-strip-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+    align-items: start;
+    min-width: 0;
+  }
+
+  #dashboard-view .status-strip-main .manage-inbox-btn,
+  #dashboard-view .sync-summary-main.status-strip-meta,
+  #dashboard-view .status-strip-divider,
+  #dashboard-view .status-strip-meta-item,
+  #dashboard-view .sync-summary-main.status-strip-meta .sync-summary,
+  #dashboard-view .status-strip-actions .sync-manual-process,
+  #dashboard-view .status-strip-actions .btn-scan-menu {
+    display: none !important;
+  }
+
+  #dashboard-view .status-strip-main .pill {
+    justify-self: start;
+    min-height: 24px;
+    padding: 2px 9px;
+    font-size: 11px;
+  }
+
+  #dashboard-view .status-strip-email {
+    display: block;
+    max-width: 100%;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: rgba(17, 43, 81, 0.72);
+  }
+
+  #dashboard-view .status-strip-actions {
+    justify-self: end;
+    width: auto;
+  }
+
+  #dashboard-view .status-strip-actions .sync-quick-controls {
+    width: auto;
+    justify-content: flex-end;
+  }
+
+  #dashboard-view .status-strip-action-group {
+    gap: 0;
+  }
+
+  #dashboard-view .status-strip-actions .btn-scan {
+    min-height: 34px;
+    height: 34px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+
+  #dashboard-view .kpi-row {
+    display: flex;
+    grid-template-columns: none !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 10px;
+    padding-bottom: 2px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #dashboard-view .kpi-row::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  #dashboard-view .kpi-row::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(31, 63, 117, 0.25);
+  }
+
+  #dashboard-view .kpi-card {
+    flex: 0 0 152px;
+    min-height: 74px;
+    padding: 8px 10px;
+    scroll-snap-align: start;
+  }
+
+  #dashboard-view .kpi-card::before {
+    left: 10px;
+    right: 10px;
+  }
+
+  #dashboard-view .kpi-meta {
+    gap: 6px;
+  }
+
+  #dashboard-view .kpi-label {
+    font-size: 11px;
+  }
+
+  #dashboard-view .kpi-icon svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  #dashboard-view .kpi-value {
+    font-size: 28px;
+  }
+
+  #dashboard-view .kpi-value-wrap {
+    min-height: 28px;
+    gap: 6px;
+  }
+
+  #dashboard-view #dashboard-applications-card {
+    padding: 14px 12px 12px;
+  }
+
+  #dashboard-view #dashboard-applications-card > .card-header {
+    position: relative;
+    align-items: flex-start;
+    gap: 10px;
+    padding-right: 52px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+  }
+
+  #dashboard-view #dashboard-applications-card .header-left {
+    width: 100%;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  #dashboard-view #dashboard-applications-card .header-right {
+    display: none;
+  }
+
+  #dashboard-view #dashboard-applications-card .header-actions {
+    width: 100%;
+    display: block;
+    min-width: 0;
+  }
+
+  #dashboard-view #dashboard-applications-card #add-toggle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 38px;
+    height: 38px;
+  }
+
+  #dashboard-view #filters-inline.filters-bar {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 12px;
+  }
+
+  #dashboard-view #filters-inline .filter-field {
+    width: 100%;
+    max-width: none;
+    flex: 1 1 auto;
+    gap: 4px;
+  }
+
+  #dashboard-view #filters-inline .filter-field__label {
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+  }
+
+  #dashboard-view #filters-inline .filter-field__control {
+    min-height: 38px;
+  }
+
+  #dashboard-view #filters-inline .filter-field__icon {
+    width: 28px;
+    margin-left: 8px;
+  }
+
+  #dashboard-view #filters-inline .status-select__label,
+  #dashboard-view #filters-inline .filter-field__control input {
+    font-size: 13px;
+  }
+
+  #dashboard-view #applications-table .applications-mobile-list {
+    display: grid;
+    gap: 8px;
+  }
+
+  #dashboard-view #applications-table .applications-header {
+    display: none !important;
+  }
+
+  #dashboard-view #applications-table .table-row.application-mobile-card {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    min-height: 0;
+    margin: 0;
+    padding: 10px 12px 10px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(120, 142, 173, 0.24);
+    background: #f8fafd;
+    box-shadow: 0 3px 10px rgba(17, 36, 72, 0.06);
+  }
+
+  #dashboard-view #applications-table .table-row.application-mobile-card > :not(.status-band) {
+    padding: 0;
+  }
+
+  #dashboard-view #applications-table .table-row.application-mobile-card .status-band {
+    width: 4px;
+    opacity: 0.9;
+    border-radius: 0;
+  }
+
+  #dashboard-view #applications-table .application-mobile-card__top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: start;
+  }
+
+  #dashboard-view #applications-table .application-mobile-card__status {
+    display: grid;
+    justify-items: end;
+    gap: 3px;
+    text-align: right;
+  }
+
+  #dashboard-view #applications-table .application-mobile-card__status .explanation {
+    margin: 0;
+    max-width: 18ch;
+    font-size: 10.5px;
+    line-height: 1.2;
+    text-align: right;
+  }
+
+  #dashboard-view #applications-table .application-mobile-card__role {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.35;
+    font-size: 13px;
+    color: rgba(17, 43, 81, 0.78);
+  }
+
+  #dashboard-view #applications-table .application-mobile-card__meta {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+  }
+
+  #dashboard-view #applications-table .application-mobile-card__activity {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  #dashboard-view #applications-table .application-mobile-card__activity-label {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(17, 43, 81, 0.52);
+  }
+
+  #dashboard-view #applications-table .application-mobile-card__activity-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(17, 43, 81, 0.68);
+  }
+
+  #dashboard-view #applications-table .application-mobile-card .table-select-control {
+    width: 32px;
+    height: 32px;
+  }
+
+  #dashboard-view #applications-table .application-mobile-card .table-select-mark {
+    width: 16px;
+    height: 16px;
+    border-radius: 5px;
+  }
+
+  #dashboard-view #applications-table .application-mobile-card .cell-company strong {
+    font-size: 14px;
+    line-height: 1.25;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  #dashboard-view #applications-table .application-mobile-card .appl-statusPill {
+    min-height: 24px;
+    padding: 4px 9px;
+    font-size: 11.5px;
+  }
+
+  #dashboard-view #applications-table .table-row.application-mobile-card:hover {
+    transform: none;
+    background: #f0f5fd;
+    border-color: rgba(46, 90, 172, 0.3);
+  }
+
+  #dashboard-view #table-pagination {
+    margin-top: 8px;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+  }
+
+  #dashboard-view #table-pagination .btn {
+    min-height: 32px;
+    min-width: 32px;
+    padding: 0 10px;
+    border-radius: 999px;
+  }
+
+  #dashboard-view #table-page-info {
+    min-width: 56px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(17, 43, 81, 0.72);
+  }
+}
