@@ -14090,14 +14090,14 @@ body.app-page-bg .topbar .nav-link.active {
   }
 
   #dashboard-view .kpi-card {
-    min-height: 58px;
-    padding: 5px 4px 6px;
+    min-height: 56px;
+    padding: 6px 3px;
     border-radius: 10px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: 4px;
     text-align: center;
   }
 
@@ -14108,23 +14108,26 @@ body.app-page-bg .topbar .nav-link.active {
   }
 
   #dashboard-view .kpi-meta {
-    display: flex;
-    flex-direction: column;
+    display: inline-flex;
+    flex-direction: row;
     align-items: center;
     justify-content: center;
-    gap: 2px;
+    gap: 4px;
     min-width: 0;
-    width: 100%;
+    width: auto;
+    max-width: 100%;
   }
 
   #dashboard-view .kpi-label {
-    font-size: 8.4px;
+    font-size: 7.6px;
     line-height: 1.15;
     letter-spacing: 0;
-    white-space: normal;
+    white-space: nowrap;
     overflow: visible;
     text-overflow: clip;
     margin: 0;
+    max-width: 100%;
+    flex: 0 1 auto;
   }
 
   #dashboard-view .kpi-label::after {
@@ -14132,13 +14135,20 @@ body.app-page-bg .topbar .nav-link.active {
   }
 
   #dashboard-view .kpi-dot {
-    width: 6px;
-    height: 6px;
-    flex: 0 0 auto;
+    display: none;
   }
 
   #dashboard-view .kpi-icon {
-    display: none;
+    display: inline-flex;
+    width: 12px;
+    height: 12px;
+    border-radius: 4px;
+    background: transparent;
+  }
+
+  #dashboard-view .kpi-icon svg {
+    width: 11px;
+    height: 11px;
   }
 
   #dashboard-view .kpi-new-tag {
@@ -14151,7 +14161,7 @@ body.app-page-bg .topbar .nav-link.active {
   }
 
   #dashboard-view .kpi-value {
-    font-size: 16px;
+    font-size: 15px;
     line-height: 1;
     margin: 0;
   }
@@ -14163,7 +14173,7 @@ body.app-page-bg .topbar .nav-link.active {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: 2px;
     flex-wrap: wrap;
   }
 

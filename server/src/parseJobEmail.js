@@ -51,8 +51,30 @@ function parseGeneric({ subject, text }) {
   const candidates = { company: [], role: [] };
   let companyRaw;
   let roleRaw;
-  const isGenericCompanyPhrase = (value) =>
-    /^(?:our|the)\s+(?:team|company|organization)$/i.test(String(value || '').trim());
+  const isGenericCompanyPhrase = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (!normalized) {
+      return true;
+    }
+    if (/^(?:our|your|their|my|the|this|that|these|those|we|us|you|i)$/i.test(normalized)) {
+      return true;
+    }
+    if (
+      /^(?:our|the|your|their|my)\s+(?:team|company|organization|hiring team|recruiting team|talent acquisition team)$/i.test(
+        normalized
+      )
+    ) {
+      return true;
+    }
+    if (
+      /^(?:team|hiring team|recruiting team|talent acquisition team|human resources|hr|company|organization)$/i.test(
+        normalized
+      )
+    ) {
+      return true;
+    }
+    return false;
+  };
 
   const subj = String(subject || '');
   const body = String(text || '');
