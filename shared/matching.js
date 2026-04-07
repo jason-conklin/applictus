@@ -165,6 +165,10 @@ const WEBSITE_DOMAIN_DENY_BASES = new Set([
 ]);
 
 const ACRONYM_TOKENS = new Set(['ai', 'it', 'hr', 'qa', 'ml', 'ui', 'ux']);
+const ROLE_LIKE_KEYWORD_PATTERN =
+  /\b(intern|engineer|developer|analyst|manager|specialist|designer|scientist|associate|coordinator|architect|administrator|consultant|technician|officer|lead|director|representative|trader|trading|operations|marketing|sales|support|account(?:s|ing)?|finance|product|data)\b/i;
+const COMPANY_LIKE_SUFFIX_PATTERN =
+  /\b(inc|inc\.|llc|llc\.|ltd|ltd\.|corp|corp\.|corporation|co|co\.|company|group|systems?|solutions?|technologies?|ventures|labs?|partners|holdings|bank|insurance|capital|pharma|biotech|university|hospital)\b/i;
 
 const ROLE_COMPANY_PATTERNS = [
   {
@@ -264,6 +268,12 @@ const BODY_COMPANY_PATTERNS = [
     name: 'body_employment_opportunities_with',
     regex: /(?:inquiring about|interest in)\s+employment opportunities with\s+([A-Z][A-Za-z0-9&/'\- ]{2,80}?)(?=[.,\n]|$)/i,
     confidence: 0.9
+  },
+  {
+    name: 'body_joining_company_team',
+    regex:
+      /\bjoining\s+(?:the\s+)?([A-Z][A-Za-z0-9&/'\- ]{2,80}?)\s+(?:team|hiring team|recruiting team|talent acquisition team)\b/i,
+    confidence: 0.94
   }
 ];
 
@@ -343,7 +353,7 @@ const COMPANY_ONLY_PATTERNS = [
   },
   {
     name: 'subject_company_dash_role',
-    regex: /^([A-Z][A-Za-z0-9&.'\- ]{2,80})\s+[-–—]\s+[A-Z][A-Za-z0-9/&.'\- ]{2,80}$/i,
+    regex: /^([A-Z][A-Za-z0-9&.'\- ]{2,80})\s+[-–—]\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})$/i,
     confidence: 0.93
   }
 ];
@@ -1104,6 +1114,10 @@ function cleanCompanyCandidate(value) {
       /\s+(?:careers|jobs|recruiting|recruiting team|hiring|hiring team|talent acquisition|talent acquisition team|talent team|hr|human resources|human resources team|applications?)$/i,
       ''
     )
+    .replace(
+      /^(?:the\s+)?(.+?)\s+(?:team|hiring team|recruiting team|talent acquisition team|human resources team)$/i,
+      '$1'
+    )
     .replace(/^(?:no[-\s]?reply|noreply|do not reply)\b[: ]*/i, '')
     .replace(/[,:;|]+$/g, '')
     .trim();
@@ -1161,6 +1175,48 @@ function cleanCompanyCandidate(value) {
     return null;
   }
   return normalizedCompany || null;
+}
+
+function looksCompanyLikeEntity(value) {
+  const text = normalize(value);
+  if (!text) {
+    return false;
+  }
+  if (COMPANY_LIKE_SUFFIX_PATTERN.test(text)) {
+    return true;
+  }
+  if (/\bteam\b/i.test(text) && !ROLE_LIKE_KEYWORD_PATTERN.test(text)) {
+    return true;
+  }
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length >= 2 && words.length <= 4) {
+    const titleCasePhrase = words.every((word) => /^[A-Z][A-Za-z0-9&.'-]*$/.test(word));
+    if (titleCasePhrase && !ROLE_LIKE_KEYWORD_PATTERN.test(text)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function looksRoleLikeEntity(value) {
+  const text = normalize(value);
+  if (!text) {
+    return false;
+  }
+  if (isGenericRole(text)) {
+    return false;
+  }
+  if (ROLE_LIKE_KEYWORD_PATTERN.test(text)) {
+    return true;
+  }
+  if (/\//.test(text)) {
+    return true;
+  }
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length >= 3 && !looksCompanyLikeEntity(text)) {
+    return true;
+  }
+  return false;
 }
 
 function stripSignatureNoise(line) {
@@ -1739,6 +1795,31 @@ function extractCompanyRole(text) {
     if (!match) {
       continue;
     }
+    if (rule.name === 'company_dash_role') {
+      const leftRaw = normalize(match[1]);
+      const rightRaw = normalize(match[2]);
+      if (
+        rightRaw &&
+        looksCompanyLikeEntity(rightRaw) &&
+        leftRaw &&
+        looksRoleLikeEntity(leftRaw)
+      ) {
+        const swappedCompany = cleanCompanyCandidate(rightRaw);
+        const swappedRole = cleanRoleEntity(leftRaw);
+        if (swappedCompany) {
+          return {
+            companyName: swappedCompany,
+            jobTitle: swappedRole,
+            companyConfidence: rule.confidence,
+            roleConfidence: swappedRole ? rule.confidence : 0,
+            explanation: `Matched ${rule.name} pattern with role-company orientation.`
+          };
+        }
+      }
+      if (!rightRaw || !looksRoleLikeEntity(rightRaw)) {
+        continue;
+      }
+    }
     const role =
       typeof rule.roleIndex === 'number' && rule.roleIndex >= 0
         ? cleanRoleEntity(match[rule.roleIndex])
@@ -1764,6 +1845,23 @@ function extractCompanyFromSubject(subject) {
     const match = text.match(rule.regex);
     if (!match) {
       continue;
+    }
+    if (rule.name === 'subject_company_dash_role') {
+      const leftRaw = normalize(match[1]);
+      const rightRaw = normalize(match[2]);
+      if (rightRaw && looksCompanyLikeEntity(rightRaw) && leftRaw && looksRoleLikeEntity(leftRaw)) {
+        const swappedCompany = cleanCompanyCandidate(rightRaw);
+        if (swappedCompany) {
+          return {
+            companyName: swappedCompany,
+            companyConfidence: rule.confidence,
+            explanation: `Matched ${rule.name} pattern with role-company orientation.`
+          };
+        }
+      }
+      if (!rightRaw || !looksRoleLikeEntity(rightRaw)) {
+        continue;
+      }
     }
     const company = cleanCompanyCandidate(match[1]);
     if (!company) {
@@ -2890,9 +2988,6 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
   let roleConfidence = jobTitle ? roleMatch.roleConfidence : null;
   const domainResult = domainConfidence(companyName, senderDomain);
   const baseConfidence = Math.min(companyConfidence || 0, domainResult.score || 0);
-  const matchConfidence = jobTitle
-    ? Math.min(baseConfidence, roleConfidence || 0)
-    : baseConfidence;
   const explanationParts = [];
   if (companyMatch?.explanation) {
     explanationParts.push(companyMatch.explanation);
@@ -2904,7 +2999,17 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
     explanationParts.push('ATS domain detected.');
   }
 
-  if (!jobTitle && companyName) {
+  const roleLooksSwappedWithCompany =
+    Boolean(jobTitle && companyName && normalizeJobIdentity(jobTitle) === normalizeJobIdentity(companyName));
+  const roleLooksCompanyLikeFromDash =
+    Boolean(
+      jobTitle &&
+        roleMatch.explanation &&
+        roleMatch.explanation.includes('company_dash_role') &&
+        looksCompanyLikeEntity(jobTitle) &&
+        !looksRoleLikeEntity(jobTitle)
+    );
+  if ((!jobTitle || roleLooksSwappedWithCompany || roleLooksCompanyLikeFromDash) && companyName) {
     const roleOnly = extractJobTitle({
       subject: subjectText,
       snippet: snippetTextFiltered || snippetText,
@@ -2919,8 +3024,15 @@ function extractThreadIdentity({ subject, sender, snippet, bodyText }) {
       if (roleOnly.explanation) {
         explanationParts.push(roleOnly.explanation);
       }
+    } else if (roleLooksSwappedWithCompany || roleLooksCompanyLikeFromDash) {
+      jobTitle = null;
+      roleConfidence = null;
+      explanationParts.push('Discarded ambiguous role candidate from company-like phrase.');
     }
   }
+  const matchConfidence = jobTitle
+    ? Math.min(baseConfidence, roleConfidence || 0)
+    : baseConfidence;
 
   return {
     companyName,

@@ -111,6 +111,39 @@ function parseGeneric({ subject, text }) {
     }
   }
 
+  if (!companyRaw || !roleRaw) {
+    const subjectRoleCompanyDash = subj.match(
+      /^([A-Z][A-Za-z0-9/&.' -]{2,120})\s+[-–—]\s+([A-Z][A-Za-z0-9&.' -]{1,80})$/i
+    );
+    const bodyRoleAnchor = body.match(/thank you for applying to\s+(?:the\s+)?(.+?)\s+(?:role|position)\b/i);
+    const bodyCompanyAnchor = body.match(
+      /\b(?:joining|join)\s+(?:the\s+)?([A-Z][A-Za-z0-9&.' -]{1,80}?)\s+(?:team|hiring team|recruiting team)\b/i
+    );
+    if (subjectRoleCompanyDash && bodyRoleAnchor && bodyRoleAnchor[1] && bodyCompanyAnchor && bodyCompanyAnchor[1]) {
+      const subjectRoleCandidate = subjectRoleCompanyDash[1].trim();
+      const subjectCompanyCandidate = subjectRoleCompanyDash[2].trim();
+      const anchoredRoleCandidate = bodyRoleAnchor[1].trim().replace(/[.!,;:]+$/g, '');
+      const anchoredCompanyCandidate = bodyCompanyAnchor[1].trim().replace(/[.!,;:]+$/g, '');
+      if (
+        anchoredRoleCandidate &&
+        anchoredCompanyCandidate &&
+        anchoredRoleCandidate.toLowerCase() === subjectRoleCandidate.toLowerCase() &&
+        anchoredCompanyCandidate.toLowerCase() === subjectCompanyCandidate.toLowerCase()
+      ) {
+        if (!roleRaw) {
+          roleRaw = anchoredRoleCandidate;
+          candidates.role.push(roleRaw);
+          notes.push('role_phrase:subject_role_company_dash_with_body_anchor');
+        }
+        if (!companyRaw) {
+          companyRaw = anchoredCompanyCandidate;
+          candidates.company.push(companyRaw);
+          notes.push('company_phrase:subject_role_company_dash_with_body_anchor');
+        }
+      }
+    }
+  }
+
   if (!roleRaw) {
     const idLineRoleMatch = body.match(
       /\bID[:#]?\s*[A-Z0-9-]{3,}\s*[-–—]\s*([^\n\r]+?)(?=\s*(?:\r?\n|$))/i
@@ -134,6 +167,15 @@ function parseGeneric({ subject, text }) {
   }
 
   if (!roleRaw) {
+    const thankYouRoleBodyMatch = body.match(/thank you for applying to\s+(?:the\s+)?(.+?)\s+(?:role|position)\b/i);
+    if (thankYouRoleBodyMatch && thankYouRoleBodyMatch[1]) {
+      roleRaw = thankYouRoleBodyMatch[1].trim().replace(/[.!,;:]+$/g, '');
+      candidates.role.push(roleRaw);
+      notes.push('role_phrase:body_thank_you_for_applying_to_role');
+    }
+  }
+
+  if (!roleRaw) {
     const roleOfMatch = body.match(/(?:thank you for applying for the role of|role of)\s+(.+?)(?:[\n.]|$)/i);
     if (roleOfMatch && roleOfMatch[1]) {
       roleRaw = roleOfMatch[1].trim();
@@ -153,7 +195,9 @@ function parseGeneric({ subject, text }) {
   }
 
   if (!companyRaw) {
-    const applyingTo = body.match(/(?:position\s+to|joining)\s+([A-Z][A-Za-z0-9&.' -]{1,80})(?:[\n.]|$)/i);
+    const applyingTo = body.match(
+      /(?:position\s+to|joining)\s+(?:the\s+)?([A-Z][A-Za-z0-9&.' -]{1,80}?)(?:\s+(?:team|hiring team|recruiting team))?(?:[\n.]|$)/i
+    );
     if (applyingTo && applyingTo[1]) {
       const candidate = applyingTo[1].trim();
       if (!isGenericCompanyPhrase(candidate)) {

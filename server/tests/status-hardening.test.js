@@ -127,3 +127,21 @@ test('jobvite-style receipt keeps employer company and never stores "The" from t
   assert.equal(parsed.role, 'Field System Engineer - NJ');
   assert.notEqual(String(parsed.company || '').toLowerCase(), 'the');
 });
+
+test('generic ATS confirmation resolves role-company dash subject with team-phrase company', async () => {
+  const parsed = await parseJobEmail({
+    fromEmail: 'notifications@careers.example.com',
+    fromDomain: 'careers.example.com',
+    subject: 'Quantitative Trading and Operations - Viewline Ventures',
+    text: [
+      'Thank you for applying to the Quantitative Trading and Operations role.',
+      'We appreciate your interest in joining the Viewline Ventures team.',
+      'Our hiring team has received your application and will be in touch soon.'
+    ].join('\n')
+  });
+
+  assert.equal(parsed.providerId, 'generic');
+  assert.equal(parsed.status, 'applied');
+  assert.equal(parsed.company, 'Viewline Ventures');
+  assert.equal(parsed.role, 'Quantitative Trading and Operations');
+});

@@ -348,6 +348,23 @@ test('extractThreadIdentity handles applytojob subject company-role pattern', ()
   assert.equal(identity.jobTitle, 'Social Media Manager');
 });
 
+test('extractThreadIdentity resolves role-company dash subjects with body anchors without swapping entities', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Quantitative Trading and Operations - Viewline Ventures',
+    sender: 'Viewline Ventures <no-reply@smartrecruitersmail.com>',
+    bodyText: [
+      'Thank you for applying to the Quantitative Trading and Operations role.',
+      'We appreciate your interest in joining the Viewline Ventures team.',
+      'Our hiring team has received your application and will be in touch.'
+    ].join('\n')
+  });
+
+  assert.equal(identity.companyName, 'Viewline Ventures');
+  assert.equal(identity.jobTitle, 'Quantitative Trading and Operations');
+  assert.notEqual(identity.companyName, 'the Viewline Ventures team');
+  assert.notEqual(identity.jobTitle, 'Viewline Ventures');
+});
+
 test('extractThreadIdentity prefers signature company over generic sender', () => {
   const body = `
 Thank you for applying to the 2026 Technology Early Career Development Program - Full Stack Development.
