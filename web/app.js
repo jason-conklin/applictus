@@ -8543,9 +8543,6 @@ function renderApplicationsTable(applications) {
         const statusPill = renderStatusPill(statusValue);
         const activityMeta = formatActivityRecency(getActivityDate(app));
         const activity = activityMeta.label;
-        const suggestionLabel = app.suggested_status
-          ? STATUS_LABELS[app.suggested_status] || app.suggested_status
-          : null;
         const isSelected = state.table.selectedIds.has(app.id);
         const statusBandTone = getStatusBandTone(statusValue);
         const rowId = String(app.id);
@@ -8558,31 +8555,29 @@ function renderApplicationsTable(applications) {
         const roleText = app.job_title || '—';
         const companyText = app.company_name || '—';
         return `
-          <div class="table-row application-row application-mobile-card${isSelected ? ' table-row-selected' : ''}${isOffer ? ' is-offer' : ''}${isInterviewRequested ? ' is-interview' : ''}${isPriority ? ' is-priority' : ''}${isOffer ? ' is-priority-offer' : ''}${isInterviewRequested ? ' is-priority-interview' : ''}${isNewSignal ? ' is-new-signal' : ''}${isRecentUpdate ? ' is-recent-update' : ''}" style="--stagger: ${index}" data-id="${app.id}" data-status-tone="${statusBandTone}">
-            <div class="status-band" aria-hidden="true"></div>
-            <div class="application-mobile-card__top">
-              <div class="cell-company table-col-company"><strong>${escapeHtml(companyText)}</strong></div>
-              <div class="table-col-status status-col application-mobile-card__status">
+          <article class="app-card${isSelected ? ' is-selected' : ''}${isOffer ? ' is-offer' : ''}${isInterviewRequested ? ' is-interview' : ''}${isPriority ? ' is-priority' : ''}${isOffer ? ' is-priority-offer' : ''}${isInterviewRequested ? ' is-priority-interview' : ''}${isNewSignal ? ' is-new-signal' : ''}${isRecentUpdate ? ' is-recent-update' : ''}" style="--stagger: ${index}" data-id="${app.id}" data-status-tone="${statusBandTone}">
+            <div class="app-card__top">
+              <div class="app-card__company" title="${escapeHtml(companyText)}"><strong>${escapeHtml(companyText)}</strong></div>
+              <div class="app-card__status">
                 ${statusPill}
-                ${suggestionLabel ? `<div class="explanation">Suggestion: ${escapeHtml(suggestionLabel)}</div>` : ''}
               </div>
             </div>
-            <div class="cell-role table-col-role application-mobile-card__role" title="${escapeHtml(roleText)}">${escapeHtml(roleText)}</div>
-            <div class="application-mobile-card__meta">
-              <div class="table-col-activity activity-cell application-mobile-card__activity${isRecentUpdate ? ' activity-cell--recent' : ''}" title="${escapeHtml(activityMeta.title)}">
-                <span class="application-mobile-card__activity-label">Last activity</span>
-                <span class="application-mobile-card__activity-value">${escapeHtml(activity)}</span>
+            <div class="app-card__role" title="${escapeHtml(roleText)}">${escapeHtml(roleText)}</div>
+            <div class="app-card__bottom">
+              <div class="app-card__activity${isRecentUpdate ? ' is-recent' : ''}" title="${escapeHtml(activityMeta.title)}">
+                <span class="app-card__activity-label">Last activity</span>
+                <span class="app-card__activity-value">${escapeHtml(activity)}</span>
               </div>
-              <div class="table-select-cell table-col-select">
-                <label class="table-select-control" aria-label="Select application">
-                  <input class="table-select-input table-row-select" type="checkbox" data-id="${app.id}" ${
+              <div class="app-card__select">
+                <label class="app-card__select-wrap" aria-label="Select application">
+                  <input class="app-card__select-input" type="checkbox" data-id="${app.id}" ${
                     isSelected ? 'checked' : ''
                   } />
-                  <span class="table-select-mark" aria-hidden="true"></span>
+                  <span class="app-card__select-mark" aria-hidden="true"></span>
                 </label>
               </div>
             </div>
-          </div>
+          </article>
         `;
       })
       .join('');
@@ -10527,10 +10522,10 @@ applicationsTable?.addEventListener('click', (event) => {
     }
     return;
   }
-  if (event.target.closest('.table-select-control')) {
+  if (event.target.closest('.table-select-control') || event.target.closest('.app-card__select-wrap')) {
     return;
   }
-  const row = event.target.closest('.table-row');
+  const row = event.target.closest('.table-row, .app-card');
   if (!row) {
     return;
   }
@@ -10551,7 +10546,7 @@ applicationsTable?.addEventListener('change', (event) => {
     return;
   }
 
-  const rowSelect = event.target.closest('.table-row-select');
+  const rowSelect = event.target.closest('.table-row-select, .app-card__select-input');
   if (!rowSelect) {
     return;
   }
