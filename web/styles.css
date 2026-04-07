@@ -4054,6 +4054,11 @@ textarea:focus-visible {
   max-width: 228px;
 }
 
+#dashboard-view #filters-inline .filter-field--search {
+  flex: 1 1 520px;
+  max-width: none;
+}
+
 #dashboard-view #filters-inline .filter-field--company {
   flex: 1 1 300px;
   max-width: 380px;
@@ -13011,6 +13016,11 @@ body.app-page-bg .topbar .nav-link.active {
   max-width: 430px;
 }
 
+#dashboard-view #filters-inline .filter-field--search {
+  flex: 1 1 560px;
+  max-width: none;
+}
+
 #archive-view #archived-filters-inline .filter-field--company {
   flex: 1 1 360px;
   max-width: 430px;
@@ -14074,40 +14084,57 @@ body.app-page-bg .topbar .nav-link.active {
   #dashboard-view .kpi-row {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-    gap: 6px;
+    gap: 5px;
     overflow: hidden;
     padding-bottom: 0;
   }
 
   #dashboard-view .kpi-card {
-    min-height: 54px;
-    padding: 6px 6px;
+    min-height: 58px;
+    padding: 5px 4px 6px;
     border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    text-align: center;
   }
 
   #dashboard-view .kpi-card::before {
-    left: 7px;
-    right: 7px;
+    left: 6px;
+    right: 6px;
     height: 1px;
   }
 
   #dashboard-view .kpi-meta {
-    gap: 4px;
+    display: flex;
+    flex-direction: column;
     align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    width: 100%;
   }
 
   #dashboard-view .kpi-label {
-    font-size: 8.7px;
+    font-size: 8.4px;
     line-height: 1.15;
     letter-spacing: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    margin: 0;
+  }
+
+  #dashboard-view .kpi-label::after {
+    content: '';
   }
 
   #dashboard-view .kpi-dot {
     width: 6px;
     height: 6px;
+    flex: 0 0 auto;
   }
 
   #dashboard-view .kpi-icon {
@@ -14124,22 +14151,26 @@ body.app-page-bg .topbar .nav-link.active {
   }
 
   #dashboard-view .kpi-value {
-    font-size: 18px;
+    font-size: 16px;
     line-height: 1;
-    margin-left: 0;
-    margin-top: 4px;
+    margin: 0;
   }
 
   #dashboard-view .kpi-value-wrap {
-    min-height: 18px;
-    margin-left: 0;
-    justify-content: flex-start;
-    gap: 4px;
+    width: 100%;
+    min-height: 0;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    flex-wrap: wrap;
   }
 
   #dashboard-view .kpi-delta {
-    padding: 1px 5px;
-    font-size: 8px;
+    padding: 1px 4px;
+    font-size: 7.5px;
+    transform: none;
   }
 
   #dashboard-view #dashboard-applications-card {

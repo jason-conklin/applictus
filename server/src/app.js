@@ -1860,6 +1860,7 @@ function parseListQuery(query) {
   const limit = clampNumber(Number(query.limit) || 25, 1, 100);
   const offset = Math.max(Number(query.offset) || 0, 0);
   const status = query.status && VALID_STATUSES.has(query.status) ? query.status : null;
+  const search = query.search ? String(query.search).trim() : null;
   const company = query.company ? String(query.company).trim() : null;
   const role = query.role ? String(query.role).trim() : null;
   const recencyDays = Number(query.recency_days);
@@ -1874,6 +1875,7 @@ function parseListQuery(query) {
     limit,
     offset,
     status,
+    search,
     company,
     role,
     recencyDays: Number.isFinite(recencyDays) && recencyDays > 0 ? recencyDays : null,
@@ -1907,7 +1909,17 @@ function sqlInPlaceholders(count) {
   return new Array(Math.max(0, count)).fill('?').join(', ');
 }
 
-function buildApplicationFilters({ userId, archived, status, company, role, recencyDays, minConfidence, suggestionsOnly }) {
+function buildApplicationFilters({
+  userId,
+  archived,
+  status,
+  search,
+  company,
+  role,
+  recencyDays,
+  minConfidence,
+  suggestionsOnly
+}) {
   const clauses = ['user_id = ?'];
   const params = [userId];
 
@@ -1919,6 +1931,11 @@ function buildApplicationFilters({ userId, archived, status, company, role, rece
   if (status) {
     clauses.push('current_status = ?');
     params.push(status);
+  }
+  if (search) {
+    clauses.push('(LOWER(company_name) LIKE ? OR LOWER(job_title) LIKE ? OR LOWER(role) LIKE ?)');
+    const term = `%${search.toLowerCase()}%`;
+    params.push(term, term, term);
   }
   if (company) {
     clauses.push('LOWER(company_name) LIKE ?');
@@ -2380,7 +2397,15 @@ app.post('/api/auth/login', authIpLimiter, authEmailLimiter, async (req, res) =>
     }
 
     const user = await getUserByEmail(email);
-    if (!user || !user.password_hash) {
+    if (!user) {
+      return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
+    }
+    if (!user.password_hash && user.auth_provider === 'google') {
+      return res
+        .status(400)
+        .json({ error: "This account was created with Google. Use 'Continue with Google' or set a password." });
+    }
+    if (!user.password_hash) {
       return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
     }
     if (!verifyPassword(password, user.password_hash)) {

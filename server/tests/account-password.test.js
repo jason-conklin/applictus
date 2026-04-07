@@ -139,3 +139,43 @@ test('google-only account can set password without current password', async (t) 
   assert.equal(updated.auth_provider, 'password+google');
 });
 
+test('login returns a helpful message for google-only accounts without a password', async (t) => {
+  const server = await startServer(0, { log: false, host: '127.0.0.1' });
+  t.after(async () => {
+    await stopServer();
+  });
+
+  const address = server.address();
+  const baseUrl = `http://localhost:${address.port}`;
+  const request = await createClient(baseUrl);
+
+  const email = `google-login-${crypto.randomUUID()}@example.com`;
+  const password = 'TemporaryPassword123!';
+
+  const signup = await request('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({ email, password })
+  });
+  assert.equal(signup.status, 200);
+  const userId = signup.body.user.id;
+
+  db.prepare("UPDATE users SET password_hash = NULL, auth_provider = 'google' WHERE id = ?").run(userId);
+
+  const fresh = await createClient(baseUrl);
+  const googleOnlyLogin = await fresh('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password: 'AnyPassword123!' })
+  });
+  assert.equal(googleOnlyLogin.status, 400);
+  assert.equal(
+    googleOnlyLogin.body.error,
+    "This account was created with Google. Use 'Continue with Google' or set a password."
+  );
+
+  const missingUserLogin = await fresh('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: `missing-${crypto.randomUUID()}@example.com`, password: 'AnyPassword123!' })
+  });
+  assert.equal(missingUserLogin.status, 401);
+  assert.equal(missingUserLogin.body.error, 'INVALID_CREDENTIALS');
+});

@@ -538,10 +538,8 @@ const filterStatusTrigger = document.getElementById('filter-status-trigger');
 const filterStatusMenu = document.getElementById('filter-status-menu');
 const filterStatusLabel = document.getElementById('filter-status-label');
 const filterStatusDot = document.getElementById('filter-status-dot');
-const filterCompany = document.getElementById('filter-company');
-const filterCompanyClear = document.getElementById('filter-company-clear');
-const filterRole = document.getElementById('filter-role');
-const filterRoleClear = document.getElementById('filter-role-clear');
+const filterSearch = document.getElementById('filter-search');
+const filterSearchClear = document.getElementById('filter-search-clear');
 const archivedFilterStatus = document.getElementById('archived-filter-status');
 const archivedFilterStatusSelect = document.getElementById('archived-filter-status-select');
 const archivedFilterStatusTrigger = document.getElementById('archived-filter-status-trigger');
@@ -839,8 +837,7 @@ function setSyncSummaryMainInteractive(isInteractive) {
 const state = {
   filters: {
     status: '',
-    company: '',
-    role: ''
+    search: ''
   },
   sort: {
     key: 'lastActivity',
@@ -3337,6 +3334,9 @@ function formatAuthProvider(value) {
 }
 
 function authErrorMessage(code) {
+  if (typeof code === 'string' && code && !/^[A-Z0-9_]+$/.test(code)) {
+    return code;
+  }
   const messages = {
     EMAIL_REQUIRED: 'Enter an email address.',
     PASSWORD_REQUIRED: 'Enter your password.',
@@ -3611,6 +3611,7 @@ function buildListParams(overrides = {}) {
   const params = new URLSearchParams();
   const filters = state.filters;
   const status = overrides.status ?? filters.status;
+  const search = overrides.search ?? filters.search;
   const company = overrides.company ?? filters.company;
   const role = overrides.role ?? filters.role;
   const sortBy = 'last_activity_at';
@@ -3618,6 +3619,9 @@ function buildListParams(overrides = {}) {
 
   if (status) {
     params.set('status', status);
+  }
+  if (search) {
+    params.set('search', search);
   }
   if (company) {
     params.set('company', company);
@@ -3658,11 +3662,8 @@ function getActiveFilters() {
   if (filters.status) {
     active.push(`Status: ${STATUS_LABELS[filters.status] || filters.status}`);
   }
-  if (filters.company) {
-    active.push(`Company: ${filters.company}`);
-  }
-  if (filters.role) {
-    active.push(`Role: ${filters.role}`);
+  if (filters.search) {
+    active.push(`Search: ${filters.search}`);
   }
 
   return active;
@@ -5515,6 +5516,7 @@ async function refreshArchivedApplications() {
   const fetchPage = async (offset) => {
     const params = buildListParams({
       status: state.archived.filters.status,
+      search: '',
       company: state.archived.filters.company,
       role: state.archived.filters.role
     });
@@ -10156,8 +10158,7 @@ dashboardView?.addEventListener('click', async (event) => {
   }
 });
 
-let filterCompanyTimer = null;
-let filterRoleTimer = null;
+let filterSearchTimer = null;
 let archivedFilterCompanyTimer = null;
 let archivedFilterRoleTimer = null;
 const applyFilters = async () => {
@@ -10277,41 +10278,22 @@ filterStatus?.addEventListener('change', async () => {
 syncStatusFilterMenuUi();
 bindDashboardKpiFilterCards();
 
-filterCompany?.addEventListener('input', () => {
-  if (filterCompanyClear) {
-    filterCompanyClear.classList.toggle('hidden', !filterCompany.value);
+filterSearch?.addEventListener('input', () => {
+  if (filterSearchClear) {
+    filterSearchClear.classList.toggle('hidden', !filterSearch.value);
   }
-  clearTimeout(filterCompanyTimer);
-  filterCompanyTimer = setTimeout(async () => {
-    state.filters.company = filterCompany.value.trim();
+  clearTimeout(filterSearchTimer);
+  filterSearchTimer = setTimeout(async () => {
+    state.filters.search = filterSearch.value.trim();
     await applyFilters();
   }, 180);
 });
 
-filterCompanyClear?.addEventListener('click', async () => {
-  if (!filterCompany) return;
-  filterCompany.value = '';
-  filterCompanyClear.classList.add('hidden');
-  state.filters.company = '';
-  await applyFilters();
-});
-
-filterRole?.addEventListener('input', () => {
-  if (filterRoleClear) {
-    filterRoleClear.classList.toggle('hidden', !filterRole.value);
-  }
-  clearTimeout(filterRoleTimer);
-  filterRoleTimer = setTimeout(async () => {
-    state.filters.role = filterRole.value.trim();
-    await applyFilters();
-  }, 180);
-});
-
-filterRoleClear?.addEventListener('click', async () => {
-  if (!filterRole) return;
-  filterRole.value = '';
-  filterRoleClear.classList.add('hidden');
-  state.filters.role = '';
+filterSearchClear?.addEventListener('click', async () => {
+  if (!filterSearch) return;
+  filterSearch.value = '';
+  filterSearchClear.classList.add('hidden');
+  state.filters.search = '';
   await applyFilters();
 });
 
