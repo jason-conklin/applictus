@@ -6766,7 +6766,7 @@ function buildGmailFilterHelpContent({
 
   const presetDescriptionLabel = document.createElement('div');
   presetDescriptionLabel.className = 'forwarding-filter-preset-description-label muted small';
-  presetDescriptionLabel.textContent = 'Selected preset';
+  presetDescriptionLabel.textContent = 'Select a filter';
 
   const presetDescription = document.createElement('p');
   presetDescription.className = 'forwarding-filter-preset-description muted small';
