@@ -4714,6 +4714,39 @@ function renderDashboardPlanUsageTrigger(trigger) {
   }
 }
 
+function renderAccountPlanName(label, iconVariant = 'free') {
+  if (!accountPlanName) {
+    return;
+  }
+  const safeLabel = String(label || '').trim() || 'Free';
+  const icon = createPricingPlanIcon(iconVariant);
+  icon.classList.add('plan-logo-badge--inline');
+
+  const text = document.createElement('span');
+  text.className = 'account-plan-name-text';
+  text.textContent = safeLabel;
+
+  const content = document.createElement('span');
+  content.className = 'account-plan-name-content';
+  content.append(icon, text);
+
+  accountPlanName.replaceChildren(content);
+  accountPlanName.setAttribute('aria-label', `Current plan: ${safeLabel}`);
+}
+
+function resolveAccountPlanDisplay({ tier, billingPlan, hasActiveJobSearchPlan }) {
+  if (tier === 'pro' && hasActiveJobSearchPlan) {
+    return { label: 'Job Search Plan', iconVariant: 'jobsearch' };
+  }
+  if (tier === 'pro' && billingPlan === 'pro_monthly') {
+    return { label: 'Pro (monthly)', iconVariant: 'pro' };
+  }
+  if (tier === 'pro') {
+    return { label: 'Pro', iconVariant: 'pro' };
+  }
+  return { label: 'Free', iconVariant: 'free' };
+}
+
 function renderPlanUsage(user = sessionUser) {
   const planUsage = getPlanUsageSnapshot(user);
   const trigger = getPlanUsageTrigger(planUsage);
@@ -4723,7 +4756,7 @@ function renderPlanUsage(user = sessionUser) {
     return;
   }
   if (!user) {
-    accountPlanName.textContent = 'Free';
+    renderAccountPlanName('Free', 'free');
     accountPlanUsage.textContent = '—';
     accountPlanProgress.style.width = '0%';
     renderPlanProgressMarker(0, 1);
@@ -4745,13 +4778,8 @@ function renderPlanUsage(user = sessionUser) {
     new Date(planExpiresAt).getTime() > Date.now();
   const limit = planUsage?.limit || getPlanLimitForUser(source);
   const usage = planUsage?.usage ?? Number(source.tracked_email_count_current_month || source.plan_usage || 0);
-  if (tier === 'pro' && hasActiveJobSearchPlan) {
-    accountPlanName.textContent = 'Job Search Plan';
-  } else if (tier === 'pro' && billingPlan === 'pro_monthly') {
-    accountPlanName.textContent = 'Pro (monthly)';
-  } else {
-    accountPlanName.textContent = tier === 'pro' ? 'Pro' : 'Free';
-  }
+  const planDisplay = resolveAccountPlanDisplay({ tier, billingPlan, hasActiveJobSearchPlan });
+  renderAccountPlanName(planDisplay.label, planDisplay.iconVariant);
   accountPlanUsage.textContent = `${usage} / ${limit} tracked emails this month`;
   const ratio = limit > 0 ? Math.min(1, usage / limit) : 0;
   accountPlanProgress.style.width = `${Math.round(ratio * 100)}%`;
