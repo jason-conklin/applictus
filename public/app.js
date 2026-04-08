@@ -5311,7 +5311,7 @@ function openPricingModal() {
   body.appendChild(trustRow);
 
   openModal({
-    title: 'Organize your job search and never miss an interview or opportunity',
+    title: 'Organize your job search and never miss an opportunity',
     description: 'Choose the plan that gives you the right level of tracking support while you apply.',
     body,
     footer: null,
