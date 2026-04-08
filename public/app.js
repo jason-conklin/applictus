@@ -5203,7 +5203,7 @@ function openPricingModal() {
   container.className = 'plan-card-grid';
 
   const freeCard = buildPlanCard({
-    title: 'Free tier',
+    title: 'Free Tier',
     context: 'Best for occasional or light tracking',
     priceMain: '$0',
     priceTerm: '/ month',
@@ -5222,7 +5222,7 @@ function openPricingModal() {
     ctaClassName: 'btn btn--ghost btn--sm plan-cta plan-cta--free'
   });
   const proCard = buildPlanCard({
-    title: 'Pro tier',
+    title: 'Pro Tier',
     context: 'Best for an active ongoing search',
     priceMain: '$3.99',
     priceTerm: '/ month',
