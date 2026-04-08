@@ -600,13 +600,23 @@
         font-weight: 600;
         color: #2f527f;
       }
-      .pricing-trust {
+      .pricing-trust-row {
         margin-top: 8px;
         border-top: 1px solid rgba(30, 76, 147, 0.12);
         padding-top: 12px;
-        text-align: center;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        column-gap: 12px;
+      }
+      .pricing-trust {
+        margin: 0;
+        text-align: left;
         color: #4f678a;
         line-height: 1.5;
+      }
+      .pricing-trust-close {
+        white-space: nowrap;
       }
       .modal--pricing .modal-dialog {
         width: min(1120px, 96vw);
@@ -662,6 +672,12 @@
         }
         .pricing-billing-powered {
           gap: 6px;
+          font-size: 11.5px;
+        }
+        .pricing-trust-row {
+          column-gap: 10px;
+        }
+        .pricing-trust {
           font-size: 11.5px;
         }
       }

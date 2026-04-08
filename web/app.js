@@ -5284,24 +5284,26 @@ function openPricingModal() {
   billingPoweredText.appendChild(billingPoweredBrand);
   billingPowered.append(billingPoweredIcon, billingPoweredText);
   body.appendChild(billingPowered);
+
+  const trustRow = document.createElement('div');
+  trustRow.className = 'pricing-trust-row';
   const trust = document.createElement('div');
   trust.className = 'pricing-trust muted small';
   trust.textContent = 'Cancel anytime • No hidden fees • No commitment';
-  body.appendChild(trust);
-  const footer = document.createElement('div');
-  footer.className = 'modal-footer-actions';
+  trustRow.appendChild(trust);
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
-  closeBtn.className = 'btn btn--ghost btn--sm';
+  closeBtn.className = 'btn btn--ghost btn--sm pricing-trust-close';
   closeBtn.textContent = 'Close';
   closeBtn.addEventListener('click', () => closeModal('cancel'));
-  footer.appendChild(closeBtn);
+  trustRow.appendChild(closeBtn);
+  body.appendChild(trustRow);
 
   openModal({
     title: 'Organize your job search and never miss an interview or opportunity',
     description: 'Choose the plan that gives you the right level of tracking support while you apply.',
     body,
-    footer,
+    footer: null,
     allowBackdropClose: true,
     variantClass: 'modal--pricing'
   });
