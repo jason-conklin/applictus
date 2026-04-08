@@ -5009,6 +5009,26 @@ const SHARED_PRO_FEATURES = [
   'Built for active job seekers managing multiple applications'
 ];
 
+function createPricingPlanIcon(variant = 'free') {
+  const normalizedVariant = ['free', 'pro', 'jobsearch'].includes(String(variant || '').toLowerCase())
+    ? String(variant).toLowerCase()
+    : 'free';
+  const iconWrap = document.createElement('span');
+  iconWrap.className = `plan-logo-badge plan-logo-badge--${normalizedVariant}`;
+  iconWrap.setAttribute('aria-hidden', 'true');
+
+  const iconImg = document.createElement('img');
+  iconImg.className = 'plan-logo-badge__img';
+  iconImg.src = '/Applictus_logo.png';
+  iconImg.alt = '';
+  iconImg.loading = 'lazy';
+  iconImg.decoding = 'async';
+  iconImg.draggable = false;
+
+  iconWrap.appendChild(iconImg);
+  return iconWrap;
+}
+
 function buildPlanCard({
   title,
   context,
@@ -5026,6 +5046,7 @@ function buildPlanCard({
   cardClassName = '',
   badgeText = '',
   badgeVariant = '',
+  iconVariant = 'free',
   ctaClassName = 'btn btn--ghost btn--sm plan-cta plan-cta--free',
   onCtaClick = null
 }) {
@@ -5050,7 +5071,15 @@ function buildPlanCard({
   contextEl.className = 'plan-context muted small';
   contextEl.textContent = context;
 
-  top.append(h4, contextEl);
+  const titleMeta = document.createElement('div');
+  titleMeta.className = 'plan-title-meta';
+  titleMeta.append(h4, contextEl);
+
+  const titleRow = document.createElement('div');
+  titleRow.className = 'plan-title-row';
+  titleRow.append(createPricingPlanIcon(iconVariant), titleMeta);
+
+  top.append(titleRow);
 
   const priceEl = document.createElement('div');
   priceEl.className = 'plan-price';
@@ -5198,6 +5227,7 @@ function openPricingModal() {
     ],
     badgeText: 'Included',
     badgeVariant: 'included',
+    iconVariant: 'free',
     ctaText: 'Stay on Free',
     cardClassName: 'plan-card--free',
     ctaClassName: 'btn btn--ghost btn--sm plan-cta plan-cta--free'
@@ -5213,6 +5243,7 @@ function openPricingModal() {
     reinforcement: "Recommended if you're applying to multiple jobs each week",
     badgeText: 'Most popular',
     badgeVariant: 'popular',
+    iconVariant: 'pro',
     ctaText: 'Upgrade to Pro',
     ctaSubtext: 'Billed monthly • Cancel anytime',
     cardClassName: 'plan-card--pro',
@@ -5234,6 +5265,7 @@ function openPricingModal() {
     ],
     badgeText: 'Best for 2–3 month search',
     badgeVariant: 'commitment',
+    iconVariant: 'jobsearch',
     ctaText: 'Start Job Search Plan',
     ctaSubtext: 'One upfront payment for 3 months',
     cardClassName: 'plan-card--jobsearch',
