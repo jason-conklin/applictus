@@ -1855,7 +1855,7 @@ function updateDashboardPrimarySyncUI() {
     return;
   }
   if (isInternalGmailMode()) {
-    setDashboardScanButtonLabel(emailState.connected ? 'Sync inbox' : 'Connect Gmail');
+    setDashboardScanButtonLabel(emailState.connected ? 'Scan inbox' : 'Connect Gmail');
     emailSync.dataset.forwardingMode = 'gmail_internal';
     emailSync.disabled = false;
     emailSync.setAttribute('aria-busy', 'false');
@@ -1880,7 +1880,7 @@ function updateDashboardPrimarySyncUI() {
     return;
   }
   const active = isForwardingActive();
-  setDashboardScanButtonLabel(active ? 'Sync inbox' : 'Connect inbox');
+  setDashboardScanButtonLabel(active ? 'Scan inbox' : 'Connect inbox');
   emailSync.dataset.forwardingMode = active ? 'sync' : 'connect';
   emailSync.disabled = false;
   emailSync.setAttribute('aria-busy', 'false');
@@ -1963,7 +1963,7 @@ function updateInboundStatusPresentation() {
     renderAccountHelpProgressInternal();
     if (accountHelpNote) {
       accountHelpNote.textContent = connected
-        ? 'Run Sync inbox to pull updates and keep your timeline current.'
+        ? 'Run Scan inbox to pull updates and keep your timeline current.'
         : 'Connect Gmail, then run your first sync to start tracking.';
     }
     if (inboundHelpOpenSetup) {
@@ -2256,14 +2256,14 @@ function getDashboardEmptyStateHtml({ firstTime = false } = {}) {
     `;
   }
   return `
-    <div class="empty-state">
-      <h3>No applications yet</h3>
-      <p class="muted">Connect inbox forwarding to import applications automatically, or add one manually.</p>
-      <div class="empty-state-actions">
-        <button class="btn btn--primary btn--md" type="button" data-action="sync-inbox">Sync inbox</button>
+      <div class="empty-state">
+        <h3>No applications yet</h3>
+        <p class="muted">Connect inbox forwarding to import applications automatically, or add one manually.</p>
+        <div class="empty-state-actions">
+        <button class="btn btn--primary btn--md" type="button" data-action="sync-inbox">Scan inbox</button>
         <button class="btn btn--ghost btn--sm" type="button" data-action="add-application">Add application</button>
+        </div>
       </div>
-    </div>
   `;
 }
 
@@ -6995,7 +6995,7 @@ function buildInboundSetupSecondaryHelp() {
   secondary.appendChild(heading);
 
   const filterPanel = createForwardingCollapsible({
-    title: 'Optional: reduce inbox noise with a Gmail filter',
+    title: 'Optional: filter which emails Applictus tracks',
     open: false
   });
   filterPanel.body.appendChild(buildGmailFilterHelpContent());
@@ -7331,7 +7331,7 @@ async function rotateInboundAddressFlow() {
     detail.className = 'muted small';
     detail.textContent = 'The current address will stop being recommended for new forwarding setup.';
     body.append(intro, detail);
-    const footer = buildModalFooter({ confirmText: 'Rotate address', cancelText: 'Cancel' });
+    const footer = buildModalFooter({ confirmText: 'Change forwarding address', cancelText: 'Cancel' });
     const confirmBtn = footer.querySelector('[data-role="confirm"]');
     if (confirmBtn) {
       confirmBtn.classList.remove('btn--primary');
@@ -7339,7 +7339,7 @@ async function rotateInboundAddressFlow() {
       confirmBtn.addEventListener('click', () => closeModal('confirm'));
     }
     openModal({
-      title: 'Rotate forwarding address?',
+      title: 'Change forwarding address?',
       description: '',
       body,
       footer,
@@ -7362,9 +7362,9 @@ async function rotateInboundAddressFlow() {
   try {
     const data = await api('/api/inbound/address/rotate', { method: 'POST' });
     applyInboundStatusPayload(data || {});
-    showToast('Forwarding address rotated. Update your Gmail forwarding rule.', { tone: 'success' });
+    showToast('Forwarding address changed. Update your Gmail forwarding rule.', { tone: 'success' });
   } catch (err) {
-    showNotice(err.message || 'Unable to rotate address.', 'Rotate address');
+    showNotice(err.message || 'Unable to change forwarding address.', 'Change forwarding address');
   } finally {
     if (inboundRotateAddress) {
       inboundRotateAddress.disabled = false;
@@ -7614,7 +7614,7 @@ async function refreshForwardingInbox({
   const preScanSnapshot = await captureSignalSnapshot();
   inboundAutoSyncState.inFlight = true;
   const scanText = emailSync.querySelector('.scan-text');
-  const originalText = scanText?.textContent || 'Sync inbox';
+  const originalText = scanText?.textContent || 'Scan inbox';
   emailSync.disabled = true;
   emailSync.classList.add('is-scanning');
   if (scanText) {
@@ -7726,7 +7726,7 @@ async function refreshForwardingInbox({
       status: 'failed',
       rawDetails: err?.message || 'Unable to sync forwarded inbox.'
     });
-    showNotice(err.message || 'Unable to refresh inbox status.', 'Sync inbox');
+    showNotice(err.message || 'Unable to refresh inbox status.', 'Scan inbox');
   } finally {
     hideSyncProgress();
     emailSync.classList.remove('is-scanning');
