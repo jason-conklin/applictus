@@ -6960,7 +6960,7 @@ function buildGmailFilterHelpContent({
   });
 
   renderFilterPresetUi();
-  content.append(filterIntro, presetList, presetDescriptionLabel, presetDescription, tutorial, queryWrap);
+  content.append(filterIntro, tutorial, presetDescriptionLabel, presetList, presetDescription, queryWrap);
   return content;
 }
 
