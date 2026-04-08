@@ -5202,17 +5202,6 @@ function openPricingModal() {
   const container = document.createElement('div');
   container.className = 'plan-card-grid';
 
-  const hero = document.createElement('div');
-  hero.className = 'pricing-modal-hero';
-  const heroTitle = document.createElement('div');
-  heroTitle.className = 'pricing-modal-hero-title';
-  heroTitle.textContent = 'Pick the plan that matches your job-search pace';
-  const heroCopy = document.createElement('p');
-  heroCopy.className = 'pricing-modal-hero-copy';
-  heroCopy.textContent =
-    'Keep confirmations, interviews, offers, and rejections in one organized timeline while you apply.';
-  hero.append(heroTitle, heroCopy);
-
   const freeCard = buildPlanCard({
     title: 'Free',
     context: 'Best for occasional or light tracking',
@@ -5275,7 +5264,7 @@ function openPricingModal() {
   container.append(freeCard, proCard, jobSearchPlanCard);
 
   const body = document.createElement('div');
-  body.append(hero, container);
+  body.append(container);
   const billingPowered = document.createElement('div');
   billingPowered.className = 'pricing-billing-powered muted small';
   const billingPoweredDot = document.createElement('span');
