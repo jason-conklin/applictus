@@ -5874,6 +5874,11 @@ details summary {
   gap: 8px;
 }
 
+.forwarding-filter-intro {
+  margin: 0;
+  line-height: 1.45;
+}
+
 .forwarding-filter-preset {
   border: 1px solid rgba(33, 70, 128, 0.18);
   border-radius: 10px;
@@ -5920,9 +5925,96 @@ details summary {
   line-height: 1.35;
 }
 
+.forwarding-filter-preset-description-label {
+  margin-top: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #5d7699;
+}
+
 .forwarding-filter-preset-description {
-  margin: 8px 0 0;
+  margin: 4px 0 0;
   line-height: 1.45;
+  color: #2f4f7d;
+}
+
+.forwarding-filter-tutorial {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.forwarding-filter-tutorial-title {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #5b7599;
+}
+
+.forwarding-filter-tutorial-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.forwarding-filter-tutorial-step {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(37, 74, 134, 0.13);
+  background: #ffffff;
+  box-shadow: 0 6px 14px rgba(21, 46, 94, 0.07);
+}
+
+.forwarding-filter-tutorial-step-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.forwarding-filter-tutorial-step-number {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  background: linear-gradient(180deg, #3f76d1 0%, #2f5fa8 100%);
+}
+
+.forwarding-filter-tutorial-step-title {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #224671;
+}
+
+.forwarding-filter-tutorial-step-description {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.forwarding-filter-tutorial-image {
+  border-radius: 8px;
+  border: 1px solid rgba(38, 73, 129, 0.12);
+  background: #f7faff;
+  overflow: hidden;
+  min-height: 98px;
+  height: clamp(98px, 10vw, 132px);
+}
+
+.forwarding-filter-tutorial-image img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  object-position: center top;
 }
 
 .forwarding-filter-query-wrap {
@@ -5935,10 +6027,8 @@ details summary {
 
 .forwarding-filter-query-label {
   margin: 0 0 6px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   font-weight: 700;
-  color: #48628b;
+  color: #365782;
 }
 
 .forwarding-filter-query {
@@ -5958,6 +6048,11 @@ details summary {
 
 .forwarding-filter-actions {
   margin-top: 8px;
+}
+
+.forwarding-filter-query-note {
+  margin: 8px 0 0;
+  line-height: 1.4;
 }
 
 .forwarding-filter-snippet {
@@ -6112,6 +6207,10 @@ details summary {
   }
 
   .forwarding-filter-presets {
+    grid-template-columns: 1fr;
+  }
+
+  .forwarding-filter-tutorial-steps {
     grid-template-columns: 1fr;
   }
 

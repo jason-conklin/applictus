@@ -5919,8 +5919,7 @@ const FORWARDING_FILTER_PRESETS = [
     id: 'all_updates',
     label: 'All job updates',
     summary: 'Full timeline coverage with broader ATS/job-platform matching.',
-    description:
-      'Captures full timeline coverage: confirmations, interviews, offers, rejections, and common hiring-platform senders.',
+    description: 'Captures confirmations, interviews, offers, rejections, and common hiring-platform updates.',
     subjectTerms: [
       'application',
       'application submitted',
@@ -5955,8 +5954,7 @@ const FORWARDING_FILTER_PRESETS = [
     id: 'status_changes',
     label: 'Only status changes',
     summary: 'Higher-signal updates focused on movement in the hiring process.',
-    description:
-      'Reduces noise by focusing on movement in the process: interviews, assessments, offers, rejections, and next steps.',
+    description: 'Focuses on interview, assessment, offer, rejection, and next-step updates to reduce noise.',
     subjectTerms: [
       'interview',
       'phone screen',
@@ -6047,6 +6045,12 @@ const GMAIL_SETUP_SCREENSHOTS = {
   sc4: '/applictus_setup_sc4.png',
   sc5: '/applictus_setup_sc5.png',
   sc6: '/applictus_setup_sc6.png'
+};
+
+const GMAIL_FILTER_SETUP_SCREENSHOTS = {
+  step1: '/applictus-filter-setup-1.png',
+  step2: '/applictus-filter-setup-2.png',
+  step3: '/applictus-filter-setup-3.png'
 };
 
 const FORWARDING_SETUP_WALKTHROUGH_URL = 'https://support.google.com/mail/answer/10957?hl=en';
@@ -6756,28 +6760,97 @@ function buildInboundSetupSecondaryHelp() {
   secondary.appendChild(heading);
 
   const filterPanel = createForwardingCollapsible({
-    title: 'Optional: reduce usage with a Gmail filter',
+    title: 'Optional: reduce inbox noise with a Gmail filter',
     open: false
   });
   const filterIntro = document.createElement('p');
-  filterIntro.className = 'muted small';
-  filterIntro.textContent = 'Optional: choose a filter preset if you want less inbox noise. Applictus works without this.';
+  filterIntro.className = 'forwarding-filter-intro muted small';
+  filterIntro.textContent = 'Applictus works without this. Use a Gmail filter if you only want certain job emails forwarded.';
 
   const presetList = document.createElement('div');
   presetList.className = 'forwarding-filter-presets';
 
+  const presetDescriptionLabel = document.createElement('div');
+  presetDescriptionLabel.className = 'forwarding-filter-preset-description-label muted small';
+  presetDescriptionLabel.textContent = 'Selected preset';
+
   const presetDescription = document.createElement('p');
   presetDescription.className = 'forwarding-filter-preset-description muted small';
+
+  const tutorial = document.createElement('div');
+  tutorial.className = 'forwarding-filter-tutorial';
+  const tutorialTitle = document.createElement('div');
+  tutorialTitle.className = 'forwarding-filter-tutorial-title muted small';
+  tutorialTitle.textContent = 'Quick Gmail setup';
+  tutorial.appendChild(tutorialTitle);
+
+  const tutorialSteps = document.createElement('div');
+  tutorialSteps.className = 'forwarding-filter-tutorial-steps';
+  const tutorialItems = [
+    {
+      title: 'Open Filters',
+      description: 'Open "Filters and Blocked Addresses" and click "Create a new filter".',
+      imageSrc: GMAIL_FILTER_SETUP_SCREENSHOTS.step1,
+      imageAlt: 'Gmail settings page on Filters and Blocked Addresses with Create a new filter highlighted.'
+    },
+    {
+      title: 'Paste in Has the words',
+      description: 'Paste the copied query into "Has the words".',
+      imageSrc: GMAIL_FILTER_SETUP_SCREENSHOTS.step2,
+      imageAlt: 'Gmail filter modal with Has the words field highlighted.'
+    },
+    {
+      title: 'Create the filter',
+      description: 'Continue in Gmail to create the filter.',
+      imageSrc: GMAIL_FILTER_SETUP_SCREENSHOTS.step3,
+      imageAlt: 'Gmail filter modal with the Applictus query pasted into Has the words.'
+    }
+  ];
+  tutorialItems.forEach((item, index) => {
+    const step = document.createElement('article');
+    step.className = 'forwarding-filter-tutorial-step';
+
+    const stepHeader = document.createElement('div');
+    stepHeader.className = 'forwarding-filter-tutorial-step-head';
+    const stepNumber = document.createElement('span');
+    stepNumber.className = 'forwarding-filter-tutorial-step-number';
+    stepNumber.textContent = String(index + 1);
+    const stepTitle = document.createElement('h6');
+    stepTitle.className = 'forwarding-filter-tutorial-step-title';
+    stepTitle.textContent = item.title;
+    stepHeader.append(stepNumber, stepTitle);
+
+    const stepDescription = document.createElement('p');
+    stepDescription.className = 'forwarding-filter-tutorial-step-description muted small';
+    stepDescription.textContent = item.description;
+
+    const imageWrap = document.createElement('div');
+    imageWrap.className = 'forwarding-filter-tutorial-image';
+    const image = document.createElement('img');
+    image.src = item.imageSrc;
+    image.alt = item.imageAlt;
+    image.loading = 'lazy';
+    image.decoding = 'async';
+    imageWrap.appendChild(image);
+
+    step.append(stepHeader, stepDescription, imageWrap);
+    tutorialSteps.appendChild(step);
+  });
+  tutorial.appendChild(tutorialSteps);
 
   const queryWrap = document.createElement('div');
   queryWrap.className = 'forwarding-filter-query-wrap';
 
   const queryLabel = document.createElement('div');
   queryLabel.className = 'forwarding-filter-query-label muted small';
-  queryLabel.textContent = 'Gmail filter query';
+  queryLabel.textContent = "Copy this into 'Has the words'";
 
   const filterSnippet = document.createElement('pre');
   filterSnippet.className = 'forwarding-filter-query';
+
+  const queryNote = document.createElement('p');
+  queryNote.className = 'forwarding-filter-query-note muted small';
+  queryNote.textContent = "Paste the entire query into 'Has the words' and leave the other Gmail fields blank.";
 
   const filterActions = document.createElement('div');
   filterActions.className = 'forwarding-step-actions forwarding-filter-actions';
@@ -6786,7 +6859,7 @@ function buildInboundSetupSecondaryHelp() {
   copyFilterBtn.className = 'btn btn--secondary btn--sm';
   copyFilterBtn.textContent = 'Copy filter query';
   filterActions.append(copyFilterBtn);
-  queryWrap.append(queryLabel, filterSnippet, filterActions);
+  queryWrap.append(queryLabel, filterSnippet, queryNote, filterActions);
 
   let selectedPresetId = FORWARDING_FILTER_PRESETS[0]?.id || 'all_updates';
   let selectedQuery = buildForwardingFilterQuery(selectedPresetId);
@@ -6839,7 +6912,7 @@ function buildInboundSetupSecondaryHelp() {
   });
 
   renderFilterPresetUi();
-  filterPanel.body.append(filterIntro, presetList, presetDescription, queryWrap);
+  filterPanel.body.append(filterIntro, presetList, presetDescriptionLabel, presetDescription, tutorial, queryWrap);
   secondary.appendChild(filterPanel.details);
 
   const outlookPanel = createForwardingCollapsible({
