@@ -2242,7 +2242,7 @@ function updateAccountSyncResultLine() {
   accountSyncResult.textContent = metricsLine;
 }
 
-function getDashboardEmptyStateHtml({ firstTime = false } = {}) {
+function getDashboardEmptyStateHtml({ firstTime = false, noResults = false } = {}) {
   if (firstTime) {
     return `
       <div class="empty-state empty-state--onboarding">
@@ -2251,6 +2251,18 @@ function getDashboardEmptyStateHtml({ firstTime = false } = {}) {
         <div class="empty-state-actions">
           <button class="btn btn--primary btn--md" type="button" data-action="sync-inbox">Connect inbox</button>
           <button class="btn btn--ghost btn--sm" type="button" data-action="add-application">Add application manually</button>
+        </div>
+      </div>
+    `;
+  }
+  if (noResults) {
+    return `
+      <div class="empty-state">
+        <h3>No applications match your search</h3>
+        <p class="muted">Try a different keyword or clear filters.</p>
+        <div class="empty-state-actions">
+        <button class="btn btn--primary btn--md" type="button" data-action="clear-dashboard-filters">Clear filters</button>
+        <button class="btn btn--ghost btn--sm" type="button" data-action="add-application">Add application</button>
         </div>
       </div>
     `;
@@ -8796,7 +8808,13 @@ function renderApplicationsTable(applications) {
   const firstTimeOnboarding = applyDashboardOnboardingState(state.table.total);
 
   if (!applications.length) {
-    applicationsTable.innerHTML = getDashboardEmptyStateHtml({ firstTime: firstTimeOnboarding });
+    const hasSearch = Boolean(String(state.filters.search || '').trim());
+    const hasStatus = Boolean(String(state.filters.status || '').trim());
+    const noResults = !firstTimeOnboarding && (hasSearch || hasStatus);
+    applicationsTable.innerHTML = getDashboardEmptyStateHtml({
+      firstTime: firstTimeOnboarding,
+      noResults
+    });
     updateTableBulkBar();
     return;
   }
@@ -10432,6 +10450,23 @@ dashboardView?.addEventListener('click', async (event) => {
     applicationsCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
   }
+  if (action === 'clear-dashboard-filters') {
+    clearTimeout(filterSearchTimer);
+    state.filters.search = '';
+    state.filters.status = '';
+    if (filterSearch) {
+      filterSearch.value = '';
+    }
+    if (filterSearchClear) {
+      filterSearchClear.classList.add('hidden');
+    }
+    if (filterStatus) {
+      filterStatus.value = '';
+    }
+    syncStatusFilterMenuUi();
+    await applyFilters();
+    return;
+  }
 });
 
 let filterSearchTimer = null;
@@ -10567,6 +10602,7 @@ filterSearch?.addEventListener('input', () => {
 
 filterSearchClear?.addEventListener('click', async () => {
   if (!filterSearch) return;
+  clearTimeout(filterSearchTimer);
   filterSearch.value = '';
   filterSearchClear.classList.add('hidden');
   state.filters.search = '';

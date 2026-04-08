@@ -233,3 +233,66 @@ test('critical API routes respond with expected shape', async (t) => {
   assert.equal(googleSessionResult.status, 200);
   assert.equal(googleSessionBody.user.email, googleEmail);
 });
+
+test('applications search filters by company and role with case-insensitive partial matching', async (t) => {
+  const server = await startServer(0, { log: false, host: '127.0.0.1' });
+  const address = server.address();
+  const baseUrl =
+    address && typeof address === 'object' ? `http://localhost:${address.port}` : 'http://localhost';
+  t.after(async () => {
+    await stopServer();
+  });
+  const request = await createClient(baseUrl);
+
+  await request('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({
+      email: `search-${crypto.randomUUID()}@example.com`,
+      password: 'Password12345!'
+    })
+  });
+
+  await request('/api/applications', {
+    method: 'POST',
+    body: JSON.stringify({
+      company_name: 'Acme Labs',
+      job_title: 'Frontend Engineer',
+      current_status: 'APPLIED'
+    })
+  });
+  await request('/api/applications', {
+    method: 'POST',
+    body: JSON.stringify({
+      company_name: 'Blue Ocean',
+      job_title: 'Product Designer',
+      current_status: 'INTERVIEW_REQUESTED'
+    })
+  });
+  await request('/api/applications', {
+    method: 'POST',
+    body: JSON.stringify({
+      company_name: 'Gamma Dynamics',
+      job_title: 'Data Analyst',
+      current_status: 'REJECTED'
+    })
+  });
+
+  const byCompanyPartial = await request('/api/applications?search=acm&limit=25&offset=0');
+  assert.equal(byCompanyPartial.total, 1);
+  assert.equal(byCompanyPartial.applications[0].company_name, 'Acme Labs');
+
+  const byRolePartialUppercase = await request('/api/applications?search=ENGINE&limit=25&offset=0');
+  assert.equal(byRolePartialUppercase.total, 1);
+  assert.equal(byRolePartialUppercase.applications[0].job_title, 'Frontend Engineer');
+
+  const byTrimmedSearch = await request('/api/applications?search=%20%20data%20%20&limit=25&offset=0');
+  assert.equal(byTrimmedSearch.total, 1);
+  assert.equal(byTrimmedSearch.applications[0].job_title, 'Data Analyst');
+
+  const combinedWithStatus = await request('/api/applications?search=blue&status=INTERVIEW_REQUESTED&limit=25&offset=0');
+  assert.equal(combinedWithStatus.total, 1);
+  assert.equal(combinedWithStatus.applications[0].company_name, 'Blue Ocean');
+
+  const clearSearchRestoresAll = await request('/api/applications?limit=25&offset=0');
+  assert.equal(clearSearchRestoresAll.total, 3);
+});
