@@ -5312,10 +5312,28 @@ details summary {
 
 .inbound-setup-header-walkthrough {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: #2f5fa8;
   font-weight: 600;
   text-decoration: none;
   border-bottom: 1px solid rgba(47, 95, 168, 0.32);
+}
+
+.inbound-setup-header-walkthrough-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.9;
+}
+
+.inbound-setup-header-walkthrough-icon svg {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 
 .inbound-setup-header-walkthrough:hover {

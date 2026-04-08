@@ -6157,7 +6157,18 @@ function renderInboundSetupHeaderAddressPanel() {
     walkthroughLink.href = FORWARDING_SETUP_WALKTHROUGH_URL;
     walkthroughLink.target = '_blank';
     walkthroughLink.rel = 'noopener noreferrer';
-    walkthroughLink.textContent = 'Watch setup walkthrough';
+    const walkthroughIcon = document.createElement('span');
+    walkthroughIcon.className = 'inbound-setup-header-walkthrough-icon';
+    walkthroughIcon.setAttribute('aria-hidden', 'true');
+    walkthroughIcon.innerHTML = `
+      <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+        <rect x="1.5" y="3" width="13" height="10" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.2"></rect>
+        <path d="M6.3 5.8 10.6 8l-4.3 2.2z" fill="currentColor"></path>
+      </svg>
+    `;
+    const walkthroughLabel = document.createElement('span');
+    walkthroughLabel.textContent = 'Watch setup walkthrough';
+    walkthroughLink.append(walkthroughIcon, walkthroughLabel);
     summaryRow.appendChild(walkthroughLink);
     modalHeader.appendChild(summaryRow);
   }
