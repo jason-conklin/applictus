@@ -3322,6 +3322,224 @@ function formatConfidencePercent(value) {
   return `${Math.round(clamped * 100)}%`;
 }
 
+function normalizeConfidencePercent(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  const normalized = numeric > 1 ? numeric / 100 : numeric;
+  const clamped = Math.max(0, Math.min(1, normalized));
+  return Math.round(clamped * 100);
+}
+
+function formatConfidenceLabel(value) {
+  const percent = normalizeConfidencePercent(value);
+  if (percent === null) {
+    return null;
+  }
+  if (percent >= 85) {
+    return `High confidence (${percent}%)`;
+  }
+  if (percent >= 60) {
+    return `Medium confidence (${percent}%)`;
+  }
+  return `Low confidence (${percent}%)`;
+}
+
+function extractSenderDomain(sender) {
+  const input = String(sender || '').toLowerCase();
+  if (!input) {
+    return null;
+  }
+  const emailMatch = input.match(/[a-z0-9._%+-]+@([a-z0-9.-]+\.[a-z]{2,})/);
+  if (emailMatch && emailMatch[1]) {
+    return emailMatch[1];
+  }
+  return null;
+}
+
+function detectProviderLabelFromText(text) {
+  const input = String(text || '').toLowerCase();
+  if (!input) {
+    return null;
+  }
+  const providerMatchers = [
+    { pattern: /\bindeed(?:\.com|email)?\b/, label: 'Indeed' },
+    { pattern: /\blinkedin(?:\.com)?\b/, label: 'LinkedIn' },
+    { pattern: /\bworkday(?:\.com)?\b/, label: 'Workday' },
+    { pattern: /\bgreenhouse(?:\.io)?\b/, label: 'Greenhouse' },
+    { pattern: /\blever(?:\.co)?\b/, label: 'Lever' },
+    { pattern: /\bsmartrecruiters(?:\.com)?\b/, label: 'SmartRecruiters' },
+    { pattern: /\bicims(?:\.com)?\b/, label: 'iCIMS' },
+    { pattern: /\bjobvite(?:\.com)?\b/, label: 'Jobvite' },
+    { pattern: /\bziprecruiter(?:\.com)?\b/, label: 'ZipRecruiter' },
+    { pattern: /\bglassdoor(?:\.com)?\b/, label: 'Glassdoor' },
+    { pattern: /\bmonster(?:\.com)?\b/, label: 'Monster' },
+    { pattern: /\bworkable(?:mail|\.com)?\b/, label: 'Workable' },
+    { pattern: /\bapplicantstack(?:\.com)?\b/, label: 'ApplicantStack' },
+    { pattern: /\bbamboohr(?:\.com)?\b/, label: 'BambooHR' },
+    { pattern: /\bsuccessfactors(?:\.com)?\b/, label: 'SuccessFactors' },
+    { pattern: /\btaleo(?:\.net|\.com)?\b/, label: 'Taleo' },
+    { pattern: /\bashby(?:hq)?(?:\.com)?\b/, label: 'Ashby' }
+  ];
+  const matched = providerMatchers.find((item) => item.pattern.test(input));
+  return matched ? matched.label : null;
+}
+
+function deriveProviderLabelFromEvent(eventItem, application) {
+  const senderDomain = extractSenderDomain(eventItem?.sender);
+  const eventText = [
+    eventItem?.sender || '',
+    senderDomain || '',
+    eventItem?.subject || '',
+    eventItem?.snippet || ''
+  ].join(' ');
+  const eventProvider = detectProviderLabelFromText(eventText);
+  if (eventProvider) {
+    return eventProvider;
+  }
+  const appSource = String(application?.source || '').trim();
+  const sourceProvider = detectProviderLabelFromText(appSource);
+  return sourceProvider || null;
+}
+
+function formatEventTypeLabel(type) {
+  const lower = String(type || '').toLowerCase();
+  if (lower === 'interview_requested' || lower === 'interview_request') return 'Interview requested';
+  if (lower === 'interview_scheduled') return 'Interview scheduled';
+  if (lower === 'meeting_requested') return 'Meeting requested';
+  if (lower === 'message_received') return 'Message received';
+  if (lower === 'under_review') return 'Under review';
+  return String(type || 'other')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function buildFriendlyTimelineTitle(eventItem, application) {
+  const type = String(eventItem?.detected_type || '').toLowerCase();
+  const provider = deriveProviderLabelFromEvent(eventItem, application);
+  const withProvider = (text) => (provider ? `${text} via ${provider}` : text);
+  if (type === 'confirmation') {
+    return withProvider('Application submitted');
+  }
+  if (type === 'rejection') {
+    return withProvider('Application update: not selected');
+  }
+  if (type === 'offer' || type.includes('offer')) {
+    return withProvider('Offer update');
+  }
+  if (type === 'message_received') {
+    return withProvider('Message received');
+  }
+  if (type === 'interview_scheduled') {
+    return withProvider('Interview scheduled');
+  }
+  if (type.includes('interview') || type === 'meeting_requested') {
+    return withProvider('Interview requested');
+  }
+  if (type === 'under_review') {
+    return withProvider('Application under review');
+  }
+  return withProvider('Hiring update');
+}
+
+function buildFriendlyTimelineExplanation(eventItem, application) {
+  const type = String(eventItem?.detected_type || '').toLowerCase();
+  const provider = deriveProviderLabelFromEvent(eventItem, application);
+  const providerSuffix = provider ? ` from ${provider}` : '';
+  if (type === 'confirmation') {
+    return [
+      `Detected as a confirmation email${providerSuffix}.`,
+      "Based on phrases like 'application submitted' or 'submission received'."
+    ];
+  }
+  if (type === 'rejection') {
+    return [`Detected as a rejection update${providerSuffix}.`];
+  }
+  if (type === 'offer' || type.includes('offer')) {
+    return [`Detected as an offer-stage update${providerSuffix}.`];
+  }
+  if (type === 'message_received') {
+    return [`Detected as a job-message notification${providerSuffix}.`];
+  }
+  if (type === 'interview_scheduled') {
+    return [`Detected as an interview scheduling update${providerSuffix}.`];
+  }
+  if (type.includes('interview') || type === 'meeting_requested') {
+    return [`Detected as an interview-stage update${providerSuffix}.`];
+  }
+  if (type === 'under_review') {
+    return [`Detected as an under-review update${providerSuffix}.`];
+  }
+  return [`Detected as a hiring update${providerSuffix}.`];
+}
+
+function buildStatusReasoning(application, events) {
+  const statusValue = String(application?.current_status || 'UNKNOWN').toUpperCase();
+  const statusLabel = STATUS_LABELS[statusValue] || statusValue;
+  const latestEvent = Array.isArray(events) && events.length ? events[0] : null;
+  const provider = latestEvent ? deriveProviderLabelFromEvent(latestEvent, application) : null;
+  const providerBullet = provider ? `Detected from ${provider}` : null;
+  const confidenceLabel = formatConfidenceLabel(
+    application?.status_confidence ??
+      latestEvent?.classification_confidence ??
+      latestEvent?.confidence_score ??
+      null
+  );
+
+  if (String(application?.status_source || '').toLowerCase() === 'user' || application?.user_override) {
+    return {
+      primary: `Status set to ${statusLabel} manually.`,
+      bullets: ['Updated by you in Applictus.'],
+      confidence: null
+    };
+  }
+
+  let primary = 'Status inferred from your latest hiring-update emails.';
+  const bullets = [];
+  if (statusValue === 'APPLIED') {
+    primary = 'Marked as Applied based on a confirmation email.';
+    bullets.push('Email indicates your application was submitted.');
+  } else if (statusValue === 'UNDER_REVIEW') {
+    primary = 'Marked as Under review based on a hiring update.';
+    bullets.push('Email indicates your application is being reviewed.');
+  } else if (statusValue === 'INTERVIEW_REQUESTED') {
+    primary = 'Marked as Interview requested based on an interview-stage email.';
+    bullets.push('Email indicates an interview request or next-step interview action.');
+  } else if (statusValue === 'INTERVIEW_SCHEDULED') {
+    primary = 'Marked as Interview scheduled based on a scheduling email.';
+    bullets.push('Email indicates an interview time has been scheduled.');
+  } else if (
+    statusValue === 'INTERVIEW_COMPLETED' ||
+    statusValue === 'PHONE_SCREEN' ||
+    statusValue === 'ONSITE'
+  ) {
+    primary = `Marked as ${statusLabel} based on interview-stage updates.`;
+    bullets.push('Email indicates interview progression in the hiring process.');
+  } else if (statusValue === 'OFFER_RECEIVED' || statusValue === 'OFFER_EXTENDED') {
+    primary = 'Marked as Offer received based on an offer-stage email.';
+    bullets.push('Email indicates an offer-related hiring update.');
+  } else if (statusValue === 'REJECTED') {
+    primary = 'Marked as Rejected based on a rejection email.';
+    bullets.push('Email indicates your application was not selected.');
+  } else if (statusValue === 'GHOSTED') {
+    primary = 'Marked as Ghosted because no recent updates were detected.';
+  } else if (statusValue === 'UNKNOWN') {
+    primary = 'Status is still unknown because no clear status signal was detected.';
+  }
+  if (providerBullet) {
+    bullets.push(providerBullet);
+  }
+  return {
+    primary,
+    bullets,
+    confidence: confidenceLabel
+  };
+}
+
 function getStatusSource(application) {
   if (application.status_source) {
     return application.status_source;
@@ -9403,16 +9621,25 @@ function renderDetail(application, events) {
   }
 
   if (detailExplanation) {
-    detailExplanation.textContent = application.status_explanation || 'No explanation yet.';
+    const reasoning = buildStatusReasoning(application, safeEvents);
+    const bullets = Array.isArray(reasoning?.bullets) ? reasoning.bullets.filter(Boolean) : [];
+    const confidenceLine = reasoning?.confidence ? `<div class="reasoning-confidence">${escapeHtml(reasoning.confidence)}</div>` : '';
+    const bulletList = bullets.length
+      ? `<ul class="reasoning-list">${bullets.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`
+      : '';
+    detailExplanation.innerHTML = `
+      <div class="reasoning-primary">${escapeHtml(reasoning?.primary || 'No reasoning available yet.')}</div>
+      ${bulletList}
+      ${confidenceLine}
+    `;
   }
 
   if (detailSuggestion) {
     if (application.suggested_status) {
       const suggestionLabel = STATUS_LABELS[application.suggested_status] || application.suggested_status;
-      const suggestionConfidence = formatConfidencePercent(application.suggested_confidence);
+      const suggestionConfidence = formatConfidenceLabel(application.suggested_confidence);
       detailSuggestionLabel.textContent = suggestionConfidence
-        && suggestionConfidence !== '—'
-        ? `Suggestion: ${suggestionLabel} (${suggestionConfidence})`
+        ? `Suggestion: ${suggestionLabel} • ${suggestionConfidence}`
         : `Suggestion: ${suggestionLabel}`;
       detailSuggestionExplanation.textContent =
         application.suggested_explanation || 'No explanation.';
@@ -9485,17 +9712,6 @@ function renderDetail(application, events) {
         ['intro call', 'technical opportunity'].includes(
           String(application.job_title || '').toLowerCase()
         );
-      const formatTypeLabel = (type) => {
-        const lower = String(type || '').toLowerCase();
-        if (lower === 'interview_requested' || lower === 'interview_request') return 'Interview requested';
-        if (lower === 'interview_scheduled') return 'Interview scheduled';
-        if (lower === 'meeting_requested') return 'Meeting requested';
-        if (lower === 'message_received') return 'Message received';
-        if (lower === 'under_review') return 'Under review';
-        return String(type || 'other')
-          .replace(/_/g, ' ')
-          .replace(/\b\w/g, (char) => char.toUpperCase());
-      };
       const typeIcon = (type) => {
         const t = (type || '').toLowerCase();
         if (t === 'confirmation') {
@@ -9523,20 +9739,26 @@ function renderDetail(application, events) {
           const eventDate = eventItem.internal_date || eventItem.created_at || null;
           const classificationConfidence =
             eventItem.classification_confidence ?? eventItem.confidence_score ?? null;
-          const confidence = formatConfidencePercent(classificationConfidence);
-          const typeLabel = formatTypeLabel(eventItem.detected_type || 'other');
+          const confidence = formatConfidenceLabel(classificationConfidence);
+          const typeLabel = formatEventTypeLabel(eventItem.detected_type || 'other');
+          const timelineTitle = buildFriendlyTimelineTitle(eventItem, application);
+          const explanationLines = buildFriendlyTimelineExplanation(eventItem, application);
+          const explanationMarkup = explanationLines
+            .filter(Boolean)
+            .map((line) => `<div class="timeline-meta muted">${escapeHtml(line)}</div>`)
+            .join('');
           return `
             <div class="timeline-card">
               <div class="timeline-card-top">
                 <span class="timeline-icon">${typeIcon(eventItem.detected_type)}</span>
-                <span class="timeline-type">${typeLabel}</span>
+                <span class="timeline-type">${escapeHtml(typeLabel)}</span>
                 <span class="timeline-needs-details${applicationNeedsDetails ? '' : ' hidden'}">Needs details</span>
-                <span class="timeline-confidence">${confidence}</span>
+                <span class="timeline-confidence${confidence ? '' : ' hidden'}">${escapeHtml(confidence || '')}</span>
                 <span class="timeline-date">${formatDateTime(eventDate)}</span>
               </div>
-              <div class="timeline-subject">${eventItem.subject || '—'}</div>
-              <div class="timeline-meta">${eventItem.sender || '—'}</div>
-              ${eventItem.explanation ? `<div class="timeline-meta muted">${eventItem.explanation}</div>` : ''}
+              <div class="timeline-subject">${escapeHtml(timelineTitle)}</div>
+              <div class="timeline-meta">${escapeHtml(eventItem.sender || '—')}</div>
+              ${explanationMarkup}
             </div>
           `;
         })

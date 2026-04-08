@@ -4560,6 +4560,27 @@ textarea:focus-visible {
   color: var(--color-muted);
 }
 
+.reasoning-primary {
+  color: var(--color-text);
+}
+
+.reasoning-list {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 4px;
+}
+
+.reasoning-list li {
+  color: var(--color-muted);
+}
+
+.reasoning-confidence {
+  margin-top: 8px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
 details summary {
   cursor: pointer;
   font-size: 12px;
