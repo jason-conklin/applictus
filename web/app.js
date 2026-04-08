@@ -6784,59 +6784,113 @@ function buildInboundSetupSecondaryHelp() {
   tutorialTitle.textContent = 'Quick Gmail setup';
   tutorial.appendChild(tutorialTitle);
 
-  const tutorialSteps = document.createElement('div');
-  tutorialSteps.className = 'forwarding-filter-tutorial-steps';
+  const tutorialNav = document.createElement('div');
+  tutorialNav.className = 'forwarding-filter-tutorial-nav';
+  tutorialNav.setAttribute('role', 'tablist');
+
+  const tutorialViewer = document.createElement('article');
+  tutorialViewer.className = 'forwarding-filter-tutorial-viewer';
+  const tutorialViewerStep = document.createElement('div');
+  tutorialViewerStep.className = 'forwarding-filter-tutorial-viewer-step muted small';
+  const tutorialViewerTitle = document.createElement('h6');
+  tutorialViewerTitle.className = 'forwarding-filter-tutorial-viewer-title';
+  const tutorialViewerDescription = document.createElement('p');
+  tutorialViewerDescription.className = 'forwarding-filter-tutorial-viewer-description muted small';
+  const tutorialViewerImageWrap = document.createElement('div');
+  tutorialViewerImageWrap.className = 'forwarding-filter-tutorial-viewer-image';
+  const tutorialViewerImage = document.createElement('img');
+  tutorialViewerImage.loading = 'lazy';
+  tutorialViewerImage.decoding = 'async';
+  tutorialViewerImageWrap.appendChild(tutorialViewerImage);
+  const tutorialControls = document.createElement('div');
+  tutorialControls.className = 'forwarding-filter-tutorial-controls';
+  const tutorialPrevBtn = document.createElement('button');
+  tutorialPrevBtn.type = 'button';
+  tutorialPrevBtn.className = 'btn btn--ghost btn--sm forwarding-filter-tutorial-control';
+  tutorialPrevBtn.textContent = 'Previous';
+  const tutorialNextBtn = document.createElement('button');
+  tutorialNextBtn.type = 'button';
+  tutorialNextBtn.className = 'btn btn--ghost btn--sm forwarding-filter-tutorial-control';
+  tutorialNextBtn.textContent = 'Next';
+  tutorialControls.append(tutorialPrevBtn, tutorialNextBtn);
+  tutorialViewer.append(
+    tutorialViewerStep,
+    tutorialViewerTitle,
+    tutorialViewerDescription,
+    tutorialViewerImageWrap,
+    tutorialControls
+  );
+
   const tutorialItems = [
     {
+      navLabel: 'Open Filters',
       title: 'Open Filters',
       description: 'Open "Filters and Blocked Addresses" and click "Create a new filter".',
       imageSrc: GMAIL_FILTER_SETUP_SCREENSHOTS.step1,
       imageAlt: 'Gmail settings page on Filters and Blocked Addresses with Create a new filter highlighted.'
     },
     {
+      navLabel: 'Has the words',
       title: 'Paste in Has the words',
       description: 'Paste the copied query into "Has the words".',
       imageSrc: GMAIL_FILTER_SETUP_SCREENSHOTS.step2,
       imageAlt: 'Gmail filter modal with Has the words field highlighted.'
     },
     {
+      navLabel: 'Create filter',
       title: 'Create the filter',
       description: 'Continue in Gmail to create the filter.',
       imageSrc: GMAIL_FILTER_SETUP_SCREENSHOTS.step3,
       imageAlt: 'Gmail filter modal with the Applictus query pasted into Has the words.'
     }
   ];
+  let activeTutorialIndex = 0;
+  const tutorialNavButtons = [];
+  const renderTutorialStep = () => {
+    const lastIndex = Math.max(0, tutorialItems.length - 1);
+    activeTutorialIndex = Math.max(0, Math.min(lastIndex, activeTutorialIndex));
+    const item = tutorialItems[activeTutorialIndex] || tutorialItems[0];
+    if (!item) {
+      return;
+    }
+    tutorialViewerStep.textContent = `Step ${activeTutorialIndex + 1} of ${tutorialItems.length}`;
+    tutorialViewerTitle.textContent = item.title;
+    tutorialViewerDescription.textContent = item.description;
+    tutorialViewerImage.src = item.imageSrc;
+    tutorialViewerImage.alt = item.imageAlt;
+    tutorialNavButtons.forEach(({ button, index }) => {
+      const isActive = index === activeTutorialIndex;
+      button.classList.toggle('is-active', isActive);
+      button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+    tutorialPrevBtn.disabled = activeTutorialIndex <= 0;
+    tutorialNextBtn.disabled = activeTutorialIndex >= lastIndex;
+  };
+
   tutorialItems.forEach((item, index) => {
-    const step = document.createElement('article');
-    step.className = 'forwarding-filter-tutorial-step';
-
-    const stepHeader = document.createElement('div');
-    stepHeader.className = 'forwarding-filter-tutorial-step-head';
-    const stepNumber = document.createElement('span');
-    stepNumber.className = 'forwarding-filter-tutorial-step-number';
-    stepNumber.textContent = String(index + 1);
-    const stepTitle = document.createElement('h6');
-    stepTitle.className = 'forwarding-filter-tutorial-step-title';
-    stepTitle.textContent = item.title;
-    stepHeader.append(stepNumber, stepTitle);
-
-    const stepDescription = document.createElement('p');
-    stepDescription.className = 'forwarding-filter-tutorial-step-description muted small';
-    stepDescription.textContent = item.description;
-
-    const imageWrap = document.createElement('div');
-    imageWrap.className = 'forwarding-filter-tutorial-image';
-    const image = document.createElement('img');
-    image.src = item.imageSrc;
-    image.alt = item.imageAlt;
-    image.loading = 'lazy';
-    image.decoding = 'async';
-    imageWrap.appendChild(image);
-
-    step.append(stepHeader, stepDescription, imageWrap);
-    tutorialSteps.appendChild(step);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'forwarding-filter-tutorial-nav-button';
+    button.setAttribute('role', 'tab');
+    button.setAttribute('aria-selected', 'false');
+    button.innerHTML = `<span class="forwarding-filter-tutorial-nav-number">${index + 1}</span><span>${item.navLabel || item.title}</span>`;
+    button.addEventListener('click', () => {
+      activeTutorialIndex = index;
+      renderTutorialStep();
+    });
+    tutorialNavButtons.push({ button, index });
+    tutorialNav.appendChild(button);
   });
-  tutorial.appendChild(tutorialSteps);
+  tutorialPrevBtn.addEventListener('click', () => {
+    activeTutorialIndex -= 1;
+    renderTutorialStep();
+  });
+  tutorialNextBtn.addEventListener('click', () => {
+    activeTutorialIndex += 1;
+    renderTutorialStep();
+  });
+  renderTutorialStep();
+  tutorial.append(tutorialNav, tutorialViewer);
 
   const queryWrap = document.createElement('div');
   queryWrap.className = 'forwarding-filter-query-wrap';
