@@ -80,6 +80,24 @@ function createMockDb(initialUsers = []) {
   };
 }
 
+function createAsyncMockDb(initialUsers = []) {
+  const syncDb = createMockDb(initialUsers);
+  return {
+    isAsync: true,
+    prepare(sql) {
+      const stmt = syncDb.prepare(sql);
+      return {
+        get: async (...args) => stmt.get(...args),
+        run: async (...args) => stmt.run(...args),
+        all: async (...args) => (stmt.all ? stmt.all(...args) : [])
+      };
+    },
+    _dump() {
+      return syncDb._dump();
+    }
+  };
+}
+
 test('free user under limit increments usage', () => {
   const db = createMockDb([{ id: 'u1', plan_tier: 'free', tracked_email_count_current_month: 0 }]);
   const res = applyTrackedEmailUsage(db, { userId: 'u1', isJobRelated: true, newEvent: true });
@@ -156,4 +174,25 @@ test('global cap blocks free but not pro', () => {
   const allowedPro = applyTrackedEmailUsage(db, { userId: 'u3', isJobRelated: true, newEvent: true });
   assert.equal(allowedPro.allowed, true);
   delete process.env.GLOBAL_TRACKED_EMAIL_CAP;
+});
+
+test('async db plan usage keeps pro users as pro and applies pro limit', async () => {
+  const db = createAsyncMockDb([
+    {
+      id: 'u1',
+      plan_tier: 'pro',
+      plan_status: 'active',
+      billing_plan: 'pro_monthly',
+      billing_type: 'subscription',
+      monthly_tracked_email_limit: 500,
+      tracked_email_count_current_month: 0,
+      tracked_email_month_bucket: currentMonthBucket()
+    }
+  ]);
+  const res = await applyTrackedEmailUsage(db, { userId: 'u1', isJobRelated: true, newEvent: true });
+  assert.equal(res.allowed, true);
+  assert.equal(res.counted, true);
+  assert.equal(res.plan.planTier, 'pro');
+  assert.equal(res.plan.limit, 500);
+  assert.equal(db._dump()[0].tracked_email_count_current_month, 1);
 });

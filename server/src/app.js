@@ -3178,7 +3178,7 @@ app.post('/api/account/inbox-username', requireAuth, async (req, res) => {
 // Return fresh plan/usage summary
 app.get('/api/account/plan', requireAuth, async (req, res) => {
   try {
-    const planState = ensurePlanState(db, req.user.id);
+    const planState = await Promise.resolve(ensurePlanState(db, req.user.id));
     const normalizedTier = String(planState.planTier || 'free').toLowerCase();
     const isFreeTier = normalizedTier === 'free';
     const globalCap = process.env.GLOBAL_TRACKED_EMAIL_CAP
@@ -3233,7 +3233,7 @@ app.get('/api/account/plan', requireAuth, async (req, res) => {
 app.get('/api/billing/status', requireAuth, async (req, res) => {
   try {
     const config = getStripeBillingConfig();
-    const planState = ensurePlanState(db, req.user.id);
+    const planState = await Promise.resolve(ensurePlanState(db, req.user.id));
     return res.json({
       configured: isStripeCheckoutConfigured(config),
       checkout_enabled: isStripeCheckoutConfigured(config),

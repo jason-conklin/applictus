@@ -1679,11 +1679,11 @@ async function syncGmailMessages({
         classifiedRejection += 1;
       }
 
-      const usageResult = applyTrackedEmailUsage(db, {
+      const usageResult = await Promise.resolve(applyTrackedEmailUsage(db, {
         userId,
         isJobRelated: true,
         newEvent: !shouldReprocessDuplicate
-      });
+      }));
 
       if (!usageResult.allowed) {
         const reasonCode = usageResult.reason === 'global_cap_reached'
@@ -3622,11 +3622,11 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
           .get(userId, 'inbound_forward', messageId)
       );
 
-      const usageResult = applyTrackedEmailUsage(db, {
+      const usageResult = await Promise.resolve(applyTrackedEmailUsage(db, {
         userId,
         isJobRelated: true,
         newEvent: !existingEvent
-      });
+      }));
 
       if (!usageResult.allowed) {
         const reasonCode = usageResult.reason === 'global_cap_reached'
