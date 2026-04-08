@@ -5267,16 +5267,22 @@ function openPricingModal() {
   body.append(container);
   const billingPowered = document.createElement('div');
   billingPowered.className = 'pricing-billing-powered muted small';
-  const billingPoweredDot = document.createElement('span');
-  billingPoweredDot.className = 'pricing-billing-powered__dot';
-  billingPoweredDot.setAttribute('aria-hidden', 'true');
+  const billingPoweredIcon = document.createElement('span');
+  billingPoweredIcon.className = 'pricing-billing-powered__icon';
+  billingPoweredIcon.setAttribute('aria-hidden', 'true');
+  billingPoweredIcon.innerHTML = `
+    <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+      <rect x="5.2" y="8.6" width="9.6" height="7.4" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect>
+      <path d="M7.2 8.5V6.9A2.8 2.8 0 0 1 10 4.1a2.8 2.8 0 0 1 2.8 2.8v1.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+    </svg>
+  `;
   const billingPoweredText = document.createElement('span');
   billingPoweredText.textContent = 'Secure checkout powered by ';
   const billingPoweredBrand = document.createElement('span');
   billingPoweredBrand.className = 'pricing-billing-powered__brand';
   billingPoweredBrand.textContent = 'Stripe';
   billingPoweredText.appendChild(billingPoweredBrand);
-  billingPowered.append(billingPoweredDot, billingPoweredText);
+  billingPowered.append(billingPoweredIcon, billingPoweredText);
   body.appendChild(billingPowered);
   const trust = document.createElement('div');
   trust.className = 'pricing-trust muted small';
