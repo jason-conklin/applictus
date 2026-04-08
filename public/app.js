@@ -5228,7 +5228,6 @@ function openPricingModal() {
     details: 'Up to 500 tracked updates per month',
     billingNote: 'Monthly billing for full, always-on tracking',
     features: SHARED_PRO_FEATURES,
-    reinforcement: "Recommended if you're applying to multiple jobs each week",
     badgeText: 'Most popular',
     badgeVariant: 'popular',
     iconVariant: 'pro',
@@ -6050,6 +6049,8 @@ const GMAIL_SETUP_SCREENSHOTS = {
   sc6: '/applictus_setup_sc6.png'
 };
 
+const FORWARDING_SETUP_WALKTHROUGH_URL = 'https://support.google.com/mail/answer/10957?hl=en';
+
 function waitForMs(durationMs) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, Math.max(0, Number(durationMs) || 0));
@@ -6138,6 +6139,27 @@ function renderInboundSetupHeaderAddressPanel() {
     row.append(code, copyBtn);
     panel.append(label, row);
     modalHeader.appendChild(panel);
+  }
+
+  let summaryRow = modalHeader.querySelector('.inbound-setup-header-summary');
+  if (!summaryRow) {
+    summaryRow = document.createElement('div');
+    summaryRow.className = 'inbound-setup-header-summary muted small';
+    summaryRow.dataset.modalTransient = 'true';
+    summaryRow.innerHTML = `
+      <span>Takes about 2 minutes</span>
+      <span>No inbox access required</span>
+      <span>You control what gets forwarded</span>
+      <span>Rotate anytime</span>
+    `;
+    const walkthroughLink = document.createElement('a');
+    walkthroughLink.className = 'inbound-setup-header-walkthrough';
+    walkthroughLink.href = FORWARDING_SETUP_WALKTHROUGH_URL;
+    walkthroughLink.target = '_blank';
+    walkthroughLink.rel = 'noopener noreferrer';
+    walkthroughLink.textContent = 'Watch setup walkthrough';
+    summaryRow.appendChild(walkthroughLink);
+    modalHeader.appendChild(summaryRow);
   }
 
   const code = panel.querySelector('.inbound-setup-header-code');
@@ -6597,11 +6619,11 @@ function getInboundSetupPhaseConfig(phase, setupContext) {
   if (phase === 0) {
     return {
       title: 'Phase 1: Add your Applictus inbox to Gmail',
-      description: 'Three quick steps in Gmail, then continue to verification.',
+      description: 'Add your Applictus address in Gmail in three quick steps.',
       substeps: [
         {
           title: 'Open Gmail settings',
-          description: 'Click the settings icon, then choose See all settings.',
+          description: 'Open Settings in Gmail, then select See all settings.',
           mediaFactory: () =>
             buildForwardingTutorialFrame({
               imageSrc: GMAIL_SETUP_SCREENSHOTS.sc1,
@@ -6611,7 +6633,7 @@ function getInboundSetupPhaseConfig(phase, setupContext) {
         },
         {
           title: 'Open Forwarding and POP/IMAP',
-          description: 'Go to the Forwarding tab and click Add a forwarding address.',
+          description: 'Go to Forwarding and POP/IMAP, then click Add a forwarding address.',
           mediaFactory: () =>
             buildForwardingTutorialFrame({
               imageSrc: GMAIL_SETUP_SCREENSHOTS.sc2,
@@ -6656,11 +6678,11 @@ function getInboundSetupPhaseConfig(phase, setupContext) {
 
   return {
     title: 'Phase 2: Turn forwarding on and verify setup',
-    description: 'Finish forwarding and confirm Applictus is receiving updates.',
+    description: 'Turn forwarding on, send one email, and verify setup.',
     substeps: [
       {
         title: 'Select your Applictus inbox in forwarding',
-        description: 'After Gmail confirms your address, choose it in “Forward a copy of incoming mail to”.',
+        description: 'After Gmail confirms your address, select it under “Forward a copy of incoming mail to”.',
         mediaFactory: () =>
           buildForwardingAnimatedTutorial({
             setupContext,
@@ -6686,7 +6708,7 @@ function getInboundSetupPhaseConfig(phase, setupContext) {
       },
       {
         title: 'Forward one job email or send a test',
-        description: 'Forward one recent application update, or send a quick test email to your Applictus inbox.',
+        description: 'Forward one recent application email, or send a quick test email.',
         mediaFactory: () =>
           buildForwardingTutorialFrame({
             imageSrc: GMAIL_SETUP_SCREENSHOTS.sc6,
@@ -6699,11 +6721,15 @@ function getInboundSetupPhaseConfig(phase, setupContext) {
       },
       {
         title: 'Click Verify setup',
-        description: 'We’ll check for forwarded mail and confirm once tracking is active.',
+        description: 'We’ll confirm your forwarding and mark tracking as active.',
         appendActions: (actions) => {
           actions.append(buildForwardingVerifyButton(setupContext), buildForwardingSendTestButton(setupContext));
         },
         appendExtras: (target) => {
+          const completionNote = document.createElement('p');
+          completionNote.className = 'forwarding-finish-note muted small';
+          completionNote.textContent = 'That’s it — once Gmail saves forwarding, Applictus can start tracking updates.';
+          target.appendChild(completionNote);
           if (setupContext?.verifyMessage) {
             const verifyMessage = document.createElement('p');
             verifyMessage.className = 'forwarding-verify-message muted small';
@@ -6726,13 +6752,18 @@ function buildInboundSetupSecondaryHelp() {
   const secondary = document.createElement('div');
   secondary.className = 'forwarding-secondary-help';
 
+  const heading = document.createElement('div');
+  heading.className = 'forwarding-secondary-help-heading muted small';
+  heading.textContent = 'Optional help';
+  secondary.appendChild(heading);
+
   const filterPanel = createForwardingCollapsible({
     title: 'Optional: reduce usage with a Gmail filter',
     open: false
   });
   const filterIntro = document.createElement('p');
   filterIntro.className = 'muted small';
-  filterIntro.textContent = 'Optional helper: Applictus works without this. Choose a preset if you want to limit noisy inbox traffic.';
+  filterIntro.textContent = 'Optional: choose a filter preset if you want less inbox noise. Applictus works without this.';
 
   const presetList = document.createElement('div');
   presetList.className = 'forwarding-filter-presets';
@@ -6874,6 +6905,9 @@ function buildInboundSetupStep(phase, setupContext) {
   if (activeSubstep) {
     const card = document.createElement('article');
     card.className = 'forwarding-substep-card';
+    if (phase === 1 && substepIndex === maxIndex) {
+      card.classList.add('is-finish-step');
+    }
 
     const title = document.createElement('h5');
     title.className = 'forwarding-substep-title';
@@ -7037,14 +7071,6 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
     }
     body.innerHTML = '';
     body.appendChild(buildInboundSetupStep(currentStep, setupContext));
-    const trustNote = document.createElement('div');
-    trustNote.className = 'forwarding-trust-note muted small';
-    trustNote.innerHTML = `
-      <span>No inbox access required</span>
-      <span>You control what gets forwarded</span>
-      <span>Rotate anytime</span>
-    `;
-    body.appendChild(trustNote);
     renderInboundSetupHeaderAddressPanel();
 
     const phaseConfig = getInboundSetupPhaseConfig(currentStep, setupContext);
@@ -7108,7 +7134,7 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
 
   openModal({
     title: 'Connect inbox forwarding',
-    description: 'Two quick phases to keep your Applictus timeline updated automatically.',
+    description: 'A quick two-phase setup to keep your timeline updated automatically.',
     body,
     footer,
     allowBackdropClose: true,
