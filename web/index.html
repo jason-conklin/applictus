@@ -605,17 +605,24 @@
         border-top: 1px solid rgba(30, 76, 147, 0.12);
         padding-top: 12px;
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: auto minmax(0, 1fr) auto;
         align-items: center;
         column-gap: 12px;
       }
+      .pricing-trust-row::before {
+        content: '';
+        width: 74px;
+      }
       .pricing-trust {
         margin: 0;
-        text-align: left;
+        grid-column: 2;
+        text-align: center;
         color: #4f678a;
         line-height: 1.5;
       }
       .pricing-trust-close {
+        grid-column: 3;
+        justify-self: end;
         white-space: nowrap;
       }
       .modal--pricing .modal-dialog {
