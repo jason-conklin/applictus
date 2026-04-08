@@ -63,8 +63,18 @@ const { getRuntimeDatabaseUrl } = require('./dbConfig');
 const { buildApplicationKey } = require('./normalizeJobFields');
 const { buildHintFingerprintFromEmail, upsertUserHint } = require('./hints');
 const { validateInboxUsername, normalizeInboxUsername } = require('./inboxUsername');
-const { updateUserPlan, getUserPlan } = require('./billing');
+const { updateUserPlan } = require('./billing');
 const { ensurePlanState, resolvePlanLimit, currentMonthBucket } = require('./planUsage');
+const {
+  BILLING_OPTIONS,
+  BILLING_TYPES,
+  normalizeBillingOption,
+  getCheckoutPlanConfig,
+  createCheckoutSession,
+  constructWebhookEvent,
+  computeJobSearchPlanExpiration,
+  isJobSearchPlanActive
+} = require('./stripeBilling');
 
 function isProd() {
   return process.env.NODE_ENV === 'production';
@@ -108,7 +118,16 @@ if (process.env.NODE_ENV === 'production' || process.env.TRUST_PROXY === '1') {
   app.set('trust proxy', 1);
 }
 
-app.use(express.json({ limit: '1mb' }));
+app.use(
+  express.json({
+    limit: '1mb',
+    verify: (req, _res, buf) => {
+      if (req.path === '/api/billing/webhook') {
+        req.rawBody = Buffer.from(buf || Buffer.alloc(0));
+      }
+    }
+  })
+);
 app.use(cookieParser());
 app.use((req, res, next) => {
   const origin = req.headers.origin;
@@ -169,7 +188,6 @@ const CSRF_HEADER = 'x-csrf-token';
 const INBOUND_SECRET_HEADER = 'x-applictus-inbound-secret';
 const CSRF_TTL_MS = 2 * 60 * 60 * 1000;
 const PLAN_ADMIN_SECRET = process.env.PLAN_ADMIN_SECRET || null;
-const ALLOW_DEV_PLAN_UPGRADE = String(process.env.ALLOW_DEV_PLAN_UPGRADE || '').trim() === '1';
 const PLAN_NEAR_LIMIT_THRESHOLD = (() => {
   const raw = Number(process.env.PLAN_NEAR_LIMIT_THRESHOLD || 0.8);
   if (!Number.isFinite(raw)) {
@@ -180,7 +198,7 @@ const PLAN_NEAR_LIMIT_THRESHOLD = (() => {
 const AUTH_DB_TIMEOUT_MS = 2_000;
 const DB_HEALTH_TIMEOUT_MS = 2_000;
 const preauthCsrfStore = new Map();
-const CSRF_BYPASS_PATHS = new Set(['/api/inbound/postmark']);
+const CSRF_BYPASS_PATHS = new Set(['/api/inbound/postmark', '/api/billing/webhook']);
 const DB_UNAVAILABLE_CODES = new Set([
   'ETIMEDOUT',
   'ECONNREFUSED',
@@ -1013,6 +1031,10 @@ function toSessionUserPayload(user) {
     gmail_internal_enabled: inboxMode === 'gmail',
     plan_tier: user.plan_tier || 'free',
     plan_status: user.plan_status || 'active',
+    billing_plan: user.billing_plan || null,
+    billing_type: user.billing_type || null,
+    plan_expires_at: user.plan_expires_at || null,
+    billing_failure_state: user.billing_failure_state || null,
     plan_limit: resolvePlanLimit(user.plan_tier, user.monthly_tracked_email_limit),
     plan_usage: user.tracked_email_count_current_month || 0,
     plan_bucket: user.tracked_email_month_bucket || null
@@ -1217,6 +1239,226 @@ function getRequestBaseUrl(req) {
     return API_BASE_URL;
   }
   return `${protocol}://${host}`;
+}
+
+function getStripeBillingConfig() {
+  return {
+    secretKey: String(process.env.STRIPE_SECRET_KEY || '').trim(),
+    publishableKey: String(process.env.STRIPE_PUBLISHABLE_KEY || '').trim(),
+    webhookSecret: String(process.env.STRIPE_WEBHOOK_SECRET || '').trim(),
+    priceIdProMonthly: String(process.env.STRIPE_PRICE_ID_PRO_MONTHLY || '').trim(),
+    priceIdJobSearch: String(process.env.STRIPE_PRICE_ID_JOB_SEARCH || '').trim()
+  };
+}
+
+function isStripeCheckoutConfigured(config = getStripeBillingConfig()) {
+  return Boolean(
+    config.secretKey && config.priceIdProMonthly && config.priceIdJobSearch
+  );
+}
+
+function isStripeWebhookConfigured(config = getStripeBillingConfig()) {
+  return Boolean(config.webhookSecret);
+}
+
+function buildBillingRedirectUrl(params = {}) {
+  return getWebRedirectWithParams(params);
+}
+
+function parseIsoDateOrNull(value) {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function toIsoFromUnixSeconds(seconds) {
+  const value = Number(seconds);
+  if (!Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  return new Date(value * 1000).toISOString();
+}
+
+async function getUserByStripeCustomerId(customerId) {
+  if (!customerId) {
+    return null;
+  }
+  return runPrepared(
+    db,
+    'SELECT * FROM users WHERE stripe_customer_id = ? LIMIT 1',
+    [String(customerId)],
+    'get'
+  );
+}
+
+async function getUserByStripeSubscriptionId(subscriptionId) {
+  if (!subscriptionId) {
+    return null;
+  }
+  return runPrepared(
+    db,
+    'SELECT * FROM users WHERE stripe_subscription_id = ? LIMIT 1',
+    [String(subscriptionId)],
+    'get'
+  );
+}
+
+function resolveBillingPlanLabel(planLike) {
+  const normalized = String(planLike || '').trim().toLowerCase();
+  if (normalized === BILLING_OPTIONS.PRO_MONTHLY) {
+    return BILLING_OPTIONS.PRO_MONTHLY;
+  }
+  if (normalized === BILLING_OPTIONS.JOB_SEARCH_PLAN) {
+    return BILLING_OPTIONS.JOB_SEARCH_PLAN;
+  }
+  return null;
+}
+
+function isStaleStripeEventForUser(user, event) {
+  if (!user || !event) {
+    return false;
+  }
+  if (String(user.billing_last_event_id || '') === String(event.id || '')) {
+    return true;
+  }
+  const eventIso = toIsoFromUnixSeconds(event.created);
+  const eventDate = parseIsoDateOrNull(eventIso);
+  const lastDate = parseIsoDateOrNull(user.billing_last_event_at);
+  if (!eventDate || !lastDate) {
+    return false;
+  }
+  return eventDate.getTime() < lastDate.getTime();
+}
+
+async function markMonthlyPlanActive(userId, {
+  stripeCustomerId = null,
+  stripeSubscriptionId = null,
+  eventId = null,
+  eventIso = null
+} = {}) {
+  const now = nowIso();
+  await runPrepared(
+    db,
+    `UPDATE users
+       SET plan_tier = 'pro',
+           plan_status = 'active',
+           monthly_tracked_email_limit = ?,
+           billing_plan = ?,
+           billing_type = ?,
+           plan_expires_at = NULL,
+           stripe_customer_id = COALESCE(?, stripe_customer_id),
+           stripe_subscription_id = COALESCE(?, stripe_subscription_id),
+           billing_failure_state = NULL,
+           billing_last_event_id = COALESCE(?, billing_last_event_id),
+           billing_last_event_at = COALESCE(?, billing_last_event_at),
+           updated_at = ?
+     WHERE id = ?`,
+    [
+      resolvePlanLimit('pro', null),
+      BILLING_OPTIONS.PRO_MONTHLY,
+      BILLING_TYPES.SUBSCRIPTION,
+      stripeCustomerId ? String(stripeCustomerId) : null,
+      stripeSubscriptionId ? String(stripeSubscriptionId) : null,
+      eventId ? String(eventId) : null,
+      eventIso || null,
+      now,
+      userId
+    ],
+    'run'
+  );
+}
+
+async function markJobSearchPlanActive(userId, {
+  stripeCustomerId = null,
+  eventId = null,
+  eventIso = null,
+  expiresAt = null
+} = {}) {
+  const now = nowIso();
+  const expiration = expiresAt || computeJobSearchPlanExpiration({ now });
+  await runPrepared(
+    db,
+    `UPDATE users
+       SET plan_tier = 'pro',
+           plan_status = 'active',
+           monthly_tracked_email_limit = ?,
+           billing_plan = ?,
+           billing_type = ?,
+           plan_expires_at = ?,
+           stripe_customer_id = COALESCE(?, stripe_customer_id),
+           stripe_subscription_id = NULL,
+           billing_failure_state = NULL,
+           billing_last_event_id = COALESCE(?, billing_last_event_id),
+           billing_last_event_at = COALESCE(?, billing_last_event_at),
+           updated_at = ?
+     WHERE id = ?`,
+    [
+      resolvePlanLimit('pro', null),
+      BILLING_OPTIONS.JOB_SEARCH_PLAN,
+      BILLING_TYPES.ONE_TIME,
+      expiration,
+      stripeCustomerId ? String(stripeCustomerId) : null,
+      eventId ? String(eventId) : null,
+      eventIso || null,
+      now,
+      userId
+    ],
+    'run'
+  );
+}
+
+async function markFreePlanActive(userId, {
+  stripeCustomerId = null,
+  eventId = null,
+  eventIso = null
+} = {}) {
+  const now = nowIso();
+  await runPrepared(
+    db,
+    `UPDATE users
+       SET plan_tier = 'free',
+           plan_status = 'active',
+           monthly_tracked_email_limit = ?,
+           billing_plan = 'free',
+           billing_type = 'none',
+           plan_expires_at = NULL,
+           stripe_customer_id = COALESCE(?, stripe_customer_id),
+           stripe_subscription_id = NULL,
+           billing_failure_state = NULL,
+           billing_last_event_id = COALESCE(?, billing_last_event_id),
+           billing_last_event_at = COALESCE(?, billing_last_event_at),
+           updated_at = ?
+     WHERE id = ?`,
+    [
+      resolvePlanLimit('free', null),
+      stripeCustomerId ? String(stripeCustomerId) : null,
+      eventId ? String(eventId) : null,
+      eventIso || null,
+      now,
+      userId
+    ],
+    'run'
+  );
+}
+
+async function markMonthlyPaymentFailed(userId, {
+  eventId = null,
+  eventIso = null
+} = {}) {
+  const now = nowIso();
+  await runPrepared(
+    db,
+    `UPDATE users
+       SET billing_failure_state = 'payment_failed',
+           billing_last_event_id = COALESCE(?, billing_last_event_id),
+           billing_last_event_at = COALESCE(?, billing_last_event_at),
+           updated_at = ?
+     WHERE id = ?`,
+    [eventId ? String(eventId) : null, eventIso || null, now, userId],
+    'run'
+  );
 }
 
 function parseIsoDate(value) {
@@ -2956,9 +3198,20 @@ app.get('/api/account/plan', requireAuth, async (req, res) => {
     const nearLimitThresholdCount = limit > 0 ? Math.ceil(limit * PLAN_NEAR_LIMIT_THRESHOLD) : 0;
     const nearLimit = isFreeTier && limit > 0 ? usage >= nearLimitThresholdCount && usage < limit : false;
     const atLimit = isFreeTier && limit > 0 ? usage >= limit : false;
+    const planExpiresAt = planState.planExpiresAt || null;
+    const oneTimeActive =
+      String(planState.billingType || '').toLowerCase() === BILLING_TYPES.ONE_TIME &&
+      Boolean(planExpiresAt) &&
+      Number.isFinite(new Date(planExpiresAt).getTime()) &&
+      new Date(planExpiresAt).getTime() > Date.now();
     const response = {
       plan_tier: planState.planTier,
       plan_status: planState.planStatus,
+      billing_plan: planState.billingPlan || (normalizedTier === 'pro' ? BILLING_OPTIONS.PRO_MONTHLY : 'free'),
+      billing_type: planState.billingType || BILLING_TYPES.NONE,
+      plan_expires_at: planExpiresAt,
+      billing_failure_state: planState.billingFailureState || null,
+      job_search_plan_active: oneTimeActive,
       monthly_tracked_email_limit: limit,
       tracked_email_count_current_month: usage,
       tracked_email_month_bucket: planState.bucket,
@@ -2977,51 +3230,285 @@ app.get('/api/account/plan', requireAuth, async (req, res) => {
   }
 });
 
-// Placeholder upgrade endpoint (dev-gated)
-app.post('/api/account/plan/upgrade', requireAuth, async (req, res) => {
+app.get('/api/billing/status', requireAuth, async (req, res) => {
   try {
-    if (!ALLOW_DEV_PLAN_UPGRADE) {
-      return res.status(403).json({ error: 'UPGRADE_DISABLED' });
-    }
-    updateUserPlan(db, { userId: req.user.id, tier: 'pro', status: 'active' });
-    const refreshed = await getUserById(req.user.id);
-    return res.json({ ok: true, user: toSessionUserPayload(refreshed) });
+    const config = getStripeBillingConfig();
+    const planState = ensurePlanState(db, req.user.id);
+    return res.json({
+      configured: isStripeCheckoutConfigured(config),
+      checkout_enabled: isStripeCheckoutConfigured(config),
+      webhook_enabled: isStripeWebhookConfigured(config),
+      publishable_key: config.publishableKey || null,
+      plan_tier: planState.planTier || 'free',
+      plan_status: planState.planStatus || 'active',
+      billing_plan: planState.billingPlan || null,
+      billing_type: planState.billingType || null,
+      plan_expires_at: planState.planExpiresAt || null
+    });
   } catch (err) {
-    logError('plan.upgrade.failed', { userId: req.user?.id, error: err?.message || String(err) });
-    return res.status(500).json({ error: 'PLAN_UPGRADE_FAILED' });
+    logError('billing.status.failed', { userId: req.user?.id || null, error: err?.message || String(err) });
+    return res.status(500).json({ error: 'BILLING_STATUS_FAILED' });
   }
 });
 
-// Dev/admin-only plan setter, gated by PLAN_ADMIN_SECRET header
-app.post('/api/account/plan/dev-set', async (req, res) => {
+async function createCheckoutSessionHandler(req, res) {
   try {
-    if (!PLAN_ADMIN_SECRET || req.headers['x-plan-admin'] !== PLAN_ADMIN_SECRET) {
-      return res.status(403).json({ error: 'FORBIDDEN' });
+    const config = getStripeBillingConfig();
+    if (!isStripeCheckoutConfigured(config)) {
+      return res.status(503).json({ error: 'BILLING_NOT_CONFIGURED' });
     }
-    const userId = req.body?.user_id || req.body?.userId;
-    const tier = req.body?.tier || 'pro';
-    const status = req.body?.status || 'active';
-    if (!userId) {
-      return res.status(400).json({ error: 'USER_ID_REQUIRED' });
+    const requestedPlan =
+      req.body?.plan ||
+      req.body?.plan_key ||
+      req.body?.billing_option ||
+      req.body?.billingOption ||
+      BILLING_OPTIONS.PRO_MONTHLY;
+    const planConfig = getCheckoutPlanConfig(requestedPlan, process.env);
+    if (!planConfig) {
+      return res.status(400).json({ error: 'UNSUPPORTED_BILLING_PLAN' });
     }
-    updateUserPlan(db, { userId, tier, status });
-    const refreshed = await getUserById(userId);
-    return res.json({ ok: true, user: toSessionUserPayload(refreshed) });
-  } catch (err) {
-    logError('plan.dev_set.failed', { error: err?.message || String(err) });
-    return res.status(500).json({ error: 'PLAN_SET_FAILED' });
-  }
-});
+    if (!planConfig.priceId) {
+      return res.status(503).json({ error: 'BILLING_PRICE_NOT_CONFIGURED' });
+    }
 
-// Placeholder upgrade endpoint (no billing provider wired yet)
-app.post('/api/account/plan/upgrade', requireAuth, async (req, res) => {
-  try {
-    updateUserPlan(db, { userId: req.user.id, tier: 'pro', status: 'active' });
-    const refreshed = await getUserById(req.user.id);
-    return res.json({ ok: true, user: toSessionUserPayload(refreshed) });
+    const user = await getUserById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'USER_NOT_FOUND' });
+    }
+
+    const successUrl = `${buildBillingRedirectUrl({ billing: 'success' })}#dashboard`;
+    const cancelUrl = `${buildBillingRedirectUrl({ billing: 'cancel' })}#dashboard`;
+
+    const checkoutSession = await createCheckoutSession({
+      stripeSecretKey: config.secretKey,
+      planKey: planConfig.planKey,
+      mode: planConfig.mode,
+      priceId: planConfig.priceId,
+      userId: user.id,
+      userEmail: user.email,
+      stripeCustomerId: user.stripe_customer_id || null,
+      successUrl,
+      cancelUrl
+    });
+
+    if (!checkoutSession?.url) {
+      logError('billing.checkout.missing_url', {
+        userId: req.user?.id || null,
+        planKey: planConfig.planKey,
+        sessionId: checkoutSession?.id || null
+      });
+      return res.status(502).json({ error: 'BILLING_CHECKOUT_URL_MISSING' });
+    }
+
+    return res.json({
+      ok: true,
+      checkout_url: checkoutSession.url,
+      checkout_session_id: checkoutSession.id || null,
+      plan_key: planConfig.planKey
+    });
   } catch (err) {
-    logError('plan.upgrade.failed', { userId: req.user?.id, error: err?.message || String(err) });
-    return res.status(500).json({ error: 'PLAN_UPGRADE_FAILED' });
+    logError('billing.checkout.failed', {
+      userId: req.user?.id || null,
+      code: err?.code || null,
+      status: err?.status || null,
+      detail: err?.message ? String(err.message).slice(0, 240) : String(err)
+    });
+    if (String(err?.code || '').startsWith('STRIPE_')) {
+      return res.status(502).json({ error: 'BILLING_PROVIDER_ERROR' });
+    }
+    return res.status(500).json({ error: 'BILLING_CHECKOUT_FAILED' });
+  }
+}
+
+app.post('/api/billing/create-checkout-session', requireAuth, createCheckoutSessionHandler);
+
+// Backward-compatible alias used by older frontend builds.
+app.post('/api/account/plan/upgrade', requireAuth, createCheckoutSessionHandler);
+
+app.post('/api/billing/webhook', async (req, res) => {
+  const config = getStripeBillingConfig();
+  if (!isStripeWebhookConfigured(config)) {
+    return res.status(503).json({ error: 'BILLING_WEBHOOK_NOT_CONFIGURED' });
+  }
+
+  let event = null;
+  try {
+    event = constructWebhookEvent({
+      rawBody: req.rawBody || '',
+      signatureHeader: req.get('stripe-signature'),
+      webhookSecret: config.webhookSecret
+    });
+  } catch (err) {
+    const code = String(err?.code || '');
+    const status = code.includes('SIGNATURE') ? 400 : 422;
+    logWarn('billing.webhook.invalid', {
+      code: code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+    return res.status(status).json({ error: code || 'BILLING_WEBHOOK_INVALID' });
+  }
+
+  const eventType = String(event?.type || '').toLowerCase();
+  const eventId = String(event?.id || '').trim() || null;
+  const eventIso = toIsoFromUnixSeconds(event?.created) || nowIso();
+
+  try {
+    if (eventType === 'checkout.session.completed') {
+      const session = event?.data?.object || {};
+      const metadata = session?.metadata && typeof session.metadata === 'object' ? session.metadata : {};
+      const rawPlan =
+        metadata.plan_key ||
+        metadata.internal_plan_key ||
+        metadata.billing_option ||
+        metadata.plan ||
+        metadata.planKey ||
+        null;
+      const normalizedPlan = resolveBillingPlanLabel(normalizeBillingOption(rawPlan));
+      const fallbackPlan =
+        session.mode === 'subscription'
+          ? BILLING_OPTIONS.PRO_MONTHLY
+          : session.mode === 'payment'
+            ? BILLING_OPTIONS.JOB_SEARCH_PLAN
+            : null;
+      const planKey = normalizedPlan || fallbackPlan;
+
+      const metadataUserId =
+        metadata.user_id || metadata.userId || session.client_reference_id || null;
+
+      let user = metadataUserId ? await getUserById(String(metadataUserId)) : null;
+      if (!user && session.customer) {
+        user = await getUserByStripeCustomerId(String(session.customer));
+      }
+
+      if (!user) {
+        logWarn('billing.webhook.user_not_found', {
+          eventType,
+          eventId,
+          metadataUserId: metadataUserId || null,
+          customer: session.customer || null
+        });
+        return res.json({ received: true, ignored: true });
+      }
+
+      if (isStaleStripeEventForUser(user, event)) {
+        return res.json({ received: true, duplicate: true });
+      }
+
+      if (planKey === BILLING_OPTIONS.PRO_MONTHLY) {
+        await markMonthlyPlanActive(user.id, {
+          stripeCustomerId: session.customer || user.stripe_customer_id || null,
+          stripeSubscriptionId: session.subscription || null,
+          eventId,
+          eventIso
+        });
+        return res.json({ received: true, applied: true });
+      }
+
+      if (planKey === BILLING_OPTIONS.JOB_SEARCH_PLAN) {
+        const expiresAt = computeJobSearchPlanExpiration({ now: eventIso, days: 90 });
+        await markJobSearchPlanActive(user.id, {
+          stripeCustomerId: session.customer || user.stripe_customer_id || null,
+          eventId,
+          eventIso,
+          expiresAt
+        });
+        return res.json({ received: true, applied: true });
+      }
+
+      logWarn('billing.webhook.unrecognized_checkout_plan', {
+        eventId,
+        eventType,
+        rawPlan: rawPlan || null,
+        mode: session.mode || null
+      });
+      return res.json({ received: true, ignored: true });
+    }
+
+    if (eventType === 'customer.subscription.deleted') {
+      const subscription = event?.data?.object || {};
+      let user = null;
+      if (subscription.id) {
+        user = await getUserByStripeSubscriptionId(String(subscription.id));
+      }
+      if (!user && subscription.customer) {
+        user = await getUserByStripeCustomerId(String(subscription.customer));
+      }
+
+      if (!user) {
+        return res.json({ received: true, ignored: true });
+      }
+      if (isStaleStripeEventForUser(user, event)) {
+        return res.json({ received: true, duplicate: true });
+      }
+
+      if (isJobSearchPlanActive(user)) {
+        await runPrepared(
+          db,
+          `UPDATE users
+             SET stripe_subscription_id = NULL,
+                 billing_last_event_id = COALESCE(?, billing_last_event_id),
+                 billing_last_event_at = COALESCE(?, billing_last_event_at),
+                 updated_at = ?
+           WHERE id = ?`,
+          [eventId, eventIso, nowIso(), user.id],
+          'run'
+        );
+        return res.json({ received: true, applied: true });
+      }
+
+      await markFreePlanActive(user.id, {
+        stripeCustomerId: subscription.customer || user.stripe_customer_id || null,
+        eventId,
+        eventIso
+      });
+      return res.json({ received: true, applied: true });
+    }
+
+    if (eventType === 'invoice.payment_failed') {
+      const invoice = event?.data?.object || {};
+      let user = null;
+      if (invoice.subscription) {
+        user = await getUserByStripeSubscriptionId(String(invoice.subscription));
+      }
+      if (!user && invoice.customer) {
+        user = await getUserByStripeCustomerId(String(invoice.customer));
+      }
+
+      if (!user) {
+        return res.json({ received: true, ignored: true });
+      }
+      if (isStaleStripeEventForUser(user, event)) {
+        return res.json({ received: true, duplicate: true });
+      }
+
+      const billingType = String(user.billing_type || '').toLowerCase();
+      const billingPlan = String(user.billing_plan || '').toLowerCase();
+      if (billingType === BILLING_TYPES.SUBSCRIPTION || billingPlan === BILLING_OPTIONS.PRO_MONTHLY) {
+        await markMonthlyPaymentFailed(user.id, { eventId, eventIso });
+      } else {
+        await runPrepared(
+          db,
+          `UPDATE users
+             SET billing_last_event_id = COALESCE(?, billing_last_event_id),
+                 billing_last_event_at = COALESCE(?, billing_last_event_at),
+                 updated_at = ?
+           WHERE id = ?`,
+          [eventId, eventIso, nowIso(), user.id],
+          'run'
+        );
+      }
+      return res.json({ received: true, applied: true });
+    }
+
+    return res.json({ received: true, ignored: true });
+  } catch (err) {
+    logError('billing.webhook.failed', {
+      eventId,
+      eventType,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 240) : String(err)
+    });
+    return res.status(500).json({ error: 'BILLING_WEBHOOK_FAILED' });
   }
 });
 

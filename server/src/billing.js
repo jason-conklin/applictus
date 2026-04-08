@@ -14,10 +14,23 @@ function updateUserPlan(db, { userId, tier, status = 'active' }) {
   const plan_status = String(status || 'active').toLowerCase();
   const limit = resolvePlanLimit(plan_tier, null);
   const bucket = currentMonthBucket();
+  const billing_plan = plan_tier === 'pro' ? 'pro_monthly' : 'free';
+  const billing_type = plan_tier === 'pro' ? 'subscription' : 'none';
   db.prepare(
     `UPDATE users
        SET plan_tier = ?,
            plan_status = ?,
+           billing_plan = ?,
+           billing_type = ?,
+           plan_expires_at = NULL,
+           stripe_subscription_id = CASE
+             WHEN ? = 'free' THEN NULL
+             ELSE stripe_subscription_id
+           END,
+           billing_failure_state = CASE
+             WHEN ? = 'free' THEN NULL
+             ELSE billing_failure_state
+           END,
            monthly_tracked_email_limit = ?,
            tracked_email_count_current_month = CASE
              WHEN tracked_email_month_bucket = ? THEN tracked_email_count_current_month
@@ -25,14 +38,15 @@ function updateUserPlan(db, { userId, tier, status = 'active' }) {
            END,
            tracked_email_month_bucket = COALESCE(tracked_email_month_bucket, ?)
      WHERE id = ?`
-  ).run(plan_tier, plan_status, limit, bucket, bucket, userId);
-  return { plan_tier, plan_status, limit, bucket };
+  ).run(plan_tier, plan_status, billing_plan, billing_type, plan_tier, plan_tier, limit, bucket, bucket, userId);
+  return { plan_tier, plan_status, billing_plan, billing_type, limit, bucket };
 }
 
 function getUserPlan(db, userId) {
   const row = db
     .prepare(
-      `SELECT plan_tier, plan_status, monthly_tracked_email_limit, tracked_email_count_current_month, tracked_email_month_bucket
+      `SELECT plan_tier, plan_status, monthly_tracked_email_limit, tracked_email_count_current_month, tracked_email_month_bucket,
+              billing_plan, billing_type, plan_expires_at, billing_failure_state, stripe_customer_id, stripe_subscription_id
          FROM users WHERE id = ?`
     )
     .get(userId);
@@ -42,7 +56,13 @@ function getUserPlan(db, userId) {
     status: row.plan_status || 'active',
     limit: row.monthly_tracked_email_limit || resolvePlanLimit(row.plan_tier, null),
     usage: Number(row.tracked_email_count_current_month || 0),
-    bucket: row.tracked_email_month_bucket || currentMonthBucket()
+    bucket: row.tracked_email_month_bucket || currentMonthBucket(),
+    billing_plan: row.billing_plan || (row.plan_tier === 'pro' ? 'pro_monthly' : 'free'),
+    billing_type: row.billing_type || 'none',
+    plan_expires_at: row.plan_expires_at || null,
+    billing_failure_state: row.billing_failure_state || null,
+    stripe_customer_id: row.stripe_customer_id || null,
+    stripe_subscription_id: row.stripe_subscription_id || null
   };
 }
 

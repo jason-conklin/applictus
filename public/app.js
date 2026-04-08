@@ -3524,6 +3524,27 @@ function consumeAuthRedirectSuccess() {
   return { gmailConnected: gmailConnected === '1' };
 }
 
+function consumeBillingRedirectStatus() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const url = new URL(window.location.href);
+  const value = String(url.searchParams.get('billing') || '').trim().toLowerCase();
+  if (!value) {
+    return null;
+  }
+  url.searchParams.delete('billing');
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState({}, '', nextUrl || '/');
+  if (value === 'success') {
+    return { status: 'success' };
+  }
+  if (value === 'cancel') {
+    return { status: 'cancel' };
+  }
+  return { status: value };
+}
+
 function contactErrorMessage(code) {
   const messages = {
     NAME_REQUIRED: 'Enter your name.',
@@ -4701,15 +4722,36 @@ function renderPlanUsage(user = sessionUser) {
   }
   const source = planState || user;
   const tier = planUsage?.tier || String(source.plan_tier || 'free').toLowerCase();
+  const billingPlan = String(source.billing_plan || '').toLowerCase();
+  const billingType = String(source.billing_type || '').toLowerCase();
+  const planExpiresAt = source.plan_expires_at || null;
+  const hasActiveJobSearchPlan =
+    billingType === 'one_time' &&
+    Boolean(planExpiresAt) &&
+    Number.isFinite(new Date(planExpiresAt).getTime()) &&
+    new Date(planExpiresAt).getTime() > Date.now();
   const limit = planUsage?.limit || getPlanLimitForUser(source);
   const usage = planUsage?.usage ?? Number(source.tracked_email_count_current_month || source.plan_usage || 0);
-  accountPlanName.textContent = tier === 'pro' ? 'Pro' : 'Free';
+  if (tier === 'pro' && hasActiveJobSearchPlan) {
+    accountPlanName.textContent = 'Job Search Plan';
+  } else if (tier === 'pro' && billingPlan === 'pro_monthly') {
+    accountPlanName.textContent = 'Pro (monthly)';
+  } else {
+    accountPlanName.textContent = tier === 'pro' ? 'Pro' : 'Free';
+  }
   accountPlanUsage.textContent = `${usage} / ${limit} tracked emails this month`;
   const ratio = limit > 0 ? Math.min(1, usage / limit) : 0;
   accountPlanProgress.style.width = `${Math.round(ratio * 100)}%`;
   renderPlanProgressMarker(usage, limit);
+  const expiryLabel =
+    hasActiveJobSearchPlan && planExpiresAt ? `Active until ${formatDateTime(planExpiresAt)}` : '';
+  const billingFailure = String(source.billing_failure_state || '').toLowerCase() === 'payment_failed';
+  const billingFailureLabel =
+    tier === 'pro' && billingFailure
+      ? 'Billing issue detected. Please update your payment method in Stripe.'
+      : '';
   if (accountPlanWarning) {
-    accountPlanWarning.textContent = trigger?.message || '';
+    accountPlanWarning.textContent = trigger?.message || billingFailureLabel || expiryLabel || '';
     accountPlanWarning.classList.toggle('plan-warning--near', trigger?.level === 'near');
     accountPlanWarning.classList.toggle('plan-warning--at', trigger?.level === 'at');
   }
@@ -5232,6 +5274,10 @@ async function refreshPlanUsage() {
     if (sessionUser) {
       sessionUser.plan_tier = data.plan_tier;
       sessionUser.plan_status = data.plan_status;
+      sessionUser.billing_plan = data.billing_plan;
+      sessionUser.billing_type = data.billing_type;
+      sessionUser.plan_expires_at = data.plan_expires_at;
+      sessionUser.billing_failure_state = data.billing_failure_state;
       sessionUser.plan_limit = data.monthly_tracked_email_limit;
       sessionUser.plan_usage = data.tracked_email_count_current_month;
       sessionUser.plan_bucket = data.tracked_email_month_bucket;
@@ -9735,20 +9781,25 @@ dashboardPlanWarningCta?.addEventListener('click', openPricingModal);
 
 async function requestUpgrade(billingOption = 'monthly') {
   try {
-    const payload = {};
-    if (billingOption) {
-      payload.billing_option = billingOption;
+    const normalizedPlan = billingOption === 'job_search_plan' ? 'job_search_plan' : 'pro_monthly';
+    const payload = { plan: normalizedPlan };
+    const res = await api('/api/billing/create-checkout-session', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    const checkoutUrl = res?.checkout_url || null;
+    if (!checkoutUrl) {
+      showNotice('Unable to start Stripe checkout right now.', 'Upgrade');
+      return;
     }
-    const res = await api('/api/account/plan/upgrade', { method: 'POST', body: JSON.stringify(payload) });
-    if (res?.user) {
-      sessionUser = res.user;
-      renderAccountPanel(sessionUser);
-      showNotice('Pro plan activated for your account.', 'Upgrade');
-      await refreshPlanUsage();
-    }
+    window.location.href = checkoutUrl;
   } catch (err) {
-    if (err?.status === 403) {
-      showNotice('Upgrade requires billing setup and is currently disabled.', 'Upgrade');
+    if (err?.code === 'BILLING_NOT_CONFIGURED') {
+      showNotice('Billing is not configured yet. Please try again shortly.', 'Upgrade');
+      return;
+    }
+    if (err?.code === 'UNSUPPORTED_BILLING_PLAN') {
+      showNotice('That billing option is not available.', 'Upgrade');
       return;
     }
     showNotice('Unable to start upgrade right now.', 'Upgrade');
@@ -11056,6 +11107,13 @@ window.addEventListener('hashchange', route);
   const authRedirectSuccess = consumeAuthRedirectSuccess();
   if (authRedirectSuccess?.gmailConnected) {
     showNotice('Gmail connected successfully.', 'Google sign-in');
+  }
+  const billingRedirect = consumeBillingRedirectStatus();
+  if (billingRedirect?.status === 'success') {
+    showNotice('Checkout complete. Updating your plan…', 'Billing');
+    await refreshPlanUsage();
+  } else if (billingRedirect?.status === 'cancel') {
+    showNotice('Checkout canceled. No changes were made.', 'Billing');
   }
   const authRedirectError = consumeAuthRedirectError();
   if (authRedirectError) {
