@@ -6689,7 +6689,7 @@ function getInboundSetupPhaseConfig(phase, setupContext) {
 
   return {
     title: 'Phase 2: Turn forwarding on and verify setup',
-    description: 'Turn forwarding on, send one email, and verify setup.',
+    description: 'Turn forwarding on, then finish setup in one quick step.',
     substeps: [
       {
         title: 'Select your Applictus inbox in forwarding',
@@ -6718,23 +6718,10 @@ function getInboundSetupPhaseConfig(phase, setupContext) {
         }
       },
       {
-        title: 'Forward one job email or send a test',
-        description: 'Forward one recent application email, or send a quick test email.',
-        mediaFactory: () =>
-          buildForwardingTutorialFrame({
-            imageSrc: GMAIL_SETUP_SCREENSHOTS.sc6,
-            imageAlt: 'Forwarding settings with Applictus inbox selected.',
-            trimBottom: false
-          }),
+        title: 'Finish setup',
+        description: 'Forward one recent application email or send a quick test email, then click Verify setup.',
         appendActions: (actions) => {
-          actions.appendChild(buildForwardingSendTestButton(setupContext));
-        }
-      },
-      {
-        title: 'Click Verify setup',
-        description: 'We’ll confirm your forwarding and mark tracking as active.',
-        appendActions: (actions) => {
-          actions.append(buildForwardingVerifyButton(setupContext), buildForwardingSendTestButton(setupContext));
+          actions.append(buildForwardingSendTestButton(setupContext), buildForwardingVerifyButton(setupContext));
         },
         appendExtras: (target) => {
           const completionNote = document.createElement('p');
