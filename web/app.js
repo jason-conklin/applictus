@@ -489,6 +489,7 @@ const accountPlanPercent = document.getElementById('account-plan-percent');
 const accountPlanWarning = document.getElementById('account-plan-warning');
 const accountUpgradeButton = document.getElementById('account-upgrade-button');
 const accountPlanDetails = document.getElementById('account-plan-details');
+const accountPlanReduceUsage = document.getElementById('account-plan-reduce-usage');
 const adminMetricSelect = document.getElementById('analytics-metric-select');
 const adminRangeSelect = document.getElementById('analytics-range-select');
 const adminChartSvgStatic = document.getElementById('analytics-chart');
@@ -6750,22 +6751,15 @@ function getInboundSetupPhaseConfig(phase, setupContext) {
   };
 }
 
-function buildInboundSetupSecondaryHelp() {
-  const secondary = document.createElement('div');
-  secondary.className = 'forwarding-secondary-help';
+function buildGmailFilterHelpContent({
+  introText = 'Applictus works without this. Use a Gmail filter if you only want certain job emails forwarded.'
+} = {}) {
+  const content = document.createElement('div');
+  content.className = 'forwarding-filter-help-content';
 
-  const heading = document.createElement('div');
-  heading.className = 'forwarding-secondary-help-heading muted small';
-  heading.textContent = 'Optional help';
-  secondary.appendChild(heading);
-
-  const filterPanel = createForwardingCollapsible({
-    title: 'Optional: reduce inbox noise with a Gmail filter',
-    open: false
-  });
   const filterIntro = document.createElement('p');
   filterIntro.className = 'forwarding-filter-intro muted small';
-  filterIntro.textContent = 'Applictus works without this. Use a Gmail filter if you only want certain job emails forwarded.';
+  filterIntro.textContent = String(introText || '').trim();
 
   const presetList = document.createElement('div');
   presetList.className = 'forwarding-filter-presets';
@@ -6966,7 +6960,45 @@ function buildInboundSetupSecondaryHelp() {
   });
 
   renderFilterPresetUi();
-  filterPanel.body.append(filterIntro, presetList, presetDescriptionLabel, presetDescription, tutorial, queryWrap);
+  content.append(filterIntro, presetList, presetDescriptionLabel, presetDescription, tutorial, queryWrap);
+  return content;
+}
+
+function openGmailFilterHelpModal() {
+  const body = document.createElement('div');
+  body.className = 'forwarding-filter-modal-body';
+  body.appendChild(
+    buildGmailFilterHelpContent({
+      introText: 'Choose a preset, copy the query, then follow the Gmail steps below. Applictus works without this.'
+    })
+  );
+  const footer = buildModalFooter({ confirmText: 'Done', cancelText: null });
+  const doneButton = footer.querySelector('[data-role="confirm"]');
+  doneButton?.addEventListener('click', () => closeModal('done'));
+  openModal({
+    title: 'Reduce tracked email usage',
+    description: 'Use a Gmail filter if you only want certain job emails forwarded to Applictus. Applictus works without this.',
+    body,
+    footer,
+    allowBackdropClose: true,
+    variantClass: 'modal--filter-help'
+  });
+}
+
+function buildInboundSetupSecondaryHelp() {
+  const secondary = document.createElement('div');
+  secondary.className = 'forwarding-secondary-help';
+
+  const heading = document.createElement('div');
+  heading.className = 'forwarding-secondary-help-heading muted small';
+  heading.textContent = 'Optional help';
+  secondary.appendChild(heading);
+
+  const filterPanel = createForwardingCollapsible({
+    title: 'Optional: reduce inbox noise with a Gmail filter',
+    open: false
+  });
+  filterPanel.body.appendChild(buildGmailFilterHelpContent());
   secondary.appendChild(filterPanel.details);
 
   const outlookPanel = createForwardingCollapsible({
@@ -9969,6 +10001,7 @@ googleAuth?.addEventListener('click', () => {
 
 accountUpgradeButton?.addEventListener('click', openPricingModal);
 accountPlanDetails?.addEventListener('click', openPricingModal);
+accountPlanReduceUsage?.addEventListener('click', openGmailFilterHelpModal);
 dashboardPlanWarningCta?.addEventListener('click', openPricingModal);
 
 async function requestUpgrade(billingOption = 'monthly') {

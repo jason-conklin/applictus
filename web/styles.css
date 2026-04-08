@@ -5222,6 +5222,10 @@ details summary {
   width: min(940px, 97vw);
 }
 
+.modal--filter-help .modal-dialog {
+  width: min(920px, 97vw);
+}
+
 .modal--inbound-setup .modal-header {
   grid-template-columns: minmax(0, 1fr) minmax(300px, 350px);
   gap: 10px 16px;
@@ -5344,6 +5348,16 @@ details summary {
 .forwarding-setup-body {
   display: grid;
   gap: 12px;
+}
+
+.forwarding-filter-modal-body {
+  display: grid;
+  gap: 10px;
+}
+
+.forwarding-filter-help-content {
+  display: grid;
+  gap: 8px;
 }
 
 .forwarding-setup-step {
