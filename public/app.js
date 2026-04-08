@@ -5005,8 +5005,7 @@ function updateAdminAnalyticsVisibility() {
 const SHARED_PRO_FEATURES = [
   'Track confirmations, interviews, offers, and rejections automatically',
   'Catch critical updates before they get buried in your inbox',
-  'Keep every company and role organized in one timeline',
-  'Built for active job seekers managing multiple applications'
+  'Keep every company and role organized in one timeline'
 ];
 
 function createPricingPlanIcon(variant = 'free') {
