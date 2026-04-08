@@ -9418,6 +9418,30 @@ body.home-page .home-billboard-cta .btn-secondary:hover {
     inset 0 -2px 7px rgba(12, 34, 72, 0.06);
 }
 
+body.home-page .home-hero-billing-cue {
+  margin: clamp(5px, 0.65vh, 10px) auto 0;
+  width: fit-content;
+  max-width: min(90vw, 520px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(17, 50, 95, 0.12);
+  background: rgba(255, 255, 255, 0.62);
+  color: rgba(27, 61, 108, 0.74);
+  font-size: 12px;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+}
+
+body.home-page .home-hero-billing-cue__brand {
+  color: rgba(20, 57, 106, 0.9);
+  font-weight: 600;
+}
+
 body.home-page .home-hero-trust {
   margin-top: clamp(4px, 0.7vh, 9px);
   display: flex;

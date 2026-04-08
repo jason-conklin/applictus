@@ -5244,9 +5244,22 @@ function openPricingModal() {
 
   const body = document.createElement('div');
   body.append(hero, container);
+  const billingPowered = document.createElement('div');
+  billingPowered.className = 'pricing-billing-powered muted small';
+  const billingPoweredDot = document.createElement('span');
+  billingPoweredDot.className = 'pricing-billing-powered__dot';
+  billingPoweredDot.setAttribute('aria-hidden', 'true');
+  const billingPoweredText = document.createElement('span');
+  billingPoweredText.textContent = 'Secure checkout powered by ';
+  const billingPoweredBrand = document.createElement('span');
+  billingPoweredBrand.className = 'pricing-billing-powered__brand';
+  billingPoweredBrand.textContent = 'Stripe';
+  billingPoweredText.appendChild(billingPoweredBrand);
+  billingPowered.append(billingPoweredDot, billingPoweredText);
+  body.appendChild(billingPowered);
   const trust = document.createElement('div');
   trust.className = 'pricing-trust muted small';
-  trust.textContent = 'Transparent billing • Cancel anytime • No hidden fees';
+  trust.textContent = 'Cancel anytime • No hidden fees • No commitment';
   body.appendChild(trust);
   const footer = document.createElement('div');
   footer.className = 'modal-footer-actions';
