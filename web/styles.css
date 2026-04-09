@@ -13210,6 +13210,12 @@ body.app-page-bg .topbar .nav-link.active {
   border-color: rgba(59, 130, 246, 0.25);
 }
 
+#dashboard-view .kpi-delta.kpi-delta--rejected {
+  color: #b42318;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.24);
+}
+
 #dashboard-view .kpi-delta[data-kpi-signal='true'] {
   animation: kpiDeltaFadeIn 200ms cubic-bezier(0.2, 0.8, 0.2, 1) 1;
 }
@@ -13560,6 +13566,34 @@ body.app-page-bg .topbar .nav-link.active {
   font-weight: 700;
   color: #0f2f59;
   letter-spacing: 0.005em;
+}
+
+#dashboard-view #applications-table .table-row.application-row .cell-company .cell-company-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+#dashboard-view #applications-table .table-new-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 17px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(47, 102, 196, 0.24);
+  background: rgba(47, 102, 196, 0.09);
+  color: #1f5ca9;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 #applications-table .table-row.application-row .cell-role {
@@ -13934,6 +13968,18 @@ body.app-page-bg .topbar .nav-link.active {
 
 #dashboard-view #applications-table .table-row.application-row.is-new-signal {
   animation: none;
+}
+
+#dashboard-view #applications-table .table-row.application-row.is-newly-created {
+  border-color: rgba(47, 102, 196, 0.32);
+  background: linear-gradient(90deg, rgba(241, 248, 255, 0.92), rgba(247, 251, 255, 0.96));
+  box-shadow:
+    inset 3px 0 0 rgba(47, 102, 196, 0.2),
+    0 12px 24px rgba(18, 44, 88, 0.1);
+}
+
+#dashboard-view #applications-table .table-row.application-row.is-newly-created .status-band {
+  opacity: 1;
 }
 
 #dashboard-view #applications-table .table-row.application-row.is-recent-update {
@@ -14627,6 +14673,14 @@ body.app-page-bg .topbar .nav-link.active {
     flex: 1 1 auto;
   }
 
+  #dashboard-view #applications-table .app-card__company-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    max-width: 100%;
+  }
+
   #dashboard-view #applications-table .app-card__company strong {
     display: block;
     font-size: 13px;
@@ -14636,6 +14690,19 @@ body.app-page-bg .topbar .nav-link.active {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  #dashboard-view #applications-table .app-card__company-line strong {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  #dashboard-view #applications-table .app-card.is-newly-created {
+    border-color: rgba(47, 102, 196, 0.34);
+    background: linear-gradient(160deg, #edf5ff 0%, #f6faff 100%);
+    box-shadow:
+      inset 2px 0 0 rgba(47, 102, 196, 0.22),
+      0 5px 13px rgba(22, 50, 96, 0.1);
   }
 
   #dashboard-view #applications-table .app-card__status {

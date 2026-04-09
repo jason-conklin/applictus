@@ -697,6 +697,7 @@ const SESSION_NEW_INTERVIEWS_KEY = 'applictus_new_interviews';
 const SESSION_KPI_DELTA_APPLIED_KEY = 'applictus_kpi_delta_applied';
 const SESSION_KPI_DELTA_OFFERS_KEY = 'applictus_kpi_delta_offers';
 const SESSION_KPI_DELTA_INTERVIEWS_KEY = 'applictus_kpi_delta_interviews';
+const SESSION_KPI_DELTA_REJECTED_KEY = 'applictus_kpi_delta_rejected';
 let rcInitialized = false;
 let rcSessionId = null;
 let rcVersionId = null;
@@ -859,13 +860,16 @@ const state = {
   signals: {
     pulseOfferIds: new Set(),
     pulseInterviewIds: new Set(),
+    newlyCreatedApplicationIds: new Set(),
     pulseTimer: null,
     showAppliedNew: false,
     showOffersNew: false,
     showInterviewsNew: false,
+    showRejectedNew: false,
     appliedDelta: 0,
     offersDelta: 0,
-    interviewsDelta: 0
+    interviewsDelta: 0,
+    rejectedDelta: 0
   },
   dashboard: {
     onboardingDismissed: false
@@ -4386,6 +4390,15 @@ function getKpiSignalDescriptors() {
       showNew: state.signals.showInterviewsNew,
       delta: state.signals.interviewsDelta,
       deltaAriaLabel: (value) => `Interviews increased by ${value} since last scan`
+    },
+    {
+      key: 'rejected',
+      card: document.querySelector('#dashboard-view .kpi-card.status-rejected'),
+      valueWrap: document.querySelector('#dashboard-view .kpi-card.status-rejected .kpi-value-wrap'),
+      showNew: state.signals.showRejectedNew,
+      delta: state.signals.rejectedDelta,
+      renderNewTag: false,
+      deltaAriaLabel: (value) => `Rejected increased by ${value} since last scan`
     }
   ];
 }
@@ -4397,7 +4410,8 @@ function clearKpiSignalNodes(card, valueWrap) {
 
 function renderKpiSignalBadges() {
   const descriptors = getKpiSignalDescriptors();
-  descriptors.forEach(({ key, card, valueWrap, showNew, delta, deltaAriaLabel }) => {
+  descriptors.forEach(
+    ({ key, card, valueWrap, showNew, delta, deltaAriaLabel, renderNewTag = true }) => {
     if (!card || !valueWrap) {
       return;
     }
@@ -4407,12 +4421,14 @@ function renderKpiSignalBadges() {
       return;
     }
 
-    const newTag = document.createElement('span');
-    newTag.className = `kpi-new-tag kpi-new-tag--${key}`;
-    newTag.textContent = 'NEW';
-    newTag.setAttribute('aria-hidden', 'true');
-    newTag.dataset.kpiSignal = 'true';
-    card.appendChild(newTag);
+    if (renderNewTag) {
+      const newTag = document.createElement('span');
+      newTag.className = `kpi-new-tag kpi-new-tag--${key}`;
+      newTag.textContent = 'NEW';
+      newTag.setAttribute('aria-hidden', 'true');
+      newTag.dataset.kpiSignal = 'true';
+      card.appendChild(newTag);
+    }
 
     const deltaBadge = document.createElement('span');
     deltaBadge.className = `kpi-delta kpi-delta--${key}`;
@@ -4421,13 +4437,15 @@ function renderKpiSignalBadges() {
     deltaBadge.setAttribute('aria-live', 'polite');
     deltaBadge.dataset.kpiSignal = 'true';
     valueWrap.appendChild(deltaBadge);
-  });
+    }
+  );
 }
 
-function markKpiNewSignals({ applied = false, offers = false, interviews = false } = {}) {
+function markKpiNewSignals({ applied = false, offers = false, interviews = false, rejected = false } = {}) {
   state.signals.showAppliedNew = Boolean(applied);
   state.signals.showOffersNew = Boolean(offers);
   state.signals.showInterviewsNew = Boolean(interviews);
+  state.signals.showRejectedNew = Boolean(rejected);
   if (offers) {
     try {
       window.sessionStorage?.setItem(SESSION_NEW_OFFERS_KEY, 'true');
@@ -4474,6 +4492,7 @@ function clearKpiNewSignals() {
   state.signals.showAppliedNew = false;
   state.signals.showOffersNew = false;
   state.signals.showInterviewsNew = false;
+  state.signals.showRejectedNew = false;
   try {
     window.sessionStorage?.removeItem(SESSION_NEW_APPLIED_KEY);
     window.sessionStorage?.removeItem(SESSION_NEW_OFFERS_KEY);
@@ -4484,13 +4503,15 @@ function clearKpiNewSignals() {
   renderKpiSignalBadges();
 }
 
-function markKpiDeltaSignals({ applied = 0, offers = 0, interviews = 0 } = {}) {
+function markKpiDeltaSignals({ applied = 0, offers = 0, interviews = 0, rejected = 0 } = {}) {
   const appliedDelta = Math.max(0, Number(applied) || 0);
   const offersDelta = Math.max(0, Number(offers) || 0);
   const interviewsDelta = Math.max(0, Number(interviews) || 0);
+  const rejectedDelta = Math.max(0, Number(rejected) || 0);
   state.signals.appliedDelta = appliedDelta;
   state.signals.offersDelta = offersDelta;
   state.signals.interviewsDelta = interviewsDelta;
+  state.signals.rejectedDelta = rejectedDelta;
   try {
     if (appliedDelta > 0) {
       window.sessionStorage?.setItem(SESSION_KPI_DELTA_APPLIED_KEY, String(appliedDelta));
@@ -4507,6 +4528,11 @@ function markKpiDeltaSignals({ applied = 0, offers = 0, interviews = 0 } = {}) {
     } else {
       window.sessionStorage?.removeItem(SESSION_KPI_DELTA_INTERVIEWS_KEY);
     }
+    if (rejectedDelta > 0) {
+      window.sessionStorage?.setItem(SESSION_KPI_DELTA_REJECTED_KEY, String(rejectedDelta));
+    } else {
+      window.sessionStorage?.removeItem(SESSION_KPI_DELTA_REJECTED_KEY);
+    }
   } catch (_) {
     // Ignore storage failures silently.
   }
@@ -4517,14 +4543,35 @@ function clearKpiDeltaSignals() {
   state.signals.appliedDelta = 0;
   state.signals.offersDelta = 0;
   state.signals.interviewsDelta = 0;
+  state.signals.rejectedDelta = 0;
   try {
     window.sessionStorage?.removeItem(SESSION_KPI_DELTA_APPLIED_KEY);
     window.sessionStorage?.removeItem(SESSION_KPI_DELTA_OFFERS_KEY);
     window.sessionStorage?.removeItem(SESSION_KPI_DELTA_INTERVIEWS_KEY);
+    window.sessionStorage?.removeItem(SESSION_KPI_DELTA_REJECTED_KEY);
   } catch (_) {
     // Ignore storage failures silently.
   }
   renderKpiSignalBadges();
+}
+
+function setNewlyCreatedRowSignals(applicationIds = []) {
+  const nextIds = new Set(
+    (Array.isArray(applicationIds) ? applicationIds : [])
+      .map((id) => String(id || '').trim())
+      .filter(Boolean)
+  );
+  state.signals.newlyCreatedApplicationIds = nextIds;
+  if (state.table.data.length) {
+    renderApplicationsTable(sortApplications(state.table.data));
+  }
+}
+
+function clearNewlyCreatedRowSignals({ rerender = false } = {}) {
+  state.signals.newlyCreatedApplicationIds = new Set();
+  if (rerender && state.table.data.length) {
+    renderApplicationsTable(sortApplications(state.table.data));
+  }
 }
 
 function readNumericDelta(source, key) {
@@ -4559,7 +4606,8 @@ function getApplicationSignalSnapshot(applications = []) {
     snapshot.set(String(app.id), {
       status: normalizedStatus,
       offer: isOfferStatus(normalizedStatus),
-      interview: isInterviewStatus(normalizedStatus)
+      interview: isInterviewStatus(normalizedStatus),
+      rejected: normalizedStatus === 'REJECTED'
     });
   }
   return snapshot;
@@ -4603,17 +4651,23 @@ async function applyPostScanSignals(previousSnapshot, scanResult = null) {
   const offerIds = [];
   const interviewIds = [];
   const appliedIds = [];
+  const rejectedIds = [];
+  const newlyCreatedIds = [];
   let observedApplicationChanges = 0;
 
   for (const app of applications || []) {
     if (!app?.id) continue;
     const id = String(app.id);
     const hadPrior = before.has(id);
-    const prior = before.get(id) || { status: null, offer: false, interview: false };
+    const prior = before.get(id) || { status: null, offer: false, interview: false, rejected: false };
     const normalizedStatus = normalizeStatusValue(app.current_status || 'UNKNOWN');
     const nowOffer = isOfferStatus(normalizedStatus);
     const nowInterview = isInterviewStatus(normalizedStatus);
     const nowApplied = normalizedStatus === 'APPLIED';
+    const nowRejected = normalizedStatus === 'REJECTED';
+    if (!hadPrior) {
+      newlyCreatedIds.push(id);
+    }
     if (!hadPrior || prior.status !== normalizedStatus) {
       observedApplicationChanges += 1;
     }
@@ -4626,22 +4680,37 @@ async function applyPostScanSignals(previousSnapshot, scanResult = null) {
     if (nowApplied && prior.status !== 'APPLIED') {
       appliedIds.push(id);
     }
+    if (nowRejected && prior.status !== 'REJECTED') {
+      rejectedIds.push(id);
+    }
   }
 
   const serverAppliedDelta = readNumericDelta(scanResult, 'applied');
   const serverOffersDelta = readNumericDelta(scanResult, 'offers') ?? readNumericDelta(scanResult, 'offer');
   const serverInterviewsDelta =
     readNumericDelta(scanResult, 'interviews') ?? readNumericDelta(scanResult, 'interview');
+  const rawServerRejectedDelta = scanResult?.updated_status_to_rejected_total;
+  const serverRejectedDeltaFromSummary =
+    rawServerRejectedDelta == null ? null : Math.max(0, Number(rawServerRejectedDelta) || 0);
+  const serverRejectedDelta = readNumericDelta(scanResult, 'rejected') ?? serverRejectedDeltaFromSummary;
   const appliedDelta = serverAppliedDelta ?? appliedIds.length;
   const offersDelta = serverOffersDelta ?? offerIds.length;
   const interviewsDelta = serverInterviewsDelta ?? interviewIds.length;
+  const rejectedDelta = serverRejectedDelta ?? rejectedIds.length;
 
-  markKpiDeltaSignals({ applied: appliedDelta, offers: offersDelta, interviews: interviewsDelta });
+  markKpiDeltaSignals({
+    applied: appliedDelta,
+    offers: offersDelta,
+    interviews: interviewsDelta,
+    rejected: rejectedDelta
+  });
   markKpiNewSignals({
     applied: appliedDelta > 0,
     offers: offersDelta > 0,
-    interviews: interviewsDelta > 0
+    interviews: interviewsDelta > 0,
+    rejected: rejectedDelta > 0
   });
+  setNewlyCreatedRowSignals(newlyCreatedIds);
 
   if (offerIds.length || interviewIds.length) {
     applyRowSignalPulse({ offerIds, interviewIds });
@@ -4653,6 +4722,8 @@ async function applyPostScanSignals(previousSnapshot, scanResult = null) {
     appliedDelta,
     offersDelta,
     interviewsDelta,
+    rejectedDelta,
+    newlyCreatedCount: newlyCreatedIds.length,
     observedApplicationChanges
   };
 }
@@ -8020,6 +8091,7 @@ async function refreshForwardingInbox({
       await applyPostScanSignals(preScanSnapshot, result);
     } else {
       applyRowSignalPulse({ offerIds: [], interviewIds: [] });
+      clearNewlyCreatedRowSignals({ rerender: true });
       clearKpiNewSignals();
       clearKpiDeltaSignals();
     }
@@ -9157,13 +9229,17 @@ function renderApplicationsTable(applications) {
         const isPriority = isInterviewRequested || isOffer;
         const isNewSignal =
           state.signals.pulseOfferIds.has(rowId) || state.signals.pulseInterviewIds.has(rowId);
+        const isNewlyCreated = state.signals.newlyCreatedApplicationIds.has(rowId);
         const isRecentUpdate = activityMeta.isRecent;
         const roleText = app.job_title || '—';
         const companyText = app.company_name || '—';
+        const newlyCreatedBadge = isNewlyCreated
+          ? '<span class="table-new-badge" aria-label="Newly added application">NEW</span>'
+          : '';
         return `
-          <article class="app-card${isSelected ? ' is-selected' : ''}${isOffer ? ' is-offer' : ''}${isInterviewRequested ? ' is-interview' : ''}${isPriority ? ' is-priority' : ''}${isOffer ? ' is-priority-offer' : ''}${isInterviewRequested ? ' is-priority-interview' : ''}${isNewSignal ? ' is-new-signal' : ''}${isRecentUpdate ? ' is-recent-update' : ''}" style="--stagger: ${index}" data-id="${app.id}" data-status-tone="${statusBandTone}">
+          <article class="app-card${isSelected ? ' is-selected' : ''}${isOffer ? ' is-offer' : ''}${isInterviewRequested ? ' is-interview' : ''}${isPriority ? ' is-priority' : ''}${isOffer ? ' is-priority-offer' : ''}${isInterviewRequested ? ' is-priority-interview' : ''}${isNewSignal ? ' is-new-signal' : ''}${isNewlyCreated ? ' is-newly-created' : ''}${isRecentUpdate ? ' is-recent-update' : ''}" style="--stagger: ${index}" data-id="${app.id}" data-status-tone="${statusBandTone}">
             <div class="app-card__top">
-              <div class="app-card__company" title="${escapeHtml(companyText)}"><strong>${escapeHtml(companyText)}</strong></div>
+              <div class="app-card__company" title="${escapeHtml(companyText)}"><div class="app-card__company-line"><strong>${escapeHtml(companyText)}</strong>${newlyCreatedBadge}</div></div>
               <div class="app-card__status">
                 ${statusPill}
               </div>
@@ -9239,15 +9315,19 @@ function renderApplicationsTable(applications) {
       const isPriority = isInterviewRequested || isOffer;
       const isNewSignal =
         state.signals.pulseOfferIds.has(rowId) || state.signals.pulseInterviewIds.has(rowId);
+      const isNewlyCreated = state.signals.newlyCreatedApplicationIds.has(rowId);
       const isRecentUpdate = activityMeta.isRecent;
       const priorityPrompt =
         isPriority && isRecentUpdate
           ? `<span class="priority-prompt">Action needed</span>`
           : '';
+      const newlyCreatedBadge = isNewlyCreated
+        ? '<span class="table-new-badge" aria-label="Newly added application">NEW</span>'
+        : '';
       return `
-        <div class="table-row application-row${isSelected ? ' table-row-selected' : ''}${isOffer ? ' is-offer' : ''}${isInterviewRequested ? ' is-interview' : ''}${isPriority ? ' is-priority' : ''}${isOffer ? ' is-priority-offer' : ''}${isInterviewRequested ? ' is-priority-interview' : ''}${isNewSignal ? ' is-new-signal' : ''}${isRecentUpdate ? ' is-recent-update' : ''}" style="--stagger: ${index}" data-id="${app.id}" data-status-tone="${statusBandTone}">
+        <div class="table-row application-row${isSelected ? ' table-row-selected' : ''}${isOffer ? ' is-offer' : ''}${isInterviewRequested ? ' is-interview' : ''}${isPriority ? ' is-priority' : ''}${isOffer ? ' is-priority-offer' : ''}${isInterviewRequested ? ' is-priority-interview' : ''}${isNewSignal ? ' is-new-signal' : ''}${isNewlyCreated ? ' is-newly-created' : ''}${isRecentUpdate ? ' is-recent-update' : ''}" style="--stagger: ${index}" data-id="${app.id}" data-status-tone="${statusBandTone}">
           <div class="status-band" aria-hidden="true"></div>
-          <div class="cell-company table-col-company"><strong>${app.company_name || '—'}</strong></div>
+          <div class="cell-company table-col-company"><div class="cell-company-main"><strong>${app.company_name || '—'}</strong>${newlyCreatedBadge}</div></div>
           <div class="cell-role table-col-role" title="${app.job_title || '—'}">${app.job_title || '—'}</div>
           <div class="table-col-status status-col">
             <div class="status-cell">${statusPill}</div>
@@ -10280,6 +10360,7 @@ function route() {
   } else {
     clearKpiNewSignals();
     clearKpiDeltaSignals();
+    clearNewlyCreatedRowSignals();
     setView('dashboard');
     if (isInternalGmailMode()) {
       void refreshEmailStatus();
