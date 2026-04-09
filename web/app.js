@@ -3322,32 +3322,49 @@ function formatConfidencePercent(value) {
   return `${Math.round(clamped * 100)}%`;
 }
 
-function normalizeConfidencePercent(value) {
-  if (value === null || value === undefined || value === '') {
-    return null;
-  }
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return null;
-  }
-  const normalized = numeric > 1 ? numeric / 100 : numeric;
-  const clamped = Math.max(0, Math.min(1, normalized));
-  return Math.round(clamped * 100);
-}
-
-function formatConfidenceLabel(value) {
-  const percent = normalizeConfidencePercent(value);
-  if (percent === null) {
-    return null;
-  }
-  if (percent >= 85) {
-    return `High confidence (${percent}%)`;
-  }
-  if (percent >= 60) {
-    return `Medium confidence (${percent}%)`;
-  }
-  return `Low confidence (${percent}%)`;
-}
+const EVENT_TRIGGER_PATTERNS = Object.freeze({
+  confirmation: [
+    /\bapplication submitted\b/i,
+    /\bsubmission received\b/i,
+    /\bapplication (?:has been )?received\b/i,
+    /\bthank you for applying\b/i,
+    /\bthanks for applying\b/i,
+    /\baccess my application\b/i,
+    /\byour application was sent\b/i
+  ],
+  rejection: [
+    /\bnot selected\b/i,
+    /\bnot be moving forward\b/i,
+    /\bdecided to move forward with other candidates\b/i,
+    /\bunable to move forward\b/i,
+    /\bposition has been filled\b/i,
+    /\bpursue other candidates\b/i
+  ],
+  interview: [
+    /\bschedule (?:an?|your)\s+(?:interview|phone screen|call)\b/i,
+    /\bselect (?:a|your) time\b/i,
+    /\bplease (?:share|send|provide).{0,40}\bavailability\b/i,
+    /\binitial interview\b/i,
+    /\bscreening test\b/i,
+    /\battached questions?\b/i,
+    /\bsubmit your responses?\b/i,
+    /\bnext step in our hiring process\b/i
+  ],
+  offer: [/\boffer (?:letter|extended|received)\b/i, /\bpleased to offer you\b/i],
+  message_received: [
+    /\bnew message from\b/i,
+    /\byou(?:'|’)ve received a new message\b/i,
+    /\bview message\b/i,
+    /\breply from your account\b/i
+  ],
+  under_review: [
+    /\bunder review\b/i,
+    /\bunder consideration\b/i,
+    /\bwe are currently reviewing your resume\b/i,
+    /\bwe look forward to reviewing your application\b/i,
+    /\bcurrently reviewing your application\b/i
+  ]
+});
 
 function extractSenderDomain(sender) {
   const input = String(sender || '').toLowerCase();
@@ -3418,6 +3435,71 @@ function formatEventTypeLabel(type) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function getTriggerPatternsForType(type) {
+  const lower = String(type || '').toLowerCase();
+  if (lower === 'confirmation') return EVENT_TRIGGER_PATTERNS.confirmation;
+  if (lower === 'rejection') return EVENT_TRIGGER_PATTERNS.rejection;
+  if (lower === 'message_received') return EVENT_TRIGGER_PATTERNS.message_received;
+  if (lower === 'under_review') return EVENT_TRIGGER_PATTERNS.under_review;
+  if (lower.includes('offer')) return EVENT_TRIGGER_PATTERNS.offer;
+  if (lower.includes('interview') || lower === 'meeting_requested') return EVENT_TRIGGER_PATTERNS.interview;
+  return [];
+}
+
+function getEvidenceTypeForStatus(status) {
+  const upper = String(status || '').toUpperCase();
+  if (upper === 'APPLIED') return 'confirmation';
+  if (upper === 'REJECTED') return 'rejection';
+  if (upper === 'UNDER_REVIEW') return 'under_review';
+  if (upper === 'INTERVIEW_REQUESTED' || upper === 'INTERVIEW_SCHEDULED' || upper === 'INTERVIEW_COMPLETED' || upper === 'PHONE_SCREEN' || upper === 'ONSITE') {
+    return 'interview_requested';
+  }
+  if (upper === 'OFFER_RECEIVED' || upper === 'OFFER_EXTENDED') return 'offer';
+  return '';
+}
+
+function normalizeTriggerPhrase(text) {
+  const collapsed = String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!collapsed) {
+    return null;
+  }
+  const cleaned = collapsed.replace(/^[`"'“”‘’]+|[`"'“”‘’.,;:!?]+$/g, '');
+  if (!cleaned) {
+    return null;
+  }
+  return cleaned.length > 110 ? `${cleaned.slice(0, 107)}…` : cleaned;
+}
+
+function extractTriggerPhraseFromText(text, patterns) {
+  const source = String(text || '');
+  if (!source || !Array.isArray(patterns) || !patterns.length) {
+    return null;
+  }
+  for (const pattern of patterns) {
+    const match = source.match(pattern);
+    if (match && match[0]) {
+      const normalized = normalizeTriggerPhrase(match[0]);
+      if (normalized) {
+        return normalized;
+      }
+    }
+  }
+  return null;
+}
+
+function extractEventTriggerPhrase(eventItem, preferredType = '') {
+  const evidenceText = [String(eventItem?.subject || ''), String(eventItem?.snippet || '')]
+    .filter(Boolean)
+    .join('\n');
+  if (!evidenceText) {
+    return null;
+  }
+  const patterns = getTriggerPatternsForType(preferredType || eventItem?.detected_type || '');
+  return extractTriggerPhraseFromText(evidenceText, patterns);
+}
+
 function buildFriendlyTimelineTitle(eventItem, application) {
   const type = String(eventItem?.detected_type || '').toLowerCase();
   const provider = deriveProviderLabelFromEvent(eventItem, application);
@@ -3450,31 +3532,28 @@ function buildFriendlyTimelineExplanation(eventItem, application) {
   const type = String(eventItem?.detected_type || '').toLowerCase();
   const provider = deriveProviderLabelFromEvent(eventItem, application);
   const providerSuffix = provider ? ` from ${provider}` : '';
+  const trigger = extractEventTriggerPhrase(eventItem);
+  const triggerLine = trigger ? `Trigger phrase: '${trigger}'` : null;
+  let summary = `Detected as a hiring update${providerSuffix}.`;
   if (type === 'confirmation') {
-    return [
-      `Detected as a confirmation email${providerSuffix}.`,
-      "Based on phrases like 'application submitted' or 'submission received'."
-    ];
+    summary = `Detected as a confirmation email${providerSuffix}.`;
+  } else if (type === 'rejection') {
+    summary = `Detected as a rejection update${providerSuffix}.`;
+  } else if (type === 'offer' || type.includes('offer')) {
+    summary = `Detected as an offer-stage update${providerSuffix}.`;
+  } else if (type === 'message_received') {
+    summary = `Detected as a job-message notification${providerSuffix}.`;
+  } else if (type === 'interview_scheduled') {
+    summary = `Detected as an interview scheduling update${providerSuffix}.`;
+  } else if (type.includes('interview') || type === 'meeting_requested') {
+    summary = `Detected as an interview-stage update${providerSuffix}.`;
+  } else if (type === 'under_review') {
+    summary = `Detected as an under-review update${providerSuffix}.`;
   }
-  if (type === 'rejection') {
-    return [`Detected as a rejection update${providerSuffix}.`];
-  }
-  if (type === 'offer' || type.includes('offer')) {
-    return [`Detected as an offer-stage update${providerSuffix}.`];
-  }
-  if (type === 'message_received') {
-    return [`Detected as a job-message notification${providerSuffix}.`];
-  }
-  if (type === 'interview_scheduled') {
-    return [`Detected as an interview scheduling update${providerSuffix}.`];
-  }
-  if (type.includes('interview') || type === 'meeting_requested') {
-    return [`Detected as an interview-stage update${providerSuffix}.`];
-  }
-  if (type === 'under_review') {
-    return [`Detected as an under-review update${providerSuffix}.`];
-  }
-  return [`Detected as a hiring update${providerSuffix}.`];
+  return {
+    summary,
+    triggerLine
+  };
 }
 
 function buildStatusReasoning(application, events) {
@@ -3482,61 +3561,45 @@ function buildStatusReasoning(application, events) {
   const statusLabel = STATUS_LABELS[statusValue] || statusValue;
   const latestEvent = Array.isArray(events) && events.length ? events[0] : null;
   const provider = latestEvent ? deriveProviderLabelFromEvent(latestEvent, application) : null;
-  const providerBullet = provider ? `Detected from ${provider}` : null;
-  const confidenceLabel = formatConfidenceLabel(
-    application?.status_confidence ??
-      latestEvent?.classification_confidence ??
-      latestEvent?.confidence_score ??
-      null
-  );
+  const providerSuffix = provider ? ` from ${provider}` : '';
+  const evidenceType = getEvidenceTypeForStatus(statusValue);
+  const triggerPhrase = latestEvent ? extractEventTriggerPhrase(latestEvent, evidenceType) : null;
+  const triggerLine = triggerPhrase ? `Trigger phrase: '${triggerPhrase}'` : null;
 
   if (String(application?.status_source || '').toLowerCase() === 'user' || application?.user_override) {
     return {
       primary: `Status set to ${statusLabel} manually.`,
-      bullets: ['Updated by you in Applictus.'],
-      confidence: null
+      triggerLine: null
     };
   }
 
   let primary = 'Status inferred from your latest hiring-update emails.';
-  const bullets = [];
   if (statusValue === 'APPLIED') {
-    primary = 'Marked as Applied based on a confirmation email.';
-    bullets.push('Email indicates your application was submitted.');
+    primary = `Marked as Applied based on a confirmation email${providerSuffix}.`;
   } else if (statusValue === 'UNDER_REVIEW') {
-    primary = 'Marked as Under review based on a hiring update.';
-    bullets.push('Email indicates your application is being reviewed.');
+    primary = `Marked as Under review based on an application-update email${providerSuffix}.`;
   } else if (statusValue === 'INTERVIEW_REQUESTED') {
-    primary = 'Marked as Interview requested based on an interview-stage email.';
-    bullets.push('Email indicates an interview request or next-step interview action.');
+    primary = `Marked as Interview requested based on an interview-stage email${providerSuffix}.`;
   } else if (statusValue === 'INTERVIEW_SCHEDULED') {
-    primary = 'Marked as Interview scheduled based on a scheduling email.';
-    bullets.push('Email indicates an interview time has been scheduled.');
+    primary = `Marked as Interview scheduled based on a scheduling email${providerSuffix}.`;
   } else if (
     statusValue === 'INTERVIEW_COMPLETED' ||
     statusValue === 'PHONE_SCREEN' ||
     statusValue === 'ONSITE'
   ) {
-    primary = `Marked as ${statusLabel} based on interview-stage updates.`;
-    bullets.push('Email indicates interview progression in the hiring process.');
+    primary = `Marked as ${statusLabel} based on interview-stage updates${providerSuffix}.`;
   } else if (statusValue === 'OFFER_RECEIVED' || statusValue === 'OFFER_EXTENDED') {
-    primary = 'Marked as Offer received based on an offer-stage email.';
-    bullets.push('Email indicates an offer-related hiring update.');
+    primary = `Marked as Offer received based on an offer-stage email${providerSuffix}.`;
   } else if (statusValue === 'REJECTED') {
-    primary = 'Marked as Rejected based on a rejection email.';
-    bullets.push('Email indicates your application was not selected.');
+    primary = `Marked as Rejected based on a rejection email${providerSuffix}.`;
   } else if (statusValue === 'GHOSTED') {
     primary = 'Marked as Ghosted because no recent updates were detected.';
   } else if (statusValue === 'UNKNOWN') {
     primary = 'Status is still unknown because no clear status signal was detected.';
   }
-  if (providerBullet) {
-    bullets.push(providerBullet);
-  }
   return {
     primary,
-    bullets,
-    confidence: confidenceLabel
+    triggerLine
   };
 }
 
@@ -9622,25 +9685,16 @@ function renderDetail(application, events) {
 
   if (detailExplanation) {
     const reasoning = buildStatusReasoning(application, safeEvents);
-    const bullets = Array.isArray(reasoning?.bullets) ? reasoning.bullets.filter(Boolean) : [];
-    const confidenceLine = reasoning?.confidence ? `<div class="reasoning-confidence">${escapeHtml(reasoning.confidence)}</div>` : '';
-    const bulletList = bullets.length
-      ? `<ul class="reasoning-list">${bullets.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`
-      : '';
     detailExplanation.innerHTML = `
       <div class="reasoning-primary">${escapeHtml(reasoning?.primary || 'No reasoning available yet.')}</div>
-      ${bulletList}
-      ${confidenceLine}
+      ${reasoning?.triggerLine ? `<div class="reasoning-trigger">${escapeHtml(reasoning.triggerLine)}</div>` : ''}
     `;
   }
 
   if (detailSuggestion) {
     if (application.suggested_status) {
       const suggestionLabel = STATUS_LABELS[application.suggested_status] || application.suggested_status;
-      const suggestionConfidence = formatConfidenceLabel(application.suggested_confidence);
-      detailSuggestionLabel.textContent = suggestionConfidence
-        ? `Suggestion: ${suggestionLabel} • ${suggestionConfidence}`
-        : `Suggestion: ${suggestionLabel}`;
+      detailSuggestionLabel.textContent = `Suggestion: ${suggestionLabel}`;
       detailSuggestionExplanation.textContent =
         application.suggested_explanation || 'No explanation.';
       detailSuggestion.classList.remove('hidden');
@@ -9737,13 +9791,10 @@ function renderDetail(application, events) {
       detailTimeline.innerHTML = safeEvents
         .map((eventItem) => {
           const eventDate = eventItem.internal_date || eventItem.created_at || null;
-          const classificationConfidence =
-            eventItem.classification_confidence ?? eventItem.confidence_score ?? null;
-          const confidence = formatConfidenceLabel(classificationConfidence);
           const typeLabel = formatEventTypeLabel(eventItem.detected_type || 'other');
           const timelineTitle = buildFriendlyTimelineTitle(eventItem, application);
-          const explanationLines = buildFriendlyTimelineExplanation(eventItem, application);
-          const explanationMarkup = explanationLines
+          const timelineReasoning = buildFriendlyTimelineExplanation(eventItem, application);
+          const explanationMarkup = [timelineReasoning?.summary, timelineReasoning?.triggerLine]
             .filter(Boolean)
             .map((line) => `<div class="timeline-meta muted">${escapeHtml(line)}</div>`)
             .join('');
@@ -9753,7 +9804,6 @@ function renderDetail(application, events) {
                 <span class="timeline-icon">${typeIcon(eventItem.detected_type)}</span>
                 <span class="timeline-type">${escapeHtml(typeLabel)}</span>
                 <span class="timeline-needs-details${applicationNeedsDetails ? '' : ' hidden'}">Needs details</span>
-                <span class="timeline-confidence${confidence ? '' : ' hidden'}">${escapeHtml(confidence || '')}</span>
                 <span class="timeline-date">${formatDateTime(eventDate)}</span>
               </div>
               <div class="timeline-subject">${escapeHtml(timelineTitle)}</div>
