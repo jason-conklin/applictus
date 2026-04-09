@@ -635,6 +635,10 @@ const detailSuggestionDismiss = document.getElementById('detail-suggestion-dismi
 const detailPanel = document.getElementById('detail-panel');
 const detailExplainerToggle = document.getElementById('detail-explainer-toggle');
 const detailExplainerBody = document.getElementById('detail-explainer-body');
+const detailNav = document.getElementById('detail-nav');
+const detailNavPrev = document.getElementById('detail-nav-prev');
+const detailNavNext = document.getElementById('detail-nav-next');
+const detailNavPosition = document.getElementById('detail-nav-position');
 let explanationOpen = false;
 let lastDetailId = null;
 let lastDetailEvents = [];
@@ -849,6 +853,7 @@ const state = {
     offset: 0,
     total: 0,
     data: [],
+    visibleIds: [],
     selectedIds: new Set()
   },
   signals: {
@@ -9110,6 +9115,7 @@ function isMobileDashboardLayout() {
 }
 
 function renderApplicationsTable(applications) {
+  state.table.visibleIds = Array.isArray(applications) ? applications.map((app) => String(app.id)) : [];
   const visibleIdSet = new Set(applications.map((app) => app.id));
   state.table.selectedIds = new Set(
     Array.from(state.table.selectedIds || []).filter((id) => visibleIdSet.has(id))
@@ -9125,6 +9131,7 @@ function renderApplicationsTable(applications) {
       noResults
     });
     updateTableBulkBar();
+    updateDetailNavigationUi();
     return;
   }
 
@@ -9183,6 +9190,7 @@ function renderApplicationsTable(applications) {
 
     applicationsTable.innerHTML = `<div class="applications-mobile-list">${cards}</div>`;
     updateTableBulkBar();
+    updateDetailNavigationUi();
     return;
   }
 
@@ -9266,6 +9274,7 @@ function renderApplicationsTable(applications) {
     selectAll.indeterminate = someSelected;
   }
   updateTableBulkBar();
+  updateDetailNavigationUi();
 }
 
 async function runBulkArchive() {
@@ -9624,6 +9633,59 @@ function setDrawerOpen(isOpen) {
       detailExplainerToggle.setAttribute('aria-expanded', 'false');
     }
   }
+  updateDetailNavigationUi();
+}
+
+function getDrawerNavigationContext() {
+  const visibleIds = Array.isArray(state.table?.visibleIds) ? state.table.visibleIds.filter(Boolean) : [];
+  const currentId = String(currentDetail?.id || '');
+  const currentIndex = currentId ? visibleIds.indexOf(currentId) : -1;
+  return {
+    visibleIds,
+    currentIndex,
+    hasCurrent: currentIndex >= 0
+  };
+}
+
+function updateDetailNavigationUi() {
+  if (!detailNav || !detailNavPrev || !detailNavNext || !detailNavPosition) {
+    return;
+  }
+  const drawerOpen = Boolean(detailDrawer && !detailDrawer.classList.contains('hidden'));
+  const { visibleIds, currentIndex, hasCurrent } = getDrawerNavigationContext();
+  const canShow = drawerOpen && Boolean(currentDetail) && hasCurrent && visibleIds.length > 1;
+  detailNav.classList.toggle('hidden', !canShow);
+  if (!canShow) {
+    detailNavPrev.disabled = true;
+    detailNavNext.disabled = true;
+    detailNavPosition.textContent = '';
+    return;
+  }
+  detailNavPrev.disabled = currentIndex <= 0;
+  detailNavNext.disabled = currentIndex >= visibleIds.length - 1;
+  const hasActiveFilter = Boolean(String(state.filters?.search || '').trim()) || Boolean(String(state.filters?.status || '').trim());
+  detailNavPosition.textContent = hasActiveFilter
+    ? `Filtered ${currentIndex + 1} of ${visibleIds.length}`
+    : `${currentIndex + 1} of ${visibleIds.length}`;
+}
+
+async function navigateDetailByOffset(offset) {
+  if (!Number.isFinite(offset) || !offset) {
+    return;
+  }
+  const { visibleIds, currentIndex, hasCurrent } = getDrawerNavigationContext();
+  if (!hasCurrent) {
+    return;
+  }
+  const nextIndex = currentIndex + offset;
+  if (nextIndex < 0 || nextIndex >= visibleIds.length) {
+    return;
+  }
+  const nextId = visibleIds[nextIndex];
+  if (!nextId || String(nextId) === String(currentDetail?.id || '')) {
+    return;
+  }
+  await openDetail(nextId);
 }
 
 function renderDetail(application, events) {
@@ -9815,6 +9877,8 @@ function renderDetail(application, events) {
         .join('');
     }
   }
+
+  updateDetailNavigationUi();
 }
 
 async function openDetail(applicationId) {
@@ -11527,6 +11591,14 @@ detailDrawer?.addEventListener('click', async (event) => {
   const action = actionTarget.dataset.action;
   if (action === 'close') {
     setDrawerOpen(false);
+    return;
+  }
+  if (action === 'detail-prev') {
+    await navigateDetailByOffset(-1);
+    return;
+  }
+  if (action === 'detail-next') {
+    await navigateDetailByOffset(1);
     return;
   }
   if (!currentDetail) {
