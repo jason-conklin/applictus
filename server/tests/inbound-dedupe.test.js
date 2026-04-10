@@ -119,6 +119,56 @@ function buildWorkablePayload(toEmail) {
   };
 }
 
+function buildMonsterValstroPayload(toEmail) {
+  const stamp = Date.now();
+  return {
+    From: 'Monster.com <no-reply@ses.monster.com>',
+    To: toEmail,
+    ToFull: [{ Email: toEmail }],
+    Subject: 'Congratulations!',
+    MessageID: `<monster-valstro-${stamp}@ses.monster.com>`,
+    Date: new Date().toISOString(),
+    TextBody: [
+      'Congratulations!',
+      'Valstro has received your application for Junior DevEx Engineer in New York, NY'
+    ].join('\n'),
+    Headers: [{ Name: 'Message-ID', Value: `<monster-valstro-rfc-${stamp}@ses.monster.com>` }]
+  };
+}
+
+function buildWorkableValstroSubmittedPayload(toEmail) {
+  const stamp = Date.now();
+  return {
+    From: 'Workable <noreply@candidates.workablemail.com>',
+    To: toEmail,
+    ToFull: [{ Email: toEmail }],
+    Subject: 'Your application for the Junior DevEx Engineer job was submitted successfully.',
+    MessageID: `<workable-valstro-submitted-${stamp}@workablemail.com>`,
+    Date: new Date().toISOString(),
+    TextBody: ['Valstro', 'Your application for the Junior DevEx Engineer job was submitted successfully.'].join('\n'),
+    Headers: [{ Name: 'Message-ID', Value: `<workable-valstro-submitted-rfc-${stamp}@workablemail.com>` }]
+  };
+}
+
+function buildWorkableValstroFollowupPayload(toEmail) {
+  const stamp = Date.now();
+  return {
+    From: 'Workable <noreply@candidates.workablemail.com>',
+    To: toEmail,
+    ToFull: [{ Email: toEmail }],
+    Subject: 'Thank you for applying for the Junior DevEx Engineer position at Valstro.',
+    MessageID: `<workable-valstro-followup-${stamp}@workablemail.com>`,
+    Date: new Date().toISOString(),
+    TextBody: [
+      'Thank you for applying for the Junior DevEx Engineer position at Valstro.',
+      'We received your application.',
+      'We are planning to schedule interviews in the next two weeks.',
+      'If you are among the qualified candidates, you will receive an email to schedule an initial phone interview.'
+    ].join('\n'),
+    Headers: [{ Name: 'Message-ID', Value: `<workable-valstro-followup-rfc-${stamp}@workablemail.com>` }]
+  };
+}
+
 async function postInbound(baseUrl, payload) {
   const res = await fetch(`${baseUrl}/api/inbound/postmark`, {
     method: 'POST',
@@ -215,4 +265,86 @@ test('linkedin + workable confirmations merge into one application via determini
     .filter(Boolean);
   assert.equal(derivedKeys.length, 1);
   assert.equal(derivedKeys[0], applications[0].application_key);
+});
+
+test('monster + workable confirmation hop merges into one applied application', async (t) => {
+  const { baseUrl, db, stop } = await startServerWithEnv({
+    NODE_ENV: 'test',
+    JOBTRACK_DB_PATH: ':memory:',
+    JOBTRACK_LOG_LEVEL: 'error',
+    INBOUND_DOMAIN: 'mail.applictus.com',
+    POSTMARK_INBOUND_SECRET: 'test-inbound-secret'
+  });
+  t.after(stop);
+  if (!baseUrl || !db) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  const request = await createClient(baseUrl);
+  const email = `inbound-provider-hop-${crypto.randomUUID()}@example.com`;
+  const signup = await request('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({ email, password: 'StrongPassword123!' })
+  });
+  assert.equal(signup.status, 200);
+
+  const user = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  assert.ok(user?.id);
+
+  const addressRes = await request('/api/inbound/address');
+  assert.equal(addressRes.status, 200);
+  const toEmail = addressRes.body.address_email;
+  assert.ok(toEmail);
+
+  assert.equal((await postInbound(baseUrl, buildMonsterValstroPayload(toEmail))).status, 200);
+  assert.equal((await postInbound(baseUrl, buildWorkableValstroSubmittedPayload(toEmail))).status, 200);
+  assert.equal((await postInbound(baseUrl, buildWorkableValstroFollowupPayload(toEmail))).status, 200);
+
+  const syncRes = await request('/api/inbound/sync', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+  assert.equal(syncRes.status, 200);
+  assert.equal(syncRes.body.status, 'ok');
+  assert.equal(syncRes.body.errors, 0);
+
+  const applications = db
+    .prepare(
+      `SELECT id, company_name, job_title, status, current_status
+       FROM job_applications
+       WHERE user_id = ? AND archived = 0`
+    )
+    .all(user.id);
+  assert.equal(applications.length, 1);
+  assert.equal(applications[0].company_name, 'Valstro');
+  assert.equal(applications[0].job_title, 'Junior DevEx Engineer');
+  assert.equal(String(applications[0].current_status || applications[0].status || '').toLowerCase(), 'applied');
+
+  const eventCounts = db
+    .prepare(
+      `SELECT application_id, COUNT(*) AS count
+       FROM email_events
+       WHERE user_id = ? AND provider = 'inbound_forward'
+       GROUP BY application_id`
+    )
+    .all(user.id);
+  assert.equal(eventCounts.length, 1);
+  assert.equal(Number(eventCounts[0].count), 3);
+
+  const inboundRows = db
+    .prepare(
+      `SELECT subject, derived_status, derived_application_id
+       FROM inbound_messages
+       WHERE user_id = ?
+       ORDER BY created_at ASC`
+    )
+    .all(user.id);
+  assert.equal(inboundRows.length, 3);
+  assert.ok(inboundRows.every((row) => row.derived_application_id === applications[0].id));
+  const followup = inboundRows.find((row) =>
+    /thank you for applying for the junior devex engineer position at valstro/i.test(String(row.subject || ''))
+  );
+  assert.ok(followup);
+  assert.equal(String(followup.derived_status || '').toLowerCase(), 'applied');
 });

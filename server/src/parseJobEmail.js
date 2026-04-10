@@ -98,6 +98,24 @@ function parseGeneric({ subject, text }) {
   }
 
   if (!companyRaw || !roleRaw) {
+    const applyingForRoleAtCompany = subj.match(
+      /thank you for applying for\s+(?:the\s+)?([\p{L}0-9][\p{L}\p{M}0-9/&.'\- ]{2,120}?)\s+position\s+at\s+([\p{L}0-9][\p{L}\p{M}0-9&.'\- ]{1,100}?)(?=\s*(?:[.!?,]|$))/iu
+    );
+    if (applyingForRoleAtCompany) {
+      if (!roleRaw && applyingForRoleAtCompany[1]) {
+        roleRaw = applyingForRoleAtCompany[1].trim().replace(/[.!,;:]+$/g, '');
+        candidates.role.push(roleRaw);
+        notes.push('role_phrase:subject_applying_for_role_at_company');
+      }
+      if (!companyRaw && applyingForRoleAtCompany[2]) {
+        companyRaw = applyingForRoleAtCompany[2].trim().replace(/[.!,;:]+$/g, '');
+        candidates.company.push(companyRaw);
+        notes.push('company_phrase:subject_applying_for_role_at_company');
+      }
+    }
+  }
+
+  if (!companyRaw || !roleRaw) {
     const applicationForRoleAtCompany = subj.match(
       /\byour application for\s+(?:the\s+)?([\p{L}0-9][\p{L}\p{M}0-9/&.'\- ]{2,120}?)\s+at\s+([\p{L}0-9][\p{L}\p{M}0-9&.'\- ]{1,100}?)(?=\s*(?:[.!?,]|$))/iu
     );

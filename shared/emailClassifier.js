@@ -56,6 +56,10 @@ const RELEVANCE_KEEP_SIGNALS = [
     label: 'thank_you_for_applying_for_position'
   },
   { pattern: /\bapplication submitted\b/i, label: 'application_submitted' },
+  {
+    pattern: /\byour application for\b.{0,140}\bwas submitted successfully\b/i,
+    label: 'application_for_was_submitted_successfully'
+  },
   { pattern: /\byour application was sent\b/i, label: 'application_was_sent' },
   { pattern: /\bthank you for applying\b/i, label: 'thank_you_for_applying' },
   { pattern: /\bthanks for applying\b/i, label: 'thanks_for_applying' },
@@ -64,6 +68,7 @@ const RELEVANCE_KEEP_SIGNALS = [
     pattern: /\bwe have successfully received your application\b/i,
     label: 'successfully_received_application'
   },
+  { pattern: /\bhas received your application for\b/i, label: 'has_received_your_application_for' },
   {
     pattern: /\b(?:it is|your application is)\s+currently under review\b/i,
     label: 'currently_under_review'
@@ -210,6 +215,14 @@ const INTERVIEW_PROCESS_ONLY_SIGNAL_PATTERNS = [
     label: 'conditional_match_language'
   },
   {
+    pattern: /\bwe (?:are|(?:'|’)re)? planning to schedule interviews?\b/i,
+    label: 'planning_future_interviews'
+  },
+  {
+    pattern: /\binterviews?\b.{0,40}\b(?:in|over)\s+the\s+next\s+\d+\s+(?:day|days|week|weeks|month|months)\b/i,
+    label: 'future_interview_window'
+  },
+  {
     pattern: /\bwe (?:may|might) invite you to some or all of the (?:below )?recruitment stages\b/i,
     label: 'recruitment_stages_overview'
   },
@@ -228,6 +241,14 @@ const INTERVIEW_CONDITIONAL_SIGNAL_PATTERNS = [
   {
     pattern: /\bif we need additional information or wish to schedule an interview\b/i,
     label: 'if_need_info_or_schedule_interview'
+  },
+  {
+    pattern: /\bif you are among the qualified candidates\b/i,
+    label: 'if_among_qualified_candidates'
+  },
+  {
+    pattern: /\byou will receive an email\b.{0,120}\bschedule\b.{0,40}\binterview\b/i,
+    label: 'will_receive_email_to_schedule_interview'
   },
   {
     pattern: /\bif selected for (?:an )?interview\b/i,
@@ -382,7 +403,12 @@ const APPLIED_CONFIRMATION_SIGNAL_PATTERNS = [
     label: 'thank_you_for_applying_for_position'
   },
   { pattern: /\bapplication submitted\b/i, label: 'application_submitted' },
+  {
+    pattern: /\byour application for\b.{0,140}\bwas submitted successfully\b/i,
+    label: 'application_for_was_submitted_successfully'
+  },
   { pattern: /\byour application was sent\b/i, label: 'application_was_sent' },
+  { pattern: /\bhas received your application for\b/i, label: 'has_received_your_application_for' },
   { pattern: /\bwe have successfully received your application\b/i, label: 'successfully_received_application' },
   { pattern: /\b(?:it is|your application is)\s+currently under review\b/i, label: 'currently_under_review' },
   { pattern: /\bwe will be assessing applicants\b/i, label: 'assessing_applicants' },
@@ -427,8 +453,10 @@ const APPLIED_DENYLIST_OVERRIDE_SIGNAL_LABELS = new Set([
   'thanks_for_applying',
   'thank_you_for_your_application',
   'application_submitted',
+  'application_for_was_submitted_successfully',
   'application_was_sent',
   'successfully_received_application',
+  'has_received_your_application_for',
   'received_application',
   'your_application_for_role_position',
   'look_forward_reviewing_application',
@@ -540,7 +568,9 @@ function hasAppliedConfirmationSignals(text) {
     /\bthank you for applying at\b/i.test(text) ||
     /\bthank you for applying for\b.{0,160}\b(?:role|position)\b/i.test(text) ||
     /\bapplication submitted\b/i.test(text) ||
+    /\byour application for\b.{0,140}\bwas submitted successfully\b/i.test(text) ||
     /\byour application was sent\b/i.test(text) ||
+    /\bhas received your application for\b/i.test(text) ||
     /\bwe have successfully received your application\b/i.test(text) ||
     /\b(?:it is|your application is)\s+currently under review\b/i.test(text) ||
     /\bwe will be assessing applicants\b/i.test(text) ||
@@ -663,6 +693,7 @@ const RULES = [
     patterns: [
       /application (?:received|confirmation)/i,
       /application (?:submitted|submission received)/i,
+      /your application for .* was submitted successfully/i,
       /thank you for applying/i,
       /thank you for inquiring about employment opportunities/i,
       /thank you for your interest in the (?:position|role|opportunity)/i,
@@ -670,6 +701,7 @@ const RULES = [
       /thanks for applying/i,
       /we (?:have )?received your application/i,
       /we received your application/i,
+      /has received your application for/i,
       /will review your (?:application|resume)/i,
       /we are currently reviewing your resume/i,
       /evaluating your professional credentials/i,

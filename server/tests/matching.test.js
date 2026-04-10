@@ -233,8 +233,23 @@ test('extractThreadIdentity extracts employer company from Monster confirmation 
   });
 
   assert.equal(identity.companyName, 'Synergistic');
+  assert.equal(identity.jobTitle, 'Junior Java developer/Entry level Data Scientist/AI engineer');
   assert.notEqual(String(identity.companyName || '').toLowerCase(), 'monster');
   assert.ok(String(identity.explanation || '').includes('body_has_received_application_for'));
+});
+
+test('extractThreadIdentity parses "applying for ... position at ..." as role + company', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Thank you for applying for the Junior DevEx Engineer position at Valstro.',
+    sender: 'noreply@candidates.workablemail.com',
+    bodyText: [
+      'Thank you for applying for the Junior DevEx Engineer position at Valstro.',
+      'We received your application and will review your qualifications.'
+    ].join('\n')
+  });
+
+  assert.equal(identity.companyName, 'Valstro');
+  assert.equal(identity.jobTitle, 'Junior DevEx Engineer');
 });
 
 test('extractThreadIdentity keeps subject company for unicode "your application for ... at ..." and ignores weak team signature', () => {

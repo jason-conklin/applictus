@@ -109,6 +109,33 @@ test('application receipt with conditional interview phrasing stays applied and 
   assert.ok(parsed.parserDebug.status_signal.applied_matches.includes('received_your_application'));
 });
 
+test('future-process interview wording in confirmation email stays applied', async () => {
+  const parsed = await parseJobEmail({
+    fromEmail: 'noreply@candidates.workablemail.com',
+    fromDomain: 'candidates.workablemail.com',
+    subject: 'Thank you for applying for the Junior DevEx Engineer position at Valstro.',
+    text: [
+      'Thank you for applying for the Junior DevEx Engineer position at Valstro.',
+      'We received your application.',
+      'We are planning to schedule interviews in the next two weeks.',
+      'If you are among the qualified candidates, you will receive an email to schedule an initial phone interview.'
+    ].join('\n')
+  });
+
+  assert.equal(parsed.status, 'applied');
+  assert.equal(parsed.parserDebug?.status_signal?.decision_reason, 'interview_process_language_suppressed_to_applied');
+  assert.ok(
+    (parsed.parserDebug?.status_signal?.interview_suppression_matches || []).includes(
+      'planning_future_interviews'
+    )
+  );
+  assert.ok(
+    (parsed.parserDebug?.status_signal?.interview_suppression_matches || []).includes(
+      'if_among_qualified_candidates'
+    )
+  );
+});
+
 test('jobvite-style receipt keeps employer company and never stores "The" from team signature', async () => {
   const parsed = await parseJobEmail({
     fromEmail: 'no-reply@jobs.jobvite.com',

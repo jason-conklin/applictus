@@ -200,6 +200,13 @@ const ROLE_COMPANY_PATTERNS = [
     confidence: 0.96
   },
   {
+    name: 'applying_for_role_position_at_company',
+    regex: /\bapplying for (?:the )?([A-Z][A-Za-z0-9/&.'\- ]{2,80})\s+position\s+at\s+([A-Z][A-Za-z0-9&.'\- ]{2,80}?)(?:[.,\n]|$|\s+has\s+|\s+have\s+)/i,
+    roleIndex: 1,
+    companyIndex: 2,
+    confidence: 0.96
+  },
+  {
     name: 'application_to_role_position_at_company',
     regex: /\bapplication to (?:the )?([A-Z][A-Za-z0-9/&.'\- ]{2,80})\s+position\s+at\s+([A-Z][A-Za-z0-9&.'\- ]{2,80}?)(?:[.,\n]|$|\s+has\s+|\s+have\s+)/i,
     roleIndex: 1,
@@ -1428,12 +1435,14 @@ function normalizeRoleCandidate(value, companyName) {
     text = text.replace(new RegExp(`\\s+(?:at|with|for)\\s+${escaped}.*$`, 'i'), '');
     text = text.replace(new RegExp(`\\s+-\\s+${escaped}.*$`, 'i'), '');
   }
+  text = text.replace(/\s+in\s+[A-Za-z.' -]{2,60},\s*[A-Z]{2}(?:\s*\([^)]*\))?\s*$/i, '');
   text = text.replace(/\s+(?:position|role|opportunity|job)\b$/i, '');
   text = text.replace(
     /\b(?:best regards|kind regards|regards|sincerely|cheers|recruiting team|hiring team|talent acquisition|talent team|people team)\b.*$/i,
     ''
   );
   text = text.replace(/[\s,:;\-|]+$/g, '');
+  text = trimTrailingLocation(text);
   text = normalizeRole(sanitizeJobTitle(text));
   if (isBoilerplateRoleCandidate(text)) {
     return null;
@@ -2471,7 +2480,9 @@ function extractWorkableApplicationIdentity({ subject, snippet, bodyText, sender
   const looksLikeConfirmation =
     /thanks for applying to/i.test(normalizedSubject) ||
     /your application for/i.test(compactHeaderText) ||
-    /submitted successfully/i.test(compactHeaderText);
+    /submitted successfully/i.test(compactHeaderText) ||
+    /thank you for applying for/i.test(`${normalizedSubject}\n${compactHeaderText}`) ||
+    /we (?:have )?received your application/i.test(compactHeaderText);
   if (!looksLikeConfirmation) {
     return null;
   }
@@ -2485,10 +2496,30 @@ function extractWorkableApplicationIdentity({ subject, snippet, bodyText, sender
   }
 
   if (!companyName) {
+    const subjectApplyingForMatch = normalizedSubject.match(
+      /thank you for applying for\s+(?:the\s+)?[A-Za-z0-9/&.'\- ]{2,120}?\s+position\s+at\s+([A-Z][A-Za-z0-9&.'\- ]{2,80}?)(?:[.!]|$)/i
+    );
+    if (subjectApplyingForMatch && subjectApplyingForMatch[1]) {
+      companyName = cleanCompanyCandidate(subjectApplyingForMatch[1]);
+      companySource = companyName ? 'subject_applying_for_position_at' : 'none';
+    }
+  }
+
+  if (!companyName) {
     const bodyCompanyMatch = compactHeaderText.match(/thanks for applying to\s+(.+?)(?:[.!]|$)/i);
     if (bodyCompanyMatch && bodyCompanyMatch[1]) {
       companyName = cleanCompanyCandidate(bodyCompanyMatch[1]);
       companySource = companyName ? 'body_header_sentence' : 'none';
+    }
+  }
+
+  if (!companyName) {
+    const bodyApplyingForMatch = compactHeaderText.match(
+      /thank you for applying for\s+(?:the\s+)?[A-Za-z0-9/&.'\- ]{2,120}?\s+position\s+at\s+([A-Z][A-Za-z0-9&.'\- ]{2,80}?)(?:[.!]|$)/i
+    );
+    if (bodyApplyingForMatch && bodyApplyingForMatch[1]) {
+      companyName = cleanCompanyCandidate(bodyApplyingForMatch[1]);
+      companySource = companyName ? 'body_applying_for_position_at' : 'none';
     }
   }
 
@@ -2517,7 +2548,14 @@ function extractWorkableApplicationIdentity({ subject, snippet, bodyText, sender
   let roleSource = 'none';
   const roleMatch =
     compactHeaderText.match(/your application for (?:the\s+)?(.+?)\s+job was submitted successfully/i) ||
-    compactHeaderText.match(/your application for (?:the\s+)?(.+?)\s+was submitted successfully/i);
+    compactHeaderText.match(/your application for (?:the\s+)?(.+?)\s+was submitted successfully/i) ||
+    normalizedSubject.match(
+      /thank you for applying for\s+(?:the\s+)?(.+?)\s+position\s+at\s+[A-Z][A-Za-z0-9&.'\- ]{2,80}(?:[.!]|$)/i
+    ) ||
+    compactHeaderText.match(
+      /thank you for applying for\s+(?:the\s+)?(.+?)\s+position\s+at\s+[A-Z][A-Za-z0-9&.'\- ]{2,80}(?:[.!]|$)/i
+    ) ||
+    compactHeaderText.match(/thank you for applying for\s+(?:the\s+)?(.+?)\s+position\b/i);
   if (roleMatch && roleMatch[1]) {
     jobTitle = normalizeRoleCandidate(roleMatch[1], companyName);
     roleSource = jobTitle ? 'body_header_sentence' : 'none';

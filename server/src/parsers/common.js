@@ -90,6 +90,14 @@ const INTERVIEW_PROCESS_ONLY_PATTERNS = [
     label: 'conditional_match_language'
   },
   {
+    pattern: /\bwe (?:are|(?:'|’)re)? planning to schedule interviews?\b/i,
+    label: 'planning_future_interviews'
+  },
+  {
+    pattern: /\binterviews?\b.{0,40}\b(?:in|over)\s+the\s+next\s+\d+\s+(?:day|days|week|weeks|month|months)\b/i,
+    label: 'future_interview_window'
+  },
+  {
     pattern: /\bwe (?:may|might) invite you to some or all of the (?:below )?recruitment stages\b/i,
     label: 'recruitment_stages_overview'
   },
@@ -108,6 +116,14 @@ const INTERVIEW_CONDITIONAL_PATTERNS = [
   {
     pattern: /\bif we need additional information or wish to schedule an interview\b/i,
     label: 'if_need_info_or_schedule_interview'
+  },
+  {
+    pattern: /\bif you are among the qualified candidates\b/i,
+    label: 'if_among_qualified_candidates'
+  },
+  {
+    pattern: /\byou will receive an email\b.{0,120}\bschedule\b.{0,40}\binterview\b/i,
+    label: 'will_receive_email_to_schedule_interview'
   },
   { pattern: /\bif selected for (?:an )?interview\b/i, label: 'if_selected_for_interview' },
   {
@@ -153,6 +169,7 @@ const APPLIED_SIGNAL_PATTERNS = [
   { pattern: /\bapplication submitted\b/i, label: 'application_submitted' },
   { pattern: /\byour application was sent\b/i, label: 'application_was_sent' },
   { pattern: /\byour application has been received\b/i, label: 'application_received' },
+  { pattern: /\bhas received your application for\b/i, label: 'has_received_your_application_for' },
   { pattern: /\bwe have successfully received your application\b/i, label: 'successfully_received_application' },
   { pattern: /\bwe (?:have )?received your application\b/i, label: 'received_your_application' },
   { pattern: /\b(?:it is|your application is)\s+currently under review\b/i, label: 'currently_under_review' },

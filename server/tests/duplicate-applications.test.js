@@ -653,6 +653,108 @@ Education`;
   assert.ok(events[0].application_id === events[1].application_id);
 });
 
+test('same company confirmations with different roles on the same day do not merge', async () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+
+  const monsterSender = 'Monster.com <no-reply@ses.monster.com>';
+  const monsterSubject = 'Congratulations!';
+  const monsterBody = [
+    'Congratulations!',
+    'Valstro has received your application for Junior DevEx Engineer in New York, NY'
+  ].join('\n');
+  const monsterIdentity = extractThreadIdentity({
+    subject: monsterSubject,
+    sender: monsterSender,
+    bodyText: monsterBody
+  });
+  assert.equal(monsterIdentity.companyName, 'Valstro');
+  assert.equal(monsterIdentity.jobTitle, 'Junior DevEx Engineer');
+
+  const monsterEventId = insertEmailEvent(db, {
+    userId,
+    messageId: 'valstro-monster-junior',
+    sender: monsterSender,
+    subject: monsterSubject,
+    detectedType: 'confirmation',
+    confidenceScore: 0.94,
+    classificationConfidence: 0.94,
+    snippet: monsterBody
+  });
+
+  const monsterMatch = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: monsterEventId,
+      sender: monsterSender,
+      subject: monsterSubject,
+      snippet: monsterBody,
+      detected_type: 'confirmation',
+      confidence_score: 0.94,
+      classification_confidence: 0.94,
+      role_title: monsterIdentity.jobTitle,
+      role_confidence: monsterIdentity.roleConfidence,
+      role_source: 'identity',
+      created_at: new Date().toISOString()
+    },
+    identity: monsterIdentity
+  });
+  assert.equal(monsterMatch.action, 'created_application');
+
+  const workableSender = 'Workable <noreply@candidates.workablemail.com>';
+  const workableSubject = 'Your application for the Senior DevEx Engineer job was submitted successfully.';
+  const workableBody = ['Valstro', 'Your application for the Senior DevEx Engineer job was submitted successfully.'].join('\n');
+  const workableIdentity = extractThreadIdentity({
+    subject: workableSubject,
+    sender: workableSender,
+    bodyText: workableBody
+  });
+  assert.equal(workableIdentity.companyName, 'Valstro');
+  assert.equal(workableIdentity.jobTitle, 'Senior DevEx Engineer');
+
+  const workableEventId = insertEmailEvent(db, {
+    userId,
+    messageId: 'valstro-workable-senior',
+    sender: workableSender,
+    subject: workableSubject,
+    detectedType: 'confirmation',
+    confidenceScore: 0.94,
+    classificationConfidence: 0.94,
+    snippet: workableBody
+  });
+
+  const workableMatch = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: workableEventId,
+      sender: workableSender,
+      subject: workableSubject,
+      snippet: workableBody,
+      detected_type: 'confirmation',
+      confidence_score: 0.94,
+      classification_confidence: 0.94,
+      role_title: workableIdentity.jobTitle,
+      role_confidence: workableIdentity.roleConfidence,
+      role_source: 'identity',
+      created_at: new Date().toISOString()
+    },
+    identity: workableIdentity
+  });
+  assert.equal(workableMatch.action, 'created_application');
+
+  const apps = db
+    .prepare('SELECT company_name, job_title FROM job_applications WHERE user_id = ? ORDER BY job_title ASC')
+    .all(userId);
+  assert.equal(apps.length, 2);
+  assert.deepEqual(
+    apps.map((row) => row.job_title),
+    ['Junior DevEx Engineer', 'Senior DevEx Engineer']
+  );
+});
+
 test('Distinct program role tails at same company do not dedupe', async () => {
   const db = new Database(':memory:');
   runMigrations(db);
