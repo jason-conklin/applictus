@@ -1131,47 +1131,72 @@
             <div class="dashboard-onboarding hidden" id="dashboard-onboarding">
               <div class="dashboard-onboarding__content">
                 <div class="dashboard-onboarding__eyebrow">Welcome</div>
-                <h3 class="dashboard-onboarding__title">Get Applictus tracking in a few minutes</h3>
+                <h3 class="dashboard-onboarding__title">Start tracking your applications in minutes</h3>
                 <p class="dashboard-onboarding__text">
-                  Connect your inbox once, and Applictus will automatically organize confirmations, interviews, and rejections into one timeline.
+                  Connect your inbox once — Applictus automatically tracks confirmations, interviews, and rejections for you.
                 </p>
                 <ul class="dashboard-onboarding__reassurance" aria-label="Setup reassurance">
-                  <li>Takes ~2 minutes</li>
-                  <li>No inbox access required</li>
-                  <li>Works automatically after setup</li>
+                  <li>2-minute setup</li>
+                  <li>No inbox access</li>
+                  <li>Runs automatically</li>
                 </ul>
-                <div class="dashboard-onboarding__clarification">
-                  <p><strong>Google sign-in only secures your account.</strong></p>
-                  <p>Applictus uses forwarding to track updates - not direct inbox access.</p>
-                </div>
                 <div class="dashboard-onboarding__actions">
-                  <button class="btn btn--primary btn--md" type="button" data-action="sync-inbox">
-                    Connect your inbox to start tracking
+                  <button class="btn btn--primary btn--md dashboard-onboarding__cta-primary" type="button" data-action="sync-inbox">
+                    Connect inbox
                   </button>
-                  <button class="btn btn--ghost btn--sm" type="button" data-action="onboarding-later">I'll do this later</button>
+                  <button class="btn btn--ghost btn--sm" type="button" data-action="onboarding-later">Do this later</button>
                 </div>
+                <p class="dashboard-onboarding__microcopy muted small">
+                  Takes ~2 minutes • No inbox access required • Works with Gmail instantly
+                </p>
+                <p class="dashboard-onboarding__trust-statement muted small">
+                  Applictus never reads your inbox — it only processes emails you choose to forward.
+                </p>
+                <button class="link-button dashboard-onboarding__walkthrough-link" type="button" data-action="manage-inbox">
+                  Watch how setup works
+                </button>
               </div>
               <div class="dashboard-onboarding__steps" aria-label="Onboarding steps">
+                <div class="dashboard-onboarding__steps-heading muted small">Setup progress</div>
                 <ol class="dashboard-stepper">
-                  <li class="dashboard-stepper__step is-active">
-                    <span class="dashboard-stepper__index">1</span>
+                  <li class="dashboard-stepper__step is-ready">
+                    <span class="dashboard-stepper__index">✓</span>
                     <div class="dashboard-stepper__body">
-                      <div class="dashboard-stepper__title">Connect your inbox</div>
-                      <p>Create your Applictus inbox address and start setup.</p>
+                      <div class="dashboard-stepper__meta">
+                        <div class="dashboard-stepper__title">Your Applictus inbox is ready</div>
+                        <span class="dashboard-stepper__state-badge is-ready">Ready</span>
+                      </div>
+                      <div class="dashboard-onboarding-inbox-preview">
+                        <div class="dashboard-onboarding-inbox-head">
+                          <div class="dashboard-onboarding-inbox-label">Your Applictus inbox</div>
+                          <button class="link-button dashboard-onboarding-inbox-copy" type="button" data-action="copy-onboarding-inbox">
+                            Copy
+                          </button>
+                        </div>
+                        <code class="dashboard-onboarding-inbox-address" id="dashboard-onboarding-inbox-address"
+                          >yourname@mail.applictus.com</code
+                        >
+                        <button class="link-button dashboard-onboarding-inbox-link" type="button" data-action="open-account-inbox">
+                          Customize address
+                        </button>
+                      </div>
                     </div>
                   </li>
-                  <li class="dashboard-stepper__step">
+                  <li class="dashboard-stepper__step is-next is-active">
                     <span class="dashboard-stepper__index">2</span>
                     <div class="dashboard-stepper__body">
-                      <div class="dashboard-stepper__title">Add forwarding once</div>
-                      <p>Add your Applictus address in Gmail or your email provider.</p>
+                      <div class="dashboard-stepper__meta">
+                        <div class="dashboard-stepper__title">Add forwarding in Gmail</div>
+                        <span class="dashboard-stepper__state-badge is-next">Next step</span>
+                      </div>
+                      <p>Open setup and add your Applictus inbox address in Gmail forwarding.</p>
                     </div>
                   </li>
                   <li class="dashboard-stepper__step">
                     <span class="dashboard-stepper__index">3</span>
                     <div class="dashboard-stepper__body">
-                      <div class="dashboard-stepper__title">We track updates automatically</div>
-                      <p>Your application timeline starts filling in as updates arrive.</p>
+                      <div class="dashboard-stepper__title">Start tracking automatically</div>
+                      <p>Your timeline updates as confirmations, interviews, and rejections arrive.</p>
                     </div>
                   </li>
                 </ol>

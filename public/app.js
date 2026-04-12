@@ -2255,10 +2255,10 @@ function getDashboardEmptyStateHtml({ firstTime = false, noResults = false } = {
   if (firstTime) {
     return `
       <div class="empty-state empty-state--onboarding">
-        <h3>Your application timeline will appear here</h3>
-        <p class="muted">Once your inbox is connected, Applictus will automatically track confirmations, interviews, and rejections for you.</p>
+        <h3>Your timeline will appear here once your inbox is connected.</h3>
+        <p class="muted">Use Setup progress above to finish forwarding, then Applictus will begin tracking automatically.</p>
         <div class="empty-state-actions">
-          <button class="btn btn--primary btn--md" type="button" data-action="sync-inbox">Connect inbox</button>
+          <button class="btn btn--ghost btn--sm" type="button" data-action="manage-inbox">Open setup guide</button>
           <button class="btn btn--ghost btn--sm" type="button" data-action="add-application">Add application manually</button>
         </div>
       </div>
@@ -4317,10 +4317,6 @@ function renderDashboardOnboardingInboxPreview() {
   }
   const address = getDashboardOnboardingInboxAddress();
   dashboardOnboardingInboxAddress.textContent = address;
-  const hasSavedCustomInboxUsername = Boolean(normalizeInboxUsernameInput(sessionUser?.inbox_username || ''));
-  if (dashboardOnboardingInboxLink) {
-    dashboardOnboardingInboxLink.classList.toggle('hidden', hasSavedCustomInboxUsername);
-  }
 }
 
 function hasCompletedDashboardInboxSetup() {
@@ -10886,6 +10882,13 @@ dashboardView?.addEventListener('click', async (event) => {
   }
   if (action === 'open-account-inbox') {
     window.location.hash = '#account';
+    return;
+  }
+  if (action === 'copy-onboarding-inbox') {
+    const address = getDashboardOnboardingInboxAddress();
+    if (address) {
+      void copyTextToClipboard(address, 'Copied Applictus inbox address');
+    }
     return;
   }
   if (action === 'onboarding-later') {
