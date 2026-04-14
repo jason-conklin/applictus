@@ -520,6 +520,26 @@ test('shouldAutoCreate blocks ambiguous sender domain', () => {
   assert.equal(shouldAutoCreate(event, identity), false);
 });
 
+test('shouldAutoCreate blocks low-signal LinkedIn notification candidates', () => {
+  const identity = {
+    companyName: 'LinkedIn',
+    jobTitle: 'Unknown role',
+    companyConfidence: 0.93,
+    matchConfidence: 0.92,
+    domainConfidence: 0.92,
+    isAtsDomain: false,
+    isPlatformEmail: true
+  };
+  const event = {
+    detected_type: 'confirmation',
+    classification_confidence: 0.95,
+    sender: 'notifications-noreply@linkedin.com',
+    subject: 'Jason, your posts got 37 impressions last week',
+    body_text: 'View all analytics. Start your next post. Your profile views are up.'
+  };
+  assert.equal(shouldAutoCreate(event, identity), false);
+});
+
 test('matchAndAssignEvent returns reason detail for ambiguous sender', async () => {
   const identity = {
     companyName: 'Acme',
@@ -553,6 +573,46 @@ test('matchAndAssignEvent returns reason detail for ambiguous sender', async () 
   assert.equal(result.action, 'unassigned');
   assert.equal(result.reason, 'ambiguous_sender');
   assert.ok(result.reasonDetail);
+});
+
+test('matchAndAssignEvent returns provider_filtered for low-signal LinkedIn notifications', async () => {
+  const identity = {
+    companyName: 'LinkedIn',
+    jobTitle: 'Unknown role',
+    companyConfidence: 0.93,
+    matchConfidence: 0.92,
+    domainConfidence: 0.92,
+    isAtsDomain: false,
+    isPlatformEmail: true
+  };
+  const event = {
+    id: 'evt-linkedin-noise',
+    detected_type: 'confirmation',
+    classification_confidence: 0.95,
+    sender: 'notifications-noreply@linkedin.com',
+    subject: 'Jason, your posts got 37 impressions last week',
+    body_text: 'View all analytics. Start your next post. Your profile views are up.'
+  };
+  const db = {
+    prepare() {
+      return {
+        all() {
+          return [];
+        },
+        get() {
+          return null;
+        },
+        run() {
+          return null;
+        }
+      };
+    }
+  };
+
+  const result = await matchAndAssignEvent({ db, userId: 'user-1', event, identity });
+  assert.equal(result.action, 'unassigned');
+  assert.equal(result.reason, 'provider_filtered');
+  assert.match(String(result.reasonDetail || ''), /linkedin notification/i);
 });
 
 test('matchAndAssignEvent force-creates thread for high-signal interview_requested with partial identity', async () => {

@@ -249,6 +249,26 @@ function buildGlassdoorDigestPayload(toEmail) {
   };
 }
 
+function buildLinkedInAnalyticsPayload(toEmail) {
+  const stamp = Date.now();
+  return {
+    From: 'LinkedIn Notifications <notifications-noreply@linkedin.com>',
+    To: toEmail,
+    ToFull: [{ Email: toEmail }],
+    Subject: 'Jason, your posts got 37 impressions last week',
+    MessageID: `<linkedin-analytics-${stamp}@linkedin.com>`,
+    Date: new Date().toISOString(),
+    TextBody: [
+      'Your audience showed up this week.',
+      'View all analytics',
+      'Start your next post',
+      'Posting at least once a week can help your content perform better.',
+      'Reactions, comments, and reposts are up.'
+    ].join('\n'),
+    Headers: [{ Name: 'Message-ID', Value: `<linkedin-analytics-rfc-${stamp}@linkedin.com>` }]
+  };
+}
+
 function buildGmailVerificationPayload(toEmail) {
   const stamp = Date.now();
   return {
@@ -420,6 +440,80 @@ test('inbound sync ignores digest emails and Gmail forwarding verification messa
   assert.match(String(digestRow.processing_error), /suppressed:bulk_digest/i);
   assert.equal(String(verificationRow.processing_status), 'ignored');
   assert.match(String(verificationRow.processing_error), /gmail_forwarding_verification/i);
+});
+
+test('inbound sync excludes LinkedIn analytics notifications from application ingestion', async (t) => {
+  const { baseUrl, db, stop } = await startServerWithEnv({
+    NODE_ENV: 'test',
+    JOBTRACK_DB_PATH: ':memory:',
+    JOBTRACK_LOG_LEVEL: 'error',
+    INBOUND_DOMAIN: 'mail.applictus.com',
+    POSTMARK_INBOUND_SECRET: 'test-inbound-secret'
+  });
+  t.after(stop);
+  if (!baseUrl || !db) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  const request = await createClient(baseUrl);
+  const signup = await request('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({
+      email: `linkedin-analytics-${crypto.randomUUID()}@example.com`,
+      password: 'StrongPassword123!'
+    })
+  });
+  assert.equal(signup.status, 200);
+
+  const addressRes = await request('/api/inbound/address');
+  assert.equal(addressRes.status, 200);
+  const toEmail = addressRes.body.address_email;
+  assert.ok(toEmail);
+
+  const applicationsBefore = await db
+    .prepare(
+      `SELECT COUNT(*) AS count
+       FROM job_applications
+       WHERE archived = 0`
+    )
+    .get();
+  const baselineApplicationCount = Number(applicationsBefore.count || 0);
+
+  const analyticsNotice = await postInbound(baseUrl, buildLinkedInAnalyticsPayload(toEmail));
+  assert.equal(analyticsNotice.status, 200);
+
+  const syncRes = await request('/api/inbound/sync', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+  assert.equal(syncRes.status, 200);
+  assert.equal(syncRes.body.status, 'ok');
+  assert.equal(syncRes.body.processed, 0);
+  assert.equal(syncRes.body.ignored, 1);
+
+  const row = await db
+    .prepare(
+      `SELECT processing_status, processing_error
+       FROM inbound_messages
+       ORDER BY created_at DESC
+       LIMIT 1`
+    )
+    .get();
+  assert.equal(String(row.processing_status), 'ignored');
+  assert.match(
+    String(row.processing_error || ''),
+    /suppressed:excluded_non_job_linkedin_notification/i
+  );
+
+  const applications = await db
+    .prepare(
+      `SELECT COUNT(*) AS count
+       FROM job_applications
+       WHERE archived = 0`
+    )
+    .get();
+  assert.equal(Number(applications.count || 0), baselineApplicationCount);
 });
 
 test('inbound sync unwraps manually forwarded LinkedIn confirmations and creates applications', async (t) => {

@@ -283,6 +283,38 @@ const MESSAGE_NOTIFICATION_NEGATIVE_PATTERNS = [
   /\bsupport ticket\b/i
 ];
 
+const LINKEDIN_NON_JOB_NOTIFICATION_SIGNAL_PATTERNS = [
+  { pattern: /\byour posts? got\b/i, label: 'linkedin_posts_got' },
+  { pattern: /\bimpressions?\b/i, label: 'linkedin_impressions' },
+  { pattern: /\byour audience showed up\b/i, label: 'linkedin_audience_showed_up' },
+  { pattern: /\bview all analytics\b/i, label: 'linkedin_view_all_analytics' },
+  { pattern: /\bstart your next post\b/i, label: 'linkedin_start_next_post' },
+  { pattern: /\bposting at least once a week\b/i, label: 'linkedin_posting_once_week' },
+  { pattern: /\bcommenting on posts?\b/i, label: 'linkedin_commenting_on_posts' },
+  { pattern: /\badding an image to your post\b/i, label: 'linkedin_add_image_post' },
+  { pattern: /\bprofile views?\b/i, label: 'linkedin_profile_views' },
+  { pattern: /\bfollowers?\b/i, label: 'linkedin_followers' },
+  {
+    pattern: /\breactions?, comments?, and reposts?\b/i,
+    label: 'linkedin_reactions_comments_reposts'
+  },
+  { pattern: /\bcontent(?:\s+)?performance\b/i, label: 'linkedin_content_performance' },
+  { pattern: /\bcreator(?:\s+)?analytics\b/i, label: 'linkedin_creator_analytics' }
+];
+
+const SOCIAL_ANALYTICS_SIGNAL_PATTERNS = [
+  { pattern: /\bimpressions?\b/i, label: 'social_impressions' },
+  { pattern: /\bprofile views?\b/i, label: 'social_profile_views' },
+  { pattern: /\bfollowers?\b/i, label: 'social_followers' },
+  { pattern: /\breactions?\b/i, label: 'social_reactions' },
+  { pattern: /\bcomments?\b/i, label: 'social_comments' },
+  { pattern: /\breposts?\b/i, label: 'social_reposts' },
+  { pattern: /\bview all analytics\b/i, label: 'social_view_all_analytics' },
+  { pattern: /\bstart your next post\b/i, label: 'social_start_next_post' },
+  { pattern: /\bpost performance\b/i, label: 'social_post_performance' },
+  { pattern: /\baudience\b/i, label: 'social_audience' }
+];
+
 const INTERVIEW_DIRECT_INTENT_PATTERNS = [
   /\bi would like to speak with you\b/i,
   /\bwe would like to speak with you\b/i,
@@ -799,6 +831,56 @@ function extractSenderEmail(sender) {
   return direct ? String(direct[0]).trim().toLowerCase() : raw.toLowerCase();
 }
 
+function extractSenderDomain(sender) {
+  const senderEmail = extractSenderEmail(sender);
+  if (!senderEmail || !senderEmail.includes('@')) {
+    return '';
+  }
+  const parts = senderEmail.split('@');
+  return String(parts[parts.length - 1] || '').toLowerCase();
+}
+
+function extractSenderLocalPart(sender) {
+  const senderEmail = extractSenderEmail(sender);
+  if (!senderEmail || !senderEmail.includes('@')) {
+    return '';
+  }
+  return String(senderEmail.split('@')[0] || '').toLowerCase();
+}
+
+function isLinkedInDomainSender(sender) {
+  const domain = extractSenderDomain(sender);
+  return /(?:^|\.)linkedin\.com$/.test(domain);
+}
+
+function hasStrongJobLifecycleEvidence(text) {
+  const sourceText = String(text || '');
+  if (!sourceText) {
+    return false;
+  }
+  return (
+    /\bthank you for applying\b/i.test(sourceText) ||
+    /\bthanks for applying\b/i.test(sourceText) ||
+    /\bthank you for your application\b/i.test(sourceText) ||
+    /\bapplication (?:submitted|received|was submitted successfully|was sent|confirmation)\b/i.test(sourceText) ||
+    /\bwe (?:have )?received your application\b/i.test(sourceText) ||
+    /\bhas received your application for\b/i.test(sourceText) ||
+    /\byour application (?:was sent to|to|for)\b/i.test(sourceText) ||
+    /\baccess my application\b/i.test(sourceText) ||
+    /\bjobs applied to on\b/i.test(sourceText) ||
+    /\bnew message from\b/i.test(sourceText) ||
+    /\byou(?:'|’)ve received a new message\b/i.test(sourceText) ||
+    /\breply from your account\b/i.test(sourceText) ||
+    /\binterview (?:invite|invitation|requested|scheduled|schedule|availability)\b/i.test(sourceText) ||
+    /\bschedule (?:an|your) interview\b/i.test(sourceText) ||
+    /\bselect (?:a|your) time\b/i.test(sourceText) ||
+    /\bshare your availability\b/i.test(sourceText) ||
+    /\boffer (?:letter|extended|received)\b/i.test(sourceText) ||
+    /\bnot selected\b/i.test(sourceText) ||
+    /\b(?:will not|not) be moving forward with your application\b/i.test(sourceText)
+  );
+}
+
 function hasSentLabel(messageLabels) {
   if (!Array.isArray(messageLabels)) {
     return false;
@@ -873,6 +955,48 @@ function isRelevantApplicationEmail({ subject, snippet, sender, body } = {}) {
     };
   }
 
+  const linkedInJobsEnvelope =
+    isLinkedInJobsUpdateEmail({ subject, snippet, sender, body }) ||
+    isLinkedInJobsApplicationSentEmail({ subject, snippet, sender, body });
+  const senderIsLinkedIn = isLinkedInDomainSender(sender);
+  const senderLocalPart = extractSenderLocalPart(sender);
+  const hasStrongLifecycleEvidence = hasStrongJobLifecycleEvidence(textSource) || linkedInJobsEnvelope;
+  const linkedInAnalyticsSignals = collectSignalMatches(
+    LINKEDIN_NON_JOB_NOTIFICATION_SIGNAL_PATTERNS,
+    textSource
+  );
+  const socialAnalyticsSignals = collectSignalMatches(SOCIAL_ANALYTICS_SIGNAL_PATTERNS, textSource);
+  const linkedInNotificationSender =
+    senderIsLinkedIn &&
+    /(?:^|[-._])(notifications?|updates?|digest|news|notify)(?:[-._]|$)/i.test(senderLocalPart);
+
+  if (
+    linkedInNotificationSender &&
+    !linkedInJobsEnvelope &&
+    linkedInAnalyticsSignals.length >= 2 &&
+    !hasStrongLifecycleEvidence
+  ) {
+    return {
+      isRelevant: false,
+      reason: 'excluded_non_job_linkedin_notification',
+      matchedKeywords: [],
+      rejectedKeywords: Array.from(new Set(linkedInAnalyticsSignals))
+    };
+  }
+
+  if (
+    socialAnalyticsSignals.length >= 3 &&
+    !hasStrongLifecycleEvidence &&
+    !/\b(?:application|applied|candidate|hiring|job\s+application|interview|offer|rejection)\b/i.test(textSource)
+  ) {
+    return {
+      isRelevant: false,
+      reason: 'excluded_social_analytics_email',
+      matchedKeywords: [],
+      rejectedKeywords: Array.from(new Set(socialAnalyticsSignals))
+    };
+  }
+
   const matchedKeywords = collectSignalMatches(RELEVANCE_KEEP_SIGNALS, textSource);
   const rejectedKeywords = collectSignalMatches(RELEVANCE_IGNORE_SIGNALS, textSource);
   const marketingKeywords = collectSignalMatches(RELEVANCE_MARKETING_SIGNALS, textSource);
@@ -895,6 +1019,21 @@ function isRelevantApplicationEmail({ subject, snippet, sender, body } = {}) {
       reason: 'not_relevant',
       matchedKeywords,
       rejectedKeywords: ['message_notification_missing_job_context']
+    };
+  }
+  const hasOnlyInterviewContextSignal =
+    matchedKeywords.length > 0 &&
+    matchedKeywords.every((label) => String(label || '') === 'interview_context');
+  const hasInterviewActionContext =
+    /\b(?:schedule|availability|select (?:a|your) time|book (?:a )?time|invite you to|next step in our hiring process|initial interview|screening test|submit your responses?)\b/i.test(
+      textSource
+    );
+  if (hasOnlyInterviewContextSignal && !hasInterviewActionContext) {
+    return {
+      isRelevant: false,
+      reason: 'not_relevant',
+      matchedKeywords,
+      rejectedKeywords: ['interview_context_without_action']
     };
   }
   const hasRoleCompanyReference =
@@ -1455,10 +1594,51 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
   const linkedInApplicationSent = isLinkedInJobsApplicationSentEmail({ subject, snippet, sender, body });
   const interviewSuppressionMatches = collectSignalMatches(INTERVIEW_PROCESS_ONLY_SIGNAL_PATTERNS, textSource);
   const appliedConfirmationMatches = collectAppliedConfirmationSignals(textSource);
+  const senderIsLinkedIn = isLinkedInDomainSender(sender);
+  const senderLocalPart = extractSenderLocalPart(sender);
+  const linkedInNotificationSender =
+    senderIsLinkedIn &&
+    /(?:^|[-._])(notifications?|updates?|digest|news|notify)(?:[-._]|$)/i.test(senderLocalPart);
+  const linkedInAnalyticsSignals = collectSignalMatches(
+    LINKEDIN_NON_JOB_NOTIFICATION_SIGNAL_PATTERNS,
+    textSource
+  );
+  const socialAnalyticsSignals = collectSignalMatches(SOCIAL_ANALYTICS_SIGNAL_PATTERNS, textSource);
+  const hasStrongLifecycleEvidence =
+    hasStrongJobLifecycleEvidence(textSource) || linkedInJobsUpdate || linkedInApplicationSent;
+
+  if (
+    linkedInNotificationSender &&
+    !linkedInJobsUpdate &&
+    linkedInAnalyticsSignals.length >= 2 &&
+    !hasStrongLifecycleEvidence
+  ) {
+    return {
+      isJobRelated: false,
+      explanation: 'LinkedIn non-job analytics notification excluded.',
+      reason: 'excluded_non_job_linkedin_notification'
+    };
+  }
+
+  if (
+    socialAnalyticsSignals.length >= 3 &&
+    !hasStrongLifecycleEvidence &&
+    !hasJobContext(textSource)
+  ) {
+    return {
+      isJobRelated: false,
+      explanation: 'Social analytics notification excluded.',
+      reason: 'excluded_social_analytics_email'
+    };
+  }
 
   // Early guard: LinkedIn social/notification emails should not be classified as interview.
   if (!linkedInJobsUpdate && isLinkedInSocialNotification(textSource, sender)) {
-    return { isJobRelated: false, explanation: 'LinkedIn social notification.' };
+    return {
+      isJobRelated: false,
+      explanation: 'LinkedIn social notification excluded.',
+      reason: 'excluded_social_analytics_email'
+    };
   }
 
   // Dedicated LinkedIn rejection template override for jobs updates.

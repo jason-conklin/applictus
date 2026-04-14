@@ -694,6 +694,59 @@ test('LinkedIn social notification reacted to post is not interview', () => {
   assert.notEqual(result.detectedType, 'interview');
 });
 
+test('isRelevantApplicationEmail excludes LinkedIn post analytics notifications', () => {
+  const subject = 'Jason, your posts got 37 impressions last week';
+  const body = [
+    'Your audience showed up this week.',
+    'View all analytics',
+    'Start your next post',
+    'Posting at least once a week can help your content perform better.',
+    'Reactions, comments, and reposts are up.'
+  ].join('\n');
+
+  const relevance = isRelevantApplicationEmail({
+    subject,
+    body,
+    sender: 'notifications-noreply@linkedin.com'
+  });
+  assert.equal(relevance.isRelevant, false);
+  assert.equal(relevance.reason, 'excluded_non_job_linkedin_notification');
+
+  const result = classifyEmail({
+    subject,
+    body,
+    sender: 'notifications-noreply@linkedin.com'
+  });
+  assert.equal(result.isJobRelated, false);
+  assert.equal(result.reason, 'excluded_non_job_linkedin_notification');
+  assert.notEqual(result.detectedType, 'confirmation');
+});
+
+test('isRelevantApplicationEmail excludes LinkedIn creator growth tips as non-job notifications', () => {
+  const relevance = isRelevantApplicationEmail({
+    subject: 'Grow your audience on LinkedIn this week',
+    sender: 'updates@linkedin.com',
+    body: [
+      'Your profile views are growing.',
+      'Followers increased this week.',
+      'View all analytics',
+      'Adding an image to your post can improve engagement.'
+    ].join('\n')
+  });
+  assert.equal(relevance.isRelevant, false);
+  assert.equal(relevance.reason, 'excluded_non_job_linkedin_notification');
+});
+
+test('isRelevantApplicationEmail keeps real LinkedIn Jobs confirmation updates relevant', () => {
+  const relevance = isRelevantApplicationEmail({
+    subject: 'Jason, your application was sent to BeaconFire Inc.',
+    sender: 'jobs-noreply@linkedin.com',
+    snippet: 'Your application was sent to BeaconFire Inc. Applied on January 23, 2026.',
+    body: 'Your application was sent to BeaconFire Inc. Applied on January 23, 2026.'
+  });
+  assert.equal(relevance.isRelevant, true);
+});
+
 test('Phone screen invite with scheduling context stays interview', () => {
   const result = classifyEmail({
     subject: 'Phone screen availability',

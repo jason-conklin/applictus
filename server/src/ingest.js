@@ -1495,8 +1495,15 @@ async function syncGmailMessages({
         });
       }
       if (!relevanceDecision.isRelevant) {
+        const relevanceReasonCode = String(relevanceDecision.reason || 'not_relevant').trim() || 'not_relevant';
         skippedNotJob += 1;
         reasons.not_relevant += 1;
+        if (
+          relevanceReasonCode === 'excluded_non_job_linkedin_notification' ||
+          relevanceReasonCode === 'excluded_social_analytics_email'
+        ) {
+          reasons.provider_filtered += 1;
+        }
         await recordSkipSample({
           db,
           userId,
@@ -1504,12 +1511,13 @@ async function syncGmailMessages({
           messageId: message.id,
           sender,
           subject,
-          reasonCode: 'not_relevant'
+          reasonCode: relevanceReasonCode
         });
         fetched += 1;
         logDebug('ingest.skip_not_relevant', {
           userId,
           messageId: message.id,
+          reasonCode: relevanceReasonCode,
           matchedKeywords: relevanceDecision.matchedKeywords || [],
           rejectedKeywords: relevanceDecision.rejectedKeywords || []
         });
@@ -2152,6 +2160,8 @@ async function syncGmailMessages({
           reasons.ambiguous_match_rejection += 1;
         } else if (matchResult.reason === 'ambiguous_linkedin_match') {
           reasons.ambiguous_linkedin_match += 1;
+        } else if (matchResult.reason === 'provider_filtered') {
+          reasons.provider_filtered += 1;
         }
       }
       if (indeedConfirmationTrace) {
@@ -3220,16 +3230,17 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
         reason: relevanceDecision.reason || null
       });
       if (!relevanceDecision.isRelevant) {
+        const suppressionReason = String(relevanceDecision.reason || 'not_relevant').trim() || 'not_relevant';
         ignored += 1;
         const processedAt = new Date().toISOString();
         debugMeta.suppression = {
           applied: true,
-          reason: 'not_relevant'
+          reason: suppressionReason
         };
         if (errorSamples.length < 5) {
           errorSamples.push({
             subject: truncateSnippet(subject, 96) || '(no subject)',
-            reason: 'suppressed:not_relevant'
+            reason: `suppressed:${suppressionReason}`
           });
         }
         await awaitMaybe(
@@ -3242,7 +3253,7 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
                    derived_debug_json = ?
                WHERE id = ?`
             )
-            .run(processedAt, 'suppressed:not_relevant', encodeDebugJson(db, debugMeta), row.id)
+            .run(processedAt, `suppressed:${suppressionReason}`, encodeDebugJson(db, debugMeta), row.id)
         );
         lastProcessedAt = processedAt;
         continue;

@@ -102,6 +102,11 @@ const INVALID_ROLE_TERMS = new Set([
   'updates'
 ]);
 
+const LINKEDIN_NOTIFICATION_LOCALPART_PATTERN =
+  /(?:^|[-._])(notifications?|updates?|digest|news|notify)(?:[-._]|$)/i;
+const LINKEDIN_STRONG_APPLICATION_EVIDENCE_PATTERN =
+  /\b(thank you for applying|thanks for applying|application (?:submitted|received|was submitted successfully|was sent|confirmation)|we (?:have )?received your application|has received your application for|your application (?:to|for|was sent to)|access my application|jobs applied to on|interview (?:invite|invitation|requested|scheduled)|schedule (?:an|your) interview|offer (?:letter|extended|received)|not selected|moving forward with your application)\b/i;
+
 async function awaitMaybe(value) {
   return value && typeof value.then === 'function' ? await value : value;
 }
@@ -259,6 +264,43 @@ function buildEventText(event = {}) {
     .filter(Boolean)
     .join('\n')
     .toLowerCase();
+}
+
+function isLowSignalLinkedInAutoCreateCandidate(event, identity) {
+  const detectedType = String(event?.detected_type || '').toLowerCase();
+  if (!['confirmation', 'under_review'].includes(detectedType)) {
+    return false;
+  }
+  const senderEmail = String(extractSenderEmail(event?.sender || '') || '').toLowerCase();
+  if (!senderEmail || !/@(?:.+\.)?linkedin\.com$/.test(senderEmail)) {
+    return false;
+  }
+  const senderLocalPart = String(senderEmail.split('@')[0] || '').toLowerCase();
+  if (!LINKEDIN_NOTIFICATION_LOCALPART_PATTERN.test(senderLocalPart)) {
+    return false;
+  }
+  const companySlug = normalizeSlug(identity?.companyName || '');
+  const companyLooksLikePlatform =
+    !companySlug ||
+    companySlug === 'linkedin' ||
+    isProviderName(identity?.companyName || '');
+  if (!companyLooksLikePlatform) {
+    return false;
+  }
+  const roleRaw = String(identity?.jobTitle || event?.role_title || '').trim();
+  const roleDisplay = normalizeDisplayTitle(roleRaw || null);
+  const roleIsWeak =
+    !roleRaw ||
+    /^unknown(?:\s+role)?$/i.test(roleRaw) ||
+    !roleDisplay ||
+    roleDisplay === UNKNOWN_ROLE ||
+    isLowQualityRoleCandidate(roleDisplay);
+  if (!roleIsWeak) {
+    return false;
+  }
+  const eventText = buildEventText(event);
+  const hasStrongEvidence = LINKEDIN_STRONG_APPLICATION_EVIDENCE_PATTERN.test(eventText);
+  return !hasStrongEvidence;
 }
 
 function normalizeSlug(text) {
@@ -1298,6 +1340,9 @@ function shouldAutoCreate(event, identity) {
   if (classificationConfidence < MIN_CLASSIFICATION_CONFIDENCE) {
     return false;
   }
+  if (isLowSignalLinkedInAutoCreateCandidate(event, identity)) {
+    return false;
+  }
   if (!identity.companyName) {
     return false;
   }
@@ -1788,6 +1833,13 @@ function buildUnassignedReason(event, identity) {
   const matchConfidence = identity.matchConfidence || 0;
   const senderDomain = identity.senderDomain || extractSenderDomain(event.sender) || null;
   const base = senderDomain ? (senderDomain.split('@').pop() || senderDomain) : null;
+
+  if (isLowSignalLinkedInAutoCreateCandidate(event, identity)) {
+    return {
+      reason: 'provider_filtered',
+      detail: 'Filtered low-signal LinkedIn notification without job-application evidence.'
+    };
+  }
 
   if (!identity.companyName) {
     if (identity.isPlatformEmail) {

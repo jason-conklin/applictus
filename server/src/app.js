@@ -1006,6 +1006,111 @@ function getInternalGoogleAuthUrl(oAuthClient, state, options = {}) {
   });
 }
 
+function sleepMs(ms) {
+  const delay = Number(ms);
+  if (!Number.isFinite(delay) || delay <= 0) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => setTimeout(resolve, delay));
+}
+
+function decodeJwtPayload(token) {
+  const value = String(token || '').trim();
+  if (!value) {
+    return null;
+  }
+  const parts = value.split('.');
+  if (parts.length < 2 || !parts[1]) {
+    return null;
+  }
+  try {
+    const normalized = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = `${normalized}${'='.repeat((4 - (normalized.length % 4)) % 4)}`;
+    const decoded = Buffer.from(padded, 'base64').toString('utf8');
+    const payload = JSON.parse(decoded);
+    return payload && typeof payload === 'object' ? payload : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function extractEmailFromGoogleIdToken(idToken) {
+  const payload = decodeJwtPayload(idToken);
+  return normalizeEmail(payload?.email || '');
+}
+
+function sanitizeGrantedGoogleScopes(scopeValue) {
+  return String(scopeValue || '')
+    .split(/\s+/)
+    .map((scope) => scope.trim())
+    .filter(Boolean)
+    .map((scope) =>
+      scope === 'https://www.googleapis.com/auth/gmail.readonly' || scope === 'openid' || scope === 'email' || scope === 'profile'
+        ? scope
+        : '[other]'
+    );
+}
+
+function hasRequiredInternalGmailScope(scopeValue) {
+  return String(scopeValue || '')
+    .split(/\s+/)
+    .map((scope) => scope.trim())
+    .filter(Boolean)
+    .includes('https://www.googleapis.com/auth/gmail.readonly');
+}
+
+async function fetchConnectedEmailWithRetry(authClient, { attempts = 2, retryDelayMs = 150 } = {}) {
+  const maxAttempts = Math.max(1, Number(attempts) || 1);
+  let lastErr = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const email = normalizeEmail(await fetchConnectedEmail(authClient));
+      if (email) {
+        return email;
+      }
+    } catch (err) {
+      lastErr = err;
+    }
+    if (attempt < maxAttempts) {
+      await sleepMs(retryDelayMs);
+    }
+  }
+  if (lastErr) {
+    throw lastErr;
+  }
+  return null;
+}
+
+async function waitForStoredGmailTokens(userId, { attempts = 3, retryDelayMs = 80 } = {}) {
+  const maxAttempts = Math.max(1, Number(attempts) || 1);
+  let latest = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    latest = await getStoredTokens(db, userId);
+    if (latest?.refresh_token || latest?.access_token) {
+      return latest;
+    }
+    if (attempt < maxAttempts) {
+      await sleepMs(retryDelayMs);
+    }
+  }
+  return latest;
+}
+
+function buildUnsignedTestGoogleIdToken(email) {
+  const normalizedEmail = normalizeEmail(email || '');
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(
+    JSON.stringify({
+      email: normalizedEmail || null,
+      email_verified: true,
+      iat: nowSeconds,
+      exp: nowSeconds + 3600
+    })
+  ).toString('base64url');
+  return `${header}.${payload}.`;
+}
+
 function clearOAuthStateCookie(res, cookieName) {
   res.clearCookie(cookieName, {
     httpOnly: true,
@@ -2990,16 +3095,39 @@ app.get('/api/auth/google/internal/callback', authIpLimiter, async (req, res) =>
   }
   clearOAuthStateCookie(res, GOOGLE_INTERNAL_STATE_COOKIE);
 
-  let connectedEmail = null;
+  const normalizedUserEmail = normalizeEmail(req.user.email);
+  let hadStoredTokens = false;
+  try {
+    const existing = await getStoredTokens(db, req.user.id);
+    hadStoredTokens = Boolean(existing?.refresh_token || existing?.access_token);
+  } catch (err) {
+    logWarn('google.internal.callback.precheck_failed', {
+      userId: req.user.id,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+  }
+  logInfo('google.internal.callback.received', {
+    userId: req.user.id,
+    connect_mode: hadStoredTokens ? 'reconnect' : 'first_time',
+    has_code: Boolean(req.query.code),
+    test_mode: process.env.NODE_ENV === 'test'
+  });
+
   let exchangedTokens = null;
+  let connectedEmail = null;
+  let connectedEmailSource = 'unknown';
+  let connectedEmailVerified = false;
 
   if (process.env.NODE_ENV === 'test' && req.query.test_email) {
-    connectedEmail = normalizeEmail(req.query.test_email);
+    const testEmail = normalizeEmail(req.query.test_email);
+    const skipIdToken = String(req.query.test_skip_id_token || '') === '1';
     exchangedTokens = {
       access_token: 'test-internal-access-token',
       refresh_token: 'test-internal-refresh-token',
       scope: INTERNAL_GMAIL_SCOPES.join(' '),
-      expiry_date: Date.now() + 60 * 60 * 1000
+      expiry_date: Date.now() + 60 * 60 * 1000,
+      ...(skipIdToken ? {} : { id_token: buildUnsignedTestGoogleIdToken(testEmail || normalizedUserEmail) })
     };
   } else {
     const code = req.query.code ? String(req.query.code) : '';
@@ -3012,11 +3140,21 @@ app.get('/api/auth/google/internal/callback', authIpLimiter, async (req, res) =>
         redirect_uri: internalRedirectUri
       });
       exchangedTokens = tokenResponse?.tokens || null;
-      if (!exchangedTokens) {
+      if (!exchangedTokens || (!exchangedTokens.access_token && !exchangedTokens.refresh_token && !exchangedTokens.id_token)) {
+        logWarn('google.internal.callback.token_exchange_empty', {
+          userId: req.user.id,
+          connect_mode: hadStoredTokens ? 'reconnect' : 'first_time'
+        });
         return res.redirect(getWebAuthErrorRedirect('GMAIL_CONNECT_FAILED'));
       }
-      oAuthClient.setCredentials(exchangedTokens);
-      connectedEmail = normalizeEmail(await fetchConnectedEmail(oAuthClient));
+      logInfo('google.internal.callback.token_exchanged', {
+        userId: req.user.id,
+        connect_mode: hadStoredTokens ? 'reconnect' : 'first_time',
+        has_access_token: Boolean(exchangedTokens.access_token),
+        has_refresh_token: Boolean(exchangedTokens.refresh_token),
+        has_id_token: Boolean(exchangedTokens.id_token),
+        granted_scopes: sanitizeGrantedGoogleScopes(exchangedTokens.scope)
+      });
     } catch (err) {
       logError('google.internal.callback.failed', {
         userId: req.user.id,
@@ -3027,12 +3165,86 @@ app.get('/api/auth/google/internal/callback', authIpLimiter, async (req, res) =>
     }
   }
 
-  if (connectedEmail && connectedEmail !== normalizeEmail(req.user.email)) {
+  oAuthClient.setCredentials(exchangedTokens || {});
+
+  const grantedScopeValue = String(exchangedTokens?.scope || '').trim();
+  if (grantedScopeValue && !hasRequiredInternalGmailScope(grantedScopeValue)) {
+    logWarn('google.internal.callback.scope_missing', {
+      userId: req.user.id,
+      connect_mode: hadStoredTokens ? 'reconnect' : 'first_time',
+      granted_scopes: sanitizeGrantedGoogleScopes(grantedScopeValue)
+    });
+    return res.redirect(getWebAuthErrorRedirect('GMAIL_CONNECT_FAILED'));
+  }
+  if (!grantedScopeValue) {
+    logWarn('google.internal.callback.scope_unreported', {
+      userId: req.user.id,
+      connect_mode: hadStoredTokens ? 'reconnect' : 'first_time'
+    });
+  }
+
+  connectedEmail = extractEmailFromGoogleIdToken(exchangedTokens?.id_token);
+  if (connectedEmail) {
+    connectedEmailSource = 'id_token';
+    connectedEmailVerified = true;
+  } else {
+    const profileLookupDisabledInTest = process.env.NODE_ENV === 'test' && String(req.query.test_profile_lookup_fail || '') === '1';
+    if (!profileLookupDisabledInTest) {
+      try {
+        connectedEmail = await fetchConnectedEmailWithRetry(oAuthClient, {
+          attempts: 2,
+          retryDelayMs: 180
+        });
+        if (connectedEmail) {
+          connectedEmailSource = 'gmail_profile';
+          connectedEmailVerified = true;
+        }
+      } catch (err) {
+        logWarn('google.internal.callback.profile_lookup_failed', {
+          userId: req.user.id,
+          connect_mode: hadStoredTokens ? 'reconnect' : 'first_time',
+          code: err?.code || null,
+          detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+        });
+      }
+    }
+  }
+
+  if (!connectedEmail) {
+    connectedEmail = normalizedUserEmail;
+    connectedEmailSource = 'session_fallback';
+    connectedEmailVerified = false;
+    logWarn('google.internal.callback.email_fallback', {
+      userId: req.user.id,
+      connect_mode: hadStoredTokens ? 'reconnect' : 'first_time'
+    });
+  }
+
+  if (connectedEmailVerified && connectedEmail && connectedEmail !== normalizedUserEmail) {
+    logWarn('google.internal.callback.account_mismatch', {
+      userId: req.user.id,
+      connect_mode: hadStoredTokens ? 'reconnect' : 'first_time',
+      connected_email: connectedEmail,
+      expected_email: normalizedUserEmail,
+      source: connectedEmailSource
+    });
     return res.redirect(getWebAuthErrorRedirect('GMAIL_ACCOUNT_MISMATCH'));
   }
 
   try {
     await upsertTokens(db, req.user.id, exchangedTokens || {}, connectedEmail || req.user.email);
+    const persisted = await waitForStoredGmailTokens(req.user.id, {
+      attempts: 3,
+      retryDelayMs: 80
+    });
+    if (!persisted?.refresh_token && !persisted?.access_token) {
+      logError('google.internal.tokens.persist_not_visible', {
+        userId: req.user.id,
+        connect_mode: hadStoredTokens ? 'reconnect' : 'first_time',
+        source: connectedEmailSource
+      });
+      return res.redirect(getWebAuthErrorRedirect('GMAIL_CONNECT_FAILED'));
+    }
   } catch (err) {
     if (isDbUnavailableError(err)) {
       return respondDbUnavailable(res, err, 'google.internal.callback');
@@ -3045,6 +3257,12 @@ app.get('/api/auth/google/internal/callback', authIpLimiter, async (req, res) =>
     return res.redirect(getWebAuthErrorRedirect('GMAIL_CONNECT_FAILED'));
   }
 
+  logInfo('google.internal.callback.completed', {
+    userId: req.user.id,
+    connect_mode: hadStoredTokens ? 'reconnect' : 'first_time',
+    connected_email: connectedEmail || null,
+    source: connectedEmailSource
+  });
   return res.redirect(getWebRedirectWithParams({ gmail_connected: '1' }));
 });
 
