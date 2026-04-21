@@ -172,6 +172,101 @@ async function createCheckoutSession({
   return payload;
 }
 
+async function fetchStripeSubscription({
+  stripeSecretKey,
+  subscriptionId,
+  fetchImpl = globalThis.fetch
+}) {
+  const secret = String(stripeSecretKey || '').trim();
+  const normalizedSubscriptionId = String(subscriptionId || '').trim();
+  if (!secret) {
+    const err = new Error('BILLING_NOT_CONFIGURED');
+    err.code = 'BILLING_NOT_CONFIGURED';
+    throw err;
+  }
+  if (!normalizedSubscriptionId) {
+    const err = new Error('SUBSCRIPTION_ID_REQUIRED');
+    err.code = 'SUBSCRIPTION_ID_REQUIRED';
+    throw err;
+  }
+  if (typeof fetchImpl !== 'function') {
+    const err = new Error('FETCH_UNAVAILABLE');
+    err.code = 'FETCH_UNAVAILABLE';
+    throw err;
+  }
+
+  const response = await fetchImpl(
+    `https://api.stripe.com/v1/subscriptions/${encodeURIComponent(normalizedSubscriptionId)}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${secret}`
+      }
+    }
+  );
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const stripeMessage =
+      payload?.error?.message || payload?.message || `Stripe request failed (${response.status})`;
+    const err = new Error(stripeMessage);
+    err.code = payload?.error?.code || 'STRIPE_SUBSCRIPTION_FETCH_FAILED';
+    err.status = response.status;
+    err.raw = payload;
+    throw err;
+  }
+  return payload;
+}
+
+async function updateStripeSubscription({
+  stripeSecretKey,
+  subscriptionId,
+  cancelAtPeriodEnd = true,
+  fetchImpl = globalThis.fetch
+}) {
+  const secret = String(stripeSecretKey || '').trim();
+  const normalizedSubscriptionId = String(subscriptionId || '').trim();
+  if (!secret) {
+    const err = new Error('BILLING_NOT_CONFIGURED');
+    err.code = 'BILLING_NOT_CONFIGURED';
+    throw err;
+  }
+  if (!normalizedSubscriptionId) {
+    const err = new Error('SUBSCRIPTION_ID_REQUIRED');
+    err.code = 'SUBSCRIPTION_ID_REQUIRED';
+    throw err;
+  }
+  if (typeof fetchImpl !== 'function') {
+    const err = new Error('FETCH_UNAVAILABLE');
+    err.code = 'FETCH_UNAVAILABLE';
+    throw err;
+  }
+
+  const params = new URLSearchParams();
+  params.set('cancel_at_period_end', cancelAtPeriodEnd ? 'true' : 'false');
+  const response = await fetchImpl(
+    `https://api.stripe.com/v1/subscriptions/${encodeURIComponent(normalizedSubscriptionId)}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: params.toString()
+    }
+  );
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const stripeMessage =
+      payload?.error?.message || payload?.message || `Stripe request failed (${response.status})`;
+    const err = new Error(stripeMessage);
+    err.code = payload?.error?.code || 'STRIPE_SUBSCRIPTION_UPDATE_FAILED';
+    err.status = response.status;
+    err.raw = payload;
+    throw err;
+  }
+  return payload;
+}
+
 function parseStripeSignatureHeader(signatureHeader) {
   const header = String(signatureHeader || '').trim();
   if (!header) {
@@ -294,6 +389,8 @@ module.exports = {
   normalizeBillingOption,
   getCheckoutPlanConfig,
   createCheckoutSession,
+  fetchStripeSubscription,
+  updateStripeSubscription,
   parseStripeSignatureHeader,
   constructWebhookEvent,
   computeJobSearchPlanExpiration,

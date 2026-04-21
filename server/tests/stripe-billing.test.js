@@ -69,7 +69,8 @@ function getUser(id) {
     .prepare(
       `SELECT id, email, plan_tier, plan_status, billing_plan, billing_type, plan_expires_at,
               stripe_customer_id, stripe_subscription_id, billing_failure_state,
-              billing_last_event_id, billing_last_event_at
+              billing_last_event_id, billing_last_event_at,
+              subscription_status, current_period_end, cancel_at_period_end
          FROM users
         WHERE id = ?`
     )
@@ -319,6 +320,92 @@ test('billing checkout route creates monthly and one-time Stripe sessions for au
   } finally {
     global.fetch = originalFetch;
   }
+});
+
+test('billing cancel subscription schedules cancel_at_period_end and preserves Pro until period end', async (t) => {
+  if (!startServer || !stopServer || !db) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  const server = await startServer(0, { log: false, host: '127.0.0.1' });
+  const baseUrl = buildBaseUrl(server);
+  t.after(async () => {
+    await stopServer();
+  });
+
+  const client = createAuthedClient(baseUrl);
+  await client.refreshCsrf();
+  const signup = await client.request('/api/auth/signup', {
+    method: 'POST',
+    body: {
+      email: `billing-cancel-${crypto.randomUUID()}@example.com`,
+      password: 'StrongPass123!',
+      name: 'Billing Cancel User'
+    }
+  });
+  assert.equal(signup.status, 200);
+  const userId = signup.body?.user?.id;
+  assert.ok(userId);
+
+  const nowIso = new Date().toISOString();
+  db.prepare(
+    `UPDATE users
+        SET plan_tier = 'pro',
+            plan_status = 'active',
+            billing_plan = 'pro_monthly',
+            billing_type = 'subscription',
+            stripe_customer_id = ?,
+            stripe_subscription_id = ?,
+            monthly_tracked_email_limit = 500,
+            monthly_inbound_email_limit = 3000,
+            cancel_at_period_end = 0,
+            subscription_status = 'active',
+            updated_at = ?
+      WHERE id = ?`
+  ).run('cus_cancel_route_1', 'sub_cancel_route_1', nowIso, userId);
+
+  const stripePeriodEnd = Math.floor(Date.now() / 1000) + 14 * 24 * 60 * 60;
+  const originalFetch = global.fetch;
+  global.fetch = async (url, options = {}) => {
+    const target = String(url || '');
+    if (target.endsWith('/v1/subscriptions/sub_cancel_route_1')) {
+      const body = String(options.body || '');
+      const params = new URLSearchParams(body);
+      assert.equal(params.get('cancel_at_period_end'), 'true');
+      return {
+        ok: true,
+        json: async () => ({
+          id: 'sub_cancel_route_1',
+          customer: 'cus_cancel_route_1',
+          status: 'active',
+          cancel_at_period_end: true,
+          current_period_end: stripePeriodEnd
+        })
+      };
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    const cancelRes = await client.request('/api/billing/cancel-subscription', {
+      method: 'POST',
+      body: {}
+    });
+    assert.equal(cancelRes.status, 200);
+    assert.equal(Boolean(cancelRes.body.cancel_at_period_end), true);
+    assert.equal(String(cancelRes.body.subscription_status || ''), 'active');
+    assert.ok(cancelRes.body.current_period_end);
+  } finally {
+    global.fetch = originalFetch;
+  }
+
+  const user = getUser(userId);
+  assert.equal(String(user.plan_tier || '').toLowerCase(), 'pro');
+  assert.equal(String(user.billing_plan || '').toLowerCase(), 'pro_monthly');
+  assert.equal(String(user.subscription_status || '').toLowerCase(), 'active');
+  assert.equal(Boolean(user.cancel_at_period_end), true);
+  assert.ok(user.current_period_end);
 });
 
 test('billing webhook lifecycle updates plans and stays idempotent', async (t) => {

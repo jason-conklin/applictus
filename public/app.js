@@ -52,6 +52,11 @@ const ADMIN_RANGE_MONTHS = {
 
 const ADMIN_METRIC_VALUE_SUFFIX = {
   tracked_emails: 'emails',
+  tracked_updates: 'updates',
+  inbound_received: 'emails',
+  inbound_relevant: 'emails',
+  inbound_dropped_irrelevant: 'emails',
+  inbound_dropped_over_cap: 'emails',
   tracked_applications: 'applications',
   registered_users: 'users',
   pro_users: 'users',
@@ -352,6 +357,11 @@ const ADMIN_EMAIL_ALLOWLIST = new Set([
 ]);
 const ADMIN_METRIC_LABELS = {
   tracked_emails: 'Tracked emails',
+  tracked_updates: 'Tracked updates',
+  inbound_received: 'Inbound received',
+  inbound_relevant: 'Relevant inbound',
+  inbound_dropped_irrelevant: 'Dropped as irrelevant',
+  inbound_dropped_over_cap: 'Dropped by raw cap',
   tracked_applications: 'Tracked applications',
   registered_users: 'Registered users',
   pro_users: 'Pro users',
@@ -616,8 +626,10 @@ const accountPlanMarker = document.getElementById('account-plan-marker');
 const accountPlanPercent = document.getElementById('account-plan-percent');
 const accountPlanWarning = document.getElementById('account-plan-warning');
 const accountUpgradeButton = document.getElementById('account-upgrade-button');
+const accountManageSubscriptionButton = document.getElementById('account-manage-subscription-button');
 const accountPlanDetails = document.getElementById('account-plan-details');
 const accountPlanReduceUsage = document.getElementById('account-plan-reduce-usage');
+const accountPlanTrustNote = document.getElementById('account-plan-trust-note');
 const adminMetricSelect = document.getElementById('analytics-metric-select');
 const adminRangeSelect = document.getElementById('analytics-range-select');
 const adminChartSvgStatic = document.getElementById('analytics-chart');
@@ -636,6 +648,10 @@ function ensureAdminElements() {
     kpiMonthEmails: document.getElementById('admin-kpi-month-emails'),
     kpiTodayEmails: document.getElementById('admin-kpi-today-emails'),
     kpiWeekEmails: document.getElementById('admin-kpi-week-emails'),
+    kpiInboundReceived: document.getElementById('admin-kpi-inbound-received'),
+    kpiInboundRelevant: document.getElementById('admin-kpi-inbound-relevant'),
+    kpiInboundDroppedIrrelevant: document.getElementById('admin-kpi-inbound-dropped-irrelevant'),
+    kpiInboundDroppedOverCap: document.getElementById('admin-kpi-inbound-dropped-over-cap'),
     kpiNewUsers: document.getElementById('admin-kpi-new-users'),
     metricSelect: adminMetricSelect || document.getElementById('analytics-metric-select'),
     rangeSelect: adminRangeSelect || document.getElementById('analytics-range-select'),
@@ -5230,7 +5246,7 @@ function renderDashboardPlanUsageTrigger(trigger) {
   }
 }
 
-function renderAccountPlanName(label, iconVariant = 'free') {
+function renderAccountPlanName(label, iconVariant = 'free', statusMeta = null) {
   if (!accountPlanName) {
     return;
   }
@@ -5245,6 +5261,20 @@ function renderAccountPlanName(label, iconVariant = 'free') {
   const content = document.createElement('span');
   content.className = 'account-plan-name-content';
   content.append(icon, text);
+
+  const statusText = String(statusMeta?.text || '').trim();
+  if (statusText) {
+    const status = document.createElement('span');
+    status.className = 'account-plan-status-badge';
+    if (statusMeta?.tone === 'scheduled') {
+      status.classList.add('is-scheduled');
+    } else {
+      status.classList.add('is-active');
+    }
+    status.textContent = statusText;
+    status.setAttribute('aria-label', `Plan status: ${statusText}`);
+    content.appendChild(status);
+  }
 
   accountPlanName.replaceChildren(content);
   accountPlanName.setAttribute('aria-label', `Current plan: ${safeLabel}`);
@@ -5280,12 +5310,34 @@ function renderPlanUsage(user = sessionUser) {
       accountPlanWarning.textContent = '';
       accountPlanWarning.classList.remove('plan-warning--near', 'plan-warning--at');
     }
+    if (accountUpgradeButton) {
+      accountUpgradeButton.classList.remove('hidden');
+      accountUpgradeButton.disabled = false;
+      accountUpgradeButton.textContent = 'Upgrade to Pro';
+    }
+    if (accountManageSubscriptionButton) {
+      accountManageSubscriptionButton.classList.add('hidden');
+      accountManageSubscriptionButton.disabled = true;
+    }
+    if (accountPlanTrustNote) {
+      accountPlanTrustNote.classList.add('hidden');
+    }
     return;
   }
   const source = planState || user;
   const tier = planUsage?.tier || String(source.plan_tier || 'free').toLowerCase();
   const billingPlan = String(source.billing_plan || '').toLowerCase();
   const billingType = String(source.billing_type || '').toLowerCase();
+  const cancelAtPeriodEnd = (() => {
+    const raw = source.cancel_at_period_end;
+    if (raw === true || raw === 1 || raw === '1') return true;
+    if (typeof raw === 'string') {
+      return raw.trim().toLowerCase() === 'true';
+    }
+    return false;
+  })();
+  const subscriptionStatus = String(source.subscription_status || '').trim().toLowerCase();
+  const currentPeriodEnd = source.current_period_end || null;
   const planExpiresAt = source.plan_expires_at || null;
   const hasActiveJobSearchPlan =
     billingType === 'one_time' &&
@@ -5294,9 +5346,27 @@ function renderPlanUsage(user = sessionUser) {
     new Date(planExpiresAt).getTime() > Date.now();
   const limit = planUsage?.limit || getPlanLimitForUser(source);
   const usage = planUsage?.usage ?? Number(source.tracked_email_count_current_month || source.plan_usage || 0);
+  const inboundLimitRaw = Number(source.monthly_inbound_email_limit ?? source.inbound_monthly_limit ?? 0);
+  const inboundLimit = Number.isFinite(inboundLimitRaw) && inboundLimitRaw > 0
+    ? Math.max(0, Math.floor(inboundLimitRaw))
+    : (tier === 'pro' ? 3000 : 300);
+  const inboundUsageRaw = Number(source.inbound_email_count_current_month ?? source.inbound_usage ?? 0);
+  const inboundUsage = Number.isFinite(inboundUsageRaw) ? Math.max(0, Math.floor(inboundUsageRaw)) : 0;
+  const isMonthlySubscription = tier === 'pro' && billingPlan === 'pro_monthly';
+  const planStatusMeta = isMonthlySubscription
+    ? cancelAtPeriodEnd
+      ? {
+          text: currentPeriodEnd ? `Cancels on ${formatDate(currentPeriodEnd)}` : 'Cancellation scheduled',
+          tone: 'scheduled'
+        }
+      : { text: 'Active', tone: 'active' }
+    : null;
   const planDisplay = resolveAccountPlanDisplay({ tier, billingPlan, hasActiveJobSearchPlan });
-  renderAccountPlanName(planDisplay.label, planDisplay.iconVariant);
-  accountPlanUsage.textContent = `${usage} / ${limit} tracked emails this month`;
+  renderAccountPlanName(planDisplay.label, planDisplay.iconVariant, planStatusMeta);
+  accountPlanUsage.innerHTML = `
+    <span class="plan-usage-primary">${usage} / ${limit} tracked updates this month</span>
+    <span class="plan-usage-secondary">${inboundUsage} / ${inboundLimit} forwarded emails received this month</span>
+  `;
   const ratio = limit > 0 ? Math.min(1, usage / limit) : 0;
   accountPlanProgress.style.width = `${Math.round(ratio * 100)}%`;
   renderPlanProgressMarker(usage, limit);
@@ -5307,14 +5377,51 @@ function renderPlanUsage(user = sessionUser) {
     tier === 'pro' && billingFailure
       ? 'Billing issue detected. Please update your payment method in Stripe.'
       : '';
+  const cancellationLabel =
+    isMonthlySubscription && cancelAtPeriodEnd
+      ? currentPeriodEnd
+        ? `Subscription cancels on ${formatDate(currentPeriodEnd)}.`
+        : 'Subscription cancellation has been scheduled.'
+      : '';
+  const subscriptionPastDueLabel =
+    isMonthlySubscription && subscriptionStatus === 'past_due'
+      ? 'Subscription payment is past due. Please update billing in Stripe.'
+      : '';
   if (accountPlanWarning) {
-    accountPlanWarning.textContent = trigger?.message || billingFailureLabel || expiryLabel || '';
+    accountPlanWarning.textContent =
+      trigger?.message || subscriptionPastDueLabel || billingFailureLabel || cancellationLabel || expiryLabel || '';
     accountPlanWarning.classList.toggle('plan-warning--near', trigger?.level === 'near');
     accountPlanWarning.classList.toggle('plan-warning--at', trigger?.level === 'at');
   }
   if (accountUpgradeButton) {
-    accountUpgradeButton.disabled = tier === 'pro';
-    accountUpgradeButton.textContent = tier === 'pro' ? 'Pro active' : 'Upgrade to Pro';
+    const showUpgrade = tier !== 'pro';
+    accountUpgradeButton.classList.toggle('hidden', !showUpgrade);
+    accountUpgradeButton.disabled = !showUpgrade;
+    accountUpgradeButton.textContent = 'Upgrade to Pro';
+  }
+  if (accountManageSubscriptionButton) {
+    const showManage = isMonthlySubscription;
+    accountManageSubscriptionButton.classList.toggle('hidden', !showManage);
+    if (!showManage) {
+      accountManageSubscriptionButton.disabled = true;
+      accountManageSubscriptionButton.textContent = 'Cancel subscription';
+      accountManageSubscriptionButton.classList.remove('btn--ghost');
+      accountManageSubscriptionButton.classList.add('btn--danger');
+    } else if (cancelAtPeriodEnd) {
+      accountManageSubscriptionButton.disabled = true;
+      accountManageSubscriptionButton.textContent = 'Cancellation scheduled';
+      accountManageSubscriptionButton.classList.remove('btn--danger');
+      accountManageSubscriptionButton.classList.add('btn--ghost');
+    } else {
+      accountManageSubscriptionButton.disabled = false;
+      accountManageSubscriptionButton.textContent = 'Cancel subscription';
+      accountManageSubscriptionButton.classList.remove('btn--ghost');
+      accountManageSubscriptionButton.classList.add('btn--danger');
+    }
+  }
+  if (accountPlanTrustNote) {
+    accountPlanTrustNote.classList.toggle('hidden', !isMonthlySubscription);
+    accountPlanTrustNote.textContent = 'Cancel anytime. No fees.';
   }
 }
 
@@ -5410,6 +5517,10 @@ function renderAdminKpis(summary) {
   setVal(els.kpiMonthEmails, summary.tracked_emails_month);
   setVal(els.kpiTodayEmails, summary.tracked_emails_today);
   setVal(els.kpiWeekEmails, summary.tracked_emails_week);
+  setVal(els.kpiInboundReceived, summary.inbound_received_month);
+  setVal(els.kpiInboundRelevant, summary.inbound_relevant_month);
+  setVal(els.kpiInboundDroppedIrrelevant, summary.inbound_dropped_irrelevant_month);
+  setVal(els.kpiInboundDroppedOverCap, summary.inbound_dropped_over_cap_month);
   setVal(els.kpiNewUsers, summary.new_users_month);
 }
 
@@ -5890,6 +6001,9 @@ async function refreshPlanUsage() {
       sessionUser.billing_type = data.billing_type;
       sessionUser.plan_expires_at = data.plan_expires_at;
       sessionUser.billing_failure_state = data.billing_failure_state;
+      sessionUser.subscription_status = data.subscription_status;
+      sessionUser.current_period_end = data.current_period_end;
+      sessionUser.cancel_at_period_end = data.cancel_at_period_end;
       sessionUser.plan_limit = data.monthly_tracked_email_limit;
       sessionUser.plan_usage = data.tracked_email_count_current_month;
       sessionUser.plan_bucket = data.tracked_email_month_bucket;
@@ -10651,6 +10765,121 @@ accountUpgradeButton?.addEventListener('click', openPricingModal);
 accountPlanDetails?.addEventListener('click', openPricingModal);
 accountPlanReduceUsage?.addEventListener('click', openGmailFilterHelpModal);
 dashboardPlanWarningCta?.addEventListener('click', openPricingModal);
+
+function getCurrentBillingSnapshot() {
+  const source = planState || sessionUser || {};
+  const billingPlan = String(source.billing_plan || '').toLowerCase();
+  const billingType = String(source.billing_type || '').toLowerCase();
+  const subscriptionId = String(source.stripe_subscription_id || '').trim();
+  const cancelAtPeriodEnd = (() => {
+    const raw = source.cancel_at_period_end;
+    if (raw === true || raw === 1 || raw === '1') return true;
+    if (typeof raw === 'string') return raw.trim().toLowerCase() === 'true';
+    return false;
+  })();
+  const isMonthlySubscription =
+    billingType === 'subscription' || billingPlan === 'pro_monthly';
+  return {
+    source,
+    billingPlan,
+    billingType,
+    subscriptionId,
+    cancelAtPeriodEnd,
+    currentPeriodEnd: source.current_period_end || null,
+    isMonthlySubscription
+  };
+}
+
+async function requestSubscriptionCancellation() {
+  const result = await api('/api/billing/cancel-subscription', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+  await refreshPlanUsage();
+  return result;
+}
+
+function openCancelSubscriptionModal() {
+  const billing = getCurrentBillingSnapshot();
+  if (!billing.isMonthlySubscription) {
+    showNotice('Your account does not have a cancellable monthly subscription.', 'Billing');
+    return;
+  }
+  if (billing.cancelAtPeriodEnd) {
+    const dateLabel = billing.currentPeriodEnd ? formatDate(billing.currentPeriodEnd) : 'the period end date';
+    showNotice(`Your subscription is already set to cancel on ${dateLabel}.`, 'Billing');
+    return;
+  }
+
+  const body = document.createElement('div');
+  body.className = 'stack';
+
+  const firstLine = document.createElement('p');
+  const periodEndLabel = billing.currentPeriodEnd ? formatDate(billing.currentPeriodEnd) : null;
+  firstLine.textContent = periodEndLabel
+    ? `You’ll keep Pro access until ${periodEndLabel}.`
+    : 'You’ll keep Pro access until the end of your current billing period.';
+  body.appendChild(firstLine);
+
+  const secondLine = document.createElement('p');
+  secondLine.className = 'muted';
+  secondLine.textContent = 'After that, your account will return to the Free plan.';
+  body.appendChild(secondLine);
+
+  const footer = buildModalFooter({ confirmText: 'Cancel subscription', cancelText: 'Keep Pro' });
+  const confirmButton = footer.querySelector('[data-role="confirm"]');
+  const cancelButton = footer.querySelector('[data-role="cancel"]');
+  if (confirmButton) {
+    confirmButton.classList.remove('btn--primary');
+    confirmButton.classList.add('btn--danger');
+    confirmButton.addEventListener('click', async () => {
+      if (confirmButton.disabled) {
+        return;
+      }
+      confirmButton.disabled = true;
+      if (cancelButton) {
+        cancelButton.disabled = true;
+      }
+      try {
+        const result = await requestSubscriptionCancellation();
+        closeModal('confirm');
+        const cancelDate = result?.current_period_end ? formatDate(result.current_period_end) : periodEndLabel;
+        const message = cancelDate
+          ? `Your subscription will cancel on ${cancelDate}.`
+          : 'Your subscription cancellation has been scheduled.';
+        showNotice(message, 'Subscription updated');
+      } catch (err) {
+        confirmButton.disabled = false;
+        if (cancelButton) {
+          cancelButton.disabled = false;
+        }
+        if (err?.code === 'SUBSCRIPTION_NOT_CANCELLABLE') {
+          showNotice('This plan does not support monthly cancellation.', 'Billing');
+          return;
+        }
+        if (err?.code === 'SUBSCRIPTION_REFERENCE_MISSING') {
+          showNotice('Subscription reference is missing. Please contact support.', 'Billing');
+          return;
+        }
+        if (err?.code === 'BILLING_PROVIDER_ERROR') {
+          showNotice('Stripe could not process cancellation right now. Please try again.', 'Billing');
+          return;
+        }
+        showNotice('Unable to cancel subscription right now.', 'Billing');
+      }
+    });
+  }
+
+  openModal({
+    title: 'Cancel your Pro plan?',
+    description: '',
+    body,
+    footer,
+    allowBackdropClose: true
+  });
+}
+
+accountManageSubscriptionButton?.addEventListener('click', openCancelSubscriptionModal);
 
 async function requestUpgrade(billingOption = 'monthly') {
   try {

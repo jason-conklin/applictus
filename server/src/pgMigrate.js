@@ -241,6 +241,71 @@ async function assertPgSchema(db) {
     }
   }
 
+  const userPlanColumns = await db
+    .prepare(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema='public'
+         AND table_name='users'
+         AND column_name IN (
+           'plan_tier',
+           'plan_status',
+           'monthly_tracked_email_limit',
+           'tracked_email_count_current_month',
+           'tracked_email_month_bucket',
+           'monthly_inbound_email_limit',
+           'inbound_email_count_current_month',
+           'inbound_email_month_bucket',
+           'inbound_email_relevant_count_current_month',
+           'inbound_email_dropped_count_current_month',
+           'inbound_email_dropped_irrelevant_count_current_month',
+           'inbound_email_dropped_over_cap_count_current_month',
+           'subscription_status',
+           'current_period_end',
+           'cancel_at_period_end'
+         )`
+    )
+    .all();
+  const userPlanPresent = new Set((userPlanColumns || []).map((row) => row.column_name));
+  const userPlanMissing = [
+    'plan_tier',
+    'plan_status',
+    'monthly_tracked_email_limit',
+    'tracked_email_count_current_month',
+    'tracked_email_month_bucket',
+    'monthly_inbound_email_limit',
+    'inbound_email_count_current_month',
+    'inbound_email_month_bucket',
+    'inbound_email_relevant_count_current_month',
+    'inbound_email_dropped_count_current_month',
+    'inbound_email_dropped_irrelevant_count_current_month',
+    'inbound_email_dropped_over_cap_count_current_month',
+    'subscription_status',
+    'current_period_end',
+    'cancel_at_period_end'
+  ].filter((name) => !userPlanPresent.has(name));
+
+  if (userPlanMissing.length) {
+    const message = [
+      'Postgres schema is missing required users plan/usage columns:',
+      `  users.${userPlanMissing.join(', users.')}`,
+      'Run migrations (or ensure startup migrations run). The migrations that add these are:',
+      '  server/migrations/035_plan_usage_postgres.sql',
+      '  server/migrations/037_inbound_usage_limits_postgres.sql',
+      '  server/migrations/038_subscription_cancellation_fields_postgres.sql',
+      'Set SKIP_SCHEMA_CHECK=1 to bypass this check (not recommended).'
+    ].join('\n');
+
+    // eslint-disable-next-line no-console
+    console.error(message);
+
+    if (process.env.NODE_ENV === 'production') {
+      const err = new Error(message);
+      err.code = 'PG_SCHEMA_INVALID';
+      throw err;
+    }
+  }
+
   const userActionsTable = await db
     .prepare(
       `SELECT 1 as ok

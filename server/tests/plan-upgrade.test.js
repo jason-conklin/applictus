@@ -37,7 +37,17 @@ function setupDb() {
       billing_last_event_at TEXT,
       monthly_tracked_email_limit INTEGER,
       tracked_email_count_current_month INTEGER DEFAULT 0,
-      tracked_email_month_bucket TEXT
+      tracked_email_month_bucket TEXT,
+      monthly_inbound_email_limit INTEGER,
+      inbound_email_count_current_month INTEGER DEFAULT 0,
+      inbound_email_month_bucket TEXT,
+      inbound_email_relevant_count_current_month INTEGER DEFAULT 0,
+      inbound_email_dropped_count_current_month INTEGER DEFAULT 0,
+      inbound_email_dropped_irrelevant_count_current_month INTEGER DEFAULT 0,
+      inbound_email_dropped_over_cap_count_current_month INTEGER DEFAULT 0,
+      subscription_status TEXT,
+      current_period_end TEXT,
+      cancel_at_period_end INTEGER NOT NULL DEFAULT 0
     );
   `);
   return db;

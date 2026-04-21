@@ -26,7 +26,7 @@ const { shouldSuppressEmail } = require('./suppressEmail');
 const { parseJobEmail } = require('./parseJobEmail');
 const { extractForwardedOriginalMessage } = require('./forwardedMessage');
 const { buildApplicationKey: buildDeterministicApplicationKey } = require('./applicationKey');
-const { applyTrackedEmailUsage } = require('./planUsage');
+const { applyTrackedEmailUsage, applyInboundOutcomeUsage, ensurePlanState } = require('./planUsage');
 const {
   normalizeCompany: normalizeValidatedCompany,
   normalizeRole: normalizeValidatedRole
@@ -3009,6 +3009,19 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
   const sample = [];
   const errorSamples = [];
   let lastProcessedAt = null;
+  const planState = await Promise.resolve(ensurePlanState(db, userId));
+  const rawInboundOverCap =
+    Number(planState?.inboundLimit || 0) > 0 &&
+    Number(planState?.inboundUsage || 0) > Number(planState?.inboundLimit || 0);
+
+  if (rawInboundOverCap) {
+    logInfo('inbound.sync.raw_cap_short_circuit', {
+      userId,
+      usage: Number(planState?.inboundUsage || 0),
+      limit: Number(planState?.inboundLimit || 0),
+      pending: pendingRows.length
+    });
+  }
 
   for (const row of pendingRows) {
     const startedAt = new Date().toISOString();
@@ -3024,6 +3037,47 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
     );
 
     try {
+      if (rawInboundOverCap) {
+        ignored += 1;
+        const processedAt = new Date().toISOString();
+        const reasonCode = 'raw_inbound_cap_reached';
+        await awaitMaybe(
+          db
+            .prepare(
+              `UPDATE inbound_messages
+               SET processing_status = 'ignored',
+                   processed_at = ?,
+                   processing_error = ?,
+                   derived_debug_json = ?
+               WHERE id = ?`
+            )
+            .run(
+              processedAt,
+              reasonCode,
+              encodeDebugJson(db, {
+                version: 'v1',
+                suppression: { applied: true, reason: reasonCode }
+              }),
+              row.id
+            )
+        );
+        await Promise.resolve(
+          applyInboundOutcomeUsage(db, {
+            userId,
+            dropped: true,
+            dropReason: 'raw_inbound_cap'
+          })
+        );
+        if (errorSamples.length < 5) {
+          errorSamples.push({
+            subject: truncateSnippet(String(row?.subject || ''), 96) || '(no subject)',
+            reason: reasonCode
+          });
+        }
+        lastProcessedAt = processedAt;
+        continue;
+      }
+
       const rawPayload = parseInboundRawPayload(row.raw_payload);
       const headers = Array.isArray(rawPayload?.Headers) ? rawPayload.Headers : [];
       const wrapperSender = String(row.from_email || rawPayload?.From || '').trim();
@@ -3162,6 +3216,13 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
               row.id
             )
         );
+        await Promise.resolve(
+          applyInboundOutcomeUsage(db, {
+            userId,
+            dropped: true,
+            dropReason: 'irrelevant'
+          })
+        );
         lastProcessedAt = processedAt;
         continue;
       }
@@ -3208,6 +3269,13 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
               encodeDebugJson(db, debugMeta),
               row.id
             )
+        );
+        await Promise.resolve(
+          applyInboundOutcomeUsage(db, {
+            userId,
+            dropped: true,
+            dropReason: 'irrelevant'
+          })
         );
         lastProcessedAt = processedAt;
         continue;
@@ -3258,6 +3326,13 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
                WHERE id = ?`
             )
             .run(processedAt, `suppressed:${suppressionReason}`, encodeDebugJson(db, debugMeta), row.id)
+        );
+        await Promise.resolve(
+          applyInboundOutcomeUsage(db, {
+            userId,
+            dropped: true,
+            dropReason: 'irrelevant'
+          })
         );
         lastProcessedAt = processedAt;
         continue;
@@ -3392,6 +3467,13 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
             )
             .run(processedAt, reason, encodeDebugJson(db, debugMeta), row.id)
         );
+        await Promise.resolve(
+          applyInboundOutcomeUsage(db, {
+            userId,
+            dropped: true,
+            dropReason: 'irrelevant'
+          })
+        );
         lastProcessedAt = processedAt;
         continue;
       }
@@ -3521,6 +3603,13 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
               row.id
             )
         );
+        await Promise.resolve(
+          applyInboundOutcomeUsage(db, {
+            userId,
+            dropped: true,
+            dropReason: 'irrelevant'
+          })
+        );
         lastProcessedAt = processedAt;
         if (errorSamples.length < 5) {
           errorSamples.push({
@@ -3647,7 +3736,6 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
         const reasonCode = usageResult.reason === 'global_cap_reached'
           ? 'global_cap_reached'
           : 'plan_limit_reached';
-        reasons[reasonCode] = (reasons[reasonCode] || 0) + 1;
         ignored += 1;
         const processedAt = new Date().toISOString();
         debugMeta.suppression = {
@@ -3673,6 +3761,13 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
             reason: reasonCode
           });
         }
+        await Promise.resolve(
+          applyInboundOutcomeUsage(db, {
+            userId,
+            dropped: true,
+            dropReason: 'tracked_cap'
+          })
+        );
         logDebug('ingest.plan_limit_block', {
           userId,
           messageId,
@@ -3682,6 +3777,13 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
         });
         continue;
       }
+
+      await Promise.resolve(
+        applyInboundOutcomeUsage(db, {
+          userId,
+          relevant: true
+        })
+      );
 
       if (existingEvent?.id) {
         eventPayload.id = existingEvent.id;

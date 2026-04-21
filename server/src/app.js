@@ -64,13 +64,22 @@ const { buildApplicationKey } = require('./normalizeJobFields');
 const { buildHintFingerprintFromEmail, upsertUserHint } = require('./hints');
 const { validateInboxUsername, normalizeInboxUsername } = require('./inboxUsername');
 const { updateUserPlan } = require('./billing');
-const { ensurePlanState, resolvePlanLimit, currentMonthBucket } = require('./planUsage');
+const {
+  ensurePlanState,
+  resolvePlanLimit,
+  resolveInboundLimit,
+  applyInboundEmailReceiptUsage,
+  applyInboundOutcomeUsage,
+  currentMonthBucket
+} = require('./planUsage');
 const {
   BILLING_OPTIONS,
   BILLING_TYPES,
   normalizeBillingOption,
   getCheckoutPlanConfig,
   createCheckoutSession,
+  fetchStripeSubscription,
+  updateStripeSubscription,
   constructWebhookEvent,
   computeJobSearchPlanExpiration,
   isJobSearchPlanActive
@@ -914,11 +923,18 @@ async function pgHasColumns(dbInstance, table, columns = []) {
 
 async function getAdminSchemaCapabilities(dbInstance) {
   if (!dbInstance.isAsync) {
-    return { hasPlanTier: true, hasPlanUsage: true };
+    return { hasPlanTier: true, hasPlanUsage: true, hasInboundUsage: true };
   }
   const hasPlanTier = await pgHasColumns(dbInstance, 'users', ['plan_tier']);
   const hasPlanUsage = await pgHasColumns(dbInstance, 'users', ['tracked_email_count_current_month', 'tracked_email_month_bucket']);
-  return { hasPlanTier, hasPlanUsage };
+  const hasInboundUsage = await pgHasColumns(dbInstance, 'users', [
+    'inbound_email_count_current_month',
+    'inbound_email_month_bucket',
+    'inbound_email_relevant_count_current_month',
+    'inbound_email_dropped_irrelevant_count_current_month',
+    'inbound_email_dropped_over_cap_count_current_month'
+  ]);
+  return { hasPlanTier, hasPlanUsage, hasInboundUsage };
 }
 
 async function pgHasTable(dbInstance, table) {
@@ -1140,9 +1156,19 @@ function toSessionUserPayload(user) {
     billing_type: user.billing_type || null,
     plan_expires_at: user.plan_expires_at || null,
     billing_failure_state: user.billing_failure_state || null,
+    subscription_status: user.subscription_status || null,
+    current_period_end: user.current_period_end || null,
+    cancel_at_period_end: normalizeDbBool(user.cancel_at_period_end),
     plan_limit: resolvePlanLimit(user.plan_tier, user.monthly_tracked_email_limit),
     plan_usage: user.tracked_email_count_current_month || 0,
-    plan_bucket: user.tracked_email_month_bucket || null
+    plan_bucket: user.tracked_email_month_bucket || null,
+    inbound_monthly_limit: resolveInboundLimit(user.plan_tier, user.monthly_inbound_email_limit),
+    inbound_usage: Number(user.inbound_email_count_current_month || 0),
+    inbound_bucket: user.inbound_email_month_bucket || null,
+    inbound_relevant_count: Number(user.inbound_email_relevant_count_current_month || 0),
+    inbound_dropped_count: Number(user.inbound_email_dropped_count_current_month || 0),
+    inbound_dropped_irrelevant_count: Number(user.inbound_email_dropped_irrelevant_count_current_month || 0),
+    inbound_dropped_over_cap_count: Number(user.inbound_email_dropped_over_cap_count_current_month || 0)
   };
 }
 
@@ -1386,6 +1412,41 @@ function toIsoFromUnixSeconds(seconds) {
   return new Date(value * 1000).toISOString();
 }
 
+function normalizeSubscriptionStatus(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  return normalized || null;
+}
+
+function boolFromAny(value) {
+  if (value === true || value === false) {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return value > 0;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+      return true;
+    }
+    if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+      return false;
+    }
+  }
+  return false;
+}
+
+function toSubscriptionSnapshot(subscriptionLike = null) {
+  const subscription = subscriptionLike && typeof subscriptionLike === 'object' ? subscriptionLike : {};
+  return {
+    status: normalizeSubscriptionStatus(subscription.status),
+    currentPeriodEnd: toIsoFromUnixSeconds(subscription.current_period_end) || null,
+    cancelAtPeriodEnd: boolFromAny(subscription.cancel_at_period_end)
+  };
+}
+
 async function getUserByStripeCustomerId(customerId) {
   if (!customerId) {
     return null;
@@ -1440,21 +1501,28 @@ function isStaleStripeEventForUser(user, event) {
 async function markMonthlyPlanActive(userId, {
   stripeCustomerId = null,
   stripeSubscriptionId = null,
+  subscriptionStatus = 'active',
+  currentPeriodEnd = null,
+  cancelAtPeriodEnd = false,
   eventId = null,
   eventIso = null
 } = {}) {
   const now = nowIso();
   await runPrepared(
     db,
-    `UPDATE users
-       SET plan_tier = 'pro',
-           plan_status = 'active',
-           monthly_tracked_email_limit = ?,
-           billing_plan = ?,
-           billing_type = ?,
+       `UPDATE users
+          SET plan_tier = 'pro',
+              plan_status = 'active',
+              monthly_tracked_email_limit = ?,
+              monthly_inbound_email_limit = ?,
+              billing_plan = ?,
+              billing_type = ?,
            plan_expires_at = NULL,
            stripe_customer_id = COALESCE(?, stripe_customer_id),
            stripe_subscription_id = COALESCE(?, stripe_subscription_id),
+           subscription_status = COALESCE(?, subscription_status),
+           current_period_end = COALESCE(?, current_period_end),
+           cancel_at_period_end = ?,
            billing_failure_state = NULL,
            billing_last_event_id = COALESCE(?, billing_last_event_id),
            billing_last_event_at = COALESCE(?, billing_last_event_at),
@@ -1462,10 +1530,14 @@ async function markMonthlyPlanActive(userId, {
      WHERE id = ?`,
     [
       resolvePlanLimit('pro', null),
+      resolveInboundLimit('pro', null),
       BILLING_OPTIONS.PRO_MONTHLY,
       BILLING_TYPES.SUBSCRIPTION,
       stripeCustomerId ? String(stripeCustomerId) : null,
       stripeSubscriptionId ? String(stripeSubscriptionId) : null,
+      normalizeSubscriptionStatus(subscriptionStatus || 'active'),
+      currentPeriodEnd || null,
+      boolBind(db, cancelAtPeriodEnd),
       eventId ? String(eventId) : null,
       eventIso || null,
       now,
@@ -1485,15 +1557,19 @@ async function markJobSearchPlanActive(userId, {
   const expiration = expiresAt || computeJobSearchPlanExpiration({ now });
   await runPrepared(
     db,
-    `UPDATE users
-       SET plan_tier = 'pro',
-           plan_status = 'active',
-           monthly_tracked_email_limit = ?,
-           billing_plan = ?,
-           billing_type = ?,
+       `UPDATE users
+          SET plan_tier = 'pro',
+              plan_status = 'active',
+              monthly_tracked_email_limit = ?,
+              monthly_inbound_email_limit = ?,
+              billing_plan = ?,
+              billing_type = ?,
            plan_expires_at = ?,
            stripe_customer_id = COALESCE(?, stripe_customer_id),
            stripe_subscription_id = NULL,
+           subscription_status = NULL,
+           current_period_end = NULL,
+           cancel_at_period_end = ?,
            billing_failure_state = NULL,
            billing_last_event_id = COALESCE(?, billing_last_event_id),
            billing_last_event_at = COALESCE(?, billing_last_event_at),
@@ -1501,10 +1577,12 @@ async function markJobSearchPlanActive(userId, {
      WHERE id = ?`,
     [
       resolvePlanLimit('pro', null),
+      resolveInboundLimit('pro', null),
       BILLING_OPTIONS.JOB_SEARCH_PLAN,
       BILLING_TYPES.ONE_TIME,
       expiration,
       stripeCustomerId ? String(stripeCustomerId) : null,
+      boolBind(db, false),
       eventId ? String(eventId) : null,
       eventIso || null,
       now,
@@ -1522,15 +1600,19 @@ async function markFreePlanActive(userId, {
   const now = nowIso();
   await runPrepared(
     db,
-    `UPDATE users
-       SET plan_tier = 'free',
-           plan_status = 'active',
-           monthly_tracked_email_limit = ?,
-           billing_plan = 'free',
-           billing_type = 'none',
+       `UPDATE users
+          SET plan_tier = 'free',
+              plan_status = 'active',
+              monthly_tracked_email_limit = ?,
+              monthly_inbound_email_limit = ?,
+              billing_plan = 'free',
+              billing_type = 'none',
            plan_expires_at = NULL,
            stripe_customer_id = COALESCE(?, stripe_customer_id),
            stripe_subscription_id = NULL,
+           subscription_status = NULL,
+           current_period_end = NULL,
+           cancel_at_period_end = ?,
            billing_failure_state = NULL,
            billing_last_event_id = COALESCE(?, billing_last_event_id),
            billing_last_event_at = COALESCE(?, billing_last_event_at),
@@ -1538,7 +1620,9 @@ async function markFreePlanActive(userId, {
      WHERE id = ?`,
     [
       resolvePlanLimit('free', null),
+      resolveInboundLimit('free', null),
       stripeCustomerId ? String(stripeCustomerId) : null,
+      boolBind(db, false),
       eventId ? String(eventId) : null,
       eventIso || null,
       now,
@@ -1557,6 +1641,7 @@ async function markMonthlyPaymentFailed(userId, {
     db,
     `UPDATE users
        SET billing_failure_state = 'payment_failed',
+           subscription_status = 'past_due',
            billing_last_event_id = COALESCE(?, billing_last_event_id),
            billing_last_event_at = COALESCE(?, billing_last_event_at),
            updated_at = ?
@@ -2679,6 +2764,72 @@ app.post('/api/inbound/postmark', async (req, res) => {
       throw insertErr;
     }
 
+    const rawInboundUsage = await Promise.resolve(
+      applyInboundEmailReceiptUsage(db, {
+        userId: mappedAddress.user_id,
+        countable: true
+      })
+    );
+    const rawInboundCap = rawInboundUsage?.cap || null;
+    const rawInboundOverCap = Boolean(rawInboundCap?.overCap);
+
+    if (rawInboundOverCap) {
+      const dropProcessedAt = nowIso();
+      await dbTimed(async () => {
+        const runRes = db
+          .prepare(
+            `UPDATE inbound_messages
+               SET processing_status = 'ignored',
+                   processed_at = ?,
+                   processing_error = 'raw_inbound_cap_reached'
+             WHERE id = ?`
+          )
+          .run(dropProcessedAt, inboundMessageId);
+        if (runRes && typeof runRes.then === 'function') {
+          await runRes;
+        }
+      });
+      await Promise.resolve(
+        applyInboundOutcomeUsage(db, {
+          userId: mappedAddress.user_id,
+          dropped: true,
+          dropReason: 'raw_inbound_cap'
+        })
+      );
+
+      const usage = Number(rawInboundCap?.usage || 0);
+      const limit = Number(rawInboundCap?.limit || 0);
+      const relevant = Number(rawInboundUsage?.plan?.inboundRelevant || 0);
+      const relevanceRatio = usage > 0 ? relevant / usage : null;
+
+      logWarn('inbound.raw_cap_reached', {
+        provider,
+        userId: mappedAddress.user_id,
+        inboundMessageId,
+        usage,
+        limit
+      });
+
+      if (usage >= 100 && Number.isFinite(relevanceRatio) && relevanceRatio < 0.2) {
+        logWarn('inbound.anomaly.low_relevance_ratio', {
+          provider,
+          userId: mappedAddress.user_id,
+          inbound_usage: usage,
+          inbound_relevant: relevant,
+          relevance_ratio: Number(relevanceRatio.toFixed(4)),
+          dropped_over_cap: Number(rawInboundUsage?.plan?.inboundDroppedOverCap || 0)
+        });
+      }
+
+      return res.status(200).json({
+        ok: true,
+        inbound_message_id: inboundMessageId,
+        deduped: false,
+        ignored: true,
+        reason: 'RAW_INBOUND_CAP_REACHED'
+      });
+    }
+
     logInfo('inbound.persisted', {
       provider,
       inboundMessageId,
@@ -2687,7 +2838,9 @@ app.post('/api/inbound/postmark', async (req, res) => {
       subjectLength: subject ? subject.length : 0,
       bodyTextLength: bodyText.length,
       bodyHtmlLength: bodyHtml ? bodyHtml.length : 0,
-      sha256Prefix: sha256.slice(0, 12)
+      sha256Prefix: sha256.slice(0, 12),
+      inboundUsage: Number(rawInboundCap?.usage || 0),
+      inboundLimit: Number(rawInboundCap?.limit || 0)
     });
 
     await upsertUserInboxSignalIncrement(mappedAddress.user_id, {
@@ -3396,6 +3549,10 @@ app.post('/api/account/inbox-username', requireAuth, async (req, res) => {
 // Return fresh plan/usage summary
 app.get('/api/account/plan', requireAuth, async (req, res) => {
   try {
+    const userRow = await getUserById(req.user.id);
+    if (!userRow) {
+      return res.status(404).json({ error: 'USER_NOT_FOUND' });
+    }
     const planState = await Promise.resolve(ensurePlanState(db, req.user.id));
     const normalizedTier = String(planState.planTier || 'free').toLowerCase();
     const isFreeTier = normalizedTier === 'free';
@@ -3413,9 +3570,21 @@ app.get('/api/account/plan', requireAuth, async (req, res) => {
     }
     const limit = planState.limit || resolvePlanLimit(planState.planTier, null);
     const usage = planState.usage || 0;
+    const subscriptionStatus =
+      normalizeSubscriptionStatus(userRow.subscription_status) ||
+      (String(planState.billingType || '').toLowerCase() === BILLING_TYPES.SUBSCRIPTION ? 'active' : null);
+    const currentPeriodEnd = userRow.current_period_end || null;
+    const cancelAtPeriodEnd = normalizeDbBool(userRow.cancel_at_period_end);
+    const inboundLimit = planState.inboundLimit || resolveInboundLimit(planState.planTier, null);
+    const inboundUsage = Number(planState.inboundUsage || 0);
+    const inboundRelevant = Number(planState.inboundRelevant || 0);
+    const inboundDropped = Number(planState.inboundDropped || 0);
+    const inboundDroppedIrrelevant = Number(planState.inboundDroppedIrrelevant || 0);
+    const inboundDroppedOverCap = Number(planState.inboundDroppedOverCap || 0);
     const nearLimitThresholdCount = limit > 0 ? Math.ceil(limit * PLAN_NEAR_LIMIT_THRESHOLD) : 0;
     const nearLimit = isFreeTier && limit > 0 ? usage >= nearLimitThresholdCount && usage < limit : false;
     const atLimit = isFreeTier && limit > 0 ? usage >= limit : false;
+    const rawInboundOverCap = inboundLimit > 0 ? inboundUsage > inboundLimit : false;
     const planExpiresAt = planState.planExpiresAt || null;
     const oneTimeActive =
       String(planState.billingType || '').toLowerCase() === BILLING_TYPES.ONE_TIME &&
@@ -3429,10 +3598,21 @@ app.get('/api/account/plan', requireAuth, async (req, res) => {
       billing_type: planState.billingType || BILLING_TYPES.NONE,
       plan_expires_at: planExpiresAt,
       billing_failure_state: planState.billingFailureState || null,
+      subscription_status: subscriptionStatus,
+      current_period_end: currentPeriodEnd,
+      cancel_at_period_end: cancelAtPeriodEnd,
       job_search_plan_active: oneTimeActive,
       monthly_tracked_email_limit: limit,
       tracked_email_count_current_month: usage,
       tracked_email_month_bucket: planState.bucket,
+      monthly_inbound_email_limit: inboundLimit,
+      inbound_email_count_current_month: inboundUsage,
+      inbound_email_month_bucket: planState.inboundBucket || planState.bucket,
+      inbound_email_relevant_count_current_month: inboundRelevant,
+      inbound_email_dropped_count_current_month: inboundDropped,
+      inbound_email_dropped_irrelevant_count_current_month: inboundDroppedIrrelevant,
+      inbound_email_dropped_over_cap_count_current_month: inboundDroppedOverCap,
+      raw_inbound_over_cap: rawInboundOverCap,
       near_limit: nearLimit,
       at_limit: atLimit,
       near_limit_threshold: PLAN_NEAR_LIMIT_THRESHOLD,
@@ -3452,6 +3632,7 @@ app.get('/api/billing/status', requireAuth, async (req, res) => {
   try {
     const config = getStripeBillingConfig();
     const planState = await Promise.resolve(ensurePlanState(db, req.user.id));
+    const userRow = await getUserById(req.user.id);
     return res.json({
       configured: isStripeCheckoutConfigured(config),
       checkout_enabled: isStripeCheckoutConfigured(config),
@@ -3461,7 +3642,10 @@ app.get('/api/billing/status', requireAuth, async (req, res) => {
       plan_status: planState.planStatus || 'active',
       billing_plan: planState.billingPlan || null,
       billing_type: planState.billingType || null,
-      plan_expires_at: planState.planExpiresAt || null
+      plan_expires_at: planState.planExpiresAt || null,
+      subscription_status: normalizeSubscriptionStatus(userRow?.subscription_status),
+      current_period_end: userRow?.current_period_end || null,
+      cancel_at_period_end: normalizeDbBool(userRow?.cancel_at_period_end)
     });
   } catch (err) {
     logError('billing.status.failed', { userId: req.user?.id || null, error: err?.message || String(err) });
@@ -3543,6 +3727,87 @@ app.post('/api/billing/create-checkout-session', requireAuth, createCheckoutSess
 // Backward-compatible alias used by older frontend builds.
 app.post('/api/account/plan/upgrade', requireAuth, createCheckoutSessionHandler);
 
+app.post('/api/billing/cancel-subscription', requireAuth, async (req, res) => {
+  try {
+    const config = getStripeBillingConfig();
+    if (!config.secretKey) {
+      return res.status(503).json({ error: 'BILLING_NOT_CONFIGURED' });
+    }
+
+    const user = await getUserById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'USER_NOT_FOUND' });
+    }
+
+    const billingType = String(user.billing_type || '').toLowerCase();
+    const billingPlan = String(user.billing_plan || '').toLowerCase();
+    const isMonthlySubscription =
+      billingType === BILLING_TYPES.SUBSCRIPTION || billingPlan === BILLING_OPTIONS.PRO_MONTHLY;
+    if (!isMonthlySubscription) {
+      return res.status(400).json({ error: 'SUBSCRIPTION_NOT_CANCELLABLE' });
+    }
+    if (!user.stripe_subscription_id) {
+      return res.status(409).json({ error: 'SUBSCRIPTION_REFERENCE_MISSING' });
+    }
+
+    if (normalizeDbBool(user.cancel_at_period_end)) {
+      return res.json({
+        ok: true,
+        already_scheduled: true,
+        subscription_status: normalizeSubscriptionStatus(user.subscription_status),
+        cancel_at_period_end: true,
+        current_period_end: user.current_period_end || null
+      });
+    }
+
+    const subscription = await updateStripeSubscription({
+      stripeSecretKey: config.secretKey,
+      subscriptionId: user.stripe_subscription_id,
+      cancelAtPeriodEnd: true
+    });
+    const snapshot = toSubscriptionSnapshot(subscription);
+    await runPrepared(
+      db,
+      `UPDATE users
+          SET subscription_status = COALESCE(?, subscription_status),
+              current_period_end = COALESCE(?, current_period_end),
+              cancel_at_period_end = ?,
+              stripe_customer_id = COALESCE(?, stripe_customer_id),
+              stripe_subscription_id = COALESCE(?, stripe_subscription_id),
+              updated_at = ?
+        WHERE id = ?`,
+      [
+        snapshot.status,
+        snapshot.currentPeriodEnd || null,
+        boolBind(db, snapshot.cancelAtPeriodEnd),
+        subscription?.customer ? String(subscription.customer) : null,
+        subscription?.id ? String(subscription.id) : null,
+        nowIso(),
+        user.id
+      ],
+      'run'
+    );
+
+    return res.json({
+      ok: true,
+      subscription_status: snapshot.status,
+      cancel_at_period_end: snapshot.cancelAtPeriodEnd,
+      current_period_end: snapshot.currentPeriodEnd || null
+    });
+  } catch (err) {
+    logError('billing.cancel_subscription.failed', {
+      userId: req.user?.id || null,
+      code: err?.code || null,
+      status: err?.status || null,
+      detail: err?.message ? String(err.message).slice(0, 240) : String(err)
+    });
+    if (String(err?.code || '').startsWith('STRIPE_')) {
+      return res.status(502).json({ error: 'BILLING_PROVIDER_ERROR' });
+    }
+    return res.status(500).json({ error: 'BILLING_CANCELLATION_FAILED' });
+  }
+});
+
 app.post('/api/billing/webhook', async (req, res) => {
   const config = getStripeBillingConfig();
   if (!isStripeWebhookConfigured(config)) {
@@ -3613,9 +3878,33 @@ app.post('/api/billing/webhook', async (req, res) => {
       }
 
       if (planKey === BILLING_OPTIONS.PRO_MONTHLY) {
+        let subscriptionSnapshot = {
+          status: 'active',
+          currentPeriodEnd: null,
+          cancelAtPeriodEnd: false
+        };
+        if (session.subscription && config.secretKey) {
+          try {
+            const stripeSubscription = await fetchStripeSubscription({
+              stripeSecretKey: config.secretKey,
+              subscriptionId: session.subscription
+            });
+            subscriptionSnapshot = toSubscriptionSnapshot(stripeSubscription);
+          } catch (fetchErr) {
+            logWarn('billing.webhook.subscription_fetch_failed', {
+              eventId,
+              subscriptionId: session.subscription,
+              code: fetchErr?.code || null,
+              detail: fetchErr?.message ? String(fetchErr.message).slice(0, 220) : String(fetchErr)
+            });
+          }
+        }
         await markMonthlyPlanActive(user.id, {
           stripeCustomerId: session.customer || user.stripe_customer_id || null,
           stripeSubscriptionId: session.subscription || null,
+          subscriptionStatus: subscriptionSnapshot.status || 'active',
+          currentPeriodEnd: subscriptionSnapshot.currentPeriodEnd || null,
+          cancelAtPeriodEnd: subscriptionSnapshot.cancelAtPeriodEnd,
           eventId,
           eventIso
         });
@@ -3664,11 +3953,14 @@ app.post('/api/billing/webhook', async (req, res) => {
           db,
           `UPDATE users
              SET stripe_subscription_id = NULL,
+                 subscription_status = NULL,
+                 current_period_end = NULL,
+                 cancel_at_period_end = ?,
                  billing_last_event_id = COALESCE(?, billing_last_event_id),
                  billing_last_event_at = COALESCE(?, billing_last_event_at),
                  updated_at = ?
            WHERE id = ?`,
-          [eventId, eventIso, nowIso(), user.id],
+          [boolBind(db, false), eventId, eventIso, nowIso(), user.id],
           'run'
         );
         return res.json({ received: true, applied: true });
@@ -3679,6 +3971,51 @@ app.post('/api/billing/webhook', async (req, res) => {
         eventId,
         eventIso
       });
+      return res.json({ received: true, applied: true });
+    }
+
+    if (eventType === 'customer.subscription.updated') {
+      const subscription = event?.data?.object || {};
+      let user = null;
+      if (subscription.id) {
+        user = await getUserByStripeSubscriptionId(String(subscription.id));
+      }
+      if (!user && subscription.customer) {
+        user = await getUserByStripeCustomerId(String(subscription.customer));
+      }
+      if (!user) {
+        return res.json({ received: true, ignored: true });
+      }
+      if (isStaleStripeEventForUser(user, event)) {
+        return res.json({ received: true, duplicate: true });
+      }
+
+      const snapshot = toSubscriptionSnapshot(subscription);
+      await runPrepared(
+        db,
+        `UPDATE users
+            SET stripe_customer_id = COALESCE(?, stripe_customer_id),
+                stripe_subscription_id = COALESCE(?, stripe_subscription_id),
+                subscription_status = COALESCE(?, subscription_status),
+                current_period_end = COALESCE(?, current_period_end),
+                cancel_at_period_end = ?,
+                billing_last_event_id = COALESCE(?, billing_last_event_id),
+                billing_last_event_at = COALESCE(?, billing_last_event_at),
+                updated_at = ?
+          WHERE id = ?`,
+        [
+          subscription.customer ? String(subscription.customer) : null,
+          subscription.id ? String(subscription.id) : null,
+          snapshot.status,
+          snapshot.currentPeriodEnd || null,
+          boolBind(db, snapshot.cancelAtPeriodEnd),
+          eventId,
+          eventIso,
+          nowIso(),
+          user.id
+        ],
+        'run'
+      );
       return res.json({ received: true, applied: true });
     }
 
@@ -3757,9 +4094,10 @@ async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
   const filters = getDateFilters(isPg);
   const bucket = currentMonthBucket();
 
-  const { hasPlanTier = true, hasPlanUsage = true } = caps || (await getAdminSchemaCapabilities(dbInstance));
-  if (!hasPlanTier || !hasPlanUsage) {
-    logWarn('admin.analytics.schema.missing_plan_fields', { hasPlanTier, hasPlanUsage });
+  const { hasPlanTier = true, hasPlanUsage = true, hasInboundUsage = true } =
+    caps || (await getAdminSchemaCapabilities(dbInstance));
+  if (!hasPlanTier || !hasPlanUsage || !hasInboundUsage) {
+    logWarn('admin.analytics.schema.missing_plan_fields', { hasPlanTier, hasPlanUsage, hasInboundUsage });
   }
 
   const totalUsers = await readCount(dbInstance, 'SELECT COUNT(*) AS count FROM users');
@@ -3795,6 +4133,51 @@ async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
     `SELECT COUNT(*) AS count FROM users WHERE ${filters.monthBucket}`,
     [bucket]
   );
+  const inboundReceivedMonth = hasInboundUsage
+    ? await readCount(
+        dbInstance,
+        `SELECT COALESCE(SUM(inbound_email_count_current_month), 0) AS count
+           FROM users
+          WHERE COALESCE(inbound_email_month_bucket, tracked_email_month_bucket, ?) = ?`,
+        [bucket, bucket]
+      )
+    : 0;
+  const inboundRelevantMonth = hasInboundUsage
+    ? await readCount(
+        dbInstance,
+        `SELECT COALESCE(SUM(inbound_email_relevant_count_current_month), 0) AS count
+           FROM users
+          WHERE COALESCE(inbound_email_month_bucket, tracked_email_month_bucket, ?) = ?`,
+        [bucket, bucket]
+      )
+    : 0;
+  const inboundDroppedMonth = hasInboundUsage
+    ? await readCount(
+        dbInstance,
+        `SELECT COALESCE(SUM(inbound_email_dropped_count_current_month), 0) AS count
+           FROM users
+          WHERE COALESCE(inbound_email_month_bucket, tracked_email_month_bucket, ?) = ?`,
+        [bucket, bucket]
+      )
+    : 0;
+  const inboundDroppedIrrelevantMonth = hasInboundUsage
+    ? await readCount(
+        dbInstance,
+        `SELECT COALESCE(SUM(inbound_email_dropped_irrelevant_count_current_month), 0) AS count
+           FROM users
+          WHERE COALESCE(inbound_email_month_bucket, tracked_email_month_bucket, ?) = ?`,
+        [bucket, bucket]
+      )
+    : 0;
+  const inboundDroppedOverCapMonth = hasInboundUsage
+    ? await readCount(
+        dbInstance,
+        `SELECT COALESCE(SUM(inbound_email_dropped_over_cap_count_current_month), 0) AS count
+           FROM users
+          WHERE COALESCE(inbound_email_month_bucket, tracked_email_month_bucket, ?) = ?`,
+        [bucket, bucket]
+      )
+    : 0;
 
   return {
     total_users: totalUsers,
@@ -3804,6 +4187,12 @@ async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
     tracked_emails_month: trackedMonth,
     tracked_emails_today: trackedToday,
     tracked_emails_week: trackedWeek,
+    tracked_updates_month: trackedMonth,
+    inbound_received_month: inboundReceivedMonth,
+    inbound_relevant_month: inboundRelevantMonth,
+    inbound_dropped_month: inboundDroppedMonth,
+    inbound_dropped_irrelevant_month: inboundDroppedIrrelevantMonth,
+    inbound_dropped_over_cap_month: inboundDroppedOverCapMonth,
     new_users_month: newUsersMonth
   };
 }
@@ -3851,8 +4240,25 @@ function buildTrendQuery({ metric, range, isPg, hasPlanTier = true }) {
       table = 'job_applications';
       break;
     case 'tracked_emails':
+    case 'tracked_updates':
       table = 'email_events';
       where += ' AND ingest_decision IS NOT NULL';
+      break;
+    case 'inbound_received':
+      table = 'inbound_messages';
+      break;
+    case 'inbound_relevant':
+      table = 'inbound_messages';
+      where += " AND (processing_status = 'processed' OR processing_error IN ('plan_limit_reached', 'global_cap_reached'))";
+      break;
+    case 'inbound_dropped_irrelevant':
+      table = 'inbound_messages';
+      where +=
+        " AND processing_status = 'ignored' AND COALESCE(processing_error,'') <> 'raw_inbound_cap_reached' AND COALESCE(processing_error,'') NOT IN ('plan_limit_reached', 'global_cap_reached')";
+      break;
+    case 'inbound_dropped_over_cap':
+      table = 'inbound_messages';
+      where += " AND processing_status = 'ignored' AND processing_error = 'raw_inbound_cap_reached'";
       break;
     case 'new_users':
     default:

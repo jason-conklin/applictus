@@ -56,19 +56,20 @@ async function createUser(db, { id, email }) {
   );
 }
 
-function buildPayload(toEmail) {
+function buildPayload(toEmail, overrides = {}) {
+  const stamp = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
   return {
     From: 'Recruiting Team <jobs@example-company.com>',
     FromFull: { Name: 'Recruiting Team', Email: 'jobs@example-company.com' },
     To: toEmail,
     ToFull: [{ Email: toEmail }],
-    Subject: 'Thanks for applying to Example Company',
-    MessageID: `<postmark-${Date.now()}@example-company.com>`,
+    Subject: overrides.subject || 'Thanks for applying to Example Company',
+    MessageID: overrides.messageId || `<postmark-${stamp}@example-company.com>`,
     Date: '2026-03-05T15:30:00.000Z',
-    TextBody: 'Your application was received. We will review your resume shortly.',
+    TextBody: overrides.textBody || 'Your application was received. We will review your resume shortly.',
     HtmlBody:
       '<p>Your application was received.</p><p>We will review your resume shortly.</p>',
-    Headers: [{ Name: 'Message-ID', Value: `<rfc-${Date.now()}@example-company.com>` }]
+    Headers: [{ Name: 'Message-ID', Value: overrides.rfcMessageId || `<rfc-${stamp}@example-company.com>` }]
   };
 }
 
@@ -214,4 +215,76 @@ test('postmark webhook returns 503 when POSTMARK_INBOUND_SECRET is missing', asy
   assert.equal(response.status, 503);
   assert.equal(body.error, 'INBOUND_NOT_READY');
   assert.equal(body.message, 'POSTMARK_INBOUND_SECRET not configured');
+});
+
+test('postmark webhook enforces per-user raw inbound cap before processing', async (t) => {
+  const { baseUrl, db, stop } = await startServerWithEnv({
+    NODE_ENV: 'test',
+    JOBTRACK_DB_PATH: ':memory:',
+    JOBTRACK_LOG_LEVEL: 'error',
+    POSTMARK_INBOUND_SECRET: 'test-inbound-secret',
+    INBOUND_DOMAIN: 'mail.applictus.com',
+    JOBTRACK_FREE_MONTHLY_INBOUND_LIMIT: '2'
+  });
+  t.after(stop);
+  if (!baseUrl || !db) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  const userId = crypto.randomUUID();
+  await createUser(db, { id: userId, email: `inbound-cap-${Date.now()}@example.com` });
+  const inboundAddress = await getOrCreateInboundAddress(db, userId, {
+    inboundDomain: 'mail.applictus.com'
+  });
+
+  for (let i = 1; i <= 2; i += 1) {
+    const payload = buildPayload(inboundAddress.address_email, {
+      subject: `Inbound cap warmup ${i}`,
+      messageId: `<postmark-cap-${i}-${Date.now()}@example-company.com>`,
+      rfcMessageId: `<rfc-cap-${i}-${Date.now()}@example-company.com>`
+    });
+    const res = await fetch(`${baseUrl}/api/inbound/postmark?secret=test-inbound-secret`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(body.ok, true);
+    assert.equal(body.ignored, undefined);
+  }
+
+  const overCapPayload = buildPayload(inboundAddress.address_email, {
+    subject: 'Inbound cap overage',
+    messageId: `<postmark-cap-over-${Date.now()}@example-company.com>`,
+    rfcMessageId: `<rfc-cap-over-${Date.now()}@example-company.com>`
+  });
+  const overCapRes = await fetch(`${baseUrl}/api/inbound/postmark?secret=test-inbound-secret`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(overCapPayload)
+  });
+  const overCapBody = await overCapRes.json();
+  assert.equal(overCapRes.status, 200);
+  assert.equal(overCapBody.ok, true);
+  assert.equal(overCapBody.ignored, true);
+  assert.equal(overCapBody.reason, 'RAW_INBOUND_CAP_REACHED');
+
+  const userRow = await awaitMaybe(
+    db
+      .prepare(
+        `SELECT inbound_email_count_current_month,
+                inbound_email_dropped_count_current_month,
+                inbound_email_dropped_over_cap_count_current_month,
+                tracked_email_count_current_month
+           FROM users
+          WHERE id = ?`
+      )
+      .get(userId)
+  );
+  assert.equal(Number(userRow.inbound_email_count_current_month), 3);
+  assert.equal(Number(userRow.inbound_email_dropped_count_current_month), 1);
+  assert.equal(Number(userRow.inbound_email_dropped_over_cap_count_current_month), 1);
+  assert.equal(Number(userRow.tracked_email_count_current_month), 0);
 });

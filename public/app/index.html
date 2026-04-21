@@ -10,7 +10,7 @@
     <meta name="app-api-base-url" content="" />
     <title>Applictus</title>
     <link rel="icon" href="/Applictus_logo.png" type="image/png" />
-    <link rel="stylesheet" href="/styles.css?v=37" />
+    <link rel="stylesheet" href="/styles.css?v=35" />
     <style>
       body:not(.app-ready) #app {
         opacity: 0;
@@ -157,25 +157,44 @@
         align-items: baseline;
         margin-bottom: 8px;
       }
+      #account-plan-usage {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .plan-usage-primary {
+        font-weight: 600;
+      }
+      .plan-usage-secondary {
+        font-size: 12px;
+        color: #5a749a;
+      }
       .account-plan-name-content {
         display: inline-flex;
         align-items: center;
         gap: 8px;
+        flex-wrap: wrap;
       }
-      .account-plan-name-content .plan-logo-badge {
-        width: 24px;
-        height: 24px;
-        border-radius: 8px;
+      .account-plan-status-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.3;
+        letter-spacing: 0.01em;
       }
-      .account-plan-name-content .plan-logo-badge__img {
-        width: 14px;
-        height: 14px;
+      .account-plan-status-badge.is-active {
+        color: #225c2f;
+        background: rgba(84, 180, 123, 0.16);
+        border-color: rgba(65, 150, 102, 0.3);
       }
-      .account-plan-name-content .plan-logo-badge--pro {
-        transform: none;
-      }
-      .account-plan-name-text {
-        line-height: 1.2;
+      .account-plan-status-badge.is-scheduled {
+        color: #6b4706;
+        background: rgba(247, 188, 85, 0.2);
+        border-color: rgba(214, 156, 56, 0.36);
       }
       .plan-progress {
         height: 10px;
@@ -214,17 +233,10 @@
         justify-items: end;
       }
       .plan-progress-marker-tick {
-        width: auto;
-        height: auto;
-        line-height: 1;
-        font-size: 13px;
-        font-weight: 700;
-        color: rgba(21, 52, 96, 0.68);
-      }
-      .plan-progress-marker-tick::before {
-        content: "⮟";
-        display: block;
-        transform: translateY(1px);
+        width: 1px;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(21, 52, 96, 0.54);
       }
       .plan-progress-marker-label {
         font-size: 11px;
@@ -239,212 +251,76 @@
         color: #36557d;
         line-height: 1.45;
       }
-      .plan-warning--near {
-        color: #7a5a12;
-      }
-      .plan-warning--at {
-        color: #8b2c2c;
-        font-weight: 600;
-      }
       .plan-actions {
         margin-top: 12px;
         display: flex;
         gap: 8px;
         flex-wrap: wrap;
       }
+      .plan-trust-note {
+        margin-top: 8px;
+        color: #537198;
+      }
       .plan-card-grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
         gap: 16px;
         margin-top: 4px;
-        align-items: stretch;
       }
       .plan-card {
         position: relative;
-        border: 1px solid rgba(20, 40, 80, 0.14);
-        border-radius: 18px;
-        padding: 20px 18px 16px;
+        border: 1px solid rgba(20, 40, 80, 0.12);
+        border-radius: 16px;
+        padding: 18px;
         background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
         box-shadow:
-          0 16px 32px rgba(12, 36, 84, 0.1),
-          inset 0 1px 0 rgba(255, 255, 255, 0.88);
-        display: flex;
-        flex-direction: column;
-      }
-      .plan-card--free {
-        border-color: rgba(20, 40, 80, 0.1);
-        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-        box-shadow:
-          0 10px 22px rgba(12, 36, 84, 0.06),
-          inset 0 1px 0 rgba(255, 255, 255, 0.82);
+          0 14px 30px rgba(12, 36, 84, 0.08),
+          inset 0 1px 0 rgba(255, 255, 255, 0.86);
       }
       .plan-card-top {
         display: grid;
-        gap: 7px;
+        gap: 5px;
         margin-bottom: 12px;
       }
-      .plan-title-row {
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr);
-        align-items: center;
-        column-gap: 10px;
-      }
-      .plan-title-meta {
-        display: grid;
-        gap: 4px;
-        min-width: 0;
-      }
-      .plan-logo-badge {
-        width: 34px;
-        height: 34px;
-        border-radius: 10px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border: 1px solid rgba(18, 54, 103, 0.15);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
-        overflow: hidden;
-        flex-shrink: 0;
-        position: relative;
-        isolation: isolate;
-      }
-      .plan-logo-badge__img {
-        width: 20px;
-        height: 20px;
-        object-fit: contain;
-        display: block;
-      }
-      .plan-logo-badge--free {
-        background: #eff2f6;
-        border-color: rgba(54, 76, 103, 0.22);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
-      }
-      .plan-logo-badge--free .plan-logo-badge__img {
-        filter: grayscale(1) saturate(0.34) brightness(0.92) contrast(0.9);
-        opacity: 0.9;
-      }
-      .plan-logo-badge--pro {
-        background:
-          radial-gradient(130% 125% at 24% 6%, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0) 62%),
-          linear-gradient(180deg, #6ea4f0 0%, #4a82d8 100%);
-        border-color: rgba(18, 64, 134, 0.58);
-        box-shadow:
-          0 12px 22px rgba(25, 72, 147, 0.34),
-          0 0 0 1px rgba(66, 122, 209, 0.22),
-          inset 0 1px 0 rgba(255, 255, 255, 0.22);
-        transform: scale(1.07);
-      }
-      .plan-logo-badge--pro .plan-logo-badge__img {
-        filter: saturate(1.08) contrast(1.08);
-      }
-      .plan-logo-badge--jobsearch {
-        background: linear-gradient(180deg, #f4f8ff 0%, #e8f0fa 100%);
-        border-color: rgba(54, 91, 141, 0.34);
-        box-shadow:
-          inset 0 0 0 1px rgba(187, 156, 93, 0.28),
-          inset 0 1px 0 rgba(255, 255, 255, 0.86),
-          0 7px 14px rgba(21, 57, 108, 0.14);
-      }
-      .plan-logo-badge--jobsearch::before {
-        content: '';
-        position: absolute;
-        inset: 2px;
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.56);
-        pointer-events: none;
-      }
-      .plan-logo-badge--jobsearch::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: repeating-linear-gradient(
-          90deg,
-          rgba(64, 95, 141, 0.11) 0 1px,
-          transparent 1px 9px
-        );
-        mix-blend-mode: soft-light;
-        opacity: 0.5;
-        pointer-events: none;
-      }
-      .plan-logo-badge--jobsearch .plan-logo-badge__img {
-        filter: saturate(1.02) contrast(1.03);
-      }
       .plan-card--pro {
-        border-color: rgba(22, 69, 143, 0.48);
+        border-color: rgba(22, 69, 143, 0.26);
         background:
-          radial-gradient(138% 128% at 6% 0%, rgba(218, 234, 255, 0.94), rgba(255, 255, 255, 0) 66%),
-          linear-gradient(180deg, #ffffff 0%, #ebf4ff 100%);
+          radial-gradient(125% 115% at 6% 0%, rgba(227, 238, 255, 0.68), rgba(255, 255, 255, 0) 64%),
+          linear-gradient(180deg, #ffffff 0%, #f1f7ff 100%);
         box-shadow:
-          0 30px 54px rgba(15, 45, 96, 0.22),
-          0 12px 26px rgba(15, 45, 96, 0.14),
+          0 24px 44px rgba(15, 45, 96, 0.15),
+          0 8px 18px rgba(15, 45, 96, 0.1),
           inset 0 1px 0 rgba(255, 255, 255, 0.92);
-        transform: translateY(-6px) scale(1.015);
-        z-index: 2;
-      }
-      .plan-card--jobsearch {
-        border-color: rgba(27, 66, 132, 0.3);
-        background:
-          radial-gradient(126% 126% at 8% 0%, rgba(226, 238, 255, 0.78), rgba(255, 255, 255, 0) 68%),
-          linear-gradient(180deg, #ffffff 0%, #f2f8ff 100%);
-        box-shadow:
-          0 18px 34px rgba(15, 45, 96, 0.13),
-          inset 0 1px 0 rgba(255, 255, 255, 0.92);
+        transform: translateY(-1px);
       }
       .plan-title {
-        margin: 0;
-        font-size: 19px;
+        margin: 0 0 4px;
+        font-size: 17px;
         color: #13294b;
       }
       .plan-context {
         margin: 0;
-        color: #4f617d;
+        color: #4c5f7c;
         line-height: 1.45;
       }
       .plan-price {
-        display: flex;
-        align-items: baseline;
-        gap: 8px;
-        margin: 0 0 4px;
-      }
-      .plan-price-main {
-        font-size: 36px;
-        font-weight: 750;
-        letter-spacing: -0.03em;
+        font-size: 32px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
         color: #102746;
-        line-height: 1;
-      }
-      .plan-price-term {
-        font-size: 14px;
-        font-weight: 600;
-        letter-spacing: 0.01em;
-        color: #446188;
+        line-height: 1.1;
+        margin: 2px 0 4px;
       }
       .plan-limit {
-        margin-bottom: 8px;
+        margin-bottom: 14px;
         color: #4f6079;
-        line-height: 1.45;
-      }
-      .plan-billing-note {
-        margin: 0 0 12px;
-        color: #3d5e88;
-        line-height: 1.45;
-      }
-      .plan-price-hint {
-        margin: -4px 0 12px;
-        color: #56739a;
-        line-height: 1.35;
-      }
-      .plan-card-divider {
-        height: 1px;
-        margin: 0 0 12px;
-        background: linear-gradient(90deg, rgba(31, 77, 149, 0.18), rgba(31, 77, 149, 0.05));
       }
       .plan-features {
         list-style: none;
         padding: 0;
-        margin: 0 0 10px;
+        margin: 0 0 14px;
         display: grid;
-        gap: 7px;
+        gap: 8px;
       }
       .plan-features li {
         position: relative;
@@ -461,30 +337,6 @@
         color: #2e63b0;
         font-weight: 700;
       }
-      .plan-summary {
-        border: 1px solid rgba(30, 76, 147, 0.14);
-        border-radius: 12px;
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(242, 248, 255, 0.94));
-        padding: 10px 11px;
-        display: grid;
-        gap: 7px;
-        min-height: 120px;
-      }
-      .plan-summary-title {
-        font-size: 12px;
-        font-weight: 700;
-        color: #234a7f;
-        letter-spacing: 0.01em;
-      }
-      .plan-summary-lines {
-        display: grid;
-        gap: 6px;
-      }
-      .plan-summary-line {
-        color: #385983;
-        font-size: 12px;
-        line-height: 1.42;
-      }
       .plan-pill {
         display: inline-flex;
         align-items: center;
@@ -496,217 +348,34 @@
         margin-bottom: 2px;
       }
       .plan-pill--popular {
-        background: linear-gradient(180deg, #2f66c4 0%, #2456ad 100%);
-        border: 1px solid rgba(23, 62, 128, 0.42);
-        color: #f8fbff;
-        box-shadow: 0 6px 14px rgba(27, 70, 145, 0.2);
+        background: rgba(37, 82, 171, 0.16);
+        border: 1px solid rgba(37, 82, 171, 0.28);
+        color: #1a468f;
       }
       .plan-pill--included {
-        background: rgba(17, 50, 96, 0.06);
-        border: 1px solid rgba(17, 50, 96, 0.1);
+        background: rgba(17, 50, 96, 0.08);
+        border: 1px solid rgba(17, 50, 96, 0.12);
         color: #3a5174;
-      }
-      .plan-pill--commitment {
-        background: rgba(31, 89, 179, 0.08);
-        border: 1px solid rgba(31, 89, 179, 0.2);
-        color: #365c91;
-      }
-      .plan-reinforcement {
-        margin: 0 0 12px;
-        color: #365887;
-        line-height: 1.45;
-      }
-      .plan-cta-wrap {
-        margin-top: auto;
-        display: grid;
-        gap: 6px;
       }
       .plan-cta {
         width: 100%;
         justify-content: center;
       }
       .plan-cta--free {
-        color: #5a6f8c;
-        border-color: rgba(20, 40, 80, 0.16);
-        background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
-        box-shadow: none;
-        opacity: 0.9;
+        color: #536987;
+        border-color: rgba(20, 40, 80, 0.18);
+        background: linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%);
       }
       .plan-cta--pro {
         box-shadow:
-          0 18px 32px rgba(20, 58, 126, 0.28),
+          0 14px 24px rgba(20, 58, 126, 0.2),
           inset 0 1px 0 rgba(255, 255, 255, 0.22);
-      }
-      .plan-cta--jobsearch {
-        color: #f8fbff;
-        border-color: rgba(34, 81, 153, 0.72);
-        background:
-          radial-gradient(118% 132% at 18% 6%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 55%),
-          linear-gradient(180deg, #578edc 0%, #3e72c7 100%);
-        box-shadow:
-          0 13px 24px rgba(24, 66, 133, 0.2),
-          inset 0 1px 0 rgba(255, 255, 255, 0.22);
-      }
-      .plan-cta--jobsearch:hover {
-        background:
-          radial-gradient(118% 132% at 18% 6%, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 55%),
-          linear-gradient(180deg, #6297e2 0%, #467bd0 100%);
-        box-shadow:
-          0 15px 26px rgba(24, 66, 133, 0.24),
-          inset 0 1px 0 rgba(255, 255, 255, 0.25);
-      }
-      .plan-cta--jobsearch:focus-visible {
-        box-shadow:
-          0 15px 26px rgba(24, 66, 133, 0.24),
-          inset 0 1px 0 rgba(255, 255, 255, 0.25),
-          0 0 0 3px rgba(88, 141, 221, 0.36);
-      }
-      .plan-cta--jobsearch:active {
-        box-shadow:
-          0 9px 18px rgba(24, 66, 133, 0.18),
-          inset 0 1px 0 rgba(255, 255, 255, 0.16);
-      }
-      .plan-cta-subtext {
-        text-align: center;
-        color: #4f678a;
-        line-height: 1.35;
-      }
-      .pricing-modal-hero {
-        border: 1px solid rgba(30, 76, 147, 0.14);
-        border-radius: 14px;
-        padding: 12px 14px;
-        background:
-          radial-gradient(120% 120% at 0% 0%, rgba(221, 235, 255, 0.58), rgba(255, 255, 255, 0) 70%),
-          linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(245, 250, 255, 0.95));
-      }
-      .pricing-modal-hero-title {
-        margin: 0;
-        font-size: 14px;
-        font-weight: 700;
-        color: #173860;
-      }
-      .pricing-modal-hero-copy {
-        margin: 4px 0 0;
-        font-size: 12px;
-        line-height: 1.5;
-        color: #4b6488;
-      }
-      .pricing-billing-powered {
-        margin-top: 14px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        width: 100%;
-        color: #4e678b;
-        line-height: 1.45;
-      }
-      .pricing-billing-powered__icon {
-        width: 14px;
-        height: 14px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        color: #3a6297;
-        flex: 0 0 auto;
-        opacity: 0.92;
-      }
-      .pricing-billing-powered__icon svg {
-        width: 100%;
-        height: 100%;
-        display: block;
-      }
-      .pricing-billing-powered__brand {
-        font-weight: 600;
-        color: #2f527f;
-      }
-      .pricing-trust-row {
-        margin-top: 8px;
-        border-top: 1px solid rgba(30, 76, 147, 0.12);
-        padding-top: 12px;
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr) auto;
-        align-items: center;
-        column-gap: 12px;
-      }
-      .pricing-trust-row::before {
-        content: '';
-        width: 74px;
       }
       .pricing-trust {
-        margin: 0;
-        grid-column: 2;
+        margin-top: 12px;
         text-align: center;
-        color: #4f678a;
+        color: #5a6f8f;
         line-height: 1.5;
-      }
-      .pricing-trust-close {
-        grid-column: 3;
-        justify-self: end;
-        white-space: nowrap;
-      }
-      .modal--pricing .modal-dialog {
-        width: min(1120px, 96vw);
-      }
-      .modal--pricing .modal-header {
-        padding-bottom: 16px;
-      }
-      .modal--pricing .modal-header h3 {
-        font-size: 1.34rem;
-        letter-spacing: -0.01em;
-      }
-      .modal--pricing .modal-header p {
-        max-width: 78ch;
-      }
-      @media (max-width: 980px) {
-        .plan-card-grid {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
-        }
-        .plan-card--pro {
-          transform: translateY(-3px);
-          grid-column: span 2;
-        }
-      }
-      @media (max-width: 760px) {
-        .plan-card-grid {
-          grid-template-columns: 1fr;
-          gap: 12px;
-        }
-        .plan-card--pro {
-          grid-column: auto;
-          transform: translateY(0);
-        }
-        .plan-price-main {
-          font-size: 32px;
-        }
-        .plan-price-term {
-          font-size: 13px;
-        }
-        .plan-summary {
-          min-height: 0;
-        }
-        .plan-logo-badge {
-          width: 32px;
-          height: 32px;
-        }
-        .plan-logo-badge__img {
-          width: 18px;
-          height: 18px;
-        }
-        .pricing-modal-hero {
-          padding: 11px 12px;
-        }
-        .pricing-billing-powered {
-          gap: 6px;
-          font-size: 11.5px;
-        }
-        .pricing-trust-row {
-          column-gap: 10px;
-        }
-        .pricing-trust {
-          font-size: 11.5px;
-        }
       }
     </style>
   </head>
@@ -1126,22 +795,8 @@
                 Save
               </button>
             </div>
-            <div class="account-inbox-username-feedback-row">
-              <div class="muted small account-inbox-username-preview">
-                Address preview:
-                <code id="account-inbox-username-preview">&lt;username&gt;@mail.applictus.com</code>
-              </div>
-              <div
-                class="muted small account-inbox-username-status"
-                id="account-inbox-username-status"
-                role="status"
-                aria-live="polite"
-              >
-                Choose a username to create your Applictus inbox address.
-              </div>
-            </div>
             <div class="muted small account-inbox-username-hint" id="account-inbox-username-hint">
-              Use 3-30 characters: lowercase letters, numbers, and hyphens.
+              Pick a unique username. Your inbox address will be <code>&lt;username&gt;@mail.applictus.com</code>.
             </div>
             <div
               class="account-inbox-username-suggestions hidden"
@@ -1154,7 +809,22 @@
           </div>
           <div class="account-inbox-actions">
             <button class="btn btn--primary btn--md" type="button" id="inbound-open-setup">Open setup</button>
+            <button class="btn btn--secondary btn--sm" type="button" id="inbound-send-test">Send test email</button>
+            <button class="btn btn--ghost btn--sm" type="button" id="inbound-process-now">Process inbox now</button>
             <button class="btn btn--ghost btn--sm" type="button" id="inbound-rotate-address">Change forwarding address</button>
+            <button
+              class="btn btn--ghost btn--sm"
+              type="button"
+              id="inbound-why-toggle"
+              aria-expanded="false"
+              aria-controls="inbound-why-panel"
+            >
+              Why forwarding?
+            </button>
+          </div>
+          <div class="account-inbox-why muted small hidden" id="inbound-why-panel">
+            Forwarding keeps setup simple and secure. You can route only job-related emails to Applictus, and remove
+            the forwarding rule at any time.
           </div>
         </div>
         <div class="account-grid">
@@ -1245,9 +915,13 @@
               <div class="plan-warning muted small" id="account-plan-warning"></div>
               <div class="plan-actions">
                 <button class="btn btn--primary btn--md" type="button" id="account-upgrade-button">Upgrade to Pro</button>
+                <button class="btn btn--danger btn--md hidden" type="button" id="account-manage-subscription-button">
+                  Cancel subscription
+                </button>
                 <button class="btn btn--ghost btn--md" type="button" id="account-plan-details">View pricing</button>
                 <button class="btn btn--ghost btn--md" type="button" id="account-plan-reduce-usage">Reduce usage with a filter</button>
               </div>
+              <div class="plan-trust-note muted small hidden" id="account-plan-trust-note">Cancel anytime. No fees.</div>
             </div>
           </div>
         </div>
@@ -1274,32 +948,17 @@
               <div class="account-row-label muted small">Last email received</div>
               <div class="account-help-value muted small" id="account-help-last-email">—</div>
             </div>
-            <div class="account-help-progress" id="account-help-progress" aria-live="polite">
-              <div class="account-help-progress-head">
-                <div class="account-help-progress-title">Setup progress</div>
-                <div class="account-help-progress-count muted small" id="account-help-progress-count">0 of 3 complete</div>
-              </div>
-              <div class="account-help-progress-list">
-                <div class="account-help-progress-step" id="account-help-progress-step-1" data-state="pending">
-                  <div class="account-help-progress-step-label" id="account-help-progress-step-1-label">Address created</div>
-                  <div class="account-help-progress-step-state" id="account-help-progress-step-1-state">Pending</div>
-                </div>
-                <div class="account-help-progress-step" id="account-help-progress-step-2" data-state="pending">
-                  <div class="account-help-progress-step-label" id="account-help-progress-step-2-label">Forwarding configured</div>
-                  <div class="account-help-progress-step-state" id="account-help-progress-step-2-state">Pending</div>
-                </div>
-                <div class="account-help-progress-step" id="account-help-progress-step-3" data-state="pending">
-                  <div class="account-help-progress-step-label" id="account-help-progress-step-3-label">Verification complete</div>
-                  <div class="account-help-progress-step-state" id="account-help-progress-step-3-state">Pending</div>
-                </div>
-              </div>
-              <div class="muted small account-help-note" id="account-help-note">
-                Verify forwarding in Gmail, then send a test email or forward one recent application email to begin tracking.
-              </div>
+            <div class="account-help-row">
+              <div class="account-row-label muted small">Setup type</div>
+              <div class="account-help-value" id="account-help-setup-type">Forwarding-based</div>
+            </div>
+            <div class="muted small account-help-note" id="account-help-note">
+              Applictus processes only forwarded mail and keeps this setup lightweight.
             </div>
             <div class="account-help-actions">
               <button class="btn btn--secondary btn--sm" type="button" id="inbound-help-open-setup">View setup guide</button>
               <button class="btn btn--ghost btn--sm" type="button" id="inbound-help-send-test">Send test email</button>
+              <button class="btn btn--ghost btn--sm" type="button" id="inbound-help-why">Why forwarding?</button>
             </div>
           </div>
         </div>
@@ -1335,7 +994,7 @@
                 <div class="kpi-value" id="admin-kpi-total-apps">—</div>
               </div>
               <div class="analytics-kpi-card">
-                <div class="kpi-label">Tracked emails this month</div>
+                <div class="kpi-label">Tracked updates this month</div>
                 <div class="kpi-value" id="admin-kpi-month-emails">—</div>
               </div>
               <div class="analytics-kpi-card">
@@ -1345,6 +1004,22 @@
               <div class="analytics-kpi-card">
                 <div class="kpi-label">Emails tracked this week</div>
                 <div class="kpi-value" id="admin-kpi-week-emails">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Inbound received this month</div>
+                <div class="kpi-value" id="admin-kpi-inbound-received">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Relevant inbound this month</div>
+                <div class="kpi-value" id="admin-kpi-inbound-relevant">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Dropped as irrelevant</div>
+                <div class="kpi-value" id="admin-kpi-inbound-dropped-irrelevant">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Dropped by raw cap</div>
+                <div class="kpi-value" id="admin-kpi-inbound-dropped-over-cap">—</div>
               </div>
               <div class="analytics-kpi-card">
                 <div class="kpi-label">New users this month</div>
@@ -1362,6 +1037,11 @@
                   <label class="sr-only" for="analytics-metric-select">Metric</label>
                   <select id="analytics-metric-select" class="chart-select">
                     <option value="tracked_emails">Tracked emails</option>
+                    <option value="tracked_updates">Tracked updates</option>
+                    <option value="inbound_received">Inbound received</option>
+                    <option value="inbound_relevant">Relevant inbound</option>
+                    <option value="inbound_dropped_irrelevant">Dropped as irrelevant</option>
+                    <option value="inbound_dropped_over_cap">Dropped by raw cap</option>
                     <option value="tracked_applications">Tracked applications</option>
                     <option value="registered_users">Registered users</option>
                     <option value="pro_users">Pro users</option>
@@ -1417,7 +1097,7 @@
                 </button>
                 <div class="pill" id="dashboard-inbox-status">Not connected</div>
                 <div class="muted small status-strip-email" id="dashboard-inbox-email">—</div>
-                <div class="sync-summary-main status-strip-meta" id="sync-summary-main" aria-expanded="false">
+                <div class="sync-summary-main status-strip-meta" id="sync-summary-main" role="button" tabindex="0" aria-expanded="false">
                   <span class="status-strip-meta-item" id="sync-status">Setup needed</span>
                   <span class="status-strip-divider" aria-hidden="true">•</span>
                   <span class="sync-summary" id="sync-summary">
@@ -1513,6 +1193,9 @@
               <div class="sr-only sync-helper-text scan-helper" id="sync-helper-text">
                 Set up automatic forwarding in about 2 minutes — no Google login required.
               </div>
+              <div class="sync-details hidden" id="sync-details-wrapper">
+                <pre class="sync-details-block" id="sync-result"></pre>
+              </div>
             </div>
             <div class="dashboard-onboarding hidden" id="dashboard-onboarding">
               <div class="dashboard-onboarding__content">
@@ -1587,12 +1270,6 @@
                   </li>
                 </ol>
               </div>
-            </div>
-            <div class="plan-usage-trigger hidden" id="dashboard-plan-warning" role="status" aria-live="polite">
-              <span class="plan-usage-trigger__text" id="dashboard-plan-warning-text"></span>
-              <button class="btn btn--ghost btn--sm plan-usage-trigger__cta" type="button" id="dashboard-plan-warning-cta">
-                View pricing
-              </button>
             </div>
           <div class="sync-error hidden" id="sync-error-banner">
             <div class="sync-error-message" id="sync-error-message">Scan failed.</div>
@@ -1826,18 +1503,35 @@
                       </div>
                     </div>
                   </label>
-                  <label class="filter-field filter-field--search filter-company-inline">
-                    <span class="filter-field__label">Search</span>
+                  <label class="filter-field filter-field--company filter-company-inline">
+                    <span class="filter-field__label">Company</span>
                     <div class="filter-field__control">
                       <span class="filter-field__icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                          <circle cx="11" cy="11" r="7"></circle>
-                          <path d="m20 20-3.5-3.5"></path>
+                          <path d="M4 21h16"></path>
+                          <path d="M7 21V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v15"></path>
+                          <path d="M10 10h4"></path>
+                          <path d="M10 14h4"></path>
                         </svg>
                       </span>
                       <div class="input-with-clear">
-                        <input type="text" id="filter-search" placeholder="Filter by company or role…" />
-                        <button type="button" class="clear-input hidden" id="filter-search-clear" aria-label="Clear search filter">×</button>
+                        <input type="text" id="filter-company" placeholder="Filter by company…" />
+                        <button type="button" class="clear-input hidden" id="filter-company-clear" aria-label="Clear company filter">×</button>
+                      </div>
+                    </div>
+                  </label>
+                  <label class="filter-field filter-field--role filter-role-inline">
+                    <span class="filter-field__label">Role</span>
+                    <div class="filter-field__control">
+                      <span class="filter-field__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="3" y="7" width="18" height="13" rx="2"></rect>
+                          <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </span>
+                      <div class="input-with-clear">
+                        <input type="text" id="filter-role" placeholder="Filter by role…" />
+                        <button type="button" class="clear-input hidden" id="filter-role-clear" aria-label="Clear role filter">×</button>
                       </div>
                     </div>
                   </label>
@@ -2554,6 +2248,8 @@
           <button class="drawer-close" type="button" data-action="close" aria-label="Close details">✕</button>
           <div class="drawer-chips">
             <div class="pill pill-status" id="detail-status">Unknown</div>
+            <div class="pill subtle" id="detail-source">Inferred</div>
+            <div class="pill subtle" id="detail-confidence">—</div>
           </div>
         </div>
         <div class="drawer-body">

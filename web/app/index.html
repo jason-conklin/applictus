@@ -157,6 +157,45 @@
         align-items: baseline;
         margin-bottom: 8px;
       }
+      #account-plan-usage {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .plan-usage-primary {
+        font-weight: 600;
+      }
+      .plan-usage-secondary {
+        font-size: 12px;
+        color: #5a749a;
+      }
+      .account-plan-name-content {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .account-plan-status-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.3;
+        letter-spacing: 0.01em;
+      }
+      .account-plan-status-badge.is-active {
+        color: #225c2f;
+        background: rgba(84, 180, 123, 0.16);
+        border-color: rgba(65, 150, 102, 0.3);
+      }
+      .account-plan-status-badge.is-scheduled {
+        color: #6b4706;
+        background: rgba(247, 188, 85, 0.2);
+        border-color: rgba(214, 156, 56, 0.36);
+      }
       .plan-progress {
         height: 10px;
         background: rgba(17, 50, 96, 0.12);
@@ -217,6 +256,10 @@
         display: flex;
         gap: 8px;
         flex-wrap: wrap;
+      }
+      .plan-trust-note {
+        margin-top: 8px;
+        color: #537198;
       }
       .plan-card-grid {
         display: grid;
@@ -872,8 +915,13 @@
               <div class="plan-warning muted small" id="account-plan-warning"></div>
               <div class="plan-actions">
                 <button class="btn btn--primary btn--md" type="button" id="account-upgrade-button">Upgrade to Pro</button>
+                <button class="btn btn--danger btn--md hidden" type="button" id="account-manage-subscription-button">
+                  Cancel subscription
+                </button>
                 <button class="btn btn--ghost btn--md" type="button" id="account-plan-details">View pricing</button>
+                <button class="btn btn--ghost btn--md" type="button" id="account-plan-reduce-usage">Reduce usage with a filter</button>
               </div>
+              <div class="plan-trust-note muted small hidden" id="account-plan-trust-note">Cancel anytime. No fees.</div>
             </div>
           </div>
         </div>
@@ -946,7 +994,7 @@
                 <div class="kpi-value" id="admin-kpi-total-apps">—</div>
               </div>
               <div class="analytics-kpi-card">
-                <div class="kpi-label">Tracked emails this month</div>
+                <div class="kpi-label">Tracked updates this month</div>
                 <div class="kpi-value" id="admin-kpi-month-emails">—</div>
               </div>
               <div class="analytics-kpi-card">
@@ -956,6 +1004,22 @@
               <div class="analytics-kpi-card">
                 <div class="kpi-label">Emails tracked this week</div>
                 <div class="kpi-value" id="admin-kpi-week-emails">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Inbound received this month</div>
+                <div class="kpi-value" id="admin-kpi-inbound-received">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Relevant inbound this month</div>
+                <div class="kpi-value" id="admin-kpi-inbound-relevant">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Dropped as irrelevant</div>
+                <div class="kpi-value" id="admin-kpi-inbound-dropped-irrelevant">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Dropped by raw cap</div>
+                <div class="kpi-value" id="admin-kpi-inbound-dropped-over-cap">—</div>
               </div>
               <div class="analytics-kpi-card">
                 <div class="kpi-label">New users this month</div>
@@ -973,6 +1037,11 @@
                   <label class="sr-only" for="analytics-metric-select">Metric</label>
                   <select id="analytics-metric-select" class="chart-select">
                     <option value="tracked_emails">Tracked emails</option>
+                    <option value="tracked_updates">Tracked updates</option>
+                    <option value="inbound_received">Inbound received</option>
+                    <option value="inbound_relevant">Relevant inbound</option>
+                    <option value="inbound_dropped_irrelevant">Dropped as irrelevant</option>
+                    <option value="inbound_dropped_over_cap">Dropped by raw cap</option>
                     <option value="tracked_applications">Tracked applications</option>
                     <option value="registered_users">Registered users</option>
                     <option value="pro_users">Pro users</option>
