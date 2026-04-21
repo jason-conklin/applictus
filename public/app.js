@@ -39,8 +39,124 @@ const MODAL_STATUS_OPTIONS = STATUS_FILTER_OPTIONS.filter((option) => option.api
 }));
 const MODAL_STATUS_BY_VALUE = new Map(MODAL_STATUS_OPTIONS.map((option) => [option.value, option]));
 
+const ADMIN_DAILY_RANGE_DAYS = {
+  '7d': 7,
+  '14d': 14,
+  '30d': 30,
+  '90d': 90
+};
+
+const ADMIN_RANGE_MONTHS = {
+  '12m': 12
+};
+
+const ADMIN_METRIC_VALUE_SUFFIX = {
+  tracked_emails: 'emails',
+  tracked_applications: 'applications',
+  registered_users: 'users',
+  pro_users: 'users',
+  new_users: 'users'
+};
+
+function parseIsoDayBucket(bucket) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(bucket || ''))) {
+    return null;
+  }
+  const date = new Date(`${bucket}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function toIsoDayBucket(date) {
+  if (!(date instanceof Date) || !Number.isFinite(date.getTime())) {
+    return '';
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function parseIsoMonthBucket(bucket) {
+  if (!/^\d{4}-\d{2}$/.test(String(bucket || ''))) {
+    return null;
+  }
+  const [year, month] = String(bucket).split('-').map((value) => Number(value));
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+    return null;
+  }
+  return { year, month };
+}
+
+function toIsoMonthBucket(year, month) {
+  if (!Number.isFinite(year) || !Number.isFinite(month)) {
+    return '';
+  }
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`;
+}
+
+function normalizeAdminTrendPoints(points = [], { range = '30d', bucketType = 'day' } = {}) {
+  const rows = Array.isArray(points)
+    ? points.map((point) => ({
+        bucket: String(point?.bucket || '').trim(),
+        value: Number(point?.value || 0)
+      }))
+    : [];
+  const useMonthlyBuckets = bucketType === 'month' || range === '12m';
+  const valueByBucket = new Map();
+  rows.forEach((row) => {
+    if (!row.bucket) {
+      return;
+    }
+    const currentValue = valueByBucket.get(row.bucket) || 0;
+    valueByBucket.set(row.bucket, currentValue + (Number.isFinite(row.value) ? row.value : 0));
+  });
+
+  if (useMonthlyBuckets) {
+    const months = ADMIN_RANGE_MONTHS[range] || 12;
+    const latestRow = [...valueByBucket.keys()]
+      .map((bucket) => ({ bucket, parsed: parseIsoMonthBucket(bucket) }))
+      .filter((entry) => entry.parsed)
+      .sort((left, right) => left.bucket.localeCompare(right.bucket))
+      .at(-1);
+    const now = new Date();
+    const endYear = latestRow?.parsed?.year ?? now.getUTCFullYear();
+    const endMonth = latestRow?.parsed?.month ?? now.getUTCMonth() + 1;
+    const buckets = [];
+    for (let offset = months - 1; offset >= 0; offset -= 1) {
+      const date = new Date(Date.UTC(endYear, endMonth - 1 - offset, 1));
+      buckets.push(toIsoMonthBucket(date.getUTCFullYear(), date.getUTCMonth() + 1));
+    }
+    return buckets.map((bucket) => ({
+      bucket,
+      value: valueByBucket.get(bucket) || 0
+    }));
+  }
+
+  const days = ADMIN_DAILY_RANGE_DAYS[range] || 30;
+  const latestRow = [...valueByBucket.keys()]
+    .map((bucket) => ({ bucket, parsed: parseIsoDayBucket(bucket) }))
+    .filter((entry) => entry.parsed)
+    .sort((left, right) => left.bucket.localeCompare(right.bucket))
+    .at(-1);
+  const endDate = latestRow?.parsed || new Date();
+  const buckets = [];
+  for (let offset = days - 1; offset >= 0; offset -= 1) {
+    const date = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate() - offset));
+    buckets.push(toIsoDayBucket(date));
+  }
+  return buckets.map((bucket) => ({
+    bucket,
+    value: valueByBucket.get(bucket) || 0
+  }));
+}
+
 // Admin chart helper (inlined to avoid module fetch issues)
-function renderAdminChartHelper({ svg, hintEl, points = [], range = '30d', metricLabel = 'Metric', formatBucketLabel }) {
+function renderAdminChartHelper({
+  svg,
+  hintEl,
+  points = [],
+  range = '30d',
+  metricLabel = 'Metric',
+  metricKey = '',
+  formatBucketLabel
+}) {
   if (!svg || !hintEl) return;
   if (!Array.isArray(points) || !points.length) {
     svg.innerHTML = '';
@@ -123,6 +239,7 @@ function renderAdminChartHelper({ svg, hintEl, points = [], range = '30d', metri
         return `<text x="${x.toFixed(2)}" y="${height - 8}" text-anchor="middle">${tick.label}</text>`;
       }).join('')}
     </g>
+    <line class="chart-hover-line" x1="${pad}" y1="${pad}" x2="${pad}" y2="${height - pad}" />
     <path d="${path.join(' ')}" fill="none" stroke="#2d5cff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>
     ${circles.join('')}
   `;
@@ -138,27 +255,42 @@ function renderAdminChartHelper({ svg, hintEl, points = [], range = '30d', metri
   hintEl.textContent = `${points.length} data points · ${metricLabel} (${range})`;
 
   const circlesEls = svg.querySelectorAll('.chart-point');
+  const hoverLineEl = svg.querySelector('.chart-hover-line');
+  const metricValueSuffix = ADMIN_METRIC_VALUE_SUFFIX[metricKey] || 'events';
   let activeIdx = null;
 
-  const showPoint = (idx, clientX, clientY) => {
+  const showPoint = (idx) => {
     if (idx == null || idx < 0 || idx >= pts.length) return;
     if (activeIdx !== null && circlesEls[activeIdx]) circlesEls[activeIdx].classList.remove('active');
     activeIdx = idx;
     const pt = pts[idx];
     if (circlesEls[idx]) circlesEls[idx].classList.add('active');
-    const rect = chartBody.getBoundingClientRect();
-    tooltip.innerHTML = `<div class="tooltip-date">${formatBucketLabel ? formatBucketLabel(pt.label) : pt.label}</div><div class="tooltip-metric">${metricLabel}</div><div class="tooltip-value">${pt.value.toLocaleString()}</div>`;
+    if (hoverLineEl) {
+      hoverLineEl.setAttribute('x1', pt.x.toFixed(2));
+      hoverLineEl.setAttribute('x2', pt.x.toFixed(2));
+      hoverLineEl.classList.add('active');
+    }
+    const chartRect = chartBody.getBoundingClientRect();
+    const svgRect = svg.getBoundingClientRect();
+    const scaleX = svgRect.width ? svgRect.width / width : 1;
+    const scaleY = svgRect.height ? svgRect.height / height : 1;
+    const anchorX = svgRect.left - chartRect.left + pt.x * scaleX;
+    const anchorY = svgRect.top - chartRect.top + pt.y * scaleY;
+    tooltip.innerHTML = `<div class="tooltip-date">${formatBucketLabel ? formatBucketLabel(pt.label) : pt.label}</div><div class="tooltip-metric">${metricLabel}</div><div class="tooltip-value">${pt.value.toLocaleString()} ${metricValueSuffix}</div>`;
     tooltip.style.opacity = '1';
     const tooltipWidth = tooltip.offsetWidth || 140;
     const tooltipHeight = tooltip.offsetHeight || 60;
-    const x = (clientX || 0) - rect.left - tooltipWidth / 2;
-    const y = (clientY || 0) - rect.top - tooltipHeight - 12;
-    tooltip.style.transform = `translate(${Math.max(0, Math.min(rect.width - tooltipWidth, x))}px, ${Math.max(0, y)}px)`;
+    const x = anchorX - tooltipWidth / 2;
+    const y = anchorY - tooltipHeight - 12;
+    const clampedX = Math.max(0, Math.min(chartRect.width - tooltipWidth, x));
+    const clampedY = Math.max(0, y);
+    tooltip.style.transform = `translate(${clampedX}px, ${clampedY}px)`;
   };
 
   const clearHover = () => {
     if (activeIdx !== null && circlesEls[activeIdx]) circlesEls[activeIdx].classList.remove('active');
     activeIdx = null;
+    hoverLineEl?.classList.remove('active');
     tooltip.style.opacity = '0';
   };
 
@@ -167,14 +299,10 @@ function renderAdminChartHelper({ svg, hintEl, points = [], range = '30d', metri
     const relativeX = event.clientX - rect.left - pad;
     const step = plotW / Math.max(1, numericPoints.length - 1);
     const idx = Math.max(0, Math.min(numericPoints.length - 1, Math.round(relativeX / step)));
-    showPoint(idx, event.clientX, event.clientY);
+    showPoint(idx);
   };
   svg.onmouseleave = clearHover;
-  const lastPoint = circlesEls[circlesEls.length - 1];
-  if (lastPoint) {
-    const bbox = lastPoint.getBoundingClientRect();
-    showPoint(circlesEls.length - 1, bbox.x + bbox.width / 2, bbox.y);
-  }
+  clearHover();
 }
 
 const OFFER_KPI_STATUSES = new Set(['OFFER_RECEIVED', 'OFFER', 'OFFER_EXTENDED']);
@@ -527,6 +655,7 @@ const filterCount = document.getElementById('filter-count');
 const applicationsTable = document.getElementById('applications-table');
 const appCount = document.getElementById('app-count');
 const dashboardOnboardingCard = document.getElementById('dashboard-onboarding');
+const dashboardLoadingShell = document.getElementById('dashboard-loading-shell');
 const dashboardOnboardingInboxAddress = document.getElementById('dashboard-onboarding-inbox-address');
 const dashboardOnboardingInboxLink = document.querySelector('#dashboard-onboarding .dashboard-onboarding-inbox-link');
 const dashboardFiltersInline = document.getElementById('filters-inline');
@@ -872,7 +1001,9 @@ const state = {
     rejectedDelta: 0
   },
   dashboard: {
-    onboardingDismissed: false
+    onboardingDismissed: false,
+    initialLoading: false,
+    hasHydrated: false
   },
   archived: {
     offset: 0,
@@ -4327,7 +4458,38 @@ function hasCompletedDashboardInboxSetup() {
   return readiness === 'forwarding_active' || readiness === 'awaiting_first_email';
 }
 
+function applyDashboardLoadingState() {
+  const active = Boolean(state.dashboard.initialLoading);
+  dashboardView?.classList.toggle('dashboard-initial-loading', active);
+  if (dashboardLoadingShell) {
+    dashboardLoadingShell.classList.toggle('hidden', !active);
+  }
+  if (active) {
+    dashboardOnboardingCard?.classList.add('hidden');
+    dashboardFiltersInline?.classList.add('hidden');
+  }
+}
+
+function setDashboardInitialLoading(isLoading, { hydrated } = {}) {
+  const active = Boolean(isLoading);
+  state.dashboard.initialLoading = active;
+  if (typeof hydrated === 'boolean') {
+    state.dashboard.hasHydrated = hydrated;
+  } else if (active) {
+    state.dashboard.hasHydrated = false;
+  } else if (sessionUser) {
+    state.dashboard.hasHydrated = true;
+  }
+  applyDashboardLoadingState();
+  if (!active && sessionUser) {
+    applyDashboardOnboardingState(state.table.total);
+  }
+}
+
 function shouldShowDashboardOnboarding(total = state.table.total) {
+  if (state.dashboard.initialLoading || !state.dashboard.hasHydrated) {
+    return false;
+  }
   const safeTotal = Number.isFinite(Number(total)) ? Number(total) : 0;
   if (!sessionUser || safeTotal > 0) {
     state.dashboard.onboardingDismissed = false;
@@ -4785,7 +4947,7 @@ async function refreshDashboardKpis() {
 }
 
 function refreshDashboardEmptyStateIfNeeded() {
-  if (!sessionUser || state.lastTotal !== 0) {
+  if (!sessionUser || state.lastTotal !== 0 || state.dashboard.initialLoading || !state.dashboard.hasHydrated) {
     return;
   }
   const hash = window.location.hash.replace('#', '');
@@ -4865,6 +5027,7 @@ function setView(view) {
   }
   if (view === 'dashboard') {
     syncInboundAutoPolling();
+    applyDashboardLoadingState();
     applyDashboardOnboardingState(state.table.total);
   } else {
     clearInboundAutoSyncPolling();
@@ -5252,11 +5415,16 @@ function renderAdminKpis(summary) {
 
 function renderAdminChart(trend) {
   const els = ensureAdminElements();
+  const normalizedPoints = normalizeAdminTrendPoints(trend?.points || [], {
+    range: trend?.range || '30d',
+    bucketType: trend?.bucket_type || (trend?.range === '12m' ? 'month' : 'day')
+  });
   renderAdminChartHelper({
     svg: els.chartSvg,
     hintEl: els.chartHint,
-    points: trend?.points || [],
+    points: normalizedPoints,
     range: trend?.range || '30d',
+    metricKey: trend?.metric || '',
     metricLabel: ADMIN_METRIC_LABELS[trend.metric] || trend.metric?.replace(/_/g, ' ') || 'Metric',
     formatBucketLabel
   });
@@ -5314,11 +5482,21 @@ async function loadAdminTrend(metric = adminTrendState.metric, range = adminTren
       `/api/admin/analytics/trends?metric=${encodeURIComponent(metric)}&range=${encodeURIComponent(range)}`
     );
     clearTimeout(trendTimeout);
-    adminTrendState = { ...adminTrendState, metric, range, points: trend.points || [] };
-    renderAdminChart(trend);
+    const normalizedPoints = normalizeAdminTrendPoints(trend?.points || [], {
+      range,
+      bucketType: trend?.bucket_type || (range === '12m' ? 'month' : 'day')
+    });
+    const hydratedTrend = {
+      ...trend,
+      metric,
+      range,
+      points: normalizedPoints
+    };
+    adminTrendState = { ...adminTrendState, metric, range, points: normalizedPoints };
+    renderAdminChart(hydratedTrend);
     const els2 = ensureAdminElements();
     if (els2.statusText) {
-      els2.statusText.textContent = `Trend loaded (${trend.points?.length || 0} points, ${metric}, ${range}).`;
+      els2.statusText.textContent = `Trend loaded (${normalizedPoints.length || 0} points, ${metric}, ${range}).`;
     }
     return true;
   } catch (err) {
@@ -5878,6 +6056,7 @@ async function loadSession() {
       console.debug('[auth] loadSession failed', err);
     }
     sessionUser = null;
+    setDashboardInitialLoading(false, { hydrated: false });
     setView('auth');
     return false;
   }
@@ -5890,14 +6069,18 @@ async function loadSession() {
   addToggle?.setAttribute('aria-expanded', 'false');
   void refreshPlanUsage();
 
+  setDashboardInitialLoading(true);
   setView('dashboard');
+  let initialDashboardHydrated = false;
 
   try {
     await loadActiveApplications();
+    initialDashboardHydrated = true;
   } catch (err) {
     const authFailure = err?.status === 401 || err?.message === 'AUTH_REQUIRED';
     if (authFailure) {
       sessionUser = null;
+      setDashboardInitialLoading(false, { hydrated: false });
       setView('auth');
       return false;
     }
@@ -5906,6 +6089,10 @@ async function loadSession() {
       console.debug('[apps] loadActiveApplications failed', err);
     }
     showNotice('Unable to load applications.', 'Dashboard');
+  } finally {
+    if (sessionUser) {
+      setDashboardInitialLoading(false, { hydrated: initialDashboardHydrated });
+    }
   }
 
   await refreshEmailStatus();
@@ -10299,6 +10486,7 @@ function route() {
 
   if (!sessionUser) {
     state.dashboard.onboardingDismissed = false;
+    setDashboardInitialLoading(false, { hydrated: false });
     setDrawerOpen(false);
     addToggle?.setAttribute('aria-expanded', 'false');
     if (isPublicRoute) {
@@ -10368,6 +10556,7 @@ function route() {
       const authFailure = err?.status === 401 || err?.message === 'AUTH_REQUIRED';
       if (authFailure) {
         sessionUser = null;
+        setDashboardInitialLoading(false, { hydrated: false });
         setAuthPanel('signin');
         setView('auth');
         return;
@@ -10708,6 +10897,7 @@ if (accountPasswordButton && !accountPasswordButton.dataset.bound) {
 async function performLogout() {
   await api('/api/auth/logout', { method: 'POST' });
   sessionUser = null;
+  setDashboardInitialLoading(false, { hydrated: false });
   emailState.configured = false;
   emailState.encryptionReady = false;
   emailState.connected = false;

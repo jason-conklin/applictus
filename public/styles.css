@@ -7516,6 +7516,8 @@ button.inbound-diagnostics-row:hover {
   border-radius: 12px;
   border: 1px solid rgba(20, 53, 103, 0.12);
   background: linear-gradient(180deg, rgba(247, 251, 255, 0.9) 0%, rgba(255, 255, 255, 0.95) 100%);
+  position: relative;
+  overflow: visible;
 }
 
 #admin-analytics-section #analytics-chart {
@@ -12451,6 +12453,133 @@ body.app-page-bg .topbar .nav-link.active {
   content: none;
 }
 
+#dashboard-view .dashboard-loading-shell {
+  display: none;
+  gap: 14px;
+  padding: 18px;
+  border-radius: var(--dash-radius-lg);
+  border: 1px solid var(--dash-border);
+  background: linear-gradient(180deg, rgba(248, 252, 255, 0.96) 0%, rgba(243, 249, 255, 0.94) 100%);
+  box-shadow:
+    var(--dash-shadow2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+#dashboard-view .dashboard-loading-shell__intro {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+#dashboard-view .dashboard-loading-shell__mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  border: 1px solid rgba(46, 90, 172, 0.26);
+  background: linear-gradient(160deg, rgba(47, 102, 196, 0.2), rgba(47, 102, 196, 0.08));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #174489;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  box-shadow:
+    0 8px 18px rgba(24, 64, 130, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+#dashboard-view .dashboard-loading-shell__copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+#dashboard-view .dashboard-loading-shell__copy h3 {
+  margin: 0;
+  color: #14325d;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+#dashboard-view .dashboard-loading-shell__copy p {
+  margin: 0;
+  color: rgba(20, 48, 86, 0.72);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+#dashboard-view .dashboard-loading-shell__kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+#dashboard-view .dashboard-loading-shell__kpi {
+  min-height: 56px;
+  border-radius: 12px;
+}
+
+#dashboard-view .dashboard-loading-shell__table {
+  display: grid;
+  gap: 7px;
+}
+
+#dashboard-view .dashboard-loading-shell__table-head {
+  height: 30px;
+  border-radius: 10px;
+}
+
+#dashboard-view .dashboard-loading-shell__table-row {
+  height: 48px;
+  border-radius: 12px;
+}
+
+#dashboard-view .dashboard-loading-shell .shimmer-block {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(226, 236, 248, 0.56), rgba(213, 227, 244, 0.5));
+  border: 1px solid rgba(24, 64, 120, 0.08);
+}
+
+#dashboard-view .dashboard-loading-shell .shimmer-block::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.44) 46%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: dashboardSkeletonShimmer 1.35s ease-in-out infinite;
+}
+
+@keyframes dashboardSkeletonShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+#dashboard-view.dashboard-initial-loading .dashboard-loading-shell {
+  display: grid;
+}
+
+#dashboard-view.dashboard-initial-loading .dashboard-onboarding,
+#dashboard-view.dashboard-initial-loading .kpi-row,
+#dashboard-view.dashboard-initial-loading #dashboard-applications-card,
+#dashboard-view.dashboard-initial-loading #dashboard-plan-warning {
+  display: none !important;
+}
+
+#dashboard-view.dashboard-initial-loading #filters-inline {
+  display: none !important;
+}
+
 #dashboard-view .dashboard-onboarding {
   display: none;
   grid-template-columns: minmax(0, 1.56fr) minmax(0, 1fr);
@@ -12878,6 +13007,13 @@ body.app-page-bg .topbar .nav-link.active {
 
 #dashboard-view .card.surface-raised.surface-rim > .table {
   z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #dashboard-view .dashboard-loading-shell .shimmer-block::after {
+    animation: none;
+    opacity: 0;
+  }
 }
 
 #dashboard-view .sync-strip.status-strip {
@@ -14135,6 +14271,14 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 @media (max-width: 900px) {
+  #dashboard-view .dashboard-loading-shell {
+    padding: 16px;
+  }
+
+  #dashboard-view .dashboard-loading-shell__copy h3 {
+    font-size: 18px;
+  }
+
   #dashboard-view .kpi-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -14420,6 +14564,8 @@ body.app-page-bg .topbar .nav-link.active {
 /* Admin analytics chart polish */
 .chart-tooltip {
   position: absolute;
+  top: 0;
+  left: 0;
   pointer-events: none;
   background: #fff;
   border: 1px solid rgba(20, 40, 80, 0.12);
@@ -14430,10 +14576,19 @@ body.app-page-bg .topbar .nav-link.active {
   color: #12284a;
   opacity: 0;
   transition: opacity 120ms ease, transform 120ms ease;
+  z-index: 4;
 }
 .chart-tooltip .tooltip-date { font-weight: 700; }
 .chart-tooltip .tooltip-metric { color: #4a5a73; }
 .chart-tooltip .tooltip-value { font-size: 14px; font-weight: 700; }
+.chart-hover-line {
+  stroke: rgba(45, 92, 255, 0.28);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.chart-hover-line.active { opacity: 1; }
 .chart-point { fill: #2d5cff; stroke: #fff; stroke-width: 1.5; opacity: 0.9; }
 .chart-point.active { r: 6.5; opacity: 1; filter: drop-shadow(0 2px 6px rgba(45, 92, 255, 0.35)); }
 
@@ -14448,6 +14603,54 @@ body.app-page-bg .topbar .nav-link.active {
 
   #dashboard-view .sync-band {
     padding: 7px 9px;
+  }
+
+  #dashboard-view .dashboard-loading-shell {
+    padding: 12px;
+    gap: 10px;
+    border-radius: 14px;
+  }
+
+  #dashboard-view .dashboard-loading-shell__intro {
+    gap: 10px;
+  }
+
+  #dashboard-view .dashboard-loading-shell__mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+    font-size: 13px;
+  }
+
+  #dashboard-view .dashboard-loading-shell__copy h3 {
+    font-size: 16px;
+  }
+
+  #dashboard-view .dashboard-loading-shell__copy p {
+    font-size: 12px;
+  }
+
+  #dashboard-view .dashboard-loading-shell__kpis {
+    gap: 5px;
+  }
+
+  #dashboard-view .dashboard-loading-shell__kpi {
+    min-height: 50px;
+    border-radius: 10px;
+  }
+
+  #dashboard-view .dashboard-loading-shell__table {
+    gap: 6px;
+  }
+
+  #dashboard-view .dashboard-loading-shell__table-head {
+    height: 26px;
+    border-radius: 8px;
+  }
+
+  #dashboard-view .dashboard-loading-shell__table-row {
+    height: 42px;
+    border-radius: 10px;
   }
 
   #dashboard-view .sync-strip.status-strip {
