@@ -23,7 +23,8 @@ const ATS_BASE_DOMAINS = new Set([
   'ashbyhq',
   'successfactors',
   'adp',
-  'bamboohr'
+  'bamboohr',
+  'governmentjobs'
 ]);
 
 const ATS_SENDER_HINTS = new Set([
@@ -43,7 +44,8 @@ const ATS_SENDER_HINTS = new Set([
   'ashbyhq',
   'successfactors',
   'adp',
-  'bamboohr'
+  'bamboohr',
+  'governmentjobs'
 ]);
 
 const PROVIDER_DISPLAY_NAMES = new Set([
@@ -63,7 +65,8 @@ const PROVIDER_DISPLAY_NAMES = new Set([
   'talemetry',
   'successfactors',
   'adp',
-  'bamboohr'
+  'bamboohr',
+  'governmentjobs'
 ]);
 
 const ATS_LOCALPART_COMPANY_MAP = {
@@ -281,6 +284,12 @@ const BODY_COMPANY_PATTERNS = [
     regex:
       /\bjoining\s+(?:the\s+)?([A-Z][A-Za-z0-9&/'\- ]{2,80}?)\s+(?:team|hiring team|recruiting team|talent acquisition team)\b/i,
     confidence: 0.94
+  },
+  {
+    name: 'body_position_with_company',
+    regex:
+      /\b(?:applying for|application for)\s+(?:the\s+)?[\p{L}0-9][\p{L}\p{M}0-9/&.'\-() ]{2,140}?\s+position\s+(?:with|at)\s+([\p{L}0-9][\p{L}\p{M}0-9&/'\- ]{2,100}?)(?=\s*(?:[-–—|,.;\n]|$))/iu,
+    confidence: 0.94
   }
 ];
 
@@ -331,6 +340,12 @@ const COMPANY_ONLY_PATTERNS = [
   {
     name: 'your_application_for_role_at_company',
     regex: /\byour application for\s+(?:the\s+)?[\p{L}0-9][\p{L}\p{M}0-9/&.'\- ]{2,120}?\s+at\s+([\p{L}0-9][\p{L}\p{M}0-9&.'\- ]{1,100}?)(?=\s*(?:[.!?,\n]|$))/iu,
+    confidence: 0.95
+  },
+  {
+    name: 'applying_for_position_with_company',
+    regex:
+      /\bthank you for your interest in applying for\s+(?:the\s+)?[\p{L}0-9][\p{L}\p{M}0-9/&.'\-() ]{2,140}?\s+position\s+(?:with|at)\s+([\p{L}0-9][\p{L}\p{M}0-9&/'\- ]{2,100}?)(?=\s*(?:[-–—|,.;\n]|$))/iu,
     confidence: 0.95
   },
   {

@@ -649,6 +649,58 @@ test('classifyEmail detects applytojob rejection', () => {
   assert.ok(result.confidenceScore >= 0.9);
 });
 
+test('classifyEmail detects formal governmentjobs rejection closure wording', () => {
+  const subject = 'Response to your application';
+  const sender = 'info@governmentjobs.com';
+  const body = [
+    'Thank you for your interest in applying for the Mid-Level Applications Developer (Information Technology Analyst 2) position with New Jersey Courts - Central Office.',
+    'The recruitment has now been completed and another applicant has been selected for this position.',
+    'We appreciate your interest in New Jersey Courts and extend our best wishes in your employment search.'
+  ].join('\n');
+
+  const relevance = isRelevantApplicationEmail({ subject, sender, body });
+  assert.equal(relevance.isRelevant, true);
+  assert.ok(
+    relevance.matchedKeywords.includes('thank_you_interest_in_role') ||
+      relevance.matchedKeywords.includes('another_applicant_selected') ||
+      relevance.matchedKeywords.includes('recruitment_completed')
+  );
+
+  const result = classifyEmail({ subject, sender, body });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'rejection');
+  assert.ok(result.confidenceScore >= 0.9);
+  assert.ok(Array.isArray(result.debug?.rejectionMatches));
+  assert.ok(
+    result.debug.rejectionMatches.some((label) =>
+      String(label).includes('another applicant selected')
+    )
+  );
+});
+
+test('classifyEmail detects formal public-sector rejection variants with application context', () => {
+  const variants = [
+    'The recruitment has been completed and another applicant has been selected for this position.',
+    'Another candidate has been selected for this position.',
+    'The selection process has concluded and another applicant was chosen for the role.'
+  ];
+
+  for (const variant of variants) {
+    const body = [
+      'Thank you for your interest in applying for the Information Technology Analyst 2 position.',
+      variant,
+      'We appreciate your interest and wish you success in your employment search.'
+    ].join('\n');
+    const result = classifyEmail({
+      subject: 'Response to your application',
+      sender: 'info@governmentjobs.com',
+      body
+    });
+    assert.equal(result.isJobRelated, true);
+    assert.equal(result.detectedType, 'rejection');
+  }
+});
+
 test('classifyEmail detects offer', () => {
   const result = classifyEmail({
     subject: 'Offer letter',

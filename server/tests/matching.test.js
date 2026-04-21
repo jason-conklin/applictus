@@ -327,6 +327,23 @@ test('extractThreadIdentity parses Fulcrum interview-stage subject role and sign
   assert.equal(/Adrian Berley/i.test(String(identity.companyName || '')), false);
 });
 
+test('extractThreadIdentity parses governmentjobs formal rejection context with employer + long role', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Response to your application',
+    sender: 'info@governmentjobs.com',
+    bodyText: [
+      'Thank you for your interest in applying for the Mid-Level Applications Developer (Information Technology Analyst 2) position with New Jersey Courts - Central Office.',
+      'The recruitment has now been completed and another applicant has been selected for this position.',
+      'We appreciate your interest and extend our best wishes in your employment search.'
+    ].join('\n')
+  });
+
+  assert.equal(identity.companyName, 'New Jersey Courts');
+  assert.equal(identity.jobTitle, 'Mid-Level Applications Developer (Information Technology Analyst 2)');
+  assert.equal(String(identity.companyName || '').toLowerCase(), 'new jersey courts');
+  assert.ok((identity.companyConfidence || 0) >= 0.9);
+});
+
 test('extractThreadIdentity parses Oracle Cloud follow-up without sender-email company leak', () => {
   const identity = extractThreadIdentity({
     subject: 'Application Follow Up',

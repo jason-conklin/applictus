@@ -205,6 +205,79 @@ test('matched rejection updates application status', async () => {
   db.close();
 });
 
+test('governmentjobs formal rejection wording matches existing application and updates status', async () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+
+  const subject = 'Response to your application';
+  const sender = 'info@governmentjobs.com';
+  const body = [
+    'Thank you for your interest in applying for the Mid-Level Applications Developer (Information Technology Analyst 2) position with New Jersey Courts - Central Office.',
+    'The recruitment has now been completed and another applicant has been selected for this position.',
+    'We appreciate your interest and extend our best wishes in your employment search.'
+  ].join('\n');
+
+  const appId = insertApplication(db, {
+    userId,
+    company: 'New Jersey Courts',
+    role: 'Mid-Level Applications Developer (Information Technology Analyst 2)'
+  });
+
+  const classification = classifyEmail({
+    subject,
+    sender,
+    snippet: body,
+    body
+  });
+  assert.equal(classification.detectedType, 'rejection');
+
+  const identity = extractThreadIdentity({
+    subject,
+    sender,
+    snippet: body,
+    bodyText: body
+  });
+  assert.equal(identity.companyName, 'New Jersey Courts');
+  assert.equal(identity.jobTitle, 'Mid-Level Applications Developer (Information Technology Analyst 2)');
+
+  const rejectionId = insertEmailEvent(db, {
+    userId,
+    messageId: 'msg-govjobs-reject-1',
+    sender,
+    subject,
+    detectedType: classification.detectedType,
+    confidenceScore: classification.confidenceScore,
+    classificationConfidence: classification.confidenceScore,
+    snippet: body
+  });
+
+  const match = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: rejectionId,
+      sender,
+      subject,
+      snippet: body,
+      detected_type: classification.detectedType,
+      confidence_score: classification.confidenceScore,
+      classification_confidence: classification.confidenceScore,
+      role_title: identity.jobTitle,
+      role_confidence: identity.roleConfidence,
+      created_at: new Date().toISOString()
+    },
+    identity
+  });
+  assert.equal(match.action, 'matched_existing');
+  assert.equal(match.applicationId, appId);
+
+  runStatusInferenceForApplication(db, userId, appId);
+  const updated = db.prepare('SELECT current_status FROM job_applications WHERE id = ?').get(appId);
+  assert.equal(updated.current_status, ApplicationStatus.REJECTED);
+  db.close();
+});
+
 test('LinkedIn confirmation and rejection lifecycle updates existing application to REJECTED', async () => {
   const db = new Database(':memory:');
   runMigrations(db);

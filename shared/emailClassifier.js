@@ -123,6 +123,12 @@ const RELEVANCE_KEEP_SIGNALS = [
   { pattern: /\bwe (?:will not|are not) moving forward\b/i, label: 'moving_forward_rejection' },
   { pattern: /\bnot selected\b/i, label: 'not_selected' },
   { pattern: /\bpursue other candidates\b/i, label: 'pursue_other_candidates' },
+  {
+    pattern: /\banother (?:applicant|candidate) (?:has been|was) (?:selected|chosen)(?: for (?:this|the) (?:position|role))?\b/i,
+    label: 'another_applicant_selected'
+  },
+  { pattern: /\bthe recruitment has (?:now )?been completed\b/i, label: 'recruitment_completed' },
+  { pattern: /\bthe selection process has concluded\b/i, label: 'selection_process_concluded' },
   { pattern: /\boffer (?:letter|extended|received)\b/i, label: 'offer_signal' },
   { pattern: /\b(interview|phone screen|screening call)\b/i, label: 'interview_context' },
   { pattern: /\binvite you to (?:an )?interview\b/i, label: 'interview_invite' }
@@ -415,6 +421,22 @@ const SOFT_REJECTION_SIGNALS = [
   {
     pattern: /\b(?:this message is )?only in reference to\b/i,
     label: 'only in reference to this position'
+  },
+  {
+    pattern: /\banother (?:applicant|candidate) (?:has been|was) (?:selected|chosen)(?: for (?:this|the) (?:position|role))?\b/i,
+    label: 'another applicant selected'
+  },
+  {
+    pattern: /\bthe recruitment has (?:now )?been completed\b/i,
+    label: 'recruitment has been completed'
+  },
+  {
+    pattern: /\bthe selection process has concluded\b/i,
+    label: 'selection process has concluded'
+  },
+  {
+    pattern: /\bwe appreciate your interest\b.{0,160}\b(?:best wishes|success) in your employment search\b/i,
+    label: 'appreciate interest and wish success'
   }
 ];
 
@@ -674,6 +696,9 @@ const RULES = [
     /pursue other candidates/i,
     /we (?:have )?chosen other candidates/i,
     /we (?:have )?chosen other applicants/i,
+    /another (?:applicant|candidate) (?:has been|was) (?:selected|chosen)(?: for (?:this|the) (?:position|role))?/i,
+    /the recruitment has (?:now )?been completed(?: and another (?:applicant|candidate) (?:has been|was) (?:selected|chosen))?/i,
+    /the selection process has concluded(?: and another (?:applicant|candidate) (?:has been|was) (?:selected|chosen))?/i,
     /we (?:will not|won't) be moving forward/i,
     /we are not moving forward with your (?:application|candidacy)/i,
     /we have carefully reviewed your application/i,
@@ -808,6 +833,9 @@ const STRONG_REJECTION_RULE = {
     /we are not moving forward with your (?:application|candidacy)/i,
     /move forward with other candidates/i,
     /we (?:have )?decided to pursue other candidates/i,
+    /another (?:applicant|candidate) (?:has been|was) (?:selected|chosen)(?: for (?:this|the) (?:position|role))?/i,
+    /the recruitment has (?:now )?been completed(?: and another (?:applicant|candidate) (?:has been|was) (?:selected|chosen))?/i,
+    /the selection process has concluded(?: and another (?:applicant|candidate) (?:has been|was) (?:selected|chosen))?/i,
     /regret to inform/i,
     /go in a different direction/i
   ]
@@ -877,6 +905,9 @@ function hasStrongJobLifecycleEvidence(text) {
     /\bshare your availability\b/i.test(sourceText) ||
     /\boffer (?:letter|extended|received)\b/i.test(sourceText) ||
     /\bnot selected\b/i.test(sourceText) ||
+    /\banother (?:applicant|candidate) (?:has been|was) (?:selected|chosen)\b/i.test(sourceText) ||
+    /\bthe recruitment has (?:now )?been completed\b/i.test(sourceText) ||
+    /\bthe selection process has concluded\b/i.test(sourceText) ||
     /\b(?:will not|not) be moving forward with your application\b/i.test(sourceText)
   );
 }

@@ -1667,7 +1667,11 @@ async function syncGmailMessages({
         logDebug('ingest.skip_not_job', {
           userId,
           messageId: message.id,
-          explanation: classification.explanation
+          reasonCode,
+          classifierReason: classification.reason || null,
+          classifierType: classification.detectedType || null,
+          explanation: classification.explanation,
+          relevanceReason: relevanceDecision.reason || null
         });
         if (indeedConfirmationTrace) {
           logDebug('ingest.indeed_confirmation_trace', {
