@@ -424,7 +424,7 @@
           0 54px 110px rgba(14, 34, 67, 0.38),
           0 16px 34px rgba(16, 42, 84, 0.21),
           inset 0 1px 0 rgba(255, 255, 255, 0.88);
-        overflow: hidden;
+        overflow: auto;
       }
       .modal--pricing .modal-dialog::before {
         height: 64px;
@@ -879,7 +879,7 @@
       }
       .modal--pricing .modal-body {
         display: grid;
-        gap: 18px;
+        gap: 26px;
       }
       .pricing-value-row {
         display: flex;
@@ -926,10 +926,12 @@
       }
       .modal--pricing .plan-card-grid {
         gap: 26px;
-        margin-top: 2px;
+        margin-top: 0;
+        align-items: stretch;
+        grid-auto-rows: 1fr;
       }
       .modal--pricing .plan-card-grid::before {
-        top: -34px;
+        top: 14px;
         width: min(560px, 56%);
         height: 164px;
         background: radial-gradient(
@@ -938,9 +940,12 @@
           rgba(100, 122, 237, 0.11) 52%,
           rgba(111, 130, 240, 0) 78%
         );
-        opacity: 0.66;
+        opacity: 0.58;
       }
       .modal--pricing .plan-card {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
         border-radius: 28px;
         padding: 24px 22px 18px;
         border-color: rgba(37, 64, 106, 0.16);
@@ -994,7 +999,7 @@
           0 34px 64px rgba(39, 54, 138, 0.27),
           0 14px 28px rgba(39, 54, 138, 0.16),
           inset 0 1px 0 rgba(255, 255, 255, 0.94);
-        transform: translateY(-7px) scale(1.012);
+        transform: none;
       }
       .modal--pricing .plan-card--pro::after {
         left: 30%;
@@ -1010,7 +1015,7 @@
       }
       .modal--pricing .plan-card--pro:hover,
       .modal--pricing .plan-card--pro:focus-within {
-        transform: translateY(-9px) scale(1.014);
+        transform: translateY(-6px) scale(1.008);
       }
       .modal--pricing .plan-card--jobsearch {
         border-color: rgba(217, 177, 121, 0.44);
@@ -1214,6 +1219,30 @@
       .modal--pricing .plan-cta-subtext {
         color: #4b678d;
       }
+      .modal--pricing .plan-card-main {
+        display: grid;
+        gap: 0;
+        min-height: 0;
+      }
+      .modal--pricing .plan-card-spacer {
+        flex: 1 1 auto;
+        min-height: 10px;
+      }
+      .modal--pricing .plan-cta-wrap {
+        margin-top: 0;
+        padding-top: 10px;
+        display: grid;
+        gap: 7px;
+      }
+      .modal--pricing .plan-cta-subtext {
+        min-height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .modal--pricing .plan-cta-subtext--placeholder {
+        visibility: hidden;
+      }
       .pricing-trust-section {
         display: grid;
         gap: 10px;
@@ -1323,8 +1352,8 @@
         .plan-card-grid::before {
           width: min(420px, 64%);
         }
-        .plan-card--pro {
-          transform: translateY(-2px);
+        .modal--pricing .plan-card--pro {
+          transform: none;
         }
         .pricing-trust-panel {
           grid-template-columns: repeat(2, minmax(0, 1fr));

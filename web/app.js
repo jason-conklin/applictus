@@ -6016,27 +6016,36 @@ function buildPlanCard({
   const ctaWrap = document.createElement('div');
   ctaWrap.className = 'plan-cta-wrap';
   ctaWrap.appendChild(btn);
+  const ctaSubtextEl = document.createElement('div');
+  ctaSubtextEl.className = 'plan-cta-subtext muted small';
   if (ctaSubtext) {
-    const ctaSubtextEl = document.createElement('div');
-    ctaSubtextEl.className = 'plan-cta-subtext muted small';
     ctaSubtextEl.textContent = ctaSubtext;
-    ctaWrap.appendChild(ctaSubtextEl);
+  } else {
+    ctaSubtextEl.classList.add('plan-cta-subtext--placeholder');
+    ctaSubtextEl.setAttribute('aria-hidden', 'true');
+    ctaSubtextEl.textContent = '\u00A0';
   }
+  ctaWrap.appendChild(ctaSubtextEl);
 
-  card.append(top, priceEl, limitEl);
+  const cardMain = document.createElement('div');
+  cardMain.className = 'plan-card-main';
+  cardMain.append(top, priceEl, limitEl);
   if (billingNoteEl) {
-    card.appendChild(billingNoteEl);
+    cardMain.appendChild(billingNoteEl);
   }
   if (priceHintEl) {
-    card.appendChild(priceHintEl);
+    cardMain.appendChild(priceHintEl);
   }
   if (contentEl) {
-    card.append(dividerEl, contentEl);
+    cardMain.append(dividerEl, contentEl);
   }
   if (reinforcementEl) {
-    card.appendChild(reinforcementEl);
+    cardMain.appendChild(reinforcementEl);
   }
-  card.appendChild(ctaWrap);
+
+  const spacer = document.createElement('div');
+  spacer.className = 'plan-card-spacer';
+  card.append(cardMain, spacer, ctaWrap);
   return card;
 }
 
