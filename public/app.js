@@ -8812,7 +8812,7 @@ function buildMetricsLine(metrics) {
   const applications = Number.isFinite(metrics.appsUpdated)
     ? `${metrics.appsUpdated} updated`
     : '— updated';
-  return `Last scan • ${when} • ${messages} • ${applications}`;
+  return `• ${when} • ${messages} • ${applications}`;
 }
 
 function getStoredSyncDetailsOpen() {
