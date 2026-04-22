@@ -1961,7 +1961,7 @@ p {
 }
 
 .about-hero {
-  width: min(980px, 100%);
+  width: min(1120px, 100%);
   padding: 18px 20px;
   border-radius: 16px;
   border: 1px solid rgba(31, 70, 131, 0.12);
@@ -1980,7 +1980,7 @@ p {
 
 .about-subtitle {
   margin: 0;
-  max-width: 820px;
+  max-width: 980px;
   color: #355277;
   font-size: 16px;
   line-height: 1.55;
@@ -2040,7 +2040,7 @@ p {
 
 .about-why-copy {
   margin: 0;
-  max-width: 900px;
+  max-width: 1080px;
   line-height: 1.6;
   color: #3f5b82;
 }
