@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 
 const BILLING_OPTIONS = Object.freeze({
+  FREE: 'free',
   PRO_MONTHLY: 'pro_monthly',
   JOB_SEARCH_PLAN: 'job_search_plan'
 });
@@ -18,6 +19,9 @@ function normalizeBillingOption(option) {
   if (!value) {
     return null;
   }
+  if (['free', 'none'].includes(value)) {
+    return BILLING_OPTIONS.FREE;
+  }
   if (['pro_monthly', 'monthly', 'pro', 'pro-monthly'].includes(value)) {
     return BILLING_OPTIONS.PRO_MONTHLY;
   }
@@ -33,7 +37,7 @@ function normalizeBillingOption(option) {
 
 function getCheckoutPlanConfig(option, env = process.env) {
   const normalized = normalizeBillingOption(option);
-  if (!normalized) {
+  if (!normalized || normalized === BILLING_OPTIONS.FREE) {
     return null;
   }
   if (normalized === BILLING_OPTIONS.PRO_MONTHLY) {

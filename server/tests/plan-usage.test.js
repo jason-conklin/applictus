@@ -5,7 +5,8 @@ const {
   applyTrackedEmailUsage,
   applyInboundEmailReceiptUsage,
   applyInboundOutcomeUsage,
-  currentMonthBucket
+  currentMonthBucket,
+  resolveInboundLimit
 } = require('../src/planUsage');
 
 function createMockDb(initialUsers = []) {
@@ -122,6 +123,19 @@ function createMockDb(initialUsers = []) {
             users.set(userId, row);
             return { changes: 1 };
           }
+          if (
+            normalized.includes('set monthly_tracked_email_limit = ?') &&
+            normalized.includes('where id = ?') &&
+            !normalized.includes('tracked_email_count_current_month = 0')
+          ) {
+            const trackedLimit = args[0];
+            const userId = args[1];
+            const row = users.get(userId);
+            if (!row) throw new Error('USER_NOT_FOUND');
+            row.monthly_tracked_email_limit = trackedLimit;
+            users.set(userId, row);
+            return { changes: 1 };
+          }
           if (normalized.includes('set inbound_email_count_current_month = 0')) {
             const bucket = args[0];
             const inboundLimit = args[1];
@@ -141,16 +155,50 @@ function createMockDb(initialUsers = []) {
             return { changes: 1 };
           }
           if (
-            normalized.includes('set monthly_inbound_email_limit = coalesce(monthly_inbound_email_limit, ?)') &&
+            normalized.includes('set monthly_inbound_email_limit = ?') &&
             normalized.includes('where id = ?')
           ) {
             const inboundLimit = args[0];
             const userId = args[1];
             const row = users.get(userId);
             if (!row) throw new Error('USER_NOT_FOUND');
-            if (row.monthly_inbound_email_limit == null) {
-              row.monthly_inbound_email_limit = inboundLimit;
-            }
+            row.monthly_inbound_email_limit = inboundLimit;
+            users.set(userId, row);
+            return { changes: 1 };
+          }
+          if (
+            normalized.includes('set plan_tier = ?') &&
+            normalized.includes('billing_plan = ?') &&
+            normalized.includes('monthly_tracked_email_limit = ?') &&
+            normalized.includes('monthly_inbound_email_limit = ?') &&
+            normalized.includes('updated_at = ?') &&
+            normalized.includes('where id = ?')
+          ) {
+            const [planTier, billingPlan, trackedLimit, inboundLimit, _updatedAt, userId] = args;
+            const row = users.get(userId);
+            if (!row) throw new Error('USER_NOT_FOUND');
+            row.plan_tier = planTier;
+            row.billing_plan = billingPlan;
+            row.monthly_tracked_email_limit = trackedLimit;
+            row.monthly_inbound_email_limit = inboundLimit;
+            users.set(userId, row);
+            return { changes: 1 };
+          }
+          if (
+            normalized.includes("set plan_tier = 'pro'") &&
+            normalized.includes('monthly_tracked_email_limit = ?') &&
+            normalized.includes('monthly_inbound_email_limit = ?') &&
+            normalized.includes('updated_at = ?') &&
+            normalized.includes('where id = ?')
+          ) {
+            const trackedLimit = Number(args[0] || 0);
+            const inboundLimit = Number(args[1] || 0);
+            const userId = args[3];
+            const row = users.get(userId);
+            if (!row) throw new Error('USER_NOT_FOUND');
+            row.plan_tier = 'pro';
+            row.monthly_tracked_email_limit = trackedLimit;
+            row.monthly_inbound_email_limit = inboundLimit;
             users.set(userId, row);
             return { changes: 1 };
           }
@@ -287,7 +335,7 @@ test('raw inbound counting and tracked usage stay separate', () => {
     {
       id: 'u1',
       plan_tier: 'free',
-      monthly_inbound_email_limit: 300,
+      monthly_inbound_email_limit: 150,
       inbound_email_count_current_month: 0,
       inbound_email_month_bucket: bucket,
       tracked_email_count_current_month: 0,
@@ -315,24 +363,89 @@ test('raw inbound counting and tracked usage stay separate', () => {
 });
 
 test('raw inbound cap blocks only when usage exceeds configured cap', () => {
+  const originalFreeInboundLimit = process.env.JOBTRACK_FREE_MONTHLY_INBOUND_LIMIT;
+  process.env.JOBTRACK_FREE_MONTHLY_INBOUND_LIMIT = '2';
+  try {
+    const bucket = currentMonthBucket();
+    const db = createMockDb([
+      {
+        id: 'u1',
+        plan_tier: 'free',
+        monthly_inbound_email_limit: 2,
+        inbound_email_count_current_month: 1,
+        inbound_email_month_bucket: bucket,
+        tracked_email_count_current_month: 0,
+        tracked_email_month_bucket: bucket
+      }
+    ]);
+
+    const second = applyInboundEmailReceiptUsage(db, { userId: 'u1', countable: true });
+    assert.equal(second.cap.usage, 2);
+    assert.equal(second.cap.overCap, false);
+
+    const third = applyInboundEmailReceiptUsage(db, { userId: 'u1', countable: true });
+    assert.equal(third.cap.usage, 3);
+    assert.equal(third.cap.overCap, true);
+  } finally {
+    if (originalFreeInboundLimit === undefined) {
+      delete process.env.JOBTRACK_FREE_MONTHLY_INBOUND_LIMIT;
+    } else {
+      process.env.JOBTRACK_FREE_MONTHLY_INBOUND_LIMIT = originalFreeInboundLimit;
+    }
+  }
+});
+
+test('pro inbound cap enforces paid forwarding limit', () => {
   const bucket = currentMonthBucket();
+  const paidInboundLimit = resolveInboundLimit('pro', null, 'pro_monthly');
   const db = createMockDb([
     {
       id: 'u1',
-      plan_tier: 'free',
-      monthly_inbound_email_limit: 2,
-      inbound_email_count_current_month: 1,
+      plan_tier: 'pro',
+      billing_plan: 'pro_monthly',
+      billing_type: 'subscription',
+      monthly_inbound_email_limit: paidInboundLimit,
+      inbound_email_count_current_month: paidInboundLimit - 1,
       inbound_email_month_bucket: bucket,
       tracked_email_count_current_month: 0,
       tracked_email_month_bucket: bucket
     }
   ]);
 
-  const second = applyInboundEmailReceiptUsage(db, { userId: 'u1', countable: true });
-  assert.equal(second.cap.usage, 2);
-  assert.equal(second.cap.overCap, false);
+  const atLimit = applyInboundEmailReceiptUsage(db, { userId: 'u1', countable: true });
+  assert.equal(atLimit.cap.usage, paidInboundLimit);
+  assert.equal(atLimit.cap.overCap, false);
 
-  const third = applyInboundEmailReceiptUsage(db, { userId: 'u1', countable: true });
-  assert.equal(third.cap.usage, 3);
-  assert.equal(third.cap.overCap, true);
+  const overLimit = applyInboundEmailReceiptUsage(db, { userId: 'u1', countable: true });
+  assert.equal(overLimit.cap.usage, paidInboundLimit + 1);
+  assert.equal(overLimit.cap.overCap, true);
+});
+
+test('inbound month rollover resets inbound counters before counting', () => {
+  const db = createMockDb([
+    {
+      id: 'u1',
+      plan_tier: 'free',
+      monthly_inbound_email_limit: 150,
+      inbound_email_count_current_month: 42,
+      inbound_email_month_bucket: '1999-12',
+      inbound_email_relevant_count_current_month: 19,
+      inbound_email_dropped_count_current_month: 23,
+      inbound_email_dropped_irrelevant_count_current_month: 20,
+      inbound_email_dropped_over_cap_count_current_month: 3
+    }
+  ]);
+
+  const receipt = applyInboundEmailReceiptUsage(db, { userId: 'u1', countable: true });
+  assert.equal(receipt.counted, true);
+  assert.equal(receipt.cap.usage, 1);
+  assert.equal(receipt.cap.overCap, false);
+
+  const row = db._dump()[0];
+  assert.equal(row.inbound_email_month_bucket, currentMonthBucket());
+  assert.equal(row.inbound_email_count_current_month, 1);
+  assert.equal(row.inbound_email_relevant_count_current_month, 0);
+  assert.equal(row.inbound_email_dropped_count_current_month, 0);
+  assert.equal(row.inbound_email_dropped_irrelevant_count_current_month, 0);
+  assert.equal(row.inbound_email_dropped_over_cap_count_current_month, 0);
 });

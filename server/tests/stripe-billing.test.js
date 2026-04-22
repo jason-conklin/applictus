@@ -358,7 +358,7 @@ test('billing cancel subscription schedules cancel_at_period_end and preserves P
             stripe_customer_id = ?,
             stripe_subscription_id = ?,
             monthly_tracked_email_limit = 500,
-            monthly_inbound_email_limit = 3000,
+            monthly_inbound_email_limit = 1000,
             cancel_at_period_end = 0,
             subscription_status = 'active',
             updated_at = ?

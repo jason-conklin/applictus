@@ -1,11 +1,39 @@
+const BILLING_OPTIONS = Object.freeze({
+  FREE: 'free',
+  PRO_MONTHLY: 'pro_monthly',
+  JOB_SEARCH_PLAN: 'job_search_plan'
+});
+
+const PLAN_CONFIGS = Object.freeze({
+  [BILLING_OPTIONS.FREE]: Object.freeze({
+    tracked: 50,
+    inboundDefault: 150,
+    inboundEnvKeys: Object.freeze(['JOBTRACK_FREE_MONTHLY_INBOUND_LIMIT'])
+  }),
+  [BILLING_OPTIONS.PRO_MONTHLY]: Object.freeze({
+    tracked: 500,
+    inboundDefault: 1000,
+    inboundEnvKeys: Object.freeze(['JOBTRACK_PRO_MONTHLY_INBOUND_LIMIT', 'JOBTRACK_PAID_MONTHLY_INBOUND_LIMIT'])
+  }),
+  [BILLING_OPTIONS.JOB_SEARCH_PLAN]: Object.freeze({
+    tracked: 500,
+    inboundDefault: 1000,
+    inboundEnvKeys: Object.freeze([
+      'JOBTRACK_JOB_SEARCH_MONTHLY_INBOUND_LIMIT',
+      'JOBTRACK_PRO_MONTHLY_INBOUND_LIMIT',
+      'JOBTRACK_PAID_MONTHLY_INBOUND_LIMIT'
+    ])
+  })
+});
+
 const PLAN_LIMITS = Object.freeze({
-  free: 50,
-  pro: 500
+  free: PLAN_CONFIGS[BILLING_OPTIONS.FREE].tracked,
+  pro: PLAN_CONFIGS[BILLING_OPTIONS.PRO_MONTHLY].tracked
 });
 
 const INBOUND_PLAN_LIMITS = Object.freeze({
-  free: 300,
-  pro: 3000
+  free: PLAN_CONFIGS[BILLING_OPTIONS.FREE].inboundDefault,
+  pro: PLAN_CONFIGS[BILLING_OPTIONS.PRO_MONTHLY].inboundDefault
 });
 
 const BILLING_TYPES = Object.freeze({
@@ -20,33 +48,55 @@ function currentMonthBucket(date = new Date()) {
   return `${year}-${month}`;
 }
 
-function resolvePlanLimit(tier, explicitLimit) {
-  const normalized = String(tier || 'free').toLowerCase();
-  // Free tier limit is policy-driven and should not drift from legacy stored values.
-  if (normalized === 'free') {
-    return PLAN_LIMITS.free;
-  }
-  if (Number.isFinite(explicitLimit) && explicitLimit > 0) {
-    return explicitLimit;
-  }
-  return PLAN_LIMITS[normalized] || PLAN_LIMITS.free;
+function normalizePlanTier(value) {
+  const normalized = String(value || 'free').trim().toLowerCase();
+  return normalized === 'pro' ? 'pro' : 'free';
 }
 
-function resolveConfiguredInboundLimit(tier) {
-  const normalized = String(tier || 'free').toLowerCase();
-  const key = normalized === 'pro' ? 'JOBTRACK_PRO_MONTHLY_INBOUND_LIMIT' : 'JOBTRACK_FREE_MONTHLY_INBOUND_LIMIT';
-  const parsed = Number(process.env[key] || '');
-  if (Number.isFinite(parsed) && parsed > 0) {
-    return Math.max(1, Math.floor(parsed));
+function normalizeBillingPlan(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === BILLING_OPTIONS.JOB_SEARCH_PLAN) {
+    return BILLING_OPTIONS.JOB_SEARCH_PLAN;
   }
-  return INBOUND_PLAN_LIMITS[normalized] || INBOUND_PLAN_LIMITS.free;
+  if (normalized === BILLING_OPTIONS.PRO_MONTHLY) {
+    return BILLING_OPTIONS.PRO_MONTHLY;
+  }
+  return BILLING_OPTIONS.FREE;
 }
 
-function resolveInboundLimit(tier, explicitLimit) {
-  if (Number.isFinite(explicitLimit) && explicitLimit > 0) {
-    return Math.max(1, Math.floor(explicitLimit));
+function resolvePlanKey(tier, billingPlan = null) {
+  const normalizedTier = normalizePlanTier(tier);
+  const normalizedBillingPlan = normalizeBillingPlan(billingPlan);
+  if (normalizedBillingPlan === BILLING_OPTIONS.JOB_SEARCH_PLAN) {
+    return BILLING_OPTIONS.JOB_SEARCH_PLAN;
   }
-  return resolveConfiguredInboundLimit(tier);
+  if (normalizedTier === 'pro' || normalizedBillingPlan === BILLING_OPTIONS.PRO_MONTHLY) {
+    return BILLING_OPTIONS.PRO_MONTHLY;
+  }
+  return BILLING_OPTIONS.FREE;
+}
+
+function resolveConfiguredInboundLimit(planKey) {
+  const config = PLAN_CONFIGS[planKey] || PLAN_CONFIGS[BILLING_OPTIONS.FREE];
+  const envKeys = Array.isArray(config.inboundEnvKeys) ? config.inboundEnvKeys : [];
+  for (const key of envKeys) {
+    const parsed = Number(process.env[key] || '');
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return Math.max(1, Math.floor(parsed));
+    }
+  }
+  return config.inboundDefault;
+}
+
+function resolvePlanLimit(tier, _explicitLimit = null, billingPlan = null) {
+  const planKey = resolvePlanKey(tier, billingPlan);
+  const config = PLAN_CONFIGS[planKey] || PLAN_CONFIGS[BILLING_OPTIONS.FREE];
+  return Number(config.tracked || PLAN_LIMITS.free);
+}
+
+function resolveInboundLimit(tier, _explicitLimit = null, billingPlan = null) {
+  const planKey = resolvePlanKey(tier, billingPlan);
+  return resolveConfiguredInboundLimit(planKey);
 }
 
 function parseIsoMs(value) {
@@ -71,6 +121,139 @@ function normalizeBillingType(value) {
   return BILLING_TYPES.NONE;
 }
 
+function resolveExpectedPlanEntitlements({ planTier, billingPlan }) {
+  const normalizedTier = normalizePlanTier(planTier);
+  const resolvedBillingPlan = normalizeBillingPlan(billingPlan);
+  const effectivePlanKey = resolvePlanKey(normalizedTier, resolvedBillingPlan);
+  return {
+    planTier: effectivePlanKey === BILLING_OPTIONS.FREE ? 'free' : 'pro',
+    billingPlan:
+      effectivePlanKey === BILLING_OPTIONS.JOB_SEARCH_PLAN
+        ? BILLING_OPTIONS.JOB_SEARCH_PLAN
+        : effectivePlanKey === BILLING_OPTIONS.PRO_MONTHLY
+          ? BILLING_OPTIONS.PRO_MONTHLY
+          : BILLING_OPTIONS.FREE,
+    trackedLimit: resolvePlanLimit(normalizedTier, null, effectivePlanKey),
+    inboundLimit: resolveInboundLimit(normalizedTier, null, effectivePlanKey)
+  };
+}
+
+function runMonthlyTrackedResetSync(db, {
+  userId,
+  trackedMonthBucket,
+  bucket,
+  trackedLimit
+}) {
+  const needsReset = !trackedMonthBucket || trackedMonthBucket !== bucket;
+  if (needsReset) {
+    db.prepare(
+      `UPDATE users
+          SET tracked_email_count_current_month = 0,
+              tracked_email_month_bucket = ?,
+              monthly_tracked_email_limit = ?
+        WHERE id = ?`
+    ).run(bucket, trackedLimit, userId);
+  } else {
+    db.prepare(
+      `UPDATE users
+          SET monthly_tracked_email_limit = ?
+        WHERE id = ?`
+    ).run(trackedLimit, userId);
+  }
+  return needsReset;
+}
+
+async function runMonthlyTrackedResetAsync(db, {
+  userId,
+  trackedMonthBucket,
+  bucket,
+  trackedLimit
+}) {
+  const needsReset = !trackedMonthBucket || trackedMonthBucket !== bucket;
+  if (needsReset) {
+    await db
+      .prepare(
+        `UPDATE users
+            SET tracked_email_count_current_month = 0,
+                tracked_email_month_bucket = ?,
+                monthly_tracked_email_limit = ?
+          WHERE id = ?`
+      )
+      .run(bucket, trackedLimit, userId);
+  } else {
+    await db
+      .prepare(
+        `UPDATE users
+            SET monthly_tracked_email_limit = ?
+          WHERE id = ?`
+      )
+      .run(trackedLimit, userId);
+  }
+  return needsReset;
+}
+
+function runMonthlyInboundResetSync(db, {
+  userId,
+  inboundMonthBucket,
+  bucket,
+  inboundLimit
+}) {
+  const needsReset = !inboundMonthBucket || inboundMonthBucket !== bucket;
+  if (needsReset) {
+    db.prepare(
+      `UPDATE users
+          SET inbound_email_count_current_month = 0,
+              inbound_email_relevant_count_current_month = 0,
+              inbound_email_dropped_count_current_month = 0,
+              inbound_email_dropped_irrelevant_count_current_month = 0,
+              inbound_email_dropped_over_cap_count_current_month = 0,
+              inbound_email_month_bucket = ?,
+              monthly_inbound_email_limit = ?
+        WHERE id = ?`
+    ).run(bucket, inboundLimit, userId);
+  } else {
+    db.prepare(
+      `UPDATE users
+          SET monthly_inbound_email_limit = ?
+        WHERE id = ?`
+    ).run(inboundLimit, userId);
+  }
+  return needsReset;
+}
+
+async function runMonthlyInboundResetAsync(db, {
+  userId,
+  inboundMonthBucket,
+  bucket,
+  inboundLimit
+}) {
+  const needsReset = !inboundMonthBucket || inboundMonthBucket !== bucket;
+  if (needsReset) {
+    await db
+      .prepare(
+        `UPDATE users
+            SET inbound_email_count_current_month = 0,
+                inbound_email_relevant_count_current_month = 0,
+                inbound_email_dropped_count_current_month = 0,
+                inbound_email_dropped_irrelevant_count_current_month = 0,
+                inbound_email_dropped_over_cap_count_current_month = 0,
+                inbound_email_month_bucket = ?,
+                monthly_inbound_email_limit = ?
+          WHERE id = ?`
+      )
+      .run(bucket, inboundLimit, userId);
+  } else {
+    await db
+      .prepare(
+        `UPDATE users
+            SET monthly_inbound_email_limit = ?
+          WHERE id = ?`
+      )
+      .run(inboundLimit, userId);
+  }
+  return needsReset;
+}
+
 function ensurePlanStateSync(db, userId) {
   const bucket = currentMonthBucket();
   const nowMs = Date.now();
@@ -91,12 +274,16 @@ function ensurePlanStateSync(db, userId) {
 
   let planTier = row.plan_tier || 'free';
   let planStatus = row.plan_status || 'active';
-  let billingPlan = String(row.billing_plan || '').trim().toLowerCase() || (planTier === 'pro' ? 'pro_monthly' : 'free');
+  let billingPlan = normalizeBillingPlan(
+    row.billing_plan || (String(planTier || '').toLowerCase() === 'pro' ? BILLING_OPTIONS.PRO_MONTHLY : BILLING_OPTIONS.FREE)
+  );
   let billingType = normalizeBillingType(row.billing_type);
   let planExpiresAt = row.plan_expires_at || null;
   const planExpiresAtMs = parseIsoMs(planExpiresAt);
-  let effectiveLimit = resolvePlanLimit(planTier, row.monthly_tracked_email_limit);
-  let inboundLimit = resolveInboundLimit(planTier, row.monthly_inbound_email_limit);
+  let { trackedLimit: effectiveLimit, inboundLimit } = resolveExpectedPlanEntitlements({
+    planTier,
+    billingPlan
+  });
 
   const oneTimeActive =
     billingType === BILLING_TYPES.ONE_TIME && Number.isFinite(planExpiresAtMs) && planExpiresAtMs > nowMs;
@@ -105,9 +292,16 @@ function ensurePlanStateSync(db, userId) {
     (!Number.isFinite(planExpiresAtMs) || planExpiresAtMs <= nowMs);
 
   if (oneTimeActive) {
-    const proLimit = resolvePlanLimit('pro', null);
-    const currentLimit = resolvePlanLimit(planTier, row.monthly_tracked_email_limit);
-    if (planTier !== 'pro' || planStatus !== 'active' || currentLimit !== proLimit) {
+    const oneTimeEntitlements = resolveExpectedPlanEntitlements({
+      planTier: 'pro',
+      billingPlan: BILLING_OPTIONS.JOB_SEARCH_PLAN
+    });
+    if (
+      normalizePlanTier(planTier) !== oneTimeEntitlements.planTier ||
+      planStatus !== 'active' ||
+      Number(row.monthly_tracked_email_limit || 0) !== oneTimeEntitlements.trackedLimit ||
+      Number(row.monthly_inbound_email_limit || 0) !== oneTimeEntitlements.inboundLimit
+    ) {
       db.prepare(
         `UPDATE users
            SET plan_tier = 'pro',
@@ -116,20 +310,24 @@ function ensurePlanStateSync(db, userId) {
                monthly_inbound_email_limit = ?,
                updated_at = ?
          WHERE id = ?`
-      ).run(proLimit, resolveInboundLimit('pro', null), nowIso, userId);
+      ).run(oneTimeEntitlements.trackedLimit, oneTimeEntitlements.inboundLimit, nowIso, userId);
     }
     planTier = 'pro';
     planStatus = 'active';
-    billingPlan = 'job_search_plan';
+    billingPlan = BILLING_OPTIONS.JOB_SEARCH_PLAN;
     billingType = BILLING_TYPES.ONE_TIME;
-    effectiveLimit = proLimit;
-    inboundLimit = resolveInboundLimit('pro', null);
+    effectiveLimit = oneTimeEntitlements.trackedLimit;
+    inboundLimit = oneTimeEntitlements.inboundLimit;
   } else if (billingType === BILLING_TYPES.SUBSCRIPTION && String(planStatus || '').toLowerCase() === 'active') {
-    const proLimit = resolvePlanLimit('pro', null);
-    const currentLimit = resolvePlanLimit(planTier, row.monthly_tracked_email_limit);
-    const proInboundLimit = resolveInboundLimit('pro', null);
-    const currentInboundLimit = resolveInboundLimit(planTier, row.monthly_inbound_email_limit);
-    if (planTier !== 'pro' || currentLimit !== proLimit || currentInboundLimit !== proInboundLimit) {
+    const monthlyEntitlements = resolveExpectedPlanEntitlements({
+      planTier: 'pro',
+      billingPlan: BILLING_OPTIONS.PRO_MONTHLY
+    });
+    if (
+      normalizePlanTier(planTier) !== monthlyEntitlements.planTier ||
+      Number(row.monthly_tracked_email_limit || 0) !== monthlyEntitlements.trackedLimit ||
+      Number(row.monthly_inbound_email_limit || 0) !== monthlyEntitlements.inboundLimit
+    ) {
       db.prepare(
         `UPDATE users
            SET plan_tier = 'pro',
@@ -137,16 +335,18 @@ function ensurePlanStateSync(db, userId) {
                monthly_inbound_email_limit = ?,
                updated_at = ?
          WHERE id = ?`
-      ).run(proLimit, proInboundLimit, nowIso, userId);
+      ).run(monthlyEntitlements.trackedLimit, monthlyEntitlements.inboundLimit, nowIso, userId);
     }
     planTier = 'pro';
-    billingPlan = billingPlan === 'job_search_plan' ? 'job_search_plan' : 'pro_monthly';
+    billingPlan = BILLING_OPTIONS.PRO_MONTHLY;
     billingType = BILLING_TYPES.SUBSCRIPTION;
-    effectiveLimit = proLimit;
-    inboundLimit = proInboundLimit;
+    effectiveLimit = monthlyEntitlements.trackedLimit;
+    inboundLimit = monthlyEntitlements.inboundLimit;
   } else if (oneTimeExpired) {
-    const freeLimit = resolvePlanLimit('free', null);
-    const freeInboundLimit = resolveInboundLimit('free', null);
+    const freeEntitlements = resolveExpectedPlanEntitlements({
+      planTier: 'free',
+      billingPlan: BILLING_OPTIONS.FREE
+    });
     db.prepare(
       `UPDATE users
          SET plan_tier = 'free',
@@ -160,14 +360,37 @@ function ensurePlanStateSync(db, userId) {
              stripe_subscription_id = NULL,
              updated_at = ?
        WHERE id = ?`
-    ).run(freeLimit, freeInboundLimit, nowIso, userId);
+    ).run(freeEntitlements.trackedLimit, freeEntitlements.inboundLimit, nowIso, userId);
     planTier = 'free';
     planStatus = 'active';
-    billingPlan = 'free';
+    billingPlan = BILLING_OPTIONS.FREE;
     billingType = BILLING_TYPES.NONE;
     planExpiresAt = null;
-    effectiveLimit = freeLimit;
-    inboundLimit = freeInboundLimit;
+    effectiveLimit = freeEntitlements.trackedLimit;
+    inboundLimit = freeEntitlements.inboundLimit;
+  }
+
+  const finalEntitlements = resolveExpectedPlanEntitlements({ planTier, billingPlan });
+  planTier = finalEntitlements.planTier;
+  billingPlan = finalEntitlements.billingPlan;
+  effectiveLimit = finalEntitlements.trackedLimit;
+  inboundLimit = finalEntitlements.inboundLimit;
+
+  const needsEntitlementSync =
+    normalizePlanTier(row.plan_tier) !== planTier ||
+    normalizeBillingPlan(row.billing_plan) !== billingPlan ||
+    Number(row.monthly_tracked_email_limit || 0) !== Number(effectiveLimit || 0) ||
+    Number(row.monthly_inbound_email_limit || 0) !== Number(inboundLimit || 0);
+  if (needsEntitlementSync) {
+    db.prepare(
+      `UPDATE users
+          SET plan_tier = ?,
+              billing_plan = ?,
+              monthly_tracked_email_limit = ?,
+              monthly_inbound_email_limit = ?,
+              updated_at = ?
+        WHERE id = ?`
+    ).run(planTier, billingPlan, effectiveLimit, inboundLimit, nowIso, userId);
   }
 
   const limit = effectiveLimit;
@@ -176,38 +399,25 @@ function ensurePlanStateSync(db, userId) {
   let inboundDropped = Number(row.inbound_email_dropped_count_current_month || 0);
   let inboundDroppedIrrelevant = Number(row.inbound_email_dropped_irrelevant_count_current_month || 0);
   let inboundDroppedOverCap = Number(row.inbound_email_dropped_over_cap_count_current_month || 0);
-  const needsReset = !row.tracked_email_month_bucket || row.tracked_email_month_bucket !== bucket;
-  if (needsReset) {
-    db.prepare(
-      `UPDATE users SET tracked_email_count_current_month = 0, tracked_email_month_bucket = ?, monthly_tracked_email_limit = COALESCE(monthly_tracked_email_limit, ?)
-         WHERE id = ?`
-    ).run(bucket, limit, userId);
-  }
+  const needsReset = runMonthlyTrackedResetSync(db, {
+    userId,
+    trackedMonthBucket: row.tracked_email_month_bucket,
+    bucket,
+    trackedLimit: limit
+  });
 
-  const needsInboundReset = !row.inbound_email_month_bucket || row.inbound_email_month_bucket !== bucket;
+  const needsInboundReset = runMonthlyInboundResetSync(db, {
+    userId,
+    inboundMonthBucket: row.inbound_email_month_bucket,
+    bucket,
+    inboundLimit
+  });
   if (needsInboundReset) {
-    db.prepare(
-      `UPDATE users
-          SET inbound_email_count_current_month = 0,
-              inbound_email_relevant_count_current_month = 0,
-              inbound_email_dropped_count_current_month = 0,
-              inbound_email_dropped_irrelevant_count_current_month = 0,
-              inbound_email_dropped_over_cap_count_current_month = 0,
-              inbound_email_month_bucket = ?,
-              monthly_inbound_email_limit = COALESCE(monthly_inbound_email_limit, ?)
-        WHERE id = ?`
-    ).run(bucket, inboundLimit, userId);
     inboundUsage = 0;
     inboundRelevant = 0;
     inboundDropped = 0;
     inboundDroppedIrrelevant = 0;
     inboundDroppedOverCap = 0;
-  } else {
-    db.prepare(
-      `UPDATE users
-          SET monthly_inbound_email_limit = COALESCE(monthly_inbound_email_limit, ?)
-        WHERE id = ?`
-    ).run(inboundLimit, userId);
   }
 
   return {
@@ -250,12 +460,16 @@ async function ensurePlanStateAsync(db, userId) {
 
   let planTier = row.plan_tier || 'free';
   let planStatus = row.plan_status || 'active';
-  let billingPlan = String(row.billing_plan || '').trim().toLowerCase() || (planTier === 'pro' ? 'pro_monthly' : 'free');
+  let billingPlan = normalizeBillingPlan(
+    row.billing_plan || (String(planTier || '').toLowerCase() === 'pro' ? BILLING_OPTIONS.PRO_MONTHLY : BILLING_OPTIONS.FREE)
+  );
   let billingType = normalizeBillingType(row.billing_type);
   let planExpiresAt = row.plan_expires_at || null;
   const planExpiresAtMs = parseIsoMs(planExpiresAt);
-  let effectiveLimit = resolvePlanLimit(planTier, row.monthly_tracked_email_limit);
-  let inboundLimit = resolveInboundLimit(planTier, row.monthly_inbound_email_limit);
+  let { trackedLimit: effectiveLimit, inboundLimit } = resolveExpectedPlanEntitlements({
+    planTier,
+    billingPlan
+  });
 
   const oneTimeActive =
     billingType === BILLING_TYPES.ONE_TIME && Number.isFinite(planExpiresAtMs) && planExpiresAtMs > nowMs;
@@ -264,9 +478,16 @@ async function ensurePlanStateAsync(db, userId) {
     (!Number.isFinite(planExpiresAtMs) || planExpiresAtMs <= nowMs);
 
   if (oneTimeActive) {
-    const proLimit = resolvePlanLimit('pro', null);
-    const currentLimit = resolvePlanLimit(planTier, row.monthly_tracked_email_limit);
-    if (planTier !== 'pro' || planStatus !== 'active' || currentLimit !== proLimit) {
+    const oneTimeEntitlements = resolveExpectedPlanEntitlements({
+      planTier: 'pro',
+      billingPlan: BILLING_OPTIONS.JOB_SEARCH_PLAN
+    });
+    if (
+      normalizePlanTier(planTier) !== oneTimeEntitlements.planTier ||
+      planStatus !== 'active' ||
+      Number(row.monthly_tracked_email_limit || 0) !== oneTimeEntitlements.trackedLimit ||
+      Number(row.monthly_inbound_email_limit || 0) !== oneTimeEntitlements.inboundLimit
+    ) {
       await db
         .prepare(
           `UPDATE users
@@ -277,20 +498,24 @@ async function ensurePlanStateAsync(db, userId) {
                  updated_at = ?
            WHERE id = ?`
         )
-        .run(proLimit, resolveInboundLimit('pro', null), nowIso, userId);
+        .run(oneTimeEntitlements.trackedLimit, oneTimeEntitlements.inboundLimit, nowIso, userId);
     }
     planTier = 'pro';
     planStatus = 'active';
-    billingPlan = 'job_search_plan';
+    billingPlan = BILLING_OPTIONS.JOB_SEARCH_PLAN;
     billingType = BILLING_TYPES.ONE_TIME;
-    effectiveLimit = proLimit;
-    inboundLimit = resolveInboundLimit('pro', null);
+    effectiveLimit = oneTimeEntitlements.trackedLimit;
+    inboundLimit = oneTimeEntitlements.inboundLimit;
   } else if (billingType === BILLING_TYPES.SUBSCRIPTION && String(planStatus || '').toLowerCase() === 'active') {
-    const proLimit = resolvePlanLimit('pro', null);
-    const currentLimit = resolvePlanLimit(planTier, row.monthly_tracked_email_limit);
-    const proInboundLimit = resolveInboundLimit('pro', null);
-    const currentInboundLimit = resolveInboundLimit(planTier, row.monthly_inbound_email_limit);
-    if (planTier !== 'pro' || currentLimit !== proLimit || currentInboundLimit !== proInboundLimit) {
+    const monthlyEntitlements = resolveExpectedPlanEntitlements({
+      planTier: 'pro',
+      billingPlan: BILLING_OPTIONS.PRO_MONTHLY
+    });
+    if (
+      normalizePlanTier(planTier) !== monthlyEntitlements.planTier ||
+      Number(row.monthly_tracked_email_limit || 0) !== monthlyEntitlements.trackedLimit ||
+      Number(row.monthly_inbound_email_limit || 0) !== monthlyEntitlements.inboundLimit
+    ) {
       await db
         .prepare(
           `UPDATE users
@@ -300,16 +525,18 @@ async function ensurePlanStateAsync(db, userId) {
                  updated_at = ?
            WHERE id = ?`
         )
-        .run(proLimit, proInboundLimit, nowIso, userId);
+        .run(monthlyEntitlements.trackedLimit, monthlyEntitlements.inboundLimit, nowIso, userId);
     }
     planTier = 'pro';
-    billingPlan = billingPlan === 'job_search_plan' ? 'job_search_plan' : 'pro_monthly';
+    billingPlan = BILLING_OPTIONS.PRO_MONTHLY;
     billingType = BILLING_TYPES.SUBSCRIPTION;
-    effectiveLimit = proLimit;
-    inboundLimit = proInboundLimit;
+    effectiveLimit = monthlyEntitlements.trackedLimit;
+    inboundLimit = monthlyEntitlements.inboundLimit;
   } else if (oneTimeExpired) {
-    const freeLimit = resolvePlanLimit('free', null);
-    const freeInboundLimit = resolveInboundLimit('free', null);
+    const freeEntitlements = resolveExpectedPlanEntitlements({
+      planTier: 'free',
+      billingPlan: BILLING_OPTIONS.FREE
+    });
     await db
       .prepare(
         `UPDATE users
@@ -325,14 +552,39 @@ async function ensurePlanStateAsync(db, userId) {
                updated_at = ?
          WHERE id = ?`
       )
-      .run(freeLimit, freeInboundLimit, nowIso, userId);
+      .run(freeEntitlements.trackedLimit, freeEntitlements.inboundLimit, nowIso, userId);
     planTier = 'free';
     planStatus = 'active';
-    billingPlan = 'free';
+    billingPlan = BILLING_OPTIONS.FREE;
     billingType = BILLING_TYPES.NONE;
     planExpiresAt = null;
-    effectiveLimit = freeLimit;
-    inboundLimit = freeInboundLimit;
+    effectiveLimit = freeEntitlements.trackedLimit;
+    inboundLimit = freeEntitlements.inboundLimit;
+  }
+
+  const finalEntitlements = resolveExpectedPlanEntitlements({ planTier, billingPlan });
+  planTier = finalEntitlements.planTier;
+  billingPlan = finalEntitlements.billingPlan;
+  effectiveLimit = finalEntitlements.trackedLimit;
+  inboundLimit = finalEntitlements.inboundLimit;
+
+  const needsEntitlementSync =
+    normalizePlanTier(row.plan_tier) !== planTier ||
+    normalizeBillingPlan(row.billing_plan) !== billingPlan ||
+    Number(row.monthly_tracked_email_limit || 0) !== Number(effectiveLimit || 0) ||
+    Number(row.monthly_inbound_email_limit || 0) !== Number(inboundLimit || 0);
+  if (needsEntitlementSync) {
+    await db
+      .prepare(
+        `UPDATE users
+            SET plan_tier = ?,
+                billing_plan = ?,
+                monthly_tracked_email_limit = ?,
+                monthly_inbound_email_limit = ?,
+                updated_at = ?
+          WHERE id = ?`
+      )
+      .run(planTier, billingPlan, effectiveLimit, inboundLimit, nowIso, userId);
   }
 
   const limit = effectiveLimit;
@@ -341,44 +593,25 @@ async function ensurePlanStateAsync(db, userId) {
   let inboundDropped = Number(row.inbound_email_dropped_count_current_month || 0);
   let inboundDroppedIrrelevant = Number(row.inbound_email_dropped_irrelevant_count_current_month || 0);
   let inboundDroppedOverCap = Number(row.inbound_email_dropped_over_cap_count_current_month || 0);
-  const needsReset = !row.tracked_email_month_bucket || row.tracked_email_month_bucket !== bucket;
-  if (needsReset) {
-    await db
-      .prepare(
-        `UPDATE users SET tracked_email_count_current_month = 0, tracked_email_month_bucket = ?, monthly_tracked_email_limit = COALESCE(monthly_tracked_email_limit, ?)
-           WHERE id = ?`
-      )
-      .run(bucket, limit, userId);
-  }
+  const needsReset = await runMonthlyTrackedResetAsync(db, {
+    userId,
+    trackedMonthBucket: row.tracked_email_month_bucket,
+    bucket,
+    trackedLimit: limit
+  });
 
-  const needsInboundReset = !row.inbound_email_month_bucket || row.inbound_email_month_bucket !== bucket;
+  const needsInboundReset = await runMonthlyInboundResetAsync(db, {
+    userId,
+    inboundMonthBucket: row.inbound_email_month_bucket,
+    bucket,
+    inboundLimit
+  });
   if (needsInboundReset) {
-    await db
-      .prepare(
-        `UPDATE users
-            SET inbound_email_count_current_month = 0,
-                inbound_email_relevant_count_current_month = 0,
-                inbound_email_dropped_count_current_month = 0,
-                inbound_email_dropped_irrelevant_count_current_month = 0,
-                inbound_email_dropped_over_cap_count_current_month = 0,
-                inbound_email_month_bucket = ?,
-                monthly_inbound_email_limit = COALESCE(monthly_inbound_email_limit, ?)
-          WHERE id = ?`
-      )
-      .run(bucket, inboundLimit, userId);
     inboundUsage = 0;
     inboundRelevant = 0;
     inboundDropped = 0;
     inboundDroppedIrrelevant = 0;
     inboundDroppedOverCap = 0;
-  } else {
-    await db
-      .prepare(
-        `UPDATE users
-            SET monthly_inbound_email_limit = COALESCE(monthly_inbound_email_limit, ?)
-          WHERE id = ?`
-      )
-      .run(inboundLimit, userId);
   }
 
   return {

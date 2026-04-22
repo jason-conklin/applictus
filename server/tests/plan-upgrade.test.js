@@ -65,6 +65,7 @@ test('upgrade free -> pro sets limit and status', (t) => {
   assert.equal(plan.tier, 'pro');
   assert.equal(plan.status, 'active');
   assert.equal(plan.limit, resolvePlanLimit('pro', null));
+  assert.equal(plan.inbound_limit, 1000);
 });
 
 test('dev-set plan to pro via helper', (t) => {
@@ -91,4 +92,5 @@ test('downgrade pro -> free resets limit', (t) => {
   const plan = getUserPlan(db, 'u1');
   assert.equal(plan.tier, 'free');
   assert.equal(plan.limit, resolvePlanLimit('free', null));
+  assert.equal(plan.inbound_limit, 150);
 });

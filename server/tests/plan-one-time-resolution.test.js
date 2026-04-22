@@ -70,15 +70,17 @@ test('ensurePlanState treats active one-time job search plan as Pro', (t) => {
   assert.equal(plan.planTier, 'pro');
   assert.equal(plan.planStatus, 'active');
   assert.equal(plan.limit, resolvePlanLimit('pro', null));
+  assert.equal(plan.inboundLimit, 1000);
   assert.equal(plan.billingType, 'one_time');
   assert.equal(plan.billingPlan, 'job_search_plan');
 
   const row = db
-    .prepare('SELECT plan_tier, plan_status, monthly_tracked_email_limit FROM users WHERE id = ?')
+    .prepare('SELECT plan_tier, plan_status, monthly_tracked_email_limit, monthly_inbound_email_limit FROM users WHERE id = ?')
     .get(userId);
   assert.equal(String(row.plan_tier || '').toLowerCase(), 'pro');
   assert.equal(String(row.plan_status || '').toLowerCase(), 'active');
   assert.equal(Number(row.monthly_tracked_email_limit || 0), resolvePlanLimit('pro', null));
+  assert.equal(Number(row.monthly_inbound_email_limit || 0), 1000);
 });
 
 test('ensurePlanState downgrades expired one-time plan back to Free', (t) => {
@@ -104,13 +106,14 @@ test('ensurePlanState downgrades expired one-time plan back to Free', (t) => {
   assert.equal(plan.planTier, 'free');
   assert.equal(plan.planStatus, 'active');
   assert.equal(plan.limit, resolvePlanLimit('free', null));
+  assert.equal(plan.inboundLimit, 150);
   assert.equal(plan.billingType, 'none');
   assert.equal(plan.billingPlan, 'free');
   assert.equal(plan.planExpiresAt, null);
 
   const row = db
     .prepare(
-      'SELECT plan_tier, billing_plan, billing_type, plan_expires_at, stripe_subscription_id, monthly_tracked_email_limit FROM users WHERE id = ?'
+      'SELECT plan_tier, billing_plan, billing_type, plan_expires_at, stripe_subscription_id, monthly_tracked_email_limit, monthly_inbound_email_limit FROM users WHERE id = ?'
     )
     .get(userId);
   assert.equal(String(row.plan_tier || '').toLowerCase(), 'free');
@@ -119,4 +122,5 @@ test('ensurePlanState downgrades expired one-time plan back to Free', (t) => {
   assert.equal(row.plan_expires_at, null);
   assert.equal(row.stripe_subscription_id, null);
   assert.equal(Number(row.monthly_tracked_email_limit || 0), resolvePlanLimit('free', null));
+  assert.equal(Number(row.monthly_inbound_email_limit || 0), 150);
 });

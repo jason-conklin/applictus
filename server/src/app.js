@@ -831,12 +831,21 @@ async function getUserById(id) {
 async function createUser({ email, name, passwordHash, authProvider, inboxUsername = null }) {
   const id = crypto.randomUUID();
   const createdAt = nowIso();
+  const bucket = currentMonthBucket();
   const provider = authProvider || 'password';
   const normalizedInboxUsername = normalizeInboxUsername(inboxUsername);
+  const freeTrackedLimit = resolvePlanLimit('free', null, BILLING_OPTIONS.FREE);
+  const freeInboundLimit = resolveInboundLimit('free', null, BILLING_OPTIONS.FREE);
   await dbTimed(async () => {
     const runRes = db.prepare(
-      `INSERT INTO users (id, email, name, password_hash, auth_provider, inbox_username, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO users (
+         id, email, name, password_hash, auth_provider, inbox_username,
+         plan_tier, plan_status, billing_plan, billing_type,
+         monthly_tracked_email_limit, monthly_inbound_email_limit,
+         tracked_email_month_bucket, inbound_email_month_bucket,
+         created_at, updated_at
+       )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       id,
       email,
@@ -844,6 +853,14 @@ async function createUser({ email, name, passwordHash, authProvider, inboxUserna
       passwordHash || null,
       provider,
       normalizedInboxUsername,
+      'free',
+      'active',
+      BILLING_OPTIONS.FREE,
+      BILLING_TYPES.NONE,
+      freeTrackedLimit,
+      freeInboundLimit,
+      bucket,
+      bucket,
       createdAt,
       createdAt
     );
@@ -1159,10 +1176,10 @@ function toSessionUserPayload(user) {
     subscription_status: user.subscription_status || null,
     current_period_end: user.current_period_end || null,
     cancel_at_period_end: normalizeDbBool(user.cancel_at_period_end),
-    plan_limit: resolvePlanLimit(user.plan_tier, user.monthly_tracked_email_limit),
+    plan_limit: resolvePlanLimit(user.plan_tier, user.monthly_tracked_email_limit, user.billing_plan),
     plan_usage: user.tracked_email_count_current_month || 0,
     plan_bucket: user.tracked_email_month_bucket || null,
-    inbound_monthly_limit: resolveInboundLimit(user.plan_tier, user.monthly_inbound_email_limit),
+    inbound_monthly_limit: resolveInboundLimit(user.plan_tier, user.monthly_inbound_email_limit, user.billing_plan),
     inbound_usage: Number(user.inbound_email_count_current_month || 0),
     inbound_bucket: user.inbound_email_month_bucket || null,
     inbound_relevant_count: Number(user.inbound_email_relevant_count_current_month || 0),
@@ -1529,8 +1546,8 @@ async function markMonthlyPlanActive(userId, {
            updated_at = ?
      WHERE id = ?`,
     [
-      resolvePlanLimit('pro', null),
-      resolveInboundLimit('pro', null),
+      resolvePlanLimit('pro', null, BILLING_OPTIONS.PRO_MONTHLY),
+      resolveInboundLimit('pro', null, BILLING_OPTIONS.PRO_MONTHLY),
       BILLING_OPTIONS.PRO_MONTHLY,
       BILLING_TYPES.SUBSCRIPTION,
       stripeCustomerId ? String(stripeCustomerId) : null,
@@ -1576,8 +1593,8 @@ async function markJobSearchPlanActive(userId, {
            updated_at = ?
      WHERE id = ?`,
     [
-      resolvePlanLimit('pro', null),
-      resolveInboundLimit('pro', null),
+      resolvePlanLimit('pro', null, BILLING_OPTIONS.JOB_SEARCH_PLAN),
+      resolveInboundLimit('pro', null, BILLING_OPTIONS.JOB_SEARCH_PLAN),
       BILLING_OPTIONS.JOB_SEARCH_PLAN,
       BILLING_TYPES.ONE_TIME,
       expiration,
@@ -1619,8 +1636,8 @@ async function markFreePlanActive(userId, {
            updated_at = ?
      WHERE id = ?`,
     [
-      resolvePlanLimit('free', null),
-      resolveInboundLimit('free', null),
+      resolvePlanLimit('free', null, BILLING_OPTIONS.FREE),
+      resolveInboundLimit('free', null, BILLING_OPTIONS.FREE),
       stripeCustomerId ? String(stripeCustomerId) : null,
       boolBind(db, false),
       eventId ? String(eventId) : null,
@@ -2772,6 +2789,42 @@ app.post('/api/inbound/postmark', async (req, res) => {
     );
     const rawInboundCap = rawInboundUsage?.cap || null;
     const rawInboundOverCap = Boolean(rawInboundCap?.overCap);
+    const rawInboundUsageCount = Number(rawInboundCap?.usage || 0);
+    const rawInboundLimitCount = Number(rawInboundCap?.limit || 0);
+    const rawInboundSoftThreshold = rawInboundLimitCount > 0 ? Math.ceil(rawInboundLimitCount * 0.7) : 0;
+    const rawInboundStrongThreshold = rawInboundLimitCount > 0 ? Math.ceil(rawInboundLimitCount * 0.9) : 0;
+
+    if (!rawInboundOverCap && rawInboundLimitCount > 0) {
+      if (rawInboundUsageCount === rawInboundSoftThreshold) {
+        logInfo('inbound.usage.warning_soft', {
+          provider,
+          userId: mappedAddress.user_id,
+          usage: rawInboundUsageCount,
+          limit: rawInboundLimitCount
+        });
+      } else if (rawInboundUsageCount === rawInboundStrongThreshold) {
+        logWarn('inbound.usage.warning_strong', {
+          provider,
+          userId: mappedAddress.user_id,
+          usage: rawInboundUsageCount,
+          limit: rawInboundLimitCount
+        });
+      }
+    }
+
+    if (rawInboundUsageCount >= 100 && rawInboundUsageCount % 100 === 0) {
+      const relevant = Number(rawInboundUsage?.plan?.inboundRelevant || 0);
+      const relevanceRatio = rawInboundUsageCount > 0 ? relevant / rawInboundUsageCount : 0;
+      if (Number.isFinite(relevanceRatio) && relevanceRatio < 0.2) {
+        logWarn('inbound.anomaly.low_relevance_ratio', {
+          provider,
+          userId: mappedAddress.user_id,
+          inbound_usage: rawInboundUsageCount,
+          inbound_relevant: relevant,
+          relevance_ratio: Number(relevanceRatio.toFixed(4))
+        });
+      }
+    }
 
     if (rawInboundOverCap) {
       const dropProcessedAt = nowIso();
@@ -2797,8 +2850,8 @@ app.post('/api/inbound/postmark', async (req, res) => {
         })
       );
 
-      const usage = Number(rawInboundCap?.usage || 0);
-      const limit = Number(rawInboundCap?.limit || 0);
+      const usage = rawInboundUsageCount;
+      const limit = rawInboundLimitCount;
       const relevant = Number(rawInboundUsage?.plan?.inboundRelevant || 0);
       const relevanceRatio = usage > 0 ? relevant / usage : null;
 
@@ -3568,19 +3621,28 @@ app.get('/api/account/plan', requireAuth, async (req, res) => {
         .get(planState.bucket);
       globalUsage = Number(row?.total || 0);
     }
-    const limit = planState.limit || resolvePlanLimit(planState.planTier, null);
+    const limit = planState.limit || resolvePlanLimit(planState.planTier, null, planState.billingPlan);
     const usage = planState.usage || 0;
     const subscriptionStatus =
       normalizeSubscriptionStatus(userRow.subscription_status) ||
       (String(planState.billingType || '').toLowerCase() === BILLING_TYPES.SUBSCRIPTION ? 'active' : null);
     const currentPeriodEnd = userRow.current_period_end || null;
     const cancelAtPeriodEnd = normalizeDbBool(userRow.cancel_at_period_end);
-    const inboundLimit = planState.inboundLimit || resolveInboundLimit(planState.planTier, null);
+    const inboundLimit = planState.inboundLimit || resolveInboundLimit(planState.planTier, null, planState.billingPlan);
     const inboundUsage = Number(planState.inboundUsage || 0);
     const inboundRelevant = Number(planState.inboundRelevant || 0);
     const inboundDropped = Number(planState.inboundDropped || 0);
     const inboundDroppedIrrelevant = Number(planState.inboundDroppedIrrelevant || 0);
     const inboundDroppedOverCap = Number(planState.inboundDroppedOverCap || 0);
+    const inboundWarningSoftThreshold = inboundLimit > 0 ? Math.ceil(inboundLimit * 0.7) : 0;
+    const inboundWarningStrongThreshold = inboundLimit > 0 ? Math.ceil(inboundLimit * 0.9) : 0;
+    const inboundUsageRatio = inboundLimit > 0 ? inboundUsage / inboundLimit : 0;
+    const inboundWarningLevel =
+      inboundLimit > 0 && inboundUsage >= inboundWarningStrongThreshold
+        ? 'strong'
+        : inboundLimit > 0 && inboundUsage >= inboundWarningSoftThreshold
+          ? 'soft'
+          : 'none';
     const nearLimitThresholdCount = limit > 0 ? Math.ceil(limit * PLAN_NEAR_LIMIT_THRESHOLD) : 0;
     const nearLimit = isFreeTier && limit > 0 ? usage >= nearLimitThresholdCount && usage < limit : false;
     const atLimit = isFreeTier && limit > 0 ? usage >= limit : false;
@@ -3612,6 +3674,10 @@ app.get('/api/account/plan', requireAuth, async (req, res) => {
       inbound_email_dropped_count_current_month: inboundDropped,
       inbound_email_dropped_irrelevant_count_current_month: inboundDroppedIrrelevant,
       inbound_email_dropped_over_cap_count_current_month: inboundDroppedOverCap,
+      inbound_warning_level: inboundWarningLevel,
+      inbound_warning_soft_threshold: inboundWarningSoftThreshold,
+      inbound_warning_strong_threshold: inboundWarningStrongThreshold,
+      inbound_usage_ratio: Number.isFinite(inboundUsageRatio) ? Number(inboundUsageRatio.toFixed(4)) : 0,
       raw_inbound_over_cap: rawInboundOverCap,
       near_limit: nearLimit,
       at_limit: atLimit,
@@ -4178,6 +4244,30 @@ async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
         [bucket, bucket]
       )
     : 0;
+  const usersOverInboundCapMonth = hasInboundUsage
+    ? await readCount(
+        dbInstance,
+        `SELECT COUNT(*) AS count
+           FROM users
+          WHERE COALESCE(inbound_email_month_bucket, tracked_email_month_bucket, ?) = ?
+            AND COALESCE(monthly_inbound_email_limit, 0) > 0
+            AND COALESCE(inbound_email_count_current_month, 0) > COALESCE(monthly_inbound_email_limit, 0)`,
+        [bucket, bucket]
+      )
+    : 0;
+  const usersNearInboundCapMonth = hasInboundUsage
+    ? await readCount(
+        dbInstance,
+        `SELECT COUNT(*) AS count
+           FROM users
+          WHERE COALESCE(inbound_email_month_bucket, tracked_email_month_bucket, ?) = ?
+            AND COALESCE(monthly_inbound_email_limit, 0) > 0
+            AND COALESCE(inbound_email_count_current_month, 0) >= ((COALESCE(monthly_inbound_email_limit, 0) * 7 + 9) / 10)`,
+        [bucket, bucket]
+      )
+    : 0;
+  const inboundRelevanceRatioMonth =
+    inboundReceivedMonth > 0 ? Number((inboundRelevantMonth / inboundReceivedMonth).toFixed(4)) : 0;
 
   return {
     total_users: totalUsers,
@@ -4193,6 +4283,9 @@ async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
     inbound_dropped_month: inboundDroppedMonth,
     inbound_dropped_irrelevant_month: inboundDroppedIrrelevantMonth,
     inbound_dropped_over_cap_month: inboundDroppedOverCapMonth,
+    inbound_relevance_ratio_month: inboundRelevanceRatioMonth,
+    users_near_inbound_cap_month: usersNearInboundCapMonth,
+    users_over_inbound_cap_month: usersOverInboundCapMonth,
     new_users_month: newUsersMonth
   };
 }

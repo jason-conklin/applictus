@@ -12,11 +12,11 @@ function updateUserPlan(db, { userId, tier, status = 'active' }) {
   if (!userId) throw new Error('USER_ID_REQUIRED');
   const plan_tier = normalizePlanTier(tier);
   const plan_status = String(status || 'active').toLowerCase();
-  const limit = resolvePlanLimit(plan_tier, null);
-  const inboundLimit = resolveInboundLimit(plan_tier, null);
   const bucket = currentMonthBucket();
   const billing_plan = plan_tier === 'pro' ? 'pro_monthly' : 'free';
   const billing_type = plan_tier === 'pro' ? 'subscription' : 'none';
+  const limit = resolvePlanLimit(plan_tier, null, billing_plan);
+  const inboundLimit = resolveInboundLimit(plan_tier, null, billing_plan);
   db.prepare(
     `UPDATE users
        SET plan_tier = ?,
@@ -106,8 +106,8 @@ function getUserPlan(db, userId) {
   return {
     tier: row.plan_tier || 'free',
     status: row.plan_status || 'active',
-    limit: row.monthly_tracked_email_limit || resolvePlanLimit(row.plan_tier, null),
-    inbound_limit: row.monthly_inbound_email_limit || resolveInboundLimit(row.plan_tier, null),
+    limit: resolvePlanLimit(row.plan_tier, row.monthly_tracked_email_limit, row.billing_plan),
+    inbound_limit: resolveInboundLimit(row.plan_tier, row.monthly_inbound_email_limit, row.billing_plan),
     usage: Number(row.tracked_email_count_current_month || 0),
     inbound_usage: Number(row.inbound_email_count_current_month || 0),
     bucket: row.tracked_email_month_bucket || currentMonthBucket(),

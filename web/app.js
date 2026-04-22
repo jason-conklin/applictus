@@ -830,6 +830,10 @@ const PLAN_LIMITS = {
   free: 50,
   pro: 500
 };
+const INBOUND_PLAN_LIMITS = {
+  free: 150,
+  pro: 1000
+};
 let planState = null;
 let currentDetail = null;
 let csrfToken = null;
@@ -5349,9 +5353,38 @@ function renderPlanUsage(user = sessionUser) {
   const inboundLimitRaw = Number(source.monthly_inbound_email_limit ?? source.inbound_monthly_limit ?? 0);
   const inboundLimit = Number.isFinite(inboundLimitRaw) && inboundLimitRaw > 0
     ? Math.max(0, Math.floor(inboundLimitRaw))
-    : (tier === 'pro' ? 3000 : 300);
+    : (tier === 'pro' ? INBOUND_PLAN_LIMITS.pro : INBOUND_PLAN_LIMITS.free);
   const inboundUsageRaw = Number(source.inbound_email_count_current_month ?? source.inbound_usage ?? 0);
   const inboundUsage = Number.isFinite(inboundUsageRaw) ? Math.max(0, Math.floor(inboundUsageRaw)) : 0;
+  const inboundSoftThresholdRaw = Number(source.inbound_warning_soft_threshold);
+  const inboundStrongThresholdRaw = Number(source.inbound_warning_strong_threshold);
+  const inboundSoftThreshold =
+    Number.isFinite(inboundSoftThresholdRaw) && inboundSoftThresholdRaw > 0
+      ? Math.floor(inboundSoftThresholdRaw)
+      : inboundLimit > 0
+        ? Math.ceil(inboundLimit * 0.7)
+        : 0;
+  const inboundStrongThreshold =
+    Number.isFinite(inboundStrongThresholdRaw) && inboundStrongThresholdRaw > 0
+      ? Math.floor(inboundStrongThresholdRaw)
+      : inboundLimit > 0
+        ? Math.ceil(inboundLimit * 0.9)
+        : 0;
+  const inboundWarningLevelFromServer = String(source.inbound_warning_level || '').toLowerCase();
+  const inboundWarningLevel =
+    inboundWarningLevelFromServer === 'strong' || inboundWarningLevelFromServer === 'soft'
+      ? inboundWarningLevelFromServer
+      : inboundLimit > 0 && inboundUsage >= inboundStrongThreshold
+        ? 'strong'
+        : inboundLimit > 0 && inboundUsage >= inboundSoftThreshold
+          ? 'soft'
+          : 'none';
+  const inboundWarningText =
+    inboundWarningLevel === 'strong'
+      ? `You're nearing your forwarded email limit (${inboundUsage}/${inboundLimit}). Use "Reduce usage with a filter" to keep only high-signal job emails flowing in.`
+      : inboundWarningLevel === 'soft'
+        ? `Forwarded email usage is climbing (${inboundUsage}/${inboundLimit}). Reduce noise with a Gmail filter to stay within your monthly forwarding limit.`
+        : '';
   const isMonthlySubscription = tier === 'pro' && billingPlan === 'pro_monthly';
   const planStatusMeta = isMonthlySubscription
     ? cancelAtPeriodEnd
@@ -5365,7 +5398,8 @@ function renderPlanUsage(user = sessionUser) {
   renderAccountPlanName(planDisplay.label, planDisplay.iconVariant, planStatusMeta);
   accountPlanUsage.innerHTML = `
     <span class="plan-usage-primary">${usage} / ${limit} tracked updates this month</span>
-    <span class="plan-usage-secondary">${inboundUsage} / ${inboundLimit} forwarded emails received this month</span>
+    <span class="plan-usage-secondary">${inboundUsage} / ${inboundLimit} forwarded emails this month</span>
+    <span class="plan-usage-footnote">Forwarded emails are messages sent to your Applictus inbox. Tracked updates are the job-related emails kept in your timeline.</span>
   `;
   const ratio = limit > 0 ? Math.min(1, usage / limit) : 0;
   accountPlanProgress.style.width = `${Math.round(ratio * 100)}%`;
@@ -5388,10 +5422,19 @@ function renderPlanUsage(user = sessionUser) {
       ? 'Subscription payment is past due. Please update billing in Stripe.'
       : '';
   if (accountPlanWarning) {
-    accountPlanWarning.textContent =
-      trigger?.message || subscriptionPastDueLabel || billingFailureLabel || cancellationLabel || expiryLabel || '';
+    const warningParts = [
+      trigger?.message || '',
+      subscriptionPastDueLabel || '',
+      billingFailureLabel || '',
+      cancellationLabel || '',
+      expiryLabel || '',
+      inboundWarningText || ''
+    ].filter(Boolean);
+    accountPlanWarning.textContent = warningParts.join(' ');
     accountPlanWarning.classList.toggle('plan-warning--near', trigger?.level === 'near');
     accountPlanWarning.classList.toggle('plan-warning--at', trigger?.level === 'at');
+    accountPlanWarning.classList.toggle('plan-warning--inbound-soft', inboundWarningLevel === 'soft');
+    accountPlanWarning.classList.toggle('plan-warning--inbound-strong', inboundWarningLevel === 'strong');
   }
   if (accountUpgradeButton) {
     const showUpgrade = tier !== 'pro';
