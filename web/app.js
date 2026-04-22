@@ -6187,6 +6187,8 @@ function openPricingModal() {
   };
 
   const body = document.createElement('div');
+  const valueSection = document.createElement('section');
+  valueSection.className = 'pricing-section pricing-section--value';
   const valueRow = document.createElement('div');
   valueRow.className = 'pricing-value-row';
   [
@@ -6207,11 +6209,14 @@ function openPricingModal() {
     chip.append(icon, text);
     valueRow.appendChild(chip);
   });
-  body.appendChild(valueRow);
-  body.append(container);
+  valueSection.appendChild(valueRow);
 
-  const trustSection = document.createElement('div');
-  trustSection.className = 'pricing-trust-section';
+  const plansSection = document.createElement('section');
+  plansSection.className = 'pricing-section pricing-section--plans';
+  plansSection.appendChild(container);
+
+  const trustSection = document.createElement('section');
+  trustSection.className = 'pricing-section pricing-section--trust pricing-trust-section';
   const trustPanel = document.createElement('div');
   trustPanel.className = 'pricing-trust-panel';
   [
@@ -6255,16 +6260,7 @@ function openPricingModal() {
     trustPanel.appendChild(trustItem);
   });
   trustSection.appendChild(trustPanel);
-  const trustActions = document.createElement('div');
-  trustActions.className = 'pricing-trust-actions';
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.className = 'btn btn--ghost btn--sm pricing-trust-close';
-  closeBtn.textContent = 'Close';
-  closeBtn.addEventListener('click', () => closeModal('cancel'));
-  trustActions.appendChild(closeBtn);
-  trustSection.appendChild(trustActions);
-  body.appendChild(trustSection);
+  body.append(valueSection, plansSection, trustSection);
 
   openModal({
     title: 'Organize your job search and never miss an opportunity',

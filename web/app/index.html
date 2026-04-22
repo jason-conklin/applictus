@@ -845,10 +845,10 @@
       }
       .modal--pricing .modal-header {
         display: grid;
-        gap: 7px;
-        margin-bottom: 14px;
-        padding: 2px 4px 18px 102px;
-        min-height: 74px;
+        gap: 9px;
+        margin-bottom: 18px;
+        padding: 4px 4px 24px 102px;
+        min-height: 82px;
         align-content: center;
         border-bottom-color: rgba(44, 83, 147, 0.08);
       }
@@ -879,13 +879,28 @@
       }
       .modal--pricing .modal-body {
         display: grid;
-        gap: 26px;
+        gap: clamp(26px, 2.6vw, 36px);
+        padding-top: 4px;
+      }
+      .modal--pricing .pricing-section {
+        display: grid;
+        min-width: 0;
+      }
+      .modal--pricing .pricing-section--value {
+        gap: 0;
+      }
+      .modal--pricing .pricing-section--plans {
+        gap: 0;
+      }
+      .modal--pricing .pricing-section--trust {
+        gap: 0;
       }
       .pricing-value-row {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         gap: 32px;
+        min-height: 0;
       }
       .pricing-value-chip {
         display: inline-flex;
@@ -931,16 +946,16 @@
         grid-auto-rows: 1fr;
       }
       .modal--pricing .plan-card-grid::before {
-        top: 14px;
+        top: 22px;
         width: min(560px, 56%);
-        height: 164px;
+        height: 152px;
         background: radial-gradient(
           ellipse at center,
           rgba(100, 122, 237, 0.26) 0%,
           rgba(100, 122, 237, 0.11) 52%,
           rgba(111, 130, 240, 0) 78%
         );
-        opacity: 0.58;
+        opacity: 0.5;
       }
       .modal--pricing .plan-card {
         display: flex;
@@ -1346,6 +1361,9 @@
         .modal--pricing .modal-dialog {
           width: min(1180px, 96vw);
         }
+        .modal--pricing .modal-body {
+          gap: 28px;
+        }
         .modal--pricing .plan-card-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
@@ -1387,6 +1405,10 @@
         .modal--pricing .plan-card-grid {
           grid-template-columns: 1fr;
         }
+        .modal--pricing .modal-body {
+          gap: 22px;
+          padding-top: 2px;
+        }
         .plan-card,
         .plan-card:hover,
         .plan-card:focus-within {
@@ -1396,8 +1418,8 @@
           transform: none;
         }
         .modal--pricing .modal-header {
-          padding-left: 74px;
-          min-height: 56px;
+          padding: 2px 2px 16px 74px;
+          min-height: 62px;
         }
         .modal--pricing .modal-header::before {
           width: 56px;
