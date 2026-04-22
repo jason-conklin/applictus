@@ -965,7 +965,7 @@
       }
       .modal--pricing .plan-card {
         --plan-surface-svg: none;
-        --plan-surface-position: center 124%;
+        --plan-surface-height: 39%;
         display: flex;
         flex-direction: column;
         height: 100%;
@@ -981,14 +981,18 @@
       .modal--pricing .plan-card::before {
         content: '';
         position: absolute;
-        top: 0;
+        top: auto;
         left: 0;
         right: 0;
         bottom: 0;
-        border-radius: inherit;
+        height: var(--plan-surface-height);
+        border-top-left-radius: 0;
+        border-top-right-radius: 0;
+        border-bottom-left-radius: inherit;
+        border-bottom-right-radius: inherit;
         background-image: var(--plan-surface-svg);
-        background-size: cover;
-        background-position: var(--plan-surface-position);
+        background-size: 100% 100%;
+        background-position: center bottom;
         background-repeat: no-repeat;
         opacity: 1;
         z-index: 0;
@@ -1007,7 +1011,7 @@
       }
       .modal--pricing .plan-card--free {
         --plan-surface-svg: url('/assets/pricing-surfaces/plan-surface-free.svg');
-        --plan-surface-position: center 126%;
+        --plan-surface-height: 37%;
         background:
           linear-gradient(180deg, #ffffff 0%, #fcfdff 56%, #f6f9ff 100%);
         border-color: rgba(77, 96, 123, 0.2);
@@ -1028,7 +1032,7 @@
       }
       .modal--pricing .plan-card--pro {
         --plan-surface-svg: url('/assets/pricing-surfaces/plan-surface-pro.svg');
-        --plan-surface-position: center 122%;
+        --plan-surface-height: 41%;
         border-color: rgba(76, 95, 230, 0.74);
         background:
           linear-gradient(180deg, #ffffff 0%, #f8faff 56%, #f0f4ff 100%);
@@ -1050,7 +1054,7 @@
       }
       .modal--pricing .plan-card--jobsearch {
         --plan-surface-svg: url('/assets/pricing-surfaces/plan-surface-jobsearch.svg');
-        --plan-surface-position: center 125%;
+        --plan-surface-height: 40%;
         border-color: rgba(217, 177, 121, 0.44);
         background:
           linear-gradient(180deg, #fffefd 0%, #fffaf2 56%, #fff3e5 100%);
