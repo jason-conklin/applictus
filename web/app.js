@@ -5879,6 +5879,7 @@ function buildPlanCard({
   badgeVariant = '',
   iconVariant = 'free',
   ctaClassName = 'btn btn--ghost btn--sm plan-cta plan-cta--free',
+  ctaIconSvg = '',
   onCtaClick = null
 }) {
   const card = document.createElement('div');
@@ -5993,7 +5994,17 @@ function buildPlanCard({
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = ctaClassName;
-  btn.textContent = ctaText;
+  if (ctaIconSvg) {
+    const icon = document.createElement('span');
+    icon.className = 'plan-cta-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.innerHTML = ctaIconSvg;
+    btn.appendChild(icon);
+  }
+  const btnLabel = document.createElement('span');
+  btnLabel.className = 'plan-cta-label';
+  btnLabel.textContent = ctaText;
+  btn.appendChild(btnLabel);
   btn.addEventListener('click', () => {
     if (typeof onCtaClick === 'function') {
       onCtaClick();
@@ -6030,6 +6041,28 @@ function buildPlanCard({
 }
 
 function openPricingModal() {
+  const buildPricingCtaGlyph = (name) => {
+    switch (name) {
+      case 'sparkles':
+        return `
+          <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+            <path d="M10 3.8 11.2 7 14.4 8.2 11.2 9.4 10 12.6 8.8 9.4 5.6 8.2 8.8 7Z" fill="currentColor"></path>
+            <path d="M15.5 11.5 16.1 13.1 17.7 13.7 16.1 14.3 15.5 15.9 14.9 14.3 13.3 13.7 14.9 13.1Z" fill="currentColor" opacity="0.92"></path>
+          </svg>
+        `;
+      case 'rocket':
+        return `
+          <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+            <path d="M12.7 5.1c2.1-.6 3.7-.4 4.2.1.5.5.7 2.1.1 4.2l-3.4 3.4c-.5.5-1.1.8-1.8 1L8 14.7l.9-3.8c.2-.7.5-1.3 1-1.8Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path>
+            <circle cx="13.6" cy="6.4" r="1" fill="currentColor"></circle>
+            <path d="M7.1 12.9 5.3 14.7M8.3 14.1l-1.8 1.8M6.4 11.9 4.6 13.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>
+          </svg>
+        `;
+      default:
+        return '';
+    }
+  };
+
   const container = document.createElement('div');
   container.className = 'plan-card-grid';
 
@@ -6067,6 +6100,7 @@ function openPricingModal() {
     ctaSubtext: 'Billed monthly • Cancel anytime',
     cardClassName: 'plan-card--pro',
     ctaClassName: 'btn btn--primary btn--md plan-cta plan-cta--pro',
+    ctaIconSvg: buildPricingCtaGlyph('sparkles'),
     onCtaClick: () => requestUpgrade('monthly')
   });
   const jobSearchPlanCard = buildPlanCard({
@@ -6089,6 +6123,7 @@ function openPricingModal() {
     ctaSubtext: 'One upfront payment for 3 months',
     cardClassName: 'plan-card--jobsearch',
     ctaClassName: 'btn btn--md plan-cta plan-cta--jobsearch',
+    ctaIconSvg: buildPricingCtaGlyph('rocket'),
     onCtaClick: () => requestUpgrade('job_search_plan')
   });
   container.append(freeCard, proCard, jobSearchPlanCard);
