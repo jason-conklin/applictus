@@ -483,7 +483,12 @@
         height: 42%;
         border-radius: 16px 16px 12px 12px;
         background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0));
+        z-index: 0;
         pointer-events: none;
+      }
+      .plan-card > * {
+        position: relative;
+        z-index: 1;
       }
       .plan-card:hover,
       .plan-card:focus-within {
@@ -599,10 +604,6 @@
         pointer-events: none;
         z-index: 0;
         animation: pricing-pro-glow-pulse 7.2s ease-in-out infinite;
-      }
-      .plan-card--pro > * {
-        position: relative;
-        z-index: 1;
       }
       .plan-card--free {
         border-color: rgba(20, 40, 80, 0.12);
