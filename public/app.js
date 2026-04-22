@@ -6116,6 +6116,20 @@ function openPricingModal() {
             <path d="M8.3 14.5a1.8 1.8 0 0 0 3.4 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
           </svg>
         `;
+      case 'check':
+        return `
+          <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+            <circle cx="10" cy="10" r="7.1" fill="none" stroke="currentColor" stroke-width="1.6"></circle>
+            <path d="M6.8 10.1 8.9 12.3 13.4 7.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        `;
+      case 'diamond':
+        return `
+          <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+            <path d="M10 3.8 16.1 10 10 16.2 3.9 10 10 3.8Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path>
+            <path d="M10 7v6M7 10h6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+          </svg>
+        `;
       case 'secure':
       default:
         return `
@@ -6156,10 +6170,26 @@ function openPricingModal() {
   const trustPanel = document.createElement('div');
   trustPanel.className = 'pricing-trust-panel';
   [
-    { icon: 'secure', text: 'Secure checkout powered by Stripe' },
-    { icon: 'organize', text: 'Cancel anytime' },
-    { icon: 'track', text: 'No commitment' },
-    { icon: 'alerts', text: 'Your data is yours' }
+    {
+      icon: 'secure',
+      title: 'Secure checkout powered by Stripe',
+      detail: 'Your payment is encrypted and secure.'
+    },
+    {
+      icon: 'check',
+      title: 'Cancel anytime',
+      detail: 'No hidden fees'
+    },
+    {
+      icon: 'diamond',
+      title: 'No commitment',
+      detail: 'Change plans anytime'
+    },
+    {
+      icon: 'secure',
+      title: 'Your data is yours',
+      detail: 'We respect your privacy'
+    }
   ].forEach((item) => {
     const trustItem = document.createElement('div');
     trustItem.className = 'pricing-trust-item';
@@ -6167,10 +6197,16 @@ function openPricingModal() {
     icon.className = 'pricing-trust-item__icon';
     icon.setAttribute('aria-hidden', 'true');
     icon.innerHTML = buildPricingGlyph(item.icon);
-    const text = document.createElement('span');
-    text.className = 'pricing-trust-item__text';
-    text.textContent = item.text;
-    trustItem.append(icon, text);
+    const textWrap = document.createElement('span');
+    textWrap.className = 'pricing-trust-item__text';
+    const title = document.createElement('span');
+    title.className = 'pricing-trust-item__title';
+    title.textContent = item.title;
+    const detail = document.createElement('span');
+    detail.className = 'pricing-trust-item__detail';
+    detail.textContent = item.detail;
+    textWrap.append(title, detail);
+    trustItem.append(icon, textWrap);
     trustPanel.appendChild(trustItem);
   });
   trustSection.appendChild(trustPanel);

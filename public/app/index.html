@@ -415,15 +415,15 @@
         z-index: 0;
       }
       .modal--pricing .modal-dialog {
-        width: min(1120px, 96vw);
-        border-color: rgba(39, 78, 140, 0.2);
+        width: min(1380px, 97vw);
+        border-color: rgba(39, 78, 140, 0.18);
         background:
-          radial-gradient(132% 62% at 50% -8%, rgba(212, 228, 252, 0.72), rgba(255, 255, 255, 0) 68%),
-          linear-gradient(180deg, #ffffff 0%, #f4f8ff 100%);
+          radial-gradient(132% 64% at 50% -10%, rgba(215, 227, 252, 0.74), rgba(255, 255, 255, 0) 68%),
+          linear-gradient(180deg, #f8f9ff 0%, #f2f5fd 100%);
         box-shadow:
-          0 48px 100px rgba(14, 34, 67, 0.36),
-          0 16px 36px rgba(16, 42, 84, 0.22),
-          inset 0 1px 0 rgba(255, 255, 255, 0.86);
+          0 54px 110px rgba(14, 34, 67, 0.38),
+          0 16px 34px rgba(16, 42, 84, 0.21),
+          inset 0 1px 0 rgba(255, 255, 255, 0.88);
         overflow: hidden;
       }
       .modal--pricing .modal-dialog::before {
@@ -845,87 +845,120 @@
       }
       .modal--pricing .modal-header {
         display: grid;
-        gap: 8px;
-        margin-bottom: 16px;
-        padding-bottom: 18px;
+        gap: 7px;
+        margin-bottom: 14px;
+        padding: 2px 4px 18px 98px;
+        min-height: 74px;
+        align-content: center;
+      }
+      .modal--pricing .modal-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 72px;
+        height: 72px;
+        border-radius: 18px;
+        border: 1px solid rgba(66, 93, 137, 0.16);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 249, 255, 0.94)),
+          url('/Applictus_logo.png') center / 42px 42px no-repeat;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.98),
+          0 8px 20px rgba(24, 47, 86, 0.12);
       }
       .modal--pricing .modal-header h3 {
-        font-size: 1.44rem;
-        letter-spacing: -0.015em;
-        color: #102f57;
+        font-size: 1.56rem;
+        letter-spacing: -0.018em;
+        color: #10284d;
       }
       .modal--pricing .modal-header p {
-        max-width: 76ch;
-        color: #547097;
+        max-width: 82ch;
+        color: #4f6b93;
       }
       .modal--pricing .modal-body {
         display: grid;
-        gap: 16px;
+        gap: 18px;
       }
       .pricing-value-row {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 22px;
       }
       .pricing-value-chip {
         display: inline-flex;
         align-items: center;
-        gap: 7px;
-        min-height: 30px;
-        padding: 7px 10px;
-        border-radius: 12px;
-        border: 1px solid rgba(49, 82, 130, 0.16);
-        background:
-          radial-gradient(122% 122% at 0% 0%, rgba(229, 239, 255, 0.6), rgba(255, 255, 255, 0) 74%),
-          linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(247, 251, 255, 0.95));
-        color: #3f5f88;
-        box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.94),
-          0 6px 12px rgba(20, 46, 92, 0.06);
+        gap: 10px;
+        min-height: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: #2e4b76;
+        box-shadow: none;
       }
       .pricing-value-chip__icon {
-        width: 14px;
-        height: 14px;
+        width: 44px;
+        height: 44px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        color: #4a72aa;
+        color: #3f67a4;
         flex: 0 0 auto;
+        border-radius: 999px;
+        border: 1px solid rgba(61, 92, 142, 0.18);
+        background: linear-gradient(180deg, rgba(247, 250, 255, 0.95), rgba(238, 244, 255, 0.94));
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.92),
+          0 6px 12px rgba(20, 46, 92, 0.08);
       }
       .pricing-value-chip__icon svg {
-        width: 100%;
-        height: 100%;
+        width: 17px;
+        height: 17px;
         display: block;
       }
       .pricing-value-chip__text {
-        font-size: 11.5px;
+        font-size: 14px;
         font-weight: 600;
-        line-height: 1.25;
+        line-height: 1.2;
+        color: #243f69;
       }
       .modal--pricing .plan-card-grid {
-        gap: 18px;
+        gap: 26px;
         margin-top: 2px;
       }
       .modal--pricing .plan-card-grid::before {
-        top: -26px;
-        width: min(500px, 52%);
-        height: 140px;
+        top: -34px;
+        width: min(560px, 56%);
+        height: 164px;
         background: radial-gradient(
           ellipse at center,
-          rgba(111, 130, 240, 0.24) 0%,
-          rgba(111, 130, 240, 0.09) 52%,
+          rgba(100, 122, 237, 0.26) 0%,
+          rgba(100, 122, 237, 0.11) 52%,
           rgba(111, 130, 240, 0) 78%
         );
-        opacity: 0.62;
+        opacity: 0.66;
       }
       .modal--pricing .plan-card {
-        border-radius: 20px;
-        padding: 20px 18px 16px;
-        border-color: rgba(33, 62, 109, 0.16);
+        border-radius: 28px;
+        padding: 24px 22px 18px;
+        border-color: rgba(37, 64, 106, 0.16);
         box-shadow:
-          0 20px 36px rgba(18, 41, 80, 0.11),
+          0 20px 40px rgba(18, 41, 80, 0.1),
           0 10px 20px rgba(18, 41, 80, 0.05),
           inset 0 1px 0 rgba(255, 255, 255, 0.92);
+      }
+      .modal--pricing .plan-card::after {
+        content: '';
+        position: absolute;
+        left: 32%;
+        right: -16%;
+        bottom: -20%;
+        height: 54%;
+        border-radius: 999px;
+        background: radial-gradient(ellipse at center, rgba(161, 181, 225, 0.2) 0%, rgba(161, 181, 225, 0) 72%);
+        z-index: 0;
+        pointer-events: none;
       }
       .modal--pricing .plan-card:hover,
       .modal--pricing .plan-card:focus-within {
@@ -950,64 +983,58 @@
         transform: translateY(-2px);
       }
       .modal--pricing .plan-card--pro {
-        border-color: rgba(82, 97, 203, 0.4);
+        border-color: rgba(78, 100, 218, 0.62);
         background:
-          radial-gradient(142% 126% at 9% 0%, rgba(218, 224, 255, 0.96), rgba(255, 255, 255, 0) 58%),
-          linear-gradient(160deg, #ffffff 0%, #eff3ff 54%, #e8ecff 100%);
+          radial-gradient(142% 126% at 9% 0%, rgba(220, 226, 255, 0.96), rgba(255, 255, 255, 0) 58%),
+          linear-gradient(160deg, #fbfcff 0%, #eff3ff 54%, #e8ebff 100%);
         box-shadow:
-          0 34px 64px rgba(31, 52, 122, 0.26),
-          0 14px 28px rgba(31, 52, 122, 0.16),
+          0 34px 64px rgba(39, 54, 138, 0.27),
+          0 14px 28px rgba(39, 54, 138, 0.16),
           inset 0 1px 0 rgba(255, 255, 255, 0.94);
-        transform: translateY(-6px) scale(1.01);
+        transform: translateY(-7px) scale(1.012);
       }
       .modal--pricing .plan-card--pro::after {
-        left: -16%;
-        right: -16%;
-        top: -26%;
-        height: 74%;
-        background: radial-gradient(
-          ellipse at center,
-          rgba(102, 119, 239, 0.32) 0%,
-          rgba(102, 119, 239, 0.14) 46%,
-          rgba(102, 119, 239, 0) 76%
-        );
-        opacity: 0.56;
-        animation: pricing-pro-ambient 8s ease-in-out infinite;
+        left: 30%;
+        right: -18%;
+        bottom: -24%;
+        height: 58%;
+        top: auto;
+        background:
+          radial-gradient(ellipse at center, rgba(143, 156, 255, 0.24) 0%, rgba(143, 156, 255, 0) 72%),
+          linear-gradient(135deg, rgba(255, 255, 255, 0) 34%, rgba(211, 218, 255, 0.28) 68%, rgba(255, 255, 255, 0) 100%);
+        opacity: 0.78;
+        animation: pricing-pro-ambient 8.4s ease-in-out infinite;
       }
       .modal--pricing .plan-card--pro:hover,
       .modal--pricing .plan-card--pro:focus-within {
-        transform: translateY(-8px) scale(1.012);
+        transform: translateY(-9px) scale(1.014);
       }
       .modal--pricing .plan-card--jobsearch {
-        border-color: rgba(178, 141, 92, 0.3);
+        border-color: rgba(217, 177, 121, 0.44);
         background:
-          radial-gradient(136% 124% at 10% 0%, rgba(255, 246, 226, 0.9), rgba(255, 255, 255, 0) 66%),
-          linear-gradient(160deg, #ffffff 0%, #fff7e9 54%, #fff3dc 100%);
+          radial-gradient(136% 124% at 10% 0%, rgba(255, 247, 230, 0.92), rgba(255, 255, 255, 0) 66%),
+          linear-gradient(160deg, #fffefc 0%, #fff7e8 54%, #fff2d9 100%);
         box-shadow:
-          0 22px 38px rgba(96, 74, 37, 0.12),
-          0 9px 20px rgba(96, 74, 37, 0.06),
+          0 24px 40px rgba(118, 86, 41, 0.14),
+          0 9px 20px rgba(118, 86, 41, 0.07),
           inset 0 1px 0 rgba(255, 255, 255, 0.94);
       }
       .modal--pricing .plan-card--jobsearch::after {
-        content: '';
-        position: absolute;
-        inset: 0;
+        left: 36%;
+        right: -16%;
+        bottom: -22%;
+        top: auto;
+        height: 56%;
         background:
-          radial-gradient(78% 58% at 100% 0%, rgba(245, 198, 121, 0.22), rgba(245, 198, 121, 0) 72%),
-          linear-gradient(126deg, rgba(255, 255, 255, 0) 32%, rgba(255, 234, 194, 0.2) 66%, rgba(255, 255, 255, 0) 100%);
-        opacity: 0.66;
-        z-index: 0;
-        pointer-events: none;
-      }
-      .modal--pricing .plan-card--jobsearch > * {
-        position: relative;
-        z-index: 1;
+          radial-gradient(ellipse at center, rgba(244, 184, 92, 0.24) 0%, rgba(244, 184, 92, 0) 72%),
+          linear-gradient(126deg, rgba(255, 255, 255, 0) 32%, rgba(255, 222, 170, 0.24) 66%, rgba(255, 255, 255, 0) 100%);
+        opacity: 0.72;
       }
       .modal--pricing .plan-logo-badge {
-        border-radius: 13px;
+        border-radius: 14px;
         box-shadow:
           inset 0 1px 0 rgba(255, 255, 255, 0.98),
-          0 8px 16px rgba(24, 47, 86, 0.14);
+          0 10px 18px rgba(24, 47, 86, 0.13);
       }
       .modal--pricing .plan-logo-badge--free {
         background: linear-gradient(180deg, #f2f5f9 0%, #e9eef4 100%);
@@ -1025,21 +1052,21 @@
         border-color: rgba(183, 143, 85, 0.3);
       }
       .modal--pricing .plan-title {
-        font-size: 18px;
+        font-size: 20px;
         margin-bottom: 5px;
-        color: #0f2b4d;
+        color: #10284d;
       }
       .modal--pricing .plan-context {
-        color: #4f678a;
+        color: #49658d;
       }
       .modal--pricing .plan-price {
-        font-size: 38px;
-        line-height: 1;
-        margin: 4px 0 6px;
+        font-size: 54px;
+        line-height: 0.95;
+        margin: 8px 0 8px;
       }
       .modal--pricing .plan-price-term {
-        font-size: 14px;
-        color: #4f6c96;
+        font-size: 19px;
+        color: #395886;
       }
       .modal--pricing .plan-limit {
         margin-bottom: 10px;
@@ -1057,18 +1084,26 @@
         color: #274868;
       }
       .modal--pricing .plan-pill {
-        padding: 4px 10px;
-        font-size: 11.5px;
+        padding: 6px 14px;
+        font-size: 11px;
+        border-radius: 999px;
+        letter-spacing: 0.005em;
       }
       .modal--pricing .plan-pill--included {
-        background: rgba(57, 79, 110, 0.12);
-        border-color: rgba(57, 79, 110, 0.2);
-        color: #42597c;
+        background: rgba(90, 106, 135, 0.12);
+        border-color: rgba(90, 106, 135, 0.2);
+        color: #435b80;
       }
       .modal--pricing .plan-pill--popular {
         background: linear-gradient(180deg, rgba(94, 116, 231, 0.26), rgba(75, 96, 216, 0.3));
         border-color: rgba(82, 101, 211, 0.4);
         color: #1f3a8a;
+      }
+      .modal--pricing .plan-pill--popular::before {
+        content: '★';
+        font-size: 10px;
+        margin-right: 6px;
+        line-height: 1;
       }
       .modal--pricing .plan-pill--commitment {
         background: rgba(226, 161, 71, 0.2);
@@ -1076,8 +1111,15 @@
         color: #895928;
       }
       .modal--pricing .plan-cta {
-        min-height: 40px;
-        border-radius: 12px;
+        min-height: 56px;
+        border-radius: 999px;
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: -0.005em;
+        gap: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
       }
       .modal--pricing .plan-cta--free {
         color: #5a6f8d;
@@ -1097,6 +1139,11 @@
           0 18px 30px rgba(68, 84, 190, 0.34),
           inset 0 1px 0 rgba(255, 255, 255, 0.22);
       }
+      .modal--pricing .plan-cta--pro::before {
+        content: '✦';
+        font-size: 14px;
+        line-height: 1;
+      }
       .modal--pricing .plan-cta--pro:hover {
         transform: translateY(-1px);
         box-shadow:
@@ -1105,13 +1152,18 @@
       }
       .modal--pricing .plan-cta--jobsearch {
         color: #fffdf8;
-        border-color: rgba(188, 104, 18, 0.54);
+        border-color: rgba(202, 108, 18, 0.58);
         background:
           radial-gradient(118% 130% at 18% 8%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 58%),
-          linear-gradient(180deg, #f2a648 0%, #df812a 100%);
+          linear-gradient(180deg, #f5a742 0%, #ef7f00 100%);
         box-shadow:
-          0 16px 28px rgba(193, 121, 36, 0.3),
+          0 16px 28px rgba(199, 112, 22, 0.32),
           inset 0 1px 0 rgba(255, 255, 255, 0.24);
+      }
+      .modal--pricing .plan-cta--jobsearch::before {
+        content: '↗';
+        font-size: 14px;
+        line-height: 1;
       }
       .modal--pricing .plan-cta--jobsearch:hover {
         transform: translateY(-1px);
@@ -1129,39 +1181,61 @@
       .pricing-trust-panel {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 8px;
-        border-radius: 14px;
-        border: 1px solid rgba(47, 77, 123, 0.16);
+        gap: 0;
+        border-radius: 24px;
+        border: 1px solid rgba(47, 77, 123, 0.18);
         background:
-          radial-gradient(124% 124% at 0% 0%, rgba(225, 237, 255, 0.56), rgba(255, 255, 255, 0) 72%),
-          linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(246, 250, 255, 0.94));
-        padding: 10px 11px;
+          radial-gradient(124% 124% at 0% 0%, rgba(225, 237, 255, 0.58), rgba(255, 255, 255, 0) 72%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 250, 255, 0.95));
+        padding: 12px 12px;
         box-shadow:
           inset 0 1px 0 rgba(255, 255, 255, 0.9),
           0 10px 20px rgba(21, 45, 86, 0.08);
       }
       .pricing-trust-item {
-        display: inline-flex;
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr);
         align-items: center;
-        gap: 6px;
+        gap: 10px;
         min-width: 0;
-        color: #44658f;
+        color: #385a87;
+        padding: 6px 12px;
+      }
+      .pricing-trust-item + .pricing-trust-item {
+        border-left: 1px solid rgba(67, 96, 141, 0.2);
       }
       .pricing-trust-item__icon {
-        width: 14px;
-        height: 14px;
+        width: 40px;
+        height: 40px;
         flex: 0 0 auto;
-        color: #5074a8;
+        color: #4068a3;
+        border-radius: 999px;
+        border: 1px solid rgba(67, 96, 141, 0.2);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(238, 244, 255, 0.94));
       }
       .pricing-trust-item__icon svg {
-        width: 100%;
-        height: 100%;
+        width: 17px;
+        height: 17px;
         display: block;
       }
       .pricing-trust-item__text {
-        font-size: 11.5px;
-        line-height: 1.3;
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+      }
+      .pricing-trust-item__title {
+        font-size: 15px;
+        line-height: 1.25;
         font-weight: 600;
+        color: #1f3f6f;
+      }
+      .pricing-trust-item__detail {
+        font-size: 13px;
+        line-height: 1.3;
+        color: #4b678f;
       }
       .pricing-trust-actions {
         display: flex;
@@ -1201,7 +1275,7 @@
       }
       @media (max-width: 980px) {
         .modal--pricing .modal-dialog {
-          width: min(980px, 96vw);
+          width: min(1180px, 96vw);
         }
         .modal--pricing .plan-card-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1212,11 +1286,17 @@
         .plan-card--pro {
           transform: translateY(-2px);
         }
-        .pricing-value-row {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
         .pricing-trust-panel {
           grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .pricing-trust-item + .pricing-trust-item {
+          border-left: 0;
+        }
+        .pricing-trust-item:nth-child(even) {
+          border-left: 1px solid rgba(67, 96, 141, 0.2);
+        }
+        .pricing-trust-item:nth-child(n + 3) {
+          border-top: 1px solid rgba(67, 96, 141, 0.2);
         }
         .modal--pricing .plan-card--pro {
           grid-column: span 2;
@@ -1246,19 +1326,64 @@
         .plan-card--pro {
           transform: none;
         }
-        .pricing-value-row {
-          grid-template-columns: 1fr;
-          gap: 7px;
+        .modal--pricing .modal-header {
+          padding-left: 74px;
+          min-height: 56px;
         }
-        .pricing-value-chip {
-          min-height: 0;
+        .modal--pricing .modal-header::before {
+          width: 56px;
+          height: 56px;
+          border-radius: 14px;
+          background-size: 34px 34px;
+        }
+        .modal--pricing .modal-header h3 {
+          font-size: 1.28rem;
+        }
+        .pricing-value-row {
+          gap: 12px;
+        }
+        .pricing-value-chip__icon {
+          width: 36px;
+          height: 36px;
+        }
+        .pricing-value-chip__icon svg {
+          width: 15px;
+          height: 15px;
+        }
+        .pricing-value-chip__text {
+          font-size: 13px;
+        }
+        .modal--pricing .plan-price {
+          font-size: 44px;
+        }
+        .modal--pricing .plan-price-term {
+          font-size: 17px;
+        }
+        .modal--pricing .plan-cta {
+          min-height: 50px;
+        }
+        .pricing-trust-item {
+          padding: 7px 8px;
         }
         .pricing-trust-panel {
           grid-template-columns: 1fr;
-          gap: 7px;
-          padding: 10px;
+          gap: 0;
+          padding: 8px 10px;
         }
-        .pricing-trust-item__text {
+        .pricing-trust-item + .pricing-trust-item,
+        .pricing-trust-item:nth-child(even),
+        .pricing-trust-item:nth-child(n + 3) {
+          border-left: 0;
+          border-top: 1px solid rgba(67, 96, 141, 0.17);
+        }
+        .pricing-trust-item__icon {
+          width: 34px;
+          height: 34px;
+        }
+        .pricing-trust-item__title {
+          font-size: 12px;
+        }
+        .pricing-trust-item__detail {
           font-size: 11px;
         }
         .plan-title-row {
