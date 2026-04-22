@@ -1,29 +1,49 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1600" fill="none">
   <defs>
-    <linearGradient id="free-band-a" x1="140" y1="900" x2="1120" y2="520" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#dfe9f8" stop-opacity="0.42"/>
-      <stop offset="0.5" stop-color="#e7effb" stop-opacity="0.22"/>
-      <stop offset="1" stop-color="#f4f7ff" stop-opacity="0.04"/>
+    <linearGradient id="free-base" x1="600" y1="0" x2="600" y2="1600" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="0.5" stop-color="#f6f9ff" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#eef4ff" stop-opacity="0.08"/>
     </linearGradient>
-    <linearGradient id="free-band-b" x1="1080" y1="980" x2="120" y2="1240" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#d6e1f4" stop-opacity="0.34"/>
-      <stop offset="0.55" stop-color="#e5ecf8" stop-opacity="0.16"/>
-      <stop offset="1" stop-color="#f7f9fd" stop-opacity="0.03"/>
+    <linearGradient id="free-ambient-a" x1="-120" y1="140" x2="1280" y2="1360" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e8effa" stop-opacity="0.08"/>
+      <stop offset="0.48" stop-color="#edf3fc" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#f8fbff" stop-opacity="0.01"/>
     </linearGradient>
-    <linearGradient id="free-band-c" x1="-80" y1="680" x2="980" y2="1080" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#e7eaf6" stop-opacity="0.2"/>
-      <stop offset="0.55" stop-color="#e1e8f9" stop-opacity="0.1"/>
-      <stop offset="1" stop-color="#f5f7fc" stop-opacity="0"/>
+    <linearGradient id="free-ambient-b" x1="1320" y1="220" x2="-180" y2="1480" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e3ebf9" stop-opacity="0.08"/>
+      <stop offset="0.52" stop-color="#eef3fb" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#fbfdff" stop-opacity="0.01"/>
     </linearGradient>
-    <radialGradient id="free-haze" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(250 180) rotate(16) scale(640 390)">
-      <stop stop-color="#ffffff" stop-opacity="0.4"/>
-      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.16"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    <linearGradient id="free-ambient-c" x1="0" y1="1600" x2="1200" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e5ecfa" stop-opacity="0.06"/>
+      <stop offset="0.5" stop-color="#edf2fc" stop-opacity="0.03"/>
+      <stop offset="1" stop-color="#fafcff" stop-opacity="0.01"/>
+    </linearGradient>
+    <linearGradient id="free-band-a" x1="-260" y1="940" x2="1460" y2="780" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#dbe5f7" stop-opacity="0"/>
+      <stop offset="0.38" stop-color="#dbe5f7" stop-opacity="0.07"/>
+      <stop offset="0.62" stop-color="#e6edfa" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#edf2fb" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="free-band-b" x1="-200" y1="520" x2="1420" y2="1120" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#dfe7f8" stop-opacity="0"/>
+      <stop offset="0.32" stop-color="#dfe7f8" stop-opacity="0.06"/>
+      <stop offset="0.58" stop-color="#e9effb" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#eef3fc" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="free-haze" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(600 760) rotate(10) scale(1080 760)">
+      <stop stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="0.55" stop-color="#f9fbff" stop-opacity="0.03"/>
+      <stop offset="1" stop-color="#f4f8ff" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
-  <path d="M-120 1360C120 1180 330 1090 560 1060C760 1033 980 1048 1180 960V1700H-120V1360Z" fill="url(#free-band-a)"/>
-  <path d="M-80 1510C180 1310 430 1240 680 1228C900 1218 1080 1278 1280 1170V1700H-80V1510Z" fill="url(#free-band-b)"/>
-  <path d="M-180 980C110 820 390 790 640 840C860 886 1050 995 1290 900V1180C1000 1248 790 1222 560 1242C300 1266 80 1330-160 1490L-180 980Z" fill="url(#free-band-c)"/>
-  <ellipse cx="250" cy="180" rx="640" ry="390" fill="url(#free-haze)"/>
+  <rect width="1200" height="1600" fill="url(#free-base)"/>
+  <rect width="1200" height="1600" fill="url(#free-ambient-a)"/>
+  <rect width="1200" height="1600" fill="url(#free-ambient-b)"/>
+  <rect width="1200" height="1600" fill="url(#free-ambient-c)"/>
+  <rect width="1200" height="1600" fill="url(#free-band-a)"/>
+  <rect width="1200" height="1600" fill="url(#free-band-b)"/>
+  <rect width="1200" height="1600" fill="url(#free-haze)"/>
 </svg>
