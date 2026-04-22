@@ -5023,14 +5023,16 @@ function setView(view) {
   toggleSection(contactView, view === 'contact');
   toggleSection(aboutView, view === 'about');
   const isAuthed = Boolean(sessionUser);
+  const isPublicLegalView = view === 'privacy' || view === 'terms' || view === 'about';
+  const showAppTopbar = isAuthed && !isPublicLegalView;
   if (topbar) {
-    topbar.classList.toggle('hidden', !isAuthed);
+    topbar.classList.toggle('hidden', !showAppTopbar);
   }
   if (nav) {
-    nav.classList.toggle('hidden', !isAuthed);
+    nav.classList.toggle('hidden', !showAppTopbar);
   }
   if (accountAvatar) {
-    accountAvatar.classList.toggle('hidden', !isAuthed);
+    accountAvatar.classList.toggle('hidden', !showAppTopbar);
     accountAvatar.classList.toggle('active', view === 'account');
   }
   if (view === 'account') {
