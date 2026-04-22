@@ -6059,12 +6059,13 @@ function openPricingModal() {
             <path d="M15.5 11.5 16.1 13.1 17.7 13.7 16.1 14.3 15.5 15.9 14.9 14.3 13.3 13.7 14.9 13.1Z" fill="currentColor" opacity="0.92"></path>
           </svg>
         `;
+      case 'trend':
       case 'rocket':
         return `
           <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-            <path d="M11.8 3.8c2.1-.3 3.8.2 4.4.8.6.6 1.1 2.3.8 4.4l-3.3 3.3a4.1 4.1 0 0 1-2.2 1.2l-2.8.6.6-2.8c.2-.8.6-1.6 1.2-2.2Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path>
-            <circle cx="13.9" cy="6.2" r="1" fill="currentColor"></circle>
-            <path d="M7.4 12.6 5.2 14.8M8.6 13.9 6.6 15.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+            <path d="M4.2 4.6v10.9h11.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+            <path d="M6.3 12.2 8.9 9.5l2.3 2 3.3-3.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+            <path d="M12.7 7.7h1.8v1.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
           </svg>
         `;
       default:
@@ -6132,7 +6133,7 @@ function openPricingModal() {
     ctaSubtext: 'One upfront payment for 3 months',
     cardClassName: 'plan-card--jobsearch',
     ctaClassName: 'btn btn--md plan-cta plan-cta--jobsearch',
-    ctaIconSvg: buildPricingCtaGlyph('rocket'),
+    ctaIconSvg: buildPricingCtaGlyph('trend'),
     onCtaClick: () => requestUpgrade('job_search_plan')
   });
   container.append(freeCard, proCard, jobSearchPlanCard);

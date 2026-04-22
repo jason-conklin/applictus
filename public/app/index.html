@@ -884,7 +884,7 @@
       .modal--pricing .pricing-modal-body {
         display: grid;
         grid-auto-flow: row;
-        row-gap: clamp(24px, 2.4vw, 34px);
+        row-gap: 0;
       }
       .modal--pricing .pricing-section {
         display: grid;
@@ -892,9 +892,11 @@
       }
       .modal--pricing .pricing-section--value {
         gap: 0;
+        margin-bottom: clamp(14px, 1.4vw, 20px);
       }
       .modal--pricing .pricing-section--plans {
         gap: 0;
+        margin-bottom: clamp(24px, 2.1vw, 30px);
       }
       .modal--pricing .pricing-section--trust {
         gap: 0;
@@ -1229,11 +1231,20 @@
           0 16px 28px rgba(199, 112, 22, 0.32),
           inset 0 1px 0 rgba(255, 255, 255, 0.24);
       }
+      .modal--pricing .plan-cta--jobsearch .plan-cta-icon {
+        width: 18px;
+        height: 18px;
+        transition: transform 180ms ease;
+      }
       .modal--pricing .plan-cta--jobsearch:hover {
         transform: translateY(-1px);
         box-shadow:
           0 20px 32px rgba(193, 121, 36, 0.35),
           inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      }
+      .modal--pricing .plan-cta--jobsearch:hover .plan-cta-icon,
+      .modal--pricing .plan-cta--jobsearch:focus-visible .plan-cta-icon {
+        transform: translate(1px, -1px) scale(1.04);
       }
       .modal--pricing .plan-cta-subtext {
         color: #4b678d;
@@ -1365,8 +1376,11 @@
         .modal--pricing .modal-dialog {
           width: min(1180px, 96vw);
         }
-        .modal--pricing .pricing-modal-body {
-          row-gap: 24px;
+        .modal--pricing .pricing-section--value {
+          margin-bottom: 14px;
+        }
+        .modal--pricing .pricing-section--plans {
+          margin-bottom: 22px;
         }
         .modal--pricing .plan-card-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1409,8 +1423,11 @@
         .modal--pricing .plan-card-grid {
           grid-template-columns: 1fr;
         }
-        .modal--pricing .pricing-modal-body {
-          row-gap: 18px;
+        .modal--pricing .pricing-section--value {
+          margin-bottom: 12px;
+        }
+        .modal--pricing .pricing-section--plans {
+          margin-bottom: 16px;
         }
         .modal--pricing .modal-body {
           padding-top: 2px;
