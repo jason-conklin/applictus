@@ -6187,6 +6187,7 @@ function openPricingModal() {
   };
 
   const body = document.createElement('div');
+  body.className = 'pricing-modal-body';
   const valueSection = document.createElement('section');
   valueSection.className = 'pricing-section pricing-section--value';
   const valueRow = document.createElement('div');
@@ -6233,7 +6234,7 @@ function openPricingModal() {
     {
       icon: 'diamond',
       title: 'No commitment',
-      detail: 'Change plans anytime'
+      detail: 'Change or cancel plans anytime'
     },
     {
       icon: 'secure',

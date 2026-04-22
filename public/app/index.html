@@ -878,9 +878,13 @@
         color: #4f6b93;
       }
       .modal--pricing .modal-body {
-        display: grid;
-        gap: clamp(26px, 2.6vw, 36px);
+        display: block;
         padding-top: 4px;
+      }
+      .modal--pricing .pricing-modal-body {
+        display: grid;
+        grid-auto-flow: row;
+        row-gap: clamp(24px, 2.4vw, 34px);
       }
       .modal--pricing .pricing-section {
         display: grid;
@@ -1361,8 +1365,8 @@
         .modal--pricing .modal-dialog {
           width: min(1180px, 96vw);
         }
-        .modal--pricing .modal-body {
-          gap: 28px;
+        .modal--pricing .pricing-modal-body {
+          row-gap: 24px;
         }
         .modal--pricing .plan-card-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1405,8 +1409,10 @@
         .modal--pricing .plan-card-grid {
           grid-template-columns: 1fr;
         }
+        .modal--pricing .pricing-modal-body {
+          row-gap: 18px;
+        }
         .modal--pricing .modal-body {
-          gap: 22px;
           padding-top: 2px;
         }
         .plan-card,
