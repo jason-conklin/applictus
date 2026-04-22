@@ -168,11 +168,118 @@
       .plan-usage-secondary {
         font-size: 12px;
         color: #5a749a;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        line-height: 1.35;
       }
-      .plan-usage-footnote {
+      .plan-usage-secondary-text {
+        min-width: 0;
+      }
+      .plan-usage-info {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        flex: 0 0 auto;
+      }
+      .plan-usage-info-btn {
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        border: 1px solid rgba(58, 90, 138, 0.34);
+        background: linear-gradient(180deg, #f8fbff 0%, #edf3fc 100%);
+        color: #466ca1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         font-size: 11px;
-        color: #6a7f9f;
+        font-weight: 700;
+        line-height: 1;
+        padding: 0;
+        cursor: pointer;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.88),
+          0 2px 6px rgba(27, 53, 93, 0.1);
+        transition:
+          border-color 150ms ease,
+          color 150ms ease,
+          box-shadow 150ms ease,
+          background 150ms ease;
+      }
+      .plan-usage-info-btn:hover {
+        border-color: rgba(55, 94, 153, 0.46);
+        color: #335b95;
+        background: linear-gradient(180deg, #fbfdff 0%, #eef4ff 100%);
+      }
+      .plan-usage-info-btn:focus-visible {
+        outline: none;
+        border-color: rgba(55, 104, 176, 0.58);
+        box-shadow:
+          0 0 0 3px rgba(64, 118, 198, 0.2),
+          inset 0 1px 0 rgba(255, 255, 255, 0.9),
+          0 2px 6px rgba(27, 53, 93, 0.1);
+      }
+      .plan-usage-tooltip {
+        position: absolute;
+        top: calc(100% + 9px);
+        right: 0;
+        z-index: 16;
+        width: min(300px, 72vw);
+        display: grid;
+        gap: 6px;
+        padding: 10px 11px;
+        border-radius: 11px;
+        border: 1px solid rgba(48, 77, 120, 0.2);
+        background: rgba(255, 255, 255, 0.98);
+        color: #3f5b80;
+        font-size: 11px;
         line-height: 1.45;
+        box-shadow:
+          0 16px 30px rgba(18, 39, 72, 0.15),
+          0 4px 12px rgba(18, 39, 72, 0.08);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateY(4px);
+        transition:
+          opacity 140ms ease,
+          visibility 0s linear 140ms,
+          transform 140ms ease;
+      }
+      .plan-usage-tooltip::before {
+        content: '';
+        position: absolute;
+        top: -5px;
+        right: 12px;
+        width: 9px;
+        height: 9px;
+        transform: rotate(45deg);
+        border-left: 1px solid rgba(48, 77, 120, 0.2);
+        border-top: 1px solid rgba(48, 77, 120, 0.2);
+        background: rgba(255, 255, 255, 0.98);
+      }
+      .plan-usage-info.is-open .plan-usage-tooltip,
+      .plan-usage-info:focus-within .plan-usage-tooltip {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateY(0);
+        transition:
+          opacity 140ms ease,
+          visibility 0s linear 0s,
+          transform 140ms ease;
+      }
+      @media (hover: hover) {
+        .plan-usage-info:hover .plan-usage-tooltip {
+          opacity: 1;
+          visibility: visible;
+          pointer-events: auto;
+          transform: translateY(0);
+          transition:
+            opacity 140ms ease,
+            visibility 0s linear 0s,
+            transform 140ms ease;
+        }
       }
       .account-plan-name-content {
         display: inline-flex;
@@ -277,6 +384,12 @@
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
         gap: 16px;
         margin-top: 4px;
+      }
+      .modal--pricing .modal-dialog {
+        width: min(1120px, 96vw);
+      }
+      .modal--pricing .plan-card-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
       .plan-card {
         position: relative;
@@ -568,7 +681,27 @@
       .pricing-trust-close {
         justify-self: end;
       }
+      @media (max-width: 980px) {
+        .modal--pricing .modal-dialog {
+          width: min(980px, 96vw);
+        }
+        .modal--pricing .plan-card-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
       @media (max-width: 768px) {
+        .plan-usage-tooltip {
+          right: auto;
+          left: 0;
+          width: min(290px, calc(100vw - 76px));
+        }
+        .plan-usage-tooltip::before {
+          left: 10px;
+          right: auto;
+        }
+        .modal--pricing .plan-card-grid {
+          grid-template-columns: 1fr;
+        }
         .plan-title-row {
           gap: 9px;
         }

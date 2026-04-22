@@ -5297,6 +5297,71 @@ function resolveAccountPlanDisplay({ tier, billingPlan, hasActiveJobSearchPlan }
   return { label: 'Free', iconVariant: 'free' };
 }
 
+let activePlanUsageInfoTooltip = null;
+let planUsageInfoTooltipListenersBound = false;
+
+function closePlanUsageInfoTooltip(infoNode = activePlanUsageInfoTooltip) {
+  if (!infoNode) {
+    return;
+  }
+  const button = infoNode.querySelector('.plan-usage-info-btn');
+  infoNode.classList.remove('is-open');
+  if (button) {
+    button.setAttribute('aria-expanded', 'false');
+  }
+  if (activePlanUsageInfoTooltip === infoNode) {
+    activePlanUsageInfoTooltip = null;
+  }
+}
+
+function ensurePlanUsageInfoTooltipListeners() {
+  if (planUsageInfoTooltipListenersBound) {
+    return;
+  }
+  planUsageInfoTooltipListenersBound = true;
+  document.addEventListener('pointerdown', (event) => {
+    if (!activePlanUsageInfoTooltip) {
+      return;
+    }
+    if (event.target instanceof Node && activePlanUsageInfoTooltip.contains(event.target)) {
+      return;
+    }
+    closePlanUsageInfoTooltip();
+  }, true);
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !activePlanUsageInfoTooltip) {
+      return;
+    }
+    closePlanUsageInfoTooltip();
+  });
+}
+
+function bindPlanUsageInfoTooltipInteractions() {
+  if (!accountPlanUsage) {
+    return;
+  }
+  ensurePlanUsageInfoTooltipListeners();
+  const infoNode = accountPlanUsage.querySelector('.plan-usage-info');
+  const button = infoNode?.querySelector('.plan-usage-info-btn');
+  if (!infoNode || !button) {
+    closePlanUsageInfoTooltip();
+    return;
+  }
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const isOpen = infoNode.classList.contains('is-open');
+    if (isOpen) {
+      closePlanUsageInfoTooltip(infoNode);
+      return;
+    }
+    closePlanUsageInfoTooltip();
+    infoNode.classList.add('is-open');
+    button.setAttribute('aria-expanded', 'true');
+    activePlanUsageInfoTooltip = infoNode;
+  });
+}
+
 function renderPlanUsage(user = sessionUser) {
   const planUsage = getPlanUsageSnapshot(user);
   const trigger = getPlanUsageTrigger(planUsage);
@@ -5307,6 +5372,7 @@ function renderPlanUsage(user = sessionUser) {
   }
   if (!user) {
     renderAccountPlanName('Free', 'free');
+    closePlanUsageInfoTooltip();
     accountPlanUsage.textContent = '—';
     accountPlanProgress.style.width = '0%';
     renderPlanProgressMarker(0, 1);
@@ -5396,11 +5462,30 @@ function renderPlanUsage(user = sessionUser) {
     : null;
   const planDisplay = resolveAccountPlanDisplay({ tier, billingPlan, hasActiveJobSearchPlan });
   renderAccountPlanName(planDisplay.label, planDisplay.iconVariant, planStatusMeta);
+  closePlanUsageInfoTooltip();
   accountPlanUsage.innerHTML = `
     <span class="plan-usage-primary">${usage} / ${limit} tracked updates this month</span>
-    <span class="plan-usage-secondary">${inboundUsage} / ${inboundLimit} forwarded emails this month</span>
-    <span class="plan-usage-footnote">Forwarded emails are messages sent to your Applictus inbox. Tracked updates are the job-related emails kept in your timeline.</span>
+    <span class="plan-usage-secondary">
+      <span class="plan-usage-secondary-text">${inboundUsage} / ${inboundLimit} forwarded emails this month</span>
+      <span class="plan-usage-info">
+        <button
+          type="button"
+          class="plan-usage-info-btn"
+          aria-label="Explain forwarded emails and tracked updates"
+          aria-expanded="false"
+          aria-describedby="plan-usage-info-tooltip"
+          title="What do these usage numbers mean?"
+        >
+          <span aria-hidden="true">i</span>
+        </button>
+        <span class="plan-usage-tooltip" id="plan-usage-info-tooltip" role="tooltip">
+          <span>Forwarded emails are emails sent to your Applictus inbox.</span>
+          <span>Tracked updates are job-related emails saved to your timeline.</span>
+        </span>
+      </span>
+    </span>
   `;
+  bindPlanUsageInfoTooltipInteractions();
   const ratio = limit > 0 ? Math.min(1, usage / limit) : 0;
   accountPlanProgress.style.width = `${Math.round(ratio * 100)}%`;
   renderPlanProgressMarker(usage, limit);
