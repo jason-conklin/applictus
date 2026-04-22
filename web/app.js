@@ -905,6 +905,26 @@ function formatSyncDateTime(value) {
   });
 }
 
+function formatSyncDate(value) {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+}
+
+function formatSyncDateRange(startValue, endValue) {
+  const start = formatSyncDate(startValue);
+  const end = formatSyncDate(endValue);
+  if (!start || !end) {
+    return '';
+  }
+  return `${start} - ${end}`;
+}
+
 function getLastSyncSummaryStorageKey() {
   const identity = sessionUser?.id || sessionUser?.email || 'anonymous';
   return `${LAST_SYNC_SUMMARY_KEY}:${identity}`;
@@ -933,6 +953,7 @@ function persistLastSyncSummary(result, rawDetails = '') {
   const metrics = deriveSyncMetrics(result, rawDetails);
   const storedResult = {
     last_synced_at: metrics.lastSyncedAt || null,
+    time_window_start: metrics.windowStart || null,
     time_window_end: metrics.windowEnd || null,
     total_messages_listed: Number.isFinite(metrics.scanned) ? metrics.scanned : null,
     applications_updated: Number.isFinite(metrics.appsUpdated) ? metrics.appsUpdated : null,
@@ -8766,6 +8787,11 @@ function deriveSyncMetrics(result = {}, rawDetails = '') {
     metrics.lastSyncedAt = result.last_synced_at ?? metrics.lastSyncedAt;
   }
   if (rawDetails) {
+    const windowMatch = rawDetails.match(/\(([^()]+?)\s*→\s*([^()]+?)\)\s*(?:\[|$)/);
+    if (windowMatch) {
+      metrics.windowStart = metrics.windowStart || windowMatch[1].trim();
+      metrics.windowEnd = metrics.windowEnd || windowMatch[2].trim();
+    }
     const scanMatch = rawDetails.match(/Scanned\s+(\d+)\s+messages(?:\s+across\s+(\d+)\s+pages)?/i);
     if (scanMatch) {
       metrics.scanned = metrics.scanned ?? Number(scanMatch[1]);
@@ -8780,7 +8806,8 @@ function deriveSyncMetrics(result = {}, rawDetails = '') {
 }
 
 function buildMetricsLine(metrics) {
-  const when = formatSyncDateTime(metrics.lastSyncedAt || metrics.windowEnd) || '—';
+  const rangeLabel = formatSyncDateRange(metrics.windowStart, metrics.windowEnd);
+  const when = rangeLabel || formatSyncDateTime(metrics.lastSyncedAt || metrics.windowEnd) || '—';
   const messages = Number.isFinite(metrics.scanned) ? `${metrics.scanned} messages` : '— messages';
   const applications = Number.isFinite(metrics.appsUpdated)
     ? `${metrics.appsUpdated} updated`
@@ -8825,7 +8852,8 @@ function renderSyncSummary({ status = 'idle', result = null, rawDetails = '', la
     applySyncDetailsVisibility(false, false, false);
     return;
   }
-  const hasDetails = Boolean(rawDetails && rawDetails.trim().length);
+  // Keep verbose scan diagnostics internal; user-facing dashboard should show only concise scan summary.
+  const hasDetails = false;
   if (syncResult) {
     syncResult.textContent = hasDetails ? rawDetails : '';
   }
@@ -8860,15 +8888,11 @@ function renderSyncSummary({ status = 'idle', result = null, rawDetails = '', la
   syncSummaryStatus.textContent = statusText;
   syncSummaryMetrics.textContent = metricsText;
   syncSummary.classList.remove('hidden');
-  const shouldOpen =
-    hasDetails &&
-    (syncDetailsToggle?.dataset.open === 'true' || getStoredSyncDetailsOpen());
-  const allowToggle = status !== 'running';
   setSyncSummaryMainInteractive(false);
   if (status === 'success') {
     persistLastSyncSummary(result || {}, rawDetails);
   }
-  applySyncDetailsVisibility(shouldOpen, hasDetails, allowToggle);
+  applySyncDetailsVisibility(false, false, false);
 }
 
 function isGmailReconnectRequiredError(err) {
