@@ -1,59 +1,45 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1600" fill="none">
+<svg width="1200" height="1600" viewBox="0 0 1200 1600" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="pro-base" x1="600" y1="0" x2="600" y2="1600" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/>
-      <stop offset="0.60" stop-color="#FFFFFF" stop-opacity="0"/>
-      <stop offset="1" stop-color="#EEF3FF" stop-opacity="0.22"/>
+    <linearGradient id="base" x1="600" y1="0" x2="600" y2="1600" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FCFDFF"/>
+      <stop offset="0.62" stop-color="#FAFBFF"/>
+      <stop offset="1" stop-color="#F2F5FF"/>
     </linearGradient>
 
-    <linearGradient id="pro-bridge" x1="0" y1="920" x2="1200" y2="1045" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#E2E8FF" stop-opacity="0"/>
-      <stop offset="0.28" stop-color="#E2E8FF" stop-opacity="0.11"/>
-      <stop offset="0.58" stop-color="#DADFFF" stop-opacity="0.15"/>
-      <stop offset="0.84" stop-color="#EEEFFF" stop-opacity="0.07"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    <linearGradient id="wave1" x1="250" y1="980" x2="1160" y2="1145" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E9ECFF" stop-opacity="0.92"/>
+      <stop offset="0.52" stop-color="#E1E6FF" stop-opacity="0.84"/>
+      <stop offset="1" stop-color="#D7DEFF" stop-opacity="0.68"/>
     </linearGradient>
 
-    <linearGradient id="pro-wave-a" x1="0" y1="1025" x2="1200" y2="1025" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#D5DEFF" stop-opacity="0.26"/>
-      <stop offset="0.34" stop-color="#D9DFFF" stop-opacity="0.22"/>
-      <stop offset="0.64" stop-color="#E7EAFF" stop-opacity="0.15"/>
-      <stop offset="1" stop-color="#F8F9FF" stop-opacity="0.06"/>
+    <linearGradient id="wave2" x1="220" y1="1110" x2="1165" y2="1310" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E0E5FF" stop-opacity="0.74"/>
+      <stop offset="0.48" stop-color="#D4DCFF" stop-opacity="0.62"/>
+      <stop offset="1" stop-color="#C9D3FF" stop-opacity="0.52"/>
     </linearGradient>
 
-    <linearGradient id="pro-wave-b" x1="0" y1="1180" x2="1200" y2="1180" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#C8D7FF" stop-opacity="0.20"/>
-      <stop offset="0.42" stop-color="#D6DDFF" stop-opacity="0.18"/>
-      <stop offset="0.72" stop-color="#DCCFFF" stop-opacity="0.13"/>
-      <stop offset="1" stop-color="#F2F3FF" stop-opacity="0.05"/>
+    <linearGradient id="wave3" x1="160" y1="1300" x2="1180" y2="1495" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#D5DEFF" stop-opacity="0.34"/>
+      <stop offset="0.56" stop-color="#CCD5FF" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#C4CEFF" stop-opacity="0.24"/>
     </linearGradient>
 
-    <linearGradient id="pro-wave-c" x1="0" y1="1345" x2="1200" y2="1345" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#BED0FF" stop-opacity="0.12"/>
-      <stop offset="0.42" stop-color="#D0DBFF" stop-opacity="0.11"/>
-      <stop offset="0.74" stop-color="#D9CCFF" stop-opacity="0.09"/>
-      <stop offset="1" stop-color="#F4F5FF" stop-opacity="0.03"/>
-    </linearGradient>
-
-    <linearGradient id="pro-support" x1="0" y1="1465" x2="1200" y2="1465" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#DEE5FF" stop-opacity="0.06"/>
-      <stop offset="0.5" stop-color="#E9ECFF" stop-opacity="0.08"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.02"/>
-    </linearGradient>
-
-    <linearGradient id="pro-veil" x1="0" y1="1180" x2="1200" y2="1300" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.03"/>
-      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.08"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.02"/>
-    </linearGradient>
+    <filter id="shadow" x="-5%" y="55%" width="110%" height="50%" filterUnits="objectBoundingBox">
+      <feGaussianBlur stdDeviation="24"/>
+    </filter>
   </defs>
 
-  <rect width="1200" height="1600" fill="url(#pro-base)"/>
+  <rect width="1200" height="1600" rx="32" fill="url(#base)"/>
 
-  <path d="M0 928C180 890 400 892 625 940C830 985 1015 985 1200 942V1095H0V928Z" fill="url(#pro-bridge)"/>
-  <path d="M0 1018C175 968 380 968 600 1012C810 1055 1000 1055 1200 995V1252H0V1018Z" fill="url(#pro-wave-a)"/>
-  <path d="M0 1168C210 1132 435 1138 662 1180C875 1218 1045 1214 1200 1178V1410H0V1168Z" fill="url(#pro-wave-b)"/>
-  <path d="M0 1338C215 1312 470 1320 715 1354C935 1385 1085 1385 1200 1362V1548H0V1338Z" fill="url(#pro-wave-c)"/>
-  <path d="M0 1462C230 1448 470 1452 720 1470C950 1488 1095 1485 1200 1468V1600H0V1462Z" fill="url(#pro-support)"/>
-  <path d="M0 1195C260 1168 520 1180 780 1215C990 1242 1095 1238 1200 1218V1328C985 1348 720 1335 470 1295C255 1260 118 1258 0 1278V1195Z" fill="url(#pro-veil)"/>
+  <!-- Main lower contour -->
+  <path d="M1200 948C1004 981 838 995 641 961C448 928 255 943 0 1032V1600H1200V948Z" fill="url(#wave1)"/>
+
+  <!-- Mid support contour -->
+  <path d="M1200 1098C1024 1123 858 1126 668 1095C473 1061 279 1076 0 1174V1600H1200V1098Z" fill="url(#wave2)"/>
+
+  <!-- Low support contour -->
+  <path d="M1200 1292C1027 1304 866 1296 679 1268C489 1240 295 1250 0 1350V1600H1200V1292Z" fill="url(#wave3)"/>
+
+  <!-- Very soft lower-right lift -->
+  <ellipse cx="1030" cy="1385" rx="250" ry="130" fill="#D8DFFF" fill-opacity="0.10" filter="url(#shadow)"/>
 </svg>

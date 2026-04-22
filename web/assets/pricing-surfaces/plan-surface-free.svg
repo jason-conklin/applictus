@@ -1,51 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1600" fill="none">
+<svg width="1200" height="1600" viewBox="0 0 1200 1600" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="free-base" x1="600" y1="0" x2="600" y2="1600" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/>
-      <stop offset="0.62" stop-color="#FFFFFF" stop-opacity="0"/>
-      <stop offset="1" stop-color="#F4F7FC" stop-opacity="0.20"/>
+    <linearGradient id="base" x1="600" y1="0" x2="600" y2="1600" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FEFEFF"/>
+      <stop offset="0.62" stop-color="#FCFDFF"/>
+      <stop offset="1" stop-color="#F6F8FC"/>
     </linearGradient>
-
-    <linearGradient id="free-bridge" x1="0" y1="930" x2="1200" y2="1045" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#EEF3FB" stop-opacity="0"/>
-      <stop offset="0.30" stop-color="#EEF3FB" stop-opacity="0.10"/>
-      <stop offset="0.62" stop-color="#E8EEF8" stop-opacity="0.12"/>
-      <stop offset="1" stop-color="#F7F9FC" stop-opacity="0"/>
+    <linearGradient id="wave1" x1="250" y1="980" x2="1160" y2="1145" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#EEF2FA" stop-opacity="0.84"/>
+      <stop offset="0.52" stop-color="#E8EDF8" stop-opacity="0.76"/>
+      <stop offset="1" stop-color="#E0E7F5" stop-opacity="0.60"/>
     </linearGradient>
-
-    <linearGradient id="free-wave-a" x1="0" y1="1040" x2="1200" y2="1040" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#E4EBF7" stop-opacity="0.24"/>
-      <stop offset="0.42" stop-color="#EBF0FA" stop-opacity="0.18"/>
-      <stop offset="0.74" stop-color="#F5F7FC" stop-opacity="0.10"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.04"/>
+    <linearGradient id="wave2" x1="220" y1="1110" x2="1165" y2="1310" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E8EDF8" stop-opacity="0.64"/>
+      <stop offset="0.48" stop-color="#E0E7F4" stop-opacity="0.54"/>
+      <stop offset="1" stop-color="#D8E0F1" stop-opacity="0.44"/>
     </linearGradient>
-
-    <linearGradient id="free-wave-b" x1="0" y1="1190" x2="1200" y2="1190" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#DDE6F4" stop-opacity="0.18"/>
-      <stop offset="0.46" stop-color="#E7EDF8" stop-opacity="0.14"/>
-      <stop offset="0.78" stop-color="#F1F5FB" stop-opacity="0.08"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.03"/>
-    </linearGradient>
-
-    <linearGradient id="free-wave-c" x1="0" y1="1370" x2="1200" y2="1370" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#E3EAF6" stop-opacity="0.10"/>
-      <stop offset="0.48" stop-color="#EDF2FA" stop-opacity="0.08"/>
-      <stop offset="0.8" stop-color="#F7F9FC" stop-opacity="0.05"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.02"/>
-    </linearGradient>
-
-    <linearGradient id="free-veil" x1="0" y1="1180" x2="1200" y2="1280" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.05"/>
-      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.10"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.04"/>
+    <linearGradient id="wave3" x1="160" y1="1300" x2="1180" y2="1495" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#DFE6F2" stop-opacity="0.30"/>
+      <stop offset="0.56" stop-color="#D7DFEE" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#D2DBEC" stop-opacity="0.18"/>
     </linearGradient>
   </defs>
-
-  <rect width="1200" height="1600" fill="url(#free-base)"/>
-
-  <path d="M0 935C190 900 405 900 620 942C810 978 1010 980 1200 942V1088H0V935Z" fill="url(#free-bridge)"/>
-  <path d="M0 1030C170 982 370 978 585 1015C790 1050 980 1052 1200 992V1245H0V1030Z" fill="url(#free-wave-a)"/>
-  <path d="M0 1182C205 1146 420 1150 640 1188C845 1222 1030 1220 1200 1184V1415H0V1182Z" fill="url(#free-wave-b)"/>
-  <path d="M0 1362C215 1338 455 1344 695 1370C915 1394 1075 1394 1200 1375V1600H0V1362Z" fill="url(#free-wave-c)"/>
-  <path d="M0 1200C250 1175 520 1188 760 1220C980 1248 1095 1242 1200 1222V1320C975 1340 720 1328 470 1288C260 1254 120 1252 0 1272V1200Z" fill="url(#free-veil)"/>
+  <rect width="1200" height="1600" rx="32" fill="url(#base)"/>
+  <path d="M1200 948C1004 981 838 995 641 961C448 928 255 943 0 1032V1600H1200V948Z" fill="url(#wave1)"/>
+  <path d="M1200 1098C1024 1123 858 1126 668 1095C473 1061 279 1076 0 1174V1600H1200V1098Z" fill="url(#wave2)"/>
+  <path d="M1200 1292C1027 1304 866 1296 679 1268C489 1240 295 1250 0 1350V1600H1200V1292Z" fill="url(#wave3)"/>
 </svg>

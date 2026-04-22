@@ -1,59 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1600" fill="none">
+<svg width="1200" height="1600" viewBox="0 0 1200 1600" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="job-base" x1="600" y1="0" x2="600" y2="1600" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFDFC" stop-opacity="0"/>
-      <stop offset="0.60" stop-color="#FFFDFC" stop-opacity="0"/>
-      <stop offset="1" stop-color="#FFF2DE" stop-opacity="0.20"/>
+    <linearGradient id="base" x1="600" y1="0" x2="600" y2="1600" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFDFC"/>
+      <stop offset="0.62" stop-color="#FFFCF6"/>
+      <stop offset="1" stop-color="#FFF5E8"/>
     </linearGradient>
-
-    <linearGradient id="job-bridge" x1="0" y1="930" x2="1200" y2="1055" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FAE9CC" stop-opacity="0"/>
-      <stop offset="0.28" stop-color="#FAE9CC" stop-opacity="0.11"/>
-      <stop offset="0.60" stop-color="#F8E1B8" stop-opacity="0.14"/>
-      <stop offset="0.86" stop-color="#FDF1DD" stop-opacity="0.06"/>
-      <stop offset="1" stop-color="#FFF8ED" stop-opacity="0"/>
+    <linearGradient id="wave1" x1="250" y1="980" x2="1160" y2="1145" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F9EBD2" stop-opacity="0.88"/>
+      <stop offset="0.52" stop-color="#F8E4C5" stop-opacity="0.78"/>
+      <stop offset="1" stop-color="#F5D8AF" stop-opacity="0.62"/>
     </linearGradient>
-
-    <linearGradient id="job-wave-a" x1="0" y1="1028" x2="1200" y2="1028" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#F7E3C0" stop-opacity="0.24"/>
-      <stop offset="0.36" stop-color="#F8E7CB" stop-opacity="0.20"/>
-      <stop offset="0.66" stop-color="#FBF0DE" stop-opacity="0.14"/>
-      <stop offset="1" stop-color="#FFF7EC" stop-opacity="0.05"/>
+    <linearGradient id="wave2" x1="220" y1="1110" x2="1165" y2="1310" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F7E0BC" stop-opacity="0.66"/>
+      <stop offset="0.48" stop-color="#F5D7AD" stop-opacity="0.58"/>
+      <stop offset="1" stop-color="#F2CB9A" stop-opacity="0.46"/>
     </linearGradient>
-
-    <linearGradient id="job-wave-b" x1="0" y1="1188" x2="1200" y2="1188" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#F4D8A8" stop-opacity="0.18"/>
-      <stop offset="0.42" stop-color="#F7E0B9" stop-opacity="0.17"/>
-      <stop offset="0.72" stop-color="#F9E8CB" stop-opacity="0.12"/>
-      <stop offset="1" stop-color="#FFF3E2" stop-opacity="0.05"/>
-    </linearGradient>
-
-    <linearGradient id="job-wave-c" x1="0" y1="1352" x2="1200" y2="1352" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#F2D29F" stop-opacity="0.11"/>
-      <stop offset="0.44" stop-color="#F6DDB2" stop-opacity="0.10"/>
-      <stop offset="0.74" stop-color="#F9E6C4" stop-opacity="0.08"/>
-      <stop offset="1" stop-color="#FFF2E2" stop-opacity="0.03"/>
-    </linearGradient>
-
-    <linearGradient id="job-support" x1="0" y1="1468" x2="1200" y2="1468" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#F9E8C9" stop-opacity="0.06"/>
-      <stop offset="0.5" stop-color="#FBEEDB" stop-opacity="0.07"/>
-      <stop offset="1" stop-color="#FFF8EF" stop-opacity="0.02"/>
-    </linearGradient>
-
-    <linearGradient id="job-veil" x1="0" y1="1198" x2="1200" y2="1305" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.03"/>
-      <stop offset="0.5" stop-color="#FFFBF4" stop-opacity="0.08"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.02"/>
+    <linearGradient id="wave3" x1="160" y1="1300" x2="1180" y2="1495" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F7E3C2" stop-opacity="0.26"/>
+      <stop offset="0.56" stop-color="#F5D8AF" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#F3C992" stop-opacity="0.16"/>
     </linearGradient>
   </defs>
-
-  <rect width="1200" height="1600" fill="url(#job-base)"/>
-
-  <path d="M0 935C180 898 405 900 640 945C850 986 1032 984 1200 945V1098H0V935Z" fill="url(#job-bridge)"/>
-  <path d="M0 1022C180 975 385 975 615 1018C835 1058 1018 1058 1200 1002V1256H0V1022Z" fill="url(#job-wave-a)"/>
-  <path d="M0 1180C210 1145 440 1150 670 1190C885 1226 1050 1222 1200 1185V1418H0V1180Z" fill="url(#job-wave-b)"/>
-  <path d="M0 1345C220 1320 475 1328 720 1360C940 1390 1088 1388 1200 1368V1552H0V1345Z" fill="url(#job-wave-c)"/>
-  <path d="M0 1468C230 1452 475 1455 730 1472C955 1488 1095 1485 1200 1470V1600H0V1468Z" fill="url(#job-support)"/>
-  <path d="M0 1205C255 1178 520 1188 785 1222C995 1248 1098 1244 1200 1225V1332C980 1350 720 1338 472 1300C255 1265 118 1262 0 1285V1205Z" fill="url(#job-veil)"/>
+  <rect width="1200" height="1600" rx="32" fill="url(#base)"/>
+  <path d="M1200 948C1004 981 838 995 641 961C448 928 255 943 0 1032V1600H1200V948Z" fill="url(#wave1)"/>
+  <path d="M1200 1098C1024 1123 858 1126 668 1095C473 1061 279 1076 0 1174V1600H1200V1098Z" fill="url(#wave2)"/>
+  <path d="M1200 1292C1027 1304 866 1296 679 1268C489 1240 295 1250 0 1350V1600H1200V1292Z" fill="url(#wave3)"/>
 </svg>

@@ -971,7 +971,7 @@
         border-radius: 28px;
         padding: 24px 22px 18px;
         border-color: rgba(37, 64, 106, 0.16);
-        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 54%, #f3f8ff 100%);
+        background: linear-gradient(180deg, #ffffff 0%, #fbfdff 56%, #f6f9ff 100%);
         box-shadow:
           0 20px 40px rgba(18, 41, 80, 0.1),
           0 10px 20px rgba(18, 41, 80, 0.05),
@@ -989,25 +989,12 @@
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
-        opacity: 0.88;
+        opacity: 1;
         z-index: 0;
         pointer-events: none;
       }
       .modal--pricing .plan-card::after {
-        content: '';
-        position: absolute;
-        left: 1px;
-        right: 1px;
-        top: 1px;
-        bottom: 1px;
-        border-radius: 26px;
-        background:
-          linear-gradient(180deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.08) 24%, rgba(255, 255, 255, 0) 42%, rgba(255, 255, 255, 0) 64%, rgba(224, 235, 250, 0.06) 84%, rgba(224, 235, 250, 0.1) 100%),
-          linear-gradient(158deg, rgba(216, 228, 247, 0) 42%, rgba(216, 228, 247, 0.12) 62%, rgba(216, 228, 247, 0.06) 76%, rgba(216, 228, 247, 0) 94%),
-          linear-gradient(116deg, rgba(226, 236, 250, 0) 46%, rgba(226, 236, 250, 0.1) 66%, rgba(226, 236, 250, 0.05) 80%, rgba(226, 236, 250, 0) 96%);
-        opacity: 0.58;
-        z-index: 0;
-        pointer-events: none;
+        content: none;
       }
       .modal--pricing .plan-card:hover,
       .modal--pricing .plan-card:focus-within {
@@ -1020,7 +1007,7 @@
       .modal--pricing .plan-card--free {
         --plan-surface-svg: url('/assets/pricing-surfaces/plan-surface-free.svg');
         background:
-          linear-gradient(180deg, #ffffff 0%, #fbfcff 54%, #f3f7ff 100%);
+          linear-gradient(180deg, #ffffff 0%, #fcfdff 56%, #f6f9ff 100%);
         border-color: rgba(77, 96, 123, 0.2);
         box-shadow:
           0 14px 28px rgba(17, 39, 75, 0.08),
@@ -1028,14 +1015,10 @@
           inset 0 1px 0 rgba(255, 255, 255, 0.95);
       }
       .modal--pricing .plan-card--free::before {
-        opacity: 0.92;
+        opacity: 1;
       }
       .modal--pricing .plan-card--free::after {
-        background:
-          linear-gradient(180deg, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.08) 24%, rgba(255, 255, 255, 0) 42%, rgba(255, 255, 255, 0) 64%, rgba(220, 231, 248, 0.06) 84%, rgba(220, 231, 248, 0.1) 100%),
-          linear-gradient(160deg, rgba(209, 223, 246, 0) 42%, rgba(209, 223, 246, 0.1) 62%, rgba(209, 223, 246, 0.05) 76%, rgba(209, 223, 246, 0) 94%),
-          linear-gradient(116deg, rgba(222, 232, 249, 0) 46%, rgba(222, 232, 249, 0.08) 66%, rgba(222, 232, 249, 0.04) 80%, rgba(222, 232, 249, 0) 96%);
-        opacity: 0.54;
+        content: none;
       }
       .modal--pricing .plan-card--free:hover,
       .modal--pricing .plan-card--free:focus-within {
@@ -1045,7 +1028,7 @@
         --plan-surface-svg: url('/assets/pricing-surfaces/plan-surface-pro.svg');
         border-color: rgba(76, 95, 230, 0.74);
         background:
-          linear-gradient(180deg, #ffffff 0%, #f6f9ff 54%, #eff3ff 100%);
+          linear-gradient(180deg, #ffffff 0%, #f8faff 56%, #f0f4ff 100%);
         box-shadow:
           0 34px 64px rgba(39, 54, 138, 0.27),
           0 14px 28px rgba(39, 54, 138, 0.16),
@@ -1053,15 +1036,10 @@
         transform: none;
       }
       .modal--pricing .plan-card--pro::before {
-        opacity: 0.93;
+        opacity: 1;
       }
       .modal--pricing .plan-card--pro::after {
-        background:
-          linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.1) 24%, rgba(255, 255, 255, 0) 42%, rgba(255, 255, 255, 0) 62%, rgba(201, 216, 255, 0.08) 84%, rgba(201, 216, 255, 0.13) 100%),
-          linear-gradient(160deg, rgba(170, 189, 255, 0) 40%, rgba(170, 189, 255, 0.14) 60%, rgba(170, 189, 255, 0.07) 74%, rgba(170, 189, 255, 0) 94%),
-          linear-gradient(116deg, rgba(206, 198, 255, 0) 46%, rgba(206, 198, 255, 0.13) 66%, rgba(206, 198, 255, 0.06) 80%, rgba(206, 198, 255, 0) 96%);
-        opacity: 0.62;
-        animation: pricing-pro-ambient 8.4s ease-in-out infinite;
+        content: none;
       }
       .modal--pricing .plan-card--pro:hover,
       .modal--pricing .plan-card--pro:focus-within {
@@ -1071,21 +1049,17 @@
         --plan-surface-svg: url('/assets/pricing-surfaces/plan-surface-jobsearch.svg');
         border-color: rgba(217, 177, 121, 0.44);
         background:
-          linear-gradient(180deg, #fffefd 0%, #fff9f0 54%, #fff2e3 100%);
+          linear-gradient(180deg, #fffefd 0%, #fffaf2 56%, #fff3e5 100%);
         box-shadow:
           0 24px 40px rgba(118, 86, 41, 0.14),
           0 9px 20px rgba(118, 86, 41, 0.07),
           inset 0 1px 0 rgba(255, 255, 255, 0.94);
       }
       .modal--pricing .plan-card--jobsearch::before {
-        opacity: 0.92;
+        opacity: 1;
       }
       .modal--pricing .plan-card--jobsearch::after {
-        background:
-          linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.1) 24%, rgba(255, 255, 255, 0) 42%, rgba(255, 255, 255, 0) 62%, rgba(252, 224, 183, 0.08) 84%, rgba(252, 224, 183, 0.13) 100%),
-          linear-gradient(160deg, rgba(248, 207, 143, 0) 40%, rgba(248, 207, 143, 0.13) 60%, rgba(248, 207, 143, 0.06) 74%, rgba(248, 207, 143, 0) 94%),
-          linear-gradient(116deg, rgba(255, 232, 195, 0) 46%, rgba(255, 232, 195, 0.12) 66%, rgba(255, 232, 195, 0.05) 80%, rgba(255, 232, 195, 0) 96%);
-        opacity: 0.58;
+        content: none;
       }
       .modal--pricing .plan-logo-badge {
         border-radius: 14px;
