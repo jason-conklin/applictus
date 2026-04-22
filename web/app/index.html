@@ -282,6 +282,73 @@
         gap: 5px;
         margin-bottom: 12px;
       }
+      .plan-title-row {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        min-width: 0;
+      }
+      .plan-title-meta {
+        min-width: 0;
+      }
+      .plan-logo-badge {
+        --plan-icon-size: 40px;
+        --plan-icon-radius: 12px;
+        --plan-icon-padding: 6px;
+        flex: 0 0 auto;
+        width: var(--plan-icon-size);
+        height: var(--plan-icon-size);
+        border-radius: var(--plan-icon-radius);
+        padding: var(--plan-icon-padding);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(32, 59, 99, 0.16);
+        background: linear-gradient(180deg, #f8fbff 0%, #edf3fc 100%);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.92),
+          0 6px 14px rgba(17, 40, 88, 0.12);
+      }
+      .plan-logo-badge__img {
+        width: 100%;
+        height: 100%;
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        display: block;
+      }
+      .plan-logo-badge--free {
+        background: linear-gradient(180deg, #f7f9fc 0%, #eff3f8 100%);
+        border-color: rgba(70, 88, 112, 0.26);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.96),
+          0 4px 10px rgba(30, 48, 70, 0.08);
+      }
+      .plan-logo-badge--free .plan-logo-badge__img {
+        filter: grayscale(1) saturate(0.2) contrast(1.08) brightness(0.9);
+      }
+      .plan-logo-badge--pro {
+        background: linear-gradient(180deg, #e7f0ff 0%, #d6e5ff 100%);
+        border-color: rgba(56, 99, 176, 0.34);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.94),
+          0 8px 18px rgba(24, 63, 137, 0.18);
+      }
+      .plan-logo-badge--jobsearch {
+        background: linear-gradient(180deg, #ffffff 0%, #f2f5fa 100%);
+        border-color: rgba(76, 95, 125, 0.24);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.95),
+          0 5px 12px rgba(24, 44, 75, 0.1);
+      }
+      .plan-logo-badge--inline {
+        --plan-icon-size: 24px;
+        --plan-icon-radius: 8px;
+        --plan-icon-padding: 4px;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.95),
+          0 3px 8px rgba(22, 46, 84, 0.08);
+      }
       .plan-card--pro {
         border-color: rgba(22, 69, 143, 0.26);
         background:
@@ -311,9 +378,35 @@
         line-height: 1.1;
         margin: 2px 0 4px;
       }
+      .plan-price-main {
+        display: inline-block;
+      }
+      .plan-price-term {
+        display: inline-block;
+        margin-left: 6px;
+        font-size: 15px;
+        font-weight: 600;
+        color: #4e6589;
+        letter-spacing: 0;
+      }
       .plan-limit {
         margin-bottom: 14px;
         color: #4f6079;
+      }
+      .plan-billing-note,
+      .plan-price-hint {
+        margin-top: -8px;
+        margin-bottom: 10px;
+        color: #4f6180;
+      }
+      .plan-price-hint {
+        color: #305792;
+        font-weight: 600;
+      }
+      .plan-card-divider {
+        height: 1px;
+        margin: 4px 0 12px;
+        background: linear-gradient(90deg, rgba(16, 44, 89, 0.04), rgba(16, 44, 89, 0.18), rgba(16, 44, 89, 0.04));
       }
       .plan-features {
         list-style: none;
@@ -357,9 +450,19 @@
         border: 1px solid rgba(17, 50, 96, 0.12);
         color: #3a5174;
       }
+      .plan-pill--commitment {
+        background: rgba(45, 86, 157, 0.12);
+        border: 1px solid rgba(45, 86, 157, 0.24);
+        color: #2d4f84;
+      }
       .plan-cta {
         width: 100%;
         justify-content: center;
+      }
+      .plan-cta-wrap {
+        margin-top: auto;
+        display: grid;
+        gap: 6px;
       }
       .plan-cta--free {
         color: #536987;
@@ -371,11 +474,103 @@
           0 14px 24px rgba(20, 58, 126, 0.2),
           inset 0 1px 0 rgba(255, 255, 255, 0.22);
       }
+      .plan-cta--jobsearch {
+        color: #ffffff;
+        border-color: rgba(255, 255, 255, 0.24);
+        background:
+          radial-gradient(120% 135% at 18% 8%, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0) 56%),
+          linear-gradient(180deg, #4b79c7 0%, #335ea8 100%);
+        box-shadow:
+          0 12px 22px rgba(34, 71, 132, 0.2),
+          inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      }
+      .plan-cta-subtext {
+        text-align: center;
+        color: #546c90;
+      }
+      .plan-summary {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+      .plan-summary-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #203b63;
+      }
+      .plan-summary-lines {
+        display: grid;
+        gap: 6px;
+      }
+      .plan-summary-line {
+        color: #345173;
+        line-height: 1.45;
+      }
+      .plan-reinforcement {
+        margin-top: 2px;
+        color: #4f6485;
+      }
+      .plan-card--jobsearch {
+        background:
+          radial-gradient(130% 120% at 8% 0%, rgba(241, 245, 252, 0.92), rgba(255, 255, 255, 0) 66%),
+          linear-gradient(180deg, #ffffff 0%, #f5f8fc 100%);
+        border-color: rgba(50, 75, 116, 0.18);
+      }
+      .pricing-billing-powered {
+        margin-top: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        width: 100%;
+        color: #5a6f8f;
+      }
+      .pricing-billing-powered__icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        color: #476a9f;
+      }
+      .pricing-billing-powered__icon svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .pricing-billing-powered__brand {
+        font-weight: 600;
+        color: #3f5f92;
+      }
+      .pricing-trust-row {
+        margin-top: 10px;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+      }
       .pricing-trust {
-        margin-top: 12px;
+        margin-top: 0;
         text-align: center;
         color: #5a6f8f;
         line-height: 1.5;
+      }
+      .pricing-trust-close {
+        justify-self: end;
+      }
+      @media (max-width: 768px) {
+        .plan-title-row {
+          gap: 9px;
+        }
+        .plan-logo-badge {
+          --plan-icon-size: 36px;
+          --plan-icon-radius: 11px;
+          --plan-icon-padding: 5px;
+        }
+        .plan-logo-badge--inline {
+          --plan-icon-size: 22px;
+          --plan-icon-radius: 7px;
+          --plan-icon-padding: 3px;
+        }
       }
     </style>
   </head>
