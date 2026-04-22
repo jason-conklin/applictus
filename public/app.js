@@ -6053,9 +6053,9 @@ function openPricingModal() {
       case 'rocket':
         return `
           <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-            <path d="M12.7 5.1c2.1-.6 3.7-.4 4.2.1.5.5.7 2.1.1 4.2l-3.4 3.4c-.5.5-1.1.8-1.8 1L8 14.7l.9-3.8c.2-.7.5-1.3 1-1.8Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path>
-            <circle cx="13.6" cy="6.4" r="1" fill="currentColor"></circle>
-            <path d="M7.1 12.9 5.3 14.7M8.3 14.1l-1.8 1.8M6.4 11.9 4.6 13.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>
+            <path d="M11.8 3.8c2.1-.3 3.8.2 4.4.8.6.6 1.1 2.3.8 4.4l-3.3 3.3a4.1 4.1 0 0 1-2.2 1.2l-2.8.6.6-2.8c.2-.8.6-1.6 1.2-2.2Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path>
+            <circle cx="13.9" cy="6.2" r="1" fill="currentColor"></circle>
+            <path d="M7.4 12.6 5.2 14.8M8.6 13.9 6.6 15.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
           </svg>
         `;
       default:
@@ -6133,15 +6133,16 @@ function openPricingModal() {
       case 'track':
         return `
           <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-            <path d="M4.2 5.2h11.6M4.2 10h8.2M4.2 14.8h6.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
-            <circle cx="14.8" cy="10" r="2.1" fill="none" stroke="currentColor" stroke-width="1.7"></circle>
+            <circle cx="10" cy="10" r="5.8" fill="none" stroke="currentColor" stroke-width="1.7"></circle>
+            <circle cx="10" cy="10" r="2.7" fill="none" stroke="currentColor" stroke-width="1.7"></circle>
+            <path d="M10 1.8v2.1M10 16.1v2.1M1.8 10h2.1M16.1 10h2.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
           </svg>
         `;
       case 'organize':
         return `
           <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-            <rect x="3.5" y="4.1" width="13" height="11.8" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.7"></rect>
-            <path d="M6.3 7.6h7.4M6.3 10.2h7.4M6.3 12.8h4.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+            <path d="M10 2.9 15.6 5.1v4.1c0 3.1-2.2 5.7-5.6 7.2-3.4-1.5-5.6-4.1-5.6-7.2V5.1Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path>
+            <path d="M10 7v3.4M8.3 8.7H11.7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
           </svg>
         `;
       case 'alerts':
