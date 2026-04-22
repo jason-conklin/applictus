@@ -6189,30 +6189,6 @@ function openPricingModal() {
 
   const body = document.createElement('div');
   body.className = 'pricing-modal-body';
-  const valueSection = document.createElement('section');
-  valueSection.className = 'pricing-section pricing-section--value';
-  const valueRow = document.createElement('div');
-  valueRow.className = 'pricing-value-row';
-  [
-    { icon: 'track', text: 'Track every update' },
-    { icon: 'organize', text: 'Stay organized' },
-    { icon: 'alerts', text: 'Never miss important alerts' },
-    { icon: 'secure', text: 'Secure and private' }
-  ].forEach((item) => {
-    const chip = document.createElement('div');
-    chip.className = 'pricing-value-chip';
-    const icon = document.createElement('span');
-    icon.className = 'pricing-value-chip__icon';
-    icon.setAttribute('aria-hidden', 'true');
-    icon.innerHTML = buildPricingGlyph(item.icon);
-    const text = document.createElement('span');
-    text.className = 'pricing-value-chip__text';
-    text.textContent = item.text;
-    chip.append(icon, text);
-    valueRow.appendChild(chip);
-  });
-  valueSection.appendChild(valueRow);
-
   const plansSection = document.createElement('section');
   plansSection.className = 'pricing-section pricing-section--plans';
   plansSection.appendChild(container);
@@ -6262,7 +6238,7 @@ function openPricingModal() {
     trustPanel.appendChild(trustItem);
   });
   trustSection.appendChild(trustPanel);
-  body.append(valueSection, plansSection, trustSection);
+  body.append(plansSection, trustSection);
 
   openModal({
     title: 'Organize your job search and never miss an opportunity',
