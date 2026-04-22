@@ -1,49 +1,52 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1600" fill="none">
   <defs>
     <linearGradient id="pro-base" x1="600" y1="0" x2="600" y2="1600" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
-      <stop offset="0.5" stop-color="#f4f7ff" stop-opacity="0.06"/>
-      <stop offset="1" stop-color="#edf2ff" stop-opacity="0.09"/>
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.03"/>
+      <stop offset="0.52" stop-color="#f6f9ff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#eef3ff" stop-opacity="0.07"/>
     </linearGradient>
-    <linearGradient id="pro-ambient-a" x1="-160" y1="120" x2="1320" y2="1420" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#dbe6ff" stop-opacity="0.12"/>
-      <stop offset="0.45" stop-color="#dce6ff" stop-opacity="0.06"/>
-      <stop offset="1" stop-color="#eef3ff" stop-opacity="0.01"/>
+    <radialGradient id="pro-top" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(590 170) rotate(8) scale(1010 390)">
+      <stop stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="0.55" stop-color="#f8faff" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#f1f5ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="pro-bridge" x1="600" y1="0" x2="600" y2="1600" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#dce7ff" stop-opacity="0"/>
+      <stop offset="0.36" stop-color="#dce7ff" stop-opacity="0.03"/>
+      <stop offset="0.58" stop-color="#d6e1ff" stop-opacity="0.07"/>
+      <stop offset="0.76" stop-color="#d6e1ff" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#d6e1ff" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="pro-ambient-b" x1="1380" y1="160" x2="-220" y2="1500" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#cedbff" stop-opacity="0.12"/>
-      <stop offset="0.5" stop-color="#dcdfff" stop-opacity="0.06"/>
-      <stop offset="1" stop-color="#eef2ff" stop-opacity="0.01"/>
+    <linearGradient id="pro-sweep-a" x1="-240" y1="1060" x2="1420" y2="800" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#bfd3ff" stop-opacity="0"/>
+      <stop offset="0.36" stop-color="#bfd3ff" stop-opacity="0.12"/>
+      <stop offset="0.58" stop-color="#cad8ff" stop-opacity="0.09"/>
+      <stop offset="1" stop-color="#e1e9ff" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="pro-ambient-c" x1="-120" y1="1540" x2="1300" y2="280" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#cfdcff" stop-opacity="0.1"/>
-      <stop offset="0.55" stop-color="#dadfff" stop-opacity="0.05"/>
-      <stop offset="1" stop-color="#eef2ff" stop-opacity="0.01"/>
+    <linearGradient id="pro-sweep-b" x1="1380" y1="960" x2="-180" y2="1380" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d5cbff" stop-opacity="0"/>
+      <stop offset="0.34" stop-color="#d5cbff" stop-opacity="0.11"/>
+      <stop offset="0.58" stop-color="#d2dcff" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#e8edff" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="pro-band-a" x1="-260" y1="900" x2="1460" y2="740" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#bccfff" stop-opacity="0"/>
-      <stop offset="0.34" stop-color="#bccfff" stop-opacity="0.11"/>
-      <stop offset="0.6" stop-color="#c9d6ff" stop-opacity="0.08"/>
-      <stop offset="1" stop-color="#dce5ff" stop-opacity="0"/>
-    </linearGradient>
-    <linearGradient id="pro-band-b" x1="-180" y1="420" x2="1400" y2="1180" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#c7d6ff" stop-opacity="0"/>
-      <stop offset="0.3" stop-color="#c7d6ff" stop-opacity="0.1"/>
-      <stop offset="0.56" stop-color="#d6d5ff" stop-opacity="0.08"/>
+    <linearGradient id="pro-sweep-c" x1="0" y1="1300" x2="1200" y2="1160" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#bdd0ff" stop-opacity="0"/>
+      <stop offset="0.28" stop-color="#bdd0ff" stop-opacity="0.09"/>
+      <stop offset="0.52" stop-color="#c9d9ff" stop-opacity="0.07"/>
       <stop offset="1" stop-color="#e2e9ff" stop-opacity="0"/>
     </linearGradient>
-    <radialGradient id="pro-haze" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(620 730) rotate(12) scale(1100 760)">
-      <stop stop-color="#ffffff" stop-opacity="0.07"/>
-      <stop offset="0.5" stop-color="#f7f9ff" stop-opacity="0.04"/>
-      <stop offset="1" stop-color="#edf3ff" stop-opacity="0"/>
+    <radialGradient id="pro-lower-support" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(980 1210) rotate(164) scale(540 280)">
+      <stop stop-color="#b9ccff" stop-opacity="0.1"/>
+      <stop offset="0.55" stop-color="#c8d7ff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#e2e9ff" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
   <rect width="1200" height="1600" fill="url(#pro-base)"/>
-  <rect width="1200" height="1600" fill="url(#pro-ambient-a)"/>
-  <rect width="1200" height="1600" fill="url(#pro-ambient-b)"/>
-  <rect width="1200" height="1600" fill="url(#pro-ambient-c)"/>
-  <rect width="1200" height="1600" fill="url(#pro-band-a)"/>
-  <rect width="1200" height="1600" fill="url(#pro-band-b)"/>
-  <rect width="1200" height="1600" fill="url(#pro-haze)"/>
+  <rect width="1200" height="1600" fill="url(#pro-top)"/>
+  <rect width="1200" height="1600" fill="url(#pro-bridge)"/>
+  <rect width="1200" height="1600" fill="url(#pro-sweep-a)"/>
+  <rect width="1200" height="1600" fill="url(#pro-sweep-b)"/>
+  <rect width="1200" height="1600" fill="url(#pro-sweep-c)"/>
+  <rect width="1200" height="1600" fill="url(#pro-lower-support)"/>
 </svg>

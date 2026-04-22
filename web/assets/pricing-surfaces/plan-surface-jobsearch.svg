@@ -1,49 +1,52 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1600" fill="none">
   <defs>
     <linearGradient id="job-base" x1="600" y1="0" x2="600" y2="1600" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#fffefd" stop-opacity="0.08"/>
-      <stop offset="0.5" stop-color="#fff8ee" stop-opacity="0.06"/>
-      <stop offset="1" stop-color="#fff2e3" stop-opacity="0.09"/>
+      <stop offset="0" stop-color="#fffefd" stop-opacity="0.03"/>
+      <stop offset="0.52" stop-color="#fff8ef" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#fff1e1" stop-opacity="0.07"/>
     </linearGradient>
-    <linearGradient id="job-ambient-a" x1="-150" y1="140" x2="1320" y2="1410" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffe9c8" stop-opacity="0.12"/>
-      <stop offset="0.45" stop-color="#fde8c7" stop-opacity="0.06"/>
-      <stop offset="1" stop-color="#fff4e0" stop-opacity="0.01"/>
+    <radialGradient id="job-top" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(590 170) rotate(8) scale(1010 390)">
+      <stop stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="0.55" stop-color="#fffaf1" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#fff3e5" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="job-bridge" x1="600" y1="0" x2="600" y2="1600" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fce8ca" stop-opacity="0"/>
+      <stop offset="0.36" stop-color="#fce8ca" stop-opacity="0.03"/>
+      <stop offset="0.58" stop-color="#f7dfba" stop-opacity="0.07"/>
+      <stop offset="0.76" stop-color="#f7dfba" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#f7dfba" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="job-ambient-b" x1="1360" y1="180" x2="-220" y2="1480" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#f8ddb2" stop-opacity="0.12"/>
-      <stop offset="0.5" stop-color="#fbe6c4" stop-opacity="0.06"/>
-      <stop offset="1" stop-color="#fff3dc" stop-opacity="0.01"/>
+    <linearGradient id="job-sweep-a" x1="-240" y1="1060" x2="1420" y2="800" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f6d5a1" stop-opacity="0"/>
+      <stop offset="0.36" stop-color="#f6d5a1" stop-opacity="0.12"/>
+      <stop offset="0.58" stop-color="#f8e0ba" stop-opacity="0.09"/>
+      <stop offset="1" stop-color="#fdeed8" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="job-ambient-c" x1="-120" y1="1540" x2="1320" y2="260" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#f5ddb8" stop-opacity="0.1"/>
-      <stop offset="0.55" stop-color="#fae7c8" stop-opacity="0.05"/>
-      <stop offset="1" stop-color="#fff5e3" stop-opacity="0.01"/>
+    <linearGradient id="job-sweep-b" x1="1380" y1="960" x2="-180" y2="1380" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f8deba" stop-opacity="0"/>
+      <stop offset="0.34" stop-color="#f8deba" stop-opacity="0.11"/>
+      <stop offset="0.58" stop-color="#f9e7ca" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#fdf1df" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="job-band-a" x1="-260" y1="920" x2="1450" y2="760" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#f4d5a5" stop-opacity="0"/>
-      <stop offset="0.34" stop-color="#f4d5a5" stop-opacity="0.11"/>
-      <stop offset="0.6" stop-color="#f7deba" stop-opacity="0.08"/>
-      <stop offset="1" stop-color="#fcebd1" stop-opacity="0"/>
+    <linearGradient id="job-sweep-c" x1="0" y1="1300" x2="1200" y2="1160" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f5d8ad" stop-opacity="0"/>
+      <stop offset="0.28" stop-color="#f5d8ad" stop-opacity="0.09"/>
+      <stop offset="0.52" stop-color="#f8e2be" stop-opacity="0.07"/>
+      <stop offset="1" stop-color="#fdefd9" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="job-band-b" x1="-180" y1="450" x2="1400" y2="1180" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#f6ddb5" stop-opacity="0"/>
-      <stop offset="0.3" stop-color="#f6ddb5" stop-opacity="0.1"/>
-      <stop offset="0.56" stop-color="#f8e6c6" stop-opacity="0.08"/>
-      <stop offset="1" stop-color="#fdefda" stop-opacity="0"/>
-    </linearGradient>
-    <radialGradient id="job-haze" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(600 740) rotate(10) scale(1090 760)">
-      <stop stop-color="#ffffff" stop-opacity="0.07"/>
-      <stop offset="0.5" stop-color="#fffbf3" stop-opacity="0.04"/>
-      <stop offset="1" stop-color="#fff1da" stop-opacity="0"/>
+    <radialGradient id="job-lower-support" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(980 1210) rotate(164) scale(540 280)">
+      <stop stop-color="#f5d5a3" stop-opacity="0.1"/>
+      <stop offset="0.55" stop-color="#f8e0bb" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#fcefd9" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
   <rect width="1200" height="1600" fill="url(#job-base)"/>
-  <rect width="1200" height="1600" fill="url(#job-ambient-a)"/>
-  <rect width="1200" height="1600" fill="url(#job-ambient-b)"/>
-  <rect width="1200" height="1600" fill="url(#job-ambient-c)"/>
-  <rect width="1200" height="1600" fill="url(#job-band-a)"/>
-  <rect width="1200" height="1600" fill="url(#job-band-b)"/>
-  <rect width="1200" height="1600" fill="url(#job-haze)"/>
+  <rect width="1200" height="1600" fill="url(#job-top)"/>
+  <rect width="1200" height="1600" fill="url(#job-bridge)"/>
+  <rect width="1200" height="1600" fill="url(#job-sweep-a)"/>
+  <rect width="1200" height="1600" fill="url(#job-sweep-b)"/>
+  <rect width="1200" height="1600" fill="url(#job-sweep-c)"/>
+  <rect width="1200" height="1600" fill="url(#job-lower-support)"/>
 </svg>
