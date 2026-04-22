@@ -843,6 +843,351 @@
       .pricing-trust-close {
         justify-self: end;
       }
+      .modal--pricing .modal-header {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 16px;
+        padding-bottom: 18px;
+      }
+      .modal--pricing .modal-header h3 {
+        font-size: 1.44rem;
+        letter-spacing: -0.015em;
+        color: #102f57;
+      }
+      .modal--pricing .modal-header p {
+        max-width: 76ch;
+        color: #547097;
+      }
+      .modal--pricing .modal-body {
+        display: grid;
+        gap: 16px;
+      }
+      .pricing-value-row {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .pricing-value-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 30px;
+        padding: 7px 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(49, 82, 130, 0.16);
+        background:
+          radial-gradient(122% 122% at 0% 0%, rgba(229, 239, 255, 0.6), rgba(255, 255, 255, 0) 74%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(247, 251, 255, 0.95));
+        color: #3f5f88;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.94),
+          0 6px 12px rgba(20, 46, 92, 0.06);
+      }
+      .pricing-value-chip__icon {
+        width: 14px;
+        height: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #4a72aa;
+        flex: 0 0 auto;
+      }
+      .pricing-value-chip__icon svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .pricing-value-chip__text {
+        font-size: 11.5px;
+        font-weight: 600;
+        line-height: 1.25;
+      }
+      .modal--pricing .plan-card-grid {
+        gap: 18px;
+        margin-top: 2px;
+      }
+      .modal--pricing .plan-card-grid::before {
+        top: -26px;
+        width: min(500px, 52%);
+        height: 140px;
+        background: radial-gradient(
+          ellipse at center,
+          rgba(111, 130, 240, 0.24) 0%,
+          rgba(111, 130, 240, 0.09) 52%,
+          rgba(111, 130, 240, 0) 78%
+        );
+        opacity: 0.62;
+      }
+      .modal--pricing .plan-card {
+        border-radius: 20px;
+        padding: 20px 18px 16px;
+        border-color: rgba(33, 62, 109, 0.16);
+        box-shadow:
+          0 20px 36px rgba(18, 41, 80, 0.11),
+          0 10px 20px rgba(18, 41, 80, 0.05),
+          inset 0 1px 0 rgba(255, 255, 255, 0.92);
+      }
+      .modal--pricing .plan-card:hover,
+      .modal--pricing .plan-card:focus-within {
+        transform: translateY(-4px);
+        box-shadow:
+          0 30px 50px rgba(18, 41, 80, 0.16),
+          0 12px 24px rgba(18, 41, 80, 0.08),
+          inset 0 1px 0 rgba(255, 255, 255, 0.94);
+      }
+      .modal--pricing .plan-card--free {
+        background:
+          radial-gradient(132% 116% at 12% 0%, rgba(242, 246, 251, 0.9), rgba(255, 255, 255, 0) 68%),
+          linear-gradient(180deg, #ffffff 0%, #f8fbfd 100%);
+        border-color: rgba(77, 96, 123, 0.2);
+        box-shadow:
+          0 14px 28px rgba(17, 39, 75, 0.08),
+          0 6px 14px rgba(17, 39, 75, 0.04),
+          inset 0 1px 0 rgba(255, 255, 255, 0.95);
+      }
+      .modal--pricing .plan-card--free:hover,
+      .modal--pricing .plan-card--free:focus-within {
+        transform: translateY(-2px);
+      }
+      .modal--pricing .plan-card--pro {
+        border-color: rgba(82, 97, 203, 0.4);
+        background:
+          radial-gradient(142% 126% at 9% 0%, rgba(218, 224, 255, 0.96), rgba(255, 255, 255, 0) 58%),
+          linear-gradient(160deg, #ffffff 0%, #eff3ff 54%, #e8ecff 100%);
+        box-shadow:
+          0 34px 64px rgba(31, 52, 122, 0.26),
+          0 14px 28px rgba(31, 52, 122, 0.16),
+          inset 0 1px 0 rgba(255, 255, 255, 0.94);
+        transform: translateY(-6px) scale(1.01);
+      }
+      .modal--pricing .plan-card--pro::after {
+        left: -16%;
+        right: -16%;
+        top: -26%;
+        height: 74%;
+        background: radial-gradient(
+          ellipse at center,
+          rgba(102, 119, 239, 0.32) 0%,
+          rgba(102, 119, 239, 0.14) 46%,
+          rgba(102, 119, 239, 0) 76%
+        );
+        opacity: 0.56;
+        animation: pricing-pro-ambient 8s ease-in-out infinite;
+      }
+      .modal--pricing .plan-card--pro:hover,
+      .modal--pricing .plan-card--pro:focus-within {
+        transform: translateY(-8px) scale(1.012);
+      }
+      .modal--pricing .plan-card--jobsearch {
+        border-color: rgba(178, 141, 92, 0.3);
+        background:
+          radial-gradient(136% 124% at 10% 0%, rgba(255, 246, 226, 0.9), rgba(255, 255, 255, 0) 66%),
+          linear-gradient(160deg, #ffffff 0%, #fff7e9 54%, #fff3dc 100%);
+        box-shadow:
+          0 22px 38px rgba(96, 74, 37, 0.12),
+          0 9px 20px rgba(96, 74, 37, 0.06),
+          inset 0 1px 0 rgba(255, 255, 255, 0.94);
+      }
+      .modal--pricing .plan-card--jobsearch::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(78% 58% at 100% 0%, rgba(245, 198, 121, 0.22), rgba(245, 198, 121, 0) 72%),
+          linear-gradient(126deg, rgba(255, 255, 255, 0) 32%, rgba(255, 234, 194, 0.2) 66%, rgba(255, 255, 255, 0) 100%);
+        opacity: 0.66;
+        z-index: 0;
+        pointer-events: none;
+      }
+      .modal--pricing .plan-card--jobsearch > * {
+        position: relative;
+        z-index: 1;
+      }
+      .modal--pricing .plan-logo-badge {
+        border-radius: 13px;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.98),
+          0 8px 16px rgba(24, 47, 86, 0.14);
+      }
+      .modal--pricing .plan-logo-badge--free {
+        background: linear-gradient(180deg, #f2f5f9 0%, #e9eef4 100%);
+      }
+      .modal--pricing .plan-logo-badge--pro {
+        background:
+          radial-gradient(130% 120% at 22% 8%, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0) 66%),
+          linear-gradient(180deg, #ffffff 0%, #f4f7ff 100%);
+        border-color: rgba(84, 107, 205, 0.34);
+      }
+      .modal--pricing .plan-logo-badge--jobsearch {
+        background:
+          radial-gradient(130% 120% at 22% 8%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 66%),
+          linear-gradient(180deg, #ffffff 0%, #fff7eb 100%);
+        border-color: rgba(183, 143, 85, 0.3);
+      }
+      .modal--pricing .plan-title {
+        font-size: 18px;
+        margin-bottom: 5px;
+        color: #0f2b4d;
+      }
+      .modal--pricing .plan-context {
+        color: #4f678a;
+      }
+      .modal--pricing .plan-price {
+        font-size: 38px;
+        line-height: 1;
+        margin: 4px 0 6px;
+      }
+      .modal--pricing .plan-price-term {
+        font-size: 14px;
+        color: #4f6c96;
+      }
+      .modal--pricing .plan-limit {
+        margin-bottom: 10px;
+        color: #415f85;
+      }
+      .modal--pricing .plan-billing-note,
+      .modal--pricing .plan-price-hint {
+        margin-top: -5px;
+        margin-bottom: 11px;
+      }
+      .modal--pricing .plan-price-hint {
+        color: #375f93;
+      }
+      .modal--pricing .plan-features li {
+        color: #274868;
+      }
+      .modal--pricing .plan-pill {
+        padding: 4px 10px;
+        font-size: 11.5px;
+      }
+      .modal--pricing .plan-pill--included {
+        background: rgba(57, 79, 110, 0.12);
+        border-color: rgba(57, 79, 110, 0.2);
+        color: #42597c;
+      }
+      .modal--pricing .plan-pill--popular {
+        background: linear-gradient(180deg, rgba(94, 116, 231, 0.26), rgba(75, 96, 216, 0.3));
+        border-color: rgba(82, 101, 211, 0.4);
+        color: #1f3a8a;
+      }
+      .modal--pricing .plan-pill--commitment {
+        background: rgba(226, 161, 71, 0.2);
+        border-color: rgba(196, 137, 58, 0.36);
+        color: #895928;
+      }
+      .modal--pricing .plan-cta {
+        min-height: 40px;
+        border-radius: 12px;
+      }
+      .modal--pricing .plan-cta--free {
+        color: #5a6f8d;
+        border-color: rgba(68, 89, 118, 0.24);
+        background: linear-gradient(180deg, #ffffff 0%, #f5f8fd 100%);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.96),
+          0 8px 14px rgba(28, 50, 86, 0.08);
+      }
+      .modal--pricing .plan-cta--pro {
+        color: #f8fbff;
+        border-color: rgba(90, 107, 218, 0.68);
+        background:
+          radial-gradient(118% 128% at 18% 8%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 58%),
+          linear-gradient(180deg, #5f7bf4 0%, #4f67dc 100%);
+        box-shadow:
+          0 18px 30px rgba(68, 84, 190, 0.34),
+          inset 0 1px 0 rgba(255, 255, 255, 0.22);
+      }
+      .modal--pricing .plan-cta--pro:hover {
+        transform: translateY(-1px);
+        box-shadow:
+          0 22px 34px rgba(68, 84, 190, 0.38),
+          inset 0 1px 0 rgba(255, 255, 255, 0.28);
+      }
+      .modal--pricing .plan-cta--jobsearch {
+        color: #fffdf8;
+        border-color: rgba(188, 104, 18, 0.54);
+        background:
+          radial-gradient(118% 130% at 18% 8%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 58%),
+          linear-gradient(180deg, #f2a648 0%, #df812a 100%);
+        box-shadow:
+          0 16px 28px rgba(193, 121, 36, 0.3),
+          inset 0 1px 0 rgba(255, 255, 255, 0.24);
+      }
+      .modal--pricing .plan-cta--jobsearch:hover {
+        transform: translateY(-1px);
+        box-shadow:
+          0 20px 32px rgba(193, 121, 36, 0.35),
+          inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      }
+      .modal--pricing .plan-cta-subtext {
+        color: #4b678d;
+      }
+      .pricing-trust-section {
+        display: grid;
+        gap: 10px;
+      }
+      .pricing-trust-panel {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        border-radius: 14px;
+        border: 1px solid rgba(47, 77, 123, 0.16);
+        background:
+          radial-gradient(124% 124% at 0% 0%, rgba(225, 237, 255, 0.56), rgba(255, 255, 255, 0) 72%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(246, 250, 255, 0.94));
+        padding: 10px 11px;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.9),
+          0 10px 20px rgba(21, 45, 86, 0.08);
+      }
+      .pricing-trust-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        color: #44658f;
+      }
+      .pricing-trust-item__icon {
+        width: 14px;
+        height: 14px;
+        flex: 0 0 auto;
+        color: #5074a8;
+      }
+      .pricing-trust-item__icon svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .pricing-trust-item__text {
+        font-size: 11.5px;
+        line-height: 1.3;
+        font-weight: 600;
+      }
+      .pricing-trust-actions {
+        display: flex;
+        justify-content: flex-end;
+      }
+      .pricing-trust-close {
+        color: #48658c;
+        border-color: rgba(48, 75, 114, 0.2);
+        background: linear-gradient(180deg, #ffffff 0%, #f5f9ff 100%);
+      }
+      .pricing-trust-close:hover {
+        color: #35567f;
+        border-color: rgba(48, 75, 114, 0.32);
+        background: linear-gradient(180deg, #ffffff 0%, #edf4ff 100%);
+      }
+      @keyframes pricing-pro-ambient {
+        0%,
+        100% {
+          opacity: 0.48;
+          transform: translateY(0) scale(1);
+        }
+        50% {
+          opacity: 0.62;
+          transform: translateY(3px) scale(1.04);
+        }
+      }
       @keyframes pricing-pro-glow-pulse {
         0%,
         100% {
@@ -866,6 +1211,15 @@
         }
         .plan-card--pro {
           transform: translateY(-2px);
+        }
+        .pricing-value-row {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .pricing-trust-panel {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .modal--pricing .plan-card--pro {
+          grid-column: span 2;
         }
       }
       @media (max-width: 768px) {
@@ -891,6 +1245,21 @@
         }
         .plan-card--pro {
           transform: none;
+        }
+        .pricing-value-row {
+          grid-template-columns: 1fr;
+          gap: 7px;
+        }
+        .pricing-value-chip {
+          min-height: 0;
+        }
+        .pricing-trust-panel {
+          grid-template-columns: 1fr;
+          gap: 7px;
+          padding: 10px;
+        }
+        .pricing-trust-item__text {
+          font-size: 11px;
         }
         .plan-title-row {
           gap: 9px;

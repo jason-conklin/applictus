@@ -6093,41 +6093,97 @@ function openPricingModal() {
   });
   container.append(freeCard, proCard, jobSearchPlanCard);
 
-  const body = document.createElement('div');
-  body.append(container);
-  const billingPowered = document.createElement('div');
-  billingPowered.className = 'pricing-billing-powered muted small';
-  const billingPoweredIcon = document.createElement('span');
-  billingPoweredIcon.className = 'pricing-billing-powered__icon';
-  billingPoweredIcon.setAttribute('aria-hidden', 'true');
-  billingPoweredIcon.innerHTML = `
-    <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-      <rect x="5.2" y="8.6" width="9.6" height="7.4" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect>
-      <path d="M7.2 8.5V6.9A2.8 2.8 0 0 1 10 4.1a2.8 2.8 0 0 1 2.8 2.8v1.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
-    </svg>
-  `;
-  const billingPoweredText = document.createElement('span');
-  billingPoweredText.textContent = 'Secure checkout powered by ';
-  const billingPoweredBrand = document.createElement('span');
-  billingPoweredBrand.className = 'pricing-billing-powered__brand';
-  billingPoweredBrand.textContent = 'Stripe';
-  billingPoweredText.appendChild(billingPoweredBrand);
-  billingPowered.append(billingPoweredIcon, billingPoweredText);
-  body.appendChild(billingPowered);
+  const buildPricingGlyph = (name) => {
+    switch (name) {
+      case 'track':
+        return `
+          <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+            <path d="M4.2 5.2h11.6M4.2 10h8.2M4.2 14.8h6.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+            <circle cx="14.8" cy="10" r="2.1" fill="none" stroke="currentColor" stroke-width="1.7"></circle>
+          </svg>
+        `;
+      case 'organize':
+        return `
+          <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+            <rect x="3.5" y="4.1" width="13" height="11.8" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.7"></rect>
+            <path d="M6.3 7.6h7.4M6.3 10.2h7.4M6.3 12.8h4.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+          </svg>
+        `;
+      case 'alerts':
+        return `
+          <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+            <path d="M10 3.9a4.2 4.2 0 0 0-4.2 4.2v2.2c0 1-.4 2-1.2 2.7l-.7.7h12.2l-.7-.7a3.8 3.8 0 0 1-1.2-2.7V8.1A4.2 4.2 0 0 0 10 3.9Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path>
+            <path d="M8.3 14.5a1.8 1.8 0 0 0 3.4 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+          </svg>
+        `;
+      case 'secure':
+      default:
+        return `
+          <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+            <rect x="5.2" y="8.6" width="9.6" height="7.4" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect>
+            <path d="M7.2 8.5V6.9A2.8 2.8 0 0 1 10 4.1a2.8 2.8 0 0 1 2.8 2.8v1.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+          </svg>
+        `;
+    }
+  };
 
-  const trustRow = document.createElement('div');
-  trustRow.className = 'pricing-trust-row';
-  const trust = document.createElement('div');
-  trust.className = 'pricing-trust muted small';
-  trust.textContent = 'Cancel anytime • No hidden fees • No commitment';
-  trustRow.appendChild(trust);
+  const body = document.createElement('div');
+  const valueRow = document.createElement('div');
+  valueRow.className = 'pricing-value-row';
+  [
+    { icon: 'track', text: 'Track every update' },
+    { icon: 'organize', text: 'Stay organized' },
+    { icon: 'alerts', text: 'Never miss important alerts' },
+    { icon: 'secure', text: 'Secure and private' }
+  ].forEach((item) => {
+    const chip = document.createElement('div');
+    chip.className = 'pricing-value-chip';
+    const icon = document.createElement('span');
+    icon.className = 'pricing-value-chip__icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.innerHTML = buildPricingGlyph(item.icon);
+    const text = document.createElement('span');
+    text.className = 'pricing-value-chip__text';
+    text.textContent = item.text;
+    chip.append(icon, text);
+    valueRow.appendChild(chip);
+  });
+  body.appendChild(valueRow);
+  body.append(container);
+
+  const trustSection = document.createElement('div');
+  trustSection.className = 'pricing-trust-section';
+  const trustPanel = document.createElement('div');
+  trustPanel.className = 'pricing-trust-panel';
+  [
+    { icon: 'secure', text: 'Secure checkout powered by Stripe' },
+    { icon: 'organize', text: 'Cancel anytime' },
+    { icon: 'track', text: 'No commitment' },
+    { icon: 'alerts', text: 'Your data is yours' }
+  ].forEach((item) => {
+    const trustItem = document.createElement('div');
+    trustItem.className = 'pricing-trust-item';
+    const icon = document.createElement('span');
+    icon.className = 'pricing-trust-item__icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.innerHTML = buildPricingGlyph(item.icon);
+    const text = document.createElement('span');
+    text.className = 'pricing-trust-item__text';
+    text.textContent = item.text;
+    trustItem.append(icon, text);
+    trustPanel.appendChild(trustItem);
+  });
+  trustSection.appendChild(trustPanel);
+  const trustActions = document.createElement('div');
+  trustActions.className = 'pricing-trust-actions';
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.className = 'btn btn--ghost btn--sm pricing-trust-close';
   closeBtn.textContent = 'Close';
   closeBtn.addEventListener('click', () => closeModal('cancel'));
-  trustRow.appendChild(closeBtn);
-  body.appendChild(trustRow);
+  trustActions.appendChild(closeBtn);
+  trustSection.appendChild(trustActions);
+  body.appendChild(trustSection);
 
   openModal({
     title: 'Organize your job search and never miss an opportunity',
