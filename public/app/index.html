@@ -224,7 +224,7 @@
         top: calc(100% + 9px);
         right: 0;
         z-index: 16;
-        width: min(300px, 72vw);
+        width: min(430px, 86vw);
         display: grid;
         gap: 6px;
         padding: 10px 11px;
@@ -345,10 +345,17 @@
         justify-items: end;
       }
       .plan-progress-marker-tick {
-        width: 1px;
-        height: 8px;
-        border-radius: 999px;
-        background: rgba(21, 52, 96, 0.54);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: auto;
+        height: auto;
+        color: rgba(21, 52, 96, 0.66);
+        font-size: 12px;
+        line-height: 1;
+      }
+      .plan-progress-marker-tick::before {
+        content: '⮟';
       }
       .plan-progress-marker-label {
         font-size: 11px;
@@ -693,7 +700,7 @@
         .plan-usage-tooltip {
           right: auto;
           left: 0;
-          width: min(290px, calc(100vw - 76px));
+          width: min(330px, calc(100vw - 76px));
         }
         .plan-usage-tooltip::before {
           left: 10px;
