@@ -387,26 +387,112 @@
         color: #537198;
       }
       .plan-card-grid {
+        position: relative;
+        isolation: isolate;
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
         gap: 16px;
         margin-top: 4px;
       }
+      .plan-card-grid::before {
+        content: '';
+        position: absolute;
+        top: -22px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(460px, 48%);
+        height: 126px;
+        border-radius: 999px;
+        background: radial-gradient(
+          ellipse at center,
+          rgba(77, 126, 208, 0.24) 0%,
+          rgba(77, 126, 208, 0.08) 46%,
+          rgba(77, 126, 208, 0) 78%
+        );
+        filter: blur(12px);
+        opacity: 0.68;
+        pointer-events: none;
+        z-index: 0;
+      }
       .modal--pricing .modal-dialog {
         width: min(1120px, 96vw);
+        border-color: rgba(39, 78, 140, 0.2);
+        background:
+          radial-gradient(132% 62% at 50% -8%, rgba(212, 228, 252, 0.72), rgba(255, 255, 255, 0) 68%),
+          linear-gradient(180deg, #ffffff 0%, #f4f8ff 100%);
+        box-shadow:
+          0 48px 100px rgba(14, 34, 67, 0.36),
+          0 16px 36px rgba(16, 42, 84, 0.22),
+          inset 0 1px 0 rgba(255, 255, 255, 0.86);
+        overflow: hidden;
+      }
+      .modal--pricing .modal-dialog::before {
+        height: 64px;
+        border-radius: 19px 19px 16px 16px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0));
+      }
+      .modal--pricing .modal-dialog::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(72% 52% at 50% 0%, rgba(121, 161, 223, 0.16), rgba(121, 161, 223, 0) 72%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0) 72%, rgba(207, 224, 248, 0.16) 100%);
+        pointer-events: none;
+        z-index: 0;
+      }
+      .modal--pricing .modal-header,
+      .modal--pricing .modal-body,
+      .modal--pricing .modal-footer {
+        position: relative;
+        z-index: 1;
+      }
+      .modal--pricing .modal-header {
+        border-bottom-color: rgba(44, 83, 147, 0.12);
       }
       .modal--pricing .plan-card-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
+      .modal--pricing .plan-card-grid > .plan-card {
+        z-index: 1;
+      }
       .plan-card {
         position: relative;
-        border: 1px solid rgba(20, 40, 80, 0.12);
-        border-radius: 16px;
-        padding: 18px;
-        background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+        border: 1px solid rgba(21, 45, 89, 0.14);
+        border-radius: 18px;
+        padding: 19px;
+        background:
+          radial-gradient(145% 128% at 0% 0%, rgba(236, 244, 255, 0.56), rgba(255, 255, 255, 0) 68%),
+          linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
         box-shadow:
-          0 14px 30px rgba(12, 36, 84, 0.08),
-          inset 0 1px 0 rgba(255, 255, 255, 0.86);
+          0 18px 34px rgba(12, 36, 84, 0.1),
+          0 8px 18px rgba(12, 36, 84, 0.05),
+          inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        overflow: hidden;
+        transition:
+          transform 220ms cubic-bezier(0.2, 0.75, 0.2, 1),
+          box-shadow 220ms ease,
+          border-color 220ms ease;
+      }
+      .plan-card::before {
+        content: '';
+        position: absolute;
+        top: 1px;
+        left: 1px;
+        right: 1px;
+        height: 42%;
+        border-radius: 16px 16px 12px 12px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0));
+        pointer-events: none;
+      }
+      .plan-card:hover,
+      .plan-card:focus-within {
+        transform: translateY(-3px);
+        box-shadow:
+          0 24px 44px rgba(12, 36, 84, 0.14),
+          0 10px 24px rgba(12, 36, 84, 0.08),
+          inset 0 1px 0 rgba(255, 255, 255, 0.92);
+        border-color: rgba(38, 75, 138, 0.22);
       }
       .plan-card-top {
         display: grid;
@@ -459,18 +545,22 @@
         filter: grayscale(1) saturate(0.2) contrast(1.08) brightness(0.9);
       }
       .plan-logo-badge--pro {
-        background: linear-gradient(180deg, #e7f0ff 0%, #d6e5ff 100%);
-        border-color: rgba(56, 99, 176, 0.34);
+        background:
+          radial-gradient(130% 125% at 24% 8%, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0) 64%),
+          linear-gradient(180deg, #edf4ff 0%, #dbe9ff 100%);
+        border-color: rgba(56, 99, 176, 0.4);
         box-shadow:
           inset 0 1px 0 rgba(255, 255, 255, 0.94),
-          0 8px 18px rgba(24, 63, 137, 0.18);
+          0 10px 20px rgba(24, 63, 137, 0.22);
       }
       .plan-logo-badge--jobsearch {
-        background: linear-gradient(180deg, #ffffff 0%, #f2f5fa 100%);
-        border-color: rgba(76, 95, 125, 0.24);
+        background:
+          radial-gradient(130% 120% at 22% 10%, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0) 66%),
+          linear-gradient(180deg, #ffffff 0%, #f4f6fa 100%);
+        border-color: rgba(76, 95, 125, 0.28);
         box-shadow:
           inset 0 1px 0 rgba(255, 255, 255, 0.95),
-          0 5px 12px rgba(24, 44, 75, 0.1);
+          0 6px 14px rgba(24, 44, 75, 0.12);
       }
       .plan-logo-badge--inline {
         --plan-icon-size: 24px;
@@ -481,15 +571,66 @@
           0 3px 8px rgba(22, 46, 84, 0.08);
       }
       .plan-card--pro {
-        border-color: rgba(22, 69, 143, 0.26);
+        border-color: rgba(26, 79, 159, 0.44);
         background:
-          radial-gradient(125% 115% at 6% 0%, rgba(227, 238, 255, 0.68), rgba(255, 255, 255, 0) 64%),
-          linear-gradient(180deg, #ffffff 0%, #f1f7ff 100%);
+          radial-gradient(136% 122% at 8% 0%, rgba(210, 230, 255, 0.96), rgba(255, 255, 255, 0) 62%),
+          linear-gradient(180deg, #ffffff 0%, #ebf4ff 100%);
         box-shadow:
-          0 24px 44px rgba(15, 45, 96, 0.15),
-          0 8px 18px rgba(15, 45, 96, 0.1),
+          0 30px 56px rgba(15, 45, 96, 0.24),
+          0 12px 26px rgba(15, 45, 96, 0.14),
           inset 0 1px 0 rgba(255, 255, 255, 0.92);
-        transform: translateY(-1px);
+        transform: translateY(-4px) scale(1.008);
+      }
+      .plan-card--pro::after {
+        content: '';
+        position: absolute;
+        left: -14%;
+        right: -14%;
+        top: -24%;
+        height: 68%;
+        border-radius: 999px;
+        background: radial-gradient(
+          ellipse at center,
+          rgba(87, 140, 224, 0.3) 0%,
+          rgba(87, 140, 224, 0.12) 46%,
+          rgba(87, 140, 224, 0) 76%
+        );
+        opacity: 0.48;
+        pointer-events: none;
+        z-index: 0;
+        animation: pricing-pro-glow-pulse 7.2s ease-in-out infinite;
+      }
+      .plan-card--pro > * {
+        position: relative;
+        z-index: 1;
+      }
+      .plan-card--free {
+        border-color: rgba(20, 40, 80, 0.12);
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafd 100%);
+        box-shadow:
+          0 14px 28px rgba(12, 36, 84, 0.07),
+          0 6px 14px rgba(12, 36, 84, 0.04),
+          inset 0 1px 0 rgba(255, 255, 255, 0.88);
+      }
+      .plan-card--free:hover,
+      .plan-card--free:focus-within {
+        transform: translateY(-2px);
+        border-color: rgba(44, 75, 121, 0.2);
+      }
+      .plan-card--jobsearch {
+        background:
+          radial-gradient(132% 118% at 8% 0%, rgba(244, 240, 231, 0.8), rgba(255, 255, 255, 0) 68%),
+          linear-gradient(180deg, #ffffff 0%, #f7f6f3 100%);
+        border-color: rgba(83, 92, 110, 0.22);
+        box-shadow:
+          0 20px 38px rgba(18, 38, 66, 0.12),
+          0 8px 18px rgba(18, 38, 66, 0.07),
+          inset 0 1px 0 rgba(255, 255, 255, 0.9);
+      }
+      .plan-card--jobsearch:hover,
+      .plan-card--jobsearch:focus-within {
+        transform: translateY(-4px);
+        border-color: rgba(66, 84, 118, 0.3);
       }
       .plan-title {
         margin: 0 0 4px;
@@ -572,9 +713,12 @@
         margin-bottom: 2px;
       }
       .plan-pill--popular {
-        background: rgba(37, 82, 171, 0.16);
-        border: 1px solid rgba(37, 82, 171, 0.28);
-        color: #1a468f;
+        background: linear-gradient(180deg, rgba(55, 104, 196, 0.2), rgba(40, 84, 171, 0.22));
+        border: 1px solid rgba(37, 82, 171, 0.36);
+        color: #16438d;
+        box-shadow:
+          0 6px 14px rgba(23, 58, 120, 0.16),
+          inset 0 1px 0 rgba(255, 255, 255, 0.4);
       }
       .plan-pill--included {
         background: rgba(17, 50, 96, 0.08);
@@ -589,6 +733,10 @@
       .plan-cta {
         width: 100%;
         justify-content: center;
+        transition:
+          transform 160ms ease,
+          box-shadow 160ms ease,
+          filter 160ms ease;
       }
       .plan-cta-wrap {
         margin-top: auto;
@@ -602,8 +750,14 @@
       }
       .plan-cta--pro {
         box-shadow:
-          0 14px 24px rgba(20, 58, 126, 0.2),
+          0 16px 28px rgba(20, 58, 126, 0.26),
           inset 0 1px 0 rgba(255, 255, 255, 0.22);
+      }
+      .plan-cta--pro:hover {
+        transform: translateY(-1px);
+        box-shadow:
+          0 20px 32px rgba(20, 58, 126, 0.3),
+          inset 0 1px 0 rgba(255, 255, 255, 0.24);
       }
       .plan-cta--jobsearch {
         color: #ffffff;
@@ -614,6 +768,12 @@
         box-shadow:
           0 12px 22px rgba(34, 71, 132, 0.2),
           inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      }
+      .plan-cta--jobsearch:hover {
+        transform: translateY(-1px);
+        box-shadow:
+          0 16px 28px rgba(34, 71, 132, 0.24),
+          inset 0 1px 0 rgba(255, 255, 255, 0.32);
       }
       .plan-cta-subtext {
         text-align: center;
@@ -640,12 +800,6 @@
       .plan-reinforcement {
         margin-top: 2px;
         color: #4f6485;
-      }
-      .plan-card--jobsearch {
-        background:
-          radial-gradient(130% 120% at 8% 0%, rgba(241, 245, 252, 0.92), rgba(255, 255, 255, 0) 66%),
-          linear-gradient(180deg, #ffffff 0%, #f5f8fc 100%);
-        border-color: rgba(50, 75, 116, 0.18);
       }
       .pricing-billing-powered {
         margin-top: 14px;
@@ -688,12 +842,29 @@
       .pricing-trust-close {
         justify-self: end;
       }
+      @keyframes pricing-pro-glow-pulse {
+        0%,
+        100% {
+          opacity: 0.42;
+          transform: translateY(0) scale(1);
+        }
+        50% {
+          opacity: 0.58;
+          transform: translateY(2px) scale(1.04);
+        }
+      }
       @media (max-width: 980px) {
         .modal--pricing .modal-dialog {
           width: min(980px, 96vw);
         }
         .modal--pricing .plan-card-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .plan-card-grid::before {
+          width: min(420px, 64%);
+        }
+        .plan-card--pro {
+          transform: translateY(-2px);
         }
       }
       @media (max-width: 768px) {
@@ -706,8 +877,19 @@
           left: 10px;
           right: auto;
         }
+        .plan-card-grid::before {
+          display: none;
+        }
         .modal--pricing .plan-card-grid {
           grid-template-columns: 1fr;
+        }
+        .plan-card,
+        .plan-card:hover,
+        .plan-card:focus-within {
+          transform: none;
+        }
+        .plan-card--pro {
+          transform: none;
         }
         .plan-title-row {
           gap: 9px;
@@ -721,6 +903,14 @@
           --plan-icon-size: 22px;
           --plan-icon-radius: 7px;
           --plan-icon-padding: 3px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .plan-card,
+        .plan-cta,
+        .plan-card--pro::after {
+          animation: none !important;
+          transition: none !important;
         }
       }
     </style>
