@@ -966,7 +966,6 @@
       .modal--pricing .plan-card {
         --plan-surface-svg: none;
         --plan-surface-height: 39%;
-        --plan-surface-fade-rgb: 255, 255, 255;
         display: flex;
         flex-direction: column;
         height: 100%;
@@ -991,19 +990,10 @@
         border-top-right-radius: 0;
         border-bottom-left-radius: inherit;
         border-bottom-right-radius: inherit;
-        background-image:
-          linear-gradient(
-            to bottom,
-            rgba(var(--plan-surface-fade-rgb), 0.98) 0%,
-            rgba(var(--plan-surface-fade-rgb), 0.86) 18%,
-            rgba(var(--plan-surface-fade-rgb), 0.56) 34%,
-            rgba(var(--plan-surface-fade-rgb), 0.2) 50%,
-            rgba(var(--plan-surface-fade-rgb), 0) 66%
-          ),
-          var(--plan-surface-svg);
-        background-size: 100% 100%, cover;
-        background-position: top center, center bottom;
-        background-repeat: no-repeat, no-repeat;
+        background-image: var(--plan-surface-svg);
+        background-size: cover;
+        background-position: center bottom;
+        background-repeat: no-repeat;
         opacity: 1;
         z-index: 0;
         pointer-events: none;
@@ -1022,7 +1012,6 @@
       .modal--pricing .plan-card--free {
         --plan-surface-svg: url('/assets/pricing-surfaces/plan-surface-free.svg');
         --plan-surface-height: 37%;
-        --plan-surface-fade-rgb: 252, 253, 255;
         background:
           linear-gradient(180deg, #ffffff 0%, #fcfdff 56%, #f6f9ff 100%);
         border-color: rgba(77, 96, 123, 0.2);
@@ -1044,7 +1033,6 @@
       .modal--pricing .plan-card--pro {
         --plan-surface-svg: url('/assets/pricing-surfaces/plan-surface-pro.svg');
         --plan-surface-height: 41%;
-        --plan-surface-fade-rgb: 248, 250, 255;
         border-color: rgba(76, 95, 230, 0.74);
         background:
           linear-gradient(180deg, #ffffff 0%, #f8faff 56%, #f0f4ff 100%);
@@ -1067,7 +1055,6 @@
       .modal--pricing .plan-card--jobsearch {
         --plan-surface-svg: url('/assets/pricing-surfaces/plan-surface-jobsearch.svg');
         --plan-surface-height: 40%;
-        --plan-surface-fade-rgb: 255, 249, 239;
         border-color: rgba(217, 177, 121, 0.44);
         background:
           linear-gradient(180deg, #fffefd 0%, #fffaf2 56%, #fff3e5 100%);

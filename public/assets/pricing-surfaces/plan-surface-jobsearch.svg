@@ -21,7 +21,7 @@
       <stop offset="1" stop-color="#F3C992" stop-opacity="0.16"/>
     </linearGradient>
   </defs>
-  <rect width="1200" height="1600" rx="32" fill="url(#base)"/>
+  <path d="M1200 886C1015 912 846 919 646 889C451 860 257 875 0 964V1600H1200V886Z" fill="url(#base)"/>
   <path d="M1200 948C1004 981 838 995 641 961C448 928 255 943 0 1032V1600H1200V948Z" fill="url(#wave1)"/>
   <path d="M1200 1098C1024 1123 858 1126 668 1095C473 1061 279 1076 0 1174V1600H1200V1098Z" fill="url(#wave2)"/>
   <path d="M1200 1292C1027 1304 866 1296 679 1268C489 1240 295 1250 0 1350V1600H1200V1292Z" fill="url(#wave3)"/>
