@@ -692,10 +692,8 @@ const archivedFilterStatusTrigger = document.getElementById('archived-filter-sta
 const archivedFilterStatusMenu = document.getElementById('archived-filter-status-menu');
 const archivedFilterStatusLabel = document.getElementById('archived-filter-status-label');
 const archivedFilterStatusDot = document.getElementById('archived-filter-status-dot');
-const archivedFilterCompany = document.getElementById('archived-filter-company');
-const archivedFilterCompanyClear = document.getElementById('archived-filter-company-clear');
-const archivedFilterRole = document.getElementById('archived-filter-role');
-const archivedFilterRoleClear = document.getElementById('archived-filter-role-clear');
+const archivedFilterSearch = document.getElementById('archived-filter-search');
+const archivedFilterSearchClear = document.getElementById('archived-filter-search-clear');
 const tablePrev = document.getElementById('table-prev');
 const tableNext = document.getElementById('table-next');
 const tablePageInfo = document.getElementById('table-page-info');
@@ -1051,8 +1049,7 @@ const state = {
     total: 0,
     filters: {
       status: '',
-      company: '',
-      role: ''
+      search: ''
     }
   }
 };
@@ -6454,9 +6451,7 @@ async function refreshArchivedApplications() {
   const fetchPage = async (offset) => {
     const params = buildListParams({
       status: state.archived.filters.status,
-      search: '',
-      company: state.archived.filters.company,
-      role: state.archived.filters.role
+      search: state.archived.filters.search
     });
     params.set('archived', '1');
     params.set('limit', String(PAGE_SIZE));
@@ -11504,8 +11499,7 @@ dashboardView?.addEventListener('click', async (event) => {
 });
 
 let filterSearchTimer = null;
-let archivedFilterCompanyTimer = null;
-let archivedFilterRoleTimer = null;
+let archivedFilterSearchTimer = null;
 const applyFilters = async () => {
   if (state.table.selectedIds?.size) {
     clearTableSelection({ rerender: false });
@@ -11753,51 +11747,27 @@ archivedFilterStatus?.addEventListener('change', async () => {
 
 syncArchivedStatusFilterMenuUi();
 
-if (archivedFilterCompany) {
-  archivedFilterCompany.value = state.archived.filters.company || '';
+if (archivedFilterSearch) {
+  archivedFilterSearch.value = state.archived.filters.search || '';
 }
-archivedFilterCompanyClear?.classList.toggle('hidden', !archivedFilterCompany?.value);
+archivedFilterSearchClear?.classList.toggle('hidden', !archivedFilterSearch?.value);
 
-archivedFilterCompany?.addEventListener('input', () => {
-  if (archivedFilterCompanyClear) {
-    archivedFilterCompanyClear.classList.toggle('hidden', !archivedFilterCompany.value);
+archivedFilterSearch?.addEventListener('input', () => {
+  if (archivedFilterSearchClear) {
+    archivedFilterSearchClear.classList.toggle('hidden', !archivedFilterSearch.value);
   }
-  clearTimeout(archivedFilterCompanyTimer);
-  archivedFilterCompanyTimer = setTimeout(async () => {
-    state.archived.filters.company = archivedFilterCompany.value.trim();
+  clearTimeout(archivedFilterSearchTimer);
+  archivedFilterSearchTimer = setTimeout(async () => {
+    state.archived.filters.search = archivedFilterSearch.value.trim();
     await applyArchivedFilters();
   }, 180);
 });
 
-archivedFilterCompanyClear?.addEventListener('click', async () => {
-  if (!archivedFilterCompany) return;
-  archivedFilterCompany.value = '';
-  archivedFilterCompanyClear.classList.add('hidden');
-  state.archived.filters.company = '';
-  await applyArchivedFilters();
-});
-
-if (archivedFilterRole) {
-  archivedFilterRole.value = state.archived.filters.role || '';
-}
-archivedFilterRoleClear?.classList.toggle('hidden', !archivedFilterRole?.value);
-
-archivedFilterRole?.addEventListener('input', () => {
-  if (archivedFilterRoleClear) {
-    archivedFilterRoleClear.classList.toggle('hidden', !archivedFilterRole.value);
-  }
-  clearTimeout(archivedFilterRoleTimer);
-  archivedFilterRoleTimer = setTimeout(async () => {
-    state.archived.filters.role = archivedFilterRole.value.trim();
-    await applyArchivedFilters();
-  }, 180);
-});
-
-archivedFilterRoleClear?.addEventListener('click', async () => {
-  if (!archivedFilterRole) return;
-  archivedFilterRole.value = '';
-  archivedFilterRoleClear.classList.add('hidden');
-  state.archived.filters.role = '';
+archivedFilterSearchClear?.addEventListener('click', async () => {
+  if (!archivedFilterSearch) return;
+  archivedFilterSearch.value = '';
+  archivedFilterSearchClear.classList.add('hidden');
+  state.archived.filters.search = '';
   await applyArchivedFilters();
 });
 

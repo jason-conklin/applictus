@@ -4245,6 +4245,11 @@ textarea:focus-visible {
   max-width: none;
 }
 
+#archive-view #archived-filters-inline .filter-field--search {
+  flex: 1 1 520px;
+  max-width: none;
+}
+
 #dashboard-view #filters-inline .filter-field--company {
   flex: 1 1 300px;
   max-width: 380px;
@@ -13718,6 +13723,11 @@ body.app-page-bg .topbar .nav-link.active {
 }
 
 #dashboard-view #filters-inline .filter-field--search {
+  flex: 1 1 560px;
+  max-width: none;
+}
+
+#archive-view #archived-filters-inline .filter-field--search {
   flex: 1 1 560px;
   max-width: none;
 }
