@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1600" fill="none">
+  <defs>
+    <linearGradient id="pro-band-a" x1="60" y1="260" x2="1140" y2="980" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#dbe6ff" stop-opacity="0.4"/>
+      <stop offset="0.48" stop-color="#d0ddff" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#eaf0ff" stop-opacity="0.03"/>
+    </linearGradient>
+    <linearGradient id="pro-band-b" x1="1120" y1="430" x2="140" y2="1360" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#cad8ff" stop-opacity="0.34"/>
+      <stop offset="0.55" stop-color="#d9d7ff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#edf2ff" stop-opacity="0.02"/>
+    </linearGradient>
+    <linearGradient id="pro-band-c" x1="-120" y1="980" x2="1160" y2="1240" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#bed0ff" stop-opacity="0.26"/>
+      <stop offset="0.5" stop-color="#c7d5ff" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#e9efff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="pro-light" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(690 520) rotate(12) scale(460 300)">
+      <stop stop-color="#ffffff" stop-opacity="0.36"/>
+      <stop offset="0.55" stop-color="#f8faff" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#f0f4ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pro-side" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1110 920) rotate(165) scale(360 520)">
+      <stop stop-color="#b9c7ff" stop-opacity="0.25"/>
+      <stop offset="0.55" stop-color="#c9d5ff" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#e9efff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <path d="M-120 340C120 220 360 210 620 280C860 345 1040 510 1260 540V920C990 884 820 760 600 722C340 676 130 742-120 900V340Z" fill="url(#pro-band-a)"/>
+  <path d="M-40 1210C210 980 470 860 760 842C980 828 1110 898 1280 820V1210C1090 1340 920 1360 700 1342C450 1320 210 1380-40 1550V1210Z" fill="url(#pro-band-b)"/>
+  <path d="M-160 1440C110 1260 360 1180 620 1152C870 1126 1050 1170 1260 1090V1700H-160V1440Z" fill="url(#pro-band-c)"/>
+  <ellipse cx="690" cy="520" rx="460" ry="300" fill="url(#pro-light)"/>
+  <ellipse cx="1110" cy="920" rx="360" ry="520" fill="url(#pro-side)"/>
+</svg>

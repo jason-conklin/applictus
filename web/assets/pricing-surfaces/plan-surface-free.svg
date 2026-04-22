@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1600" fill="none">
+  <defs>
+    <linearGradient id="free-band-a" x1="140" y1="900" x2="1120" y2="520" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#dfe9f8" stop-opacity="0.42"/>
+      <stop offset="0.5" stop-color="#e7effb" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#f4f7ff" stop-opacity="0.04"/>
+    </linearGradient>
+    <linearGradient id="free-band-b" x1="1080" y1="980" x2="120" y2="1240" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d6e1f4" stop-opacity="0.34"/>
+      <stop offset="0.55" stop-color="#e5ecf8" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#f7f9fd" stop-opacity="0.03"/>
+    </linearGradient>
+    <linearGradient id="free-band-c" x1="-80" y1="680" x2="980" y2="1080" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e7eaf6" stop-opacity="0.2"/>
+      <stop offset="0.55" stop-color="#e1e8f9" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#f5f7fc" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="free-haze" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(250 180) rotate(16) scale(640 390)">
+      <stop stop-color="#ffffff" stop-opacity="0.4"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <path d="M-120 1360C120 1180 330 1090 560 1060C760 1033 980 1048 1180 960V1700H-120V1360Z" fill="url(#free-band-a)"/>
+  <path d="M-80 1510C180 1310 430 1240 680 1228C900 1218 1080 1278 1280 1170V1700H-80V1510Z" fill="url(#free-band-b)"/>
+  <path d="M-180 980C110 820 390 790 640 840C860 886 1050 995 1290 900V1180C1000 1248 790 1222 560 1242C300 1266 80 1330-160 1490L-180 980Z" fill="url(#free-band-c)"/>
+  <ellipse cx="250" cy="180" rx="640" ry="390" fill="url(#free-haze)"/>
+</svg>

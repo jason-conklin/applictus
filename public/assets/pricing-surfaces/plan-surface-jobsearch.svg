@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1600" fill="none">
+  <defs>
+    <linearGradient id="job-band-a" x1="1100" y1="980" x2="120" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f7d9a9" stop-opacity="0.34"/>
+      <stop offset="0.5" stop-color="#f9e2bc" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#fff3dc" stop-opacity="0.03"/>
+    </linearGradient>
+    <linearGradient id="job-band-b" x1="-80" y1="1060" x2="1120" y2="1220" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f3d7ae" stop-opacity="0.28"/>
+      <stop offset="0.55" stop-color="#f7e4c4" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#fff4e0" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="job-band-c" x1="140" y1="300" x2="1050" y2="980" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff0d2" stop-opacity="0.26"/>
+      <stop offset="0.45" stop-color="#fce8c7" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#fff5e4" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="job-haze" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(320 230) rotate(8) scale(560 330)">
+      <stop stop-color="#ffffff" stop-opacity="0.38"/>
+      <stop offset="0.55" stop-color="#fffdf8" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#fff9ef" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="job-lower" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(980 1260) rotate(160) scale(430 280)">
+      <stop stop-color="#f6d7aa" stop-opacity="0.2"/>
+      <stop offset="0.55" stop-color="#f8dfb8" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#fef1dc" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <path d="M-120 1020C170 860 420 800 680 820C910 838 1060 930 1280 880V1220C1040 1280 830 1250 620 1280C360 1316 130 1400-140 1570L-120 1020Z" fill="url(#job-band-a)"/>
+  <path d="M-100 1450C140 1280 390 1200 650 1170C880 1144 1070 1190 1270 1110V1700H-100V1450Z" fill="url(#job-band-b)"/>
+  <path d="M-120 360C130 250 380 260 620 340C870 424 1040 590 1250 610V930C1030 900 860 792 640 748C390 698 170 760-120 940V360Z" fill="url(#job-band-c)"/>
+  <ellipse cx="320" cy="230" rx="560" ry="330" fill="url(#job-haze)"/>
+  <ellipse cx="980" cy="1260" rx="430" ry="280" fill="url(#job-lower)"/>
+</svg>
