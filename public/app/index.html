@@ -965,8 +965,7 @@
       }
       .modal--pricing .plan-card {
         --plan-surface-svg: none;
-        --plan-surface-size: 100% 86%;
-        --plan-surface-position: center bottom;
+        --plan-surface-position: center 124%;
         display: flex;
         flex-direction: column;
         height: 100%;
@@ -982,13 +981,13 @@
       .modal--pricing .plan-card::before {
         content: '';
         position: absolute;
-        top: 1px;
-        left: 1px;
-        right: 1px;
-        bottom: 1px;
-        border-radius: 26px;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-radius: inherit;
         background-image: var(--plan-surface-svg);
-        background-size: var(--plan-surface-size);
+        background-size: cover;
         background-position: var(--plan-surface-position);
         background-repeat: no-repeat;
         opacity: 1;
@@ -1008,8 +1007,7 @@
       }
       .modal--pricing .plan-card--free {
         --plan-surface-svg: url('/assets/pricing-surfaces/plan-surface-free.svg');
-        --plan-surface-size: 100% 84%;
-        --plan-surface-position: center bottom;
+        --plan-surface-position: center 126%;
         background:
           linear-gradient(180deg, #ffffff 0%, #fcfdff 56%, #f6f9ff 100%);
         border-color: rgba(77, 96, 123, 0.2);
@@ -1030,8 +1028,7 @@
       }
       .modal--pricing .plan-card--pro {
         --plan-surface-svg: url('/assets/pricing-surfaces/plan-surface-pro.svg');
-        --plan-surface-size: 100% 88%;
-        --plan-surface-position: center bottom;
+        --plan-surface-position: center 122%;
         border-color: rgba(76, 95, 230, 0.74);
         background:
           linear-gradient(180deg, #ffffff 0%, #f8faff 56%, #f0f4ff 100%);
@@ -1053,8 +1050,7 @@
       }
       .modal--pricing .plan-card--jobsearch {
         --plan-surface-svg: url('/assets/pricing-surfaces/plan-surface-jobsearch.svg');
-        --plan-surface-size: 100% 86%;
-        --plan-surface-position: center bottom;
+        --plan-surface-position: center 125%;
         border-color: rgba(217, 177, 121, 0.44);
         background:
           linear-gradient(180deg, #fffefd 0%, #fffaf2 56%, #fff3e5 100%);
