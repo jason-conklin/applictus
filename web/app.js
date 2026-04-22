@@ -5041,7 +5041,8 @@ function setView(view) {
   toggleSection(contactView, view === 'contact');
   toggleSection(aboutView, view === 'about');
   const isAuthed = Boolean(sessionUser);
-  const isPublicLegalView = view === 'privacy' || view === 'terms' || view === 'about';
+  const isPublicLegalView =
+    view === 'privacy' || view === 'terms' || view === 'contact' || view === 'about';
   const showAppTopbar = isAuthed && !isPublicLegalView;
   if (topbar) {
     topbar.classList.toggle('hidden', !showAppTopbar);
