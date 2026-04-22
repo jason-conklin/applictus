@@ -970,20 +970,41 @@
         border-radius: 28px;
         padding: 24px 22px 18px;
         border-color: rgba(37, 64, 106, 0.16);
+        background:
+          radial-gradient(148% 112% at 10% -6%, rgba(255, 255, 255, 0.94) 0%, rgba(255, 255, 255, 0.34) 46%, rgba(255, 255, 255, 0) 74%),
+          linear-gradient(168deg, #ffffff 0%, #f7fafe 100%);
         box-shadow:
           0 20px 40px rgba(18, 41, 80, 0.1),
           0 10px 20px rgba(18, 41, 80, 0.05),
           inset 0 1px 0 rgba(255, 255, 255, 0.92);
       }
+      .modal--pricing .plan-card::before {
+        content: '';
+        position: absolute;
+        top: 1px;
+        left: 1px;
+        right: 1px;
+        height: 56%;
+        border-radius: 26px 26px 16px 16px;
+        background:
+          radial-gradient(146% 112% at 10% 0%, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0.28) 42%, rgba(255, 255, 255, 0) 74%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 76%);
+        opacity: 0.9;
+        z-index: 0;
+        pointer-events: none;
+      }
       .modal--pricing .plan-card::after {
         content: '';
         position: absolute;
-        left: 32%;
-        right: -16%;
-        bottom: -20%;
-        height: 54%;
+        left: 22%;
+        right: -22%;
+        bottom: -25%;
+        height: 62%;
         border-radius: 999px;
-        background: radial-gradient(ellipse at center, rgba(161, 181, 225, 0.2) 0%, rgba(161, 181, 225, 0) 72%);
+        background:
+          radial-gradient(ellipse at 34% 20%, rgba(191, 208, 235, 0.22) 0%, rgba(191, 208, 235, 0.1) 38%, rgba(191, 208, 235, 0) 74%),
+          linear-gradient(128deg, rgba(255, 255, 255, 0) 40%, rgba(220, 232, 250, 0.2) 68%, rgba(255, 255, 255, 0) 100%);
+        opacity: 0.72;
         z-index: 0;
         pointer-events: none;
       }
@@ -997,14 +1018,25 @@
       }
       .modal--pricing .plan-card--free {
         background:
-          radial-gradient(132% 116% at 12% 0%, rgba(242, 246, 251, 0.92), rgba(255, 255, 255, 0) 68%),
-          radial-gradient(112% 74% at 72% 112%, rgba(214, 224, 247, 0.42), rgba(255, 255, 255, 0) 72%),
-          linear-gradient(180deg, #ffffff 0%, #f8fbfd 100%);
+          radial-gradient(152% 118% at 10% -8%, rgba(250, 252, 255, 0.96) 0%, rgba(244, 248, 255, 0.62) 42%, rgba(255, 255, 255, 0) 74%),
+          radial-gradient(124% 84% at 82% 116%, rgba(213, 223, 244, 0.46) 0%, rgba(219, 229, 247, 0.24) 42%, rgba(255, 255, 255, 0) 78%),
+          linear-gradient(168deg, #ffffff 0%, #fafcff 54%, #f3f7ff 100%);
         border-color: rgba(77, 96, 123, 0.2);
         box-shadow:
           0 14px 28px rgba(17, 39, 75, 0.08),
           0 6px 14px rgba(17, 39, 75, 0.04),
           inset 0 1px 0 rgba(255, 255, 255, 0.95);
+      }
+      .modal--pricing .plan-card--free::before {
+        background:
+          radial-gradient(146% 112% at 12% 0%, rgba(255, 255, 255, 0.86) 0%, rgba(255, 255, 255, 0.3) 40%, rgba(255, 255, 255, 0) 74%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0) 78%);
+      }
+      .modal--pricing .plan-card--free::after {
+        background:
+          radial-gradient(ellipse at 34% 22%, rgba(184, 202, 233, 0.24) 0%, rgba(184, 202, 233, 0.1) 38%, rgba(184, 202, 233, 0) 74%),
+          linear-gradient(126deg, rgba(255, 255, 255, 0) 38%, rgba(214, 226, 245, 0.2) 67%, rgba(255, 255, 255, 0) 100%);
+        opacity: 0.72;
       }
       .modal--pricing .plan-card--free:hover,
       .modal--pricing .plan-card--free:focus-within {
@@ -1013,25 +1045,30 @@
       .modal--pricing .plan-card--pro {
         border-color: rgba(76, 95, 230, 0.74);
         background:
-          radial-gradient(142% 126% at 9% 0%, rgba(220, 226, 255, 0.96), rgba(255, 255, 255, 0) 58%),
-          radial-gradient(110% 72% at 70% 112%, rgba(173, 187, 255, 0.44), rgba(255, 255, 255, 0) 74%),
-          linear-gradient(160deg, #fbfcff 0%, #eff3ff 54%, #e8ebff 100%);
+          radial-gradient(156% 120% at 8% -8%, rgba(241, 246, 255, 0.97) 0%, rgba(230, 238, 255, 0.72) 40%, rgba(255, 255, 255, 0) 72%),
+          radial-gradient(126% 86% at 82% 118%, rgba(168, 185, 255, 0.48) 0%, rgba(181, 194, 255, 0.24) 42%, rgba(255, 255, 255, 0) 78%),
+          linear-gradient(166deg, #fcfdff 0%, #f1f5ff 52%, #e9eeff 100%);
         box-shadow:
           0 34px 64px rgba(39, 54, 138, 0.27),
           0 14px 28px rgba(39, 54, 138, 0.16),
           inset 0 1px 0 rgba(255, 255, 255, 0.94);
         transform: none;
       }
+      .modal--pricing .plan-card--pro::before {
+        background:
+          radial-gradient(150% 114% at 12% 0%, rgba(255, 255, 255, 0.88) 0%, rgba(240, 246, 255, 0.36) 42%, rgba(255, 255, 255, 0) 74%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.38) 0%, rgba(255, 255, 255, 0) 78%);
+      }
       .modal--pricing .plan-card--pro::after {
-        left: 30%;
-        right: -18%;
-        bottom: -24%;
-        height: 58%;
+        left: 24%;
+        right: -22%;
+        bottom: -26%;
+        height: 64%;
         top: auto;
         background:
-          radial-gradient(ellipse at center, rgba(143, 156, 255, 0.24) 0%, rgba(143, 156, 255, 0) 72%),
-          linear-gradient(135deg, rgba(255, 255, 255, 0) 34%, rgba(211, 218, 255, 0.28) 68%, rgba(255, 255, 255, 0) 100%);
-        opacity: 0.78;
+          radial-gradient(ellipse at 34% 22%, rgba(143, 156, 255, 0.3) 0%, rgba(143, 156, 255, 0.12) 40%, rgba(143, 156, 255, 0) 76%),
+          linear-gradient(132deg, rgba(255, 255, 255, 0) 34%, rgba(202, 213, 255, 0.3) 68%, rgba(255, 255, 255, 0) 100%);
+        opacity: 0.82;
         animation: pricing-pro-ambient 8.4s ease-in-out infinite;
       }
       .modal--pricing .plan-card--pro:hover,
@@ -1041,24 +1078,29 @@
       .modal--pricing .plan-card--jobsearch {
         border-color: rgba(217, 177, 121, 0.44);
         background:
-          radial-gradient(136% 124% at 10% 0%, rgba(255, 247, 230, 0.92), rgba(255, 255, 255, 0) 66%),
-          radial-gradient(108% 72% at 72% 112%, rgba(255, 222, 170, 0.42), rgba(255, 255, 255, 0) 74%),
-          linear-gradient(160deg, #fffefc 0%, #fff7e8 54%, #fff2d9 100%);
+          radial-gradient(154% 118% at 10% -8%, rgba(255, 252, 245, 0.97) 0%, rgba(255, 246, 229, 0.72) 42%, rgba(255, 255, 255, 0) 74%),
+          radial-gradient(126% 84% at 82% 118%, rgba(253, 221, 175, 0.48) 0%, rgba(252, 227, 189, 0.24) 44%, rgba(255, 255, 255, 0) 80%),
+          linear-gradient(166deg, #fffefc 0%, #fff8ec 52%, #fff2de 100%);
         box-shadow:
           0 24px 40px rgba(118, 86, 41, 0.14),
           0 9px 20px rgba(118, 86, 41, 0.07),
           inset 0 1px 0 rgba(255, 255, 255, 0.94);
       }
-      .modal--pricing .plan-card--jobsearch::after {
-        left: 36%;
-        right: -16%;
-        bottom: -22%;
-        top: auto;
-        height: 56%;
+      .modal--pricing .plan-card--jobsearch::before {
         background:
-          radial-gradient(ellipse at center, rgba(244, 184, 92, 0.24) 0%, rgba(244, 184, 92, 0) 72%),
-          linear-gradient(126deg, rgba(255, 255, 255, 0) 32%, rgba(255, 222, 170, 0.24) 66%, rgba(255, 255, 255, 0) 100%);
-        opacity: 0.72;
+          radial-gradient(148% 112% at 12% 0%, rgba(255, 255, 255, 0.86) 0%, rgba(255, 247, 232, 0.32) 42%, rgba(255, 255, 255, 0) 74%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0) 78%);
+      }
+      .modal--pricing .plan-card--jobsearch::after {
+        left: 28%;
+        right: -21%;
+        bottom: -25%;
+        top: auto;
+        height: 62%;
+        background:
+          radial-gradient(ellipse at 34% 22%, rgba(244, 184, 92, 0.28) 0%, rgba(244, 184, 92, 0.12) 40%, rgba(244, 184, 92, 0) 76%),
+          linear-gradient(126deg, rgba(255, 255, 255, 0) 32%, rgba(255, 222, 170, 0.28) 66%, rgba(255, 255, 255, 0) 100%);
+        opacity: 0.76;
       }
       .modal--pricing .plan-logo-badge {
         border-radius: 14px;
