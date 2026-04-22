@@ -6281,6 +6281,8 @@ function openAccountPasswordModal() {
 }
 
 async function loadSession() {
+  const routeKeyAtSessionStart = getCurrentRouteKey();
+  const shouldHydrateDashboard = shouldHydrateDashboardOnSessionLoad(routeKeyAtSessionStart);
   let data;
   try {
     data = await api('/api/auth/session');
@@ -6312,31 +6314,35 @@ async function loadSession() {
   updateFilterSummary();
   addToggle?.setAttribute('aria-expanded', 'false');
   void refreshPlanUsage();
-
-  setDashboardInitialLoading(true);
-  setView('dashboard');
   let initialDashboardHydrated = false;
+  if (shouldHydrateDashboard) {
+    setDashboardInitialLoading(true);
+    setView('dashboard');
 
-  try {
-    await loadActiveApplications();
-    initialDashboardHydrated = true;
-  } catch (err) {
-    const authFailure = err?.status === 401 || err?.message === 'AUTH_REQUIRED';
-    if (authFailure) {
-      sessionUser = null;
-      setDashboardInitialLoading(false, { hydrated: false });
-      setView('auth');
-      return false;
+    try {
+      await loadActiveApplications();
+      initialDashboardHydrated = true;
+    } catch (err) {
+      const authFailure = err?.status === 401 || err?.message === 'AUTH_REQUIRED';
+      if (authFailure) {
+        sessionUser = null;
+        setDashboardInitialLoading(false, { hydrated: false });
+        setView('auth');
+        return false;
+      }
+      if (DEBUG_APP) {
+        // eslint-disable-next-line no-console
+        console.debug('[apps] loadActiveApplications failed', err);
+      }
+      showNotice('Unable to load applications.', 'Dashboard');
+    } finally {
+      if (sessionUser) {
+        setDashboardInitialLoading(false, { hydrated: initialDashboardHydrated });
+      }
     }
-    if (DEBUG_APP) {
-      // eslint-disable-next-line no-console
-      console.debug('[apps] loadActiveApplications failed', err);
-    }
-    showNotice('Unable to load applications.', 'Dashboard');
-  } finally {
-    if (sessionUser) {
-      setDashboardInitialLoading(false, { hydrated: initialDashboardHydrated });
-    }
+  } else {
+    // Keep the dashboard skeleton scoped to dashboard-only hydration.
+    setDashboardInitialLoading(false, { hydrated: false });
   }
 
   await refreshEmailStatus();
@@ -6623,6 +6629,13 @@ function clearInboundAutoSyncPolling() {
 function routeIsDashboard() {
   const routeKey = getCurrentRouteKey();
   return !routeKey || routeKey === 'dashboard';
+}
+
+function shouldHydrateDashboardOnSessionLoad(routeKey = getCurrentRouteKey()) {
+  const normalized = String(routeKey || '')
+    .trim()
+    .toLowerCase();
+  return !normalized || normalized === 'dashboard';
 }
 
 function hasNewInboundSinceLastSync() {
@@ -12366,10 +12379,15 @@ window.addEventListener('hashchange', route);
   setAuthPanel('signin');
   setupLogoFallback();
   route();
-  hideSplash();
+  if (shouldHydrateDashboardOnSessionLoad()) {
+    // Reveal dashboard route quickly so dashboard-specific skeleton can render.
+    hideSplash();
+  }
   await loadCsrfToken();
   await loadSession();
   route();
+  // Non-dashboard routes keep the generic branded splash until route/session settle.
+  hideSplash();
   const authRedirectSuccess = consumeAuthRedirectSuccess();
   if (authRedirectSuccess?.gmailConnected) {
     showNotice('Gmail connected successfully.', 'Google sign-in');
