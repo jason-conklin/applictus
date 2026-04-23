@@ -2174,31 +2174,31 @@ function updateInboundStatusPresentation() {
   let helpNoteText = 'Verify forwarding in Gmail, then send a test email or forward one recent application email.';
 
   if (readiness === 'forwarding_active') {
-    pillText = 'Receiving forwarded emails';
+    pillText = 'Connected · receiving forwarded emails';
     pillState = 'connected';
     dashboardText = 'Connected ✓';
     dashboardState = 'connected';
     syncText = 'Forwarding active';
-    helpStatusText = 'Connected · Receiving forwarded emails';
-    helpNoteText = 'Forwarding is active. Send a test email anytime to confirm setup.';
+    helpStatusText = 'Connected';
+    helpNoteText = 'Forwarding is active. Run a scan anytime to pull the latest updates.';
   } else if (readiness === 'gmail_verification_pending') {
-    pillText = 'Address reachable — Gmail verification pending';
+    pillText = 'Waiting for forwarding verification';
     pillState = 'info';
     dashboardText = 'Gmail verification pending';
     dashboardState = 'info';
     syncText = 'Address reachable';
-    helpStatusText = 'Address reachable · Gmail verification pending';
-    helpNoteText = 'Verify forwarding in Gmail, then send a test email or forward one recent application email.';
+    helpStatusText = 'Waiting for verification';
+    helpNoteText = 'Complete Step 2 in setup, then send one forwarded email to finish activation.';
   } else if (readiness === 'address_reachable') {
     pillText = 'Address reachable';
     pillState = 'info';
     dashboardText = 'Address reachable';
     dashboardState = 'info';
     syncText = 'Address reachable';
-    helpStatusText = 'Address reachable';
-    helpNoteText = 'Great progress. Forward one recent application email or send a test email.';
+    helpStatusText = 'Verification in progress';
+    helpNoteText = 'Great progress. Send one forwarded email, then verify setup.';
   } else if (readiness === 'awaiting_first_email') {
-    pillText = 'Forwarding enabled — waiting for first email';
+    pillText = 'Waiting for first forwarded email';
     pillState = 'info';
     dashboardText = 'Setup complete';
     dashboardState = 'info';
@@ -2238,31 +2238,43 @@ function updateInboundStatusPresentation() {
     inboundCopyAddress.textContent = 'Copy';
   }
   if (inboundSendTest) {
-    inboundSendTest.classList.remove('hidden');
-    inboundSendTest.disabled = !inboundState.addressEmail;
+    const showSendTest = Boolean(inboundState.addressEmail) && readiness !== 'forwarding_active';
+    inboundSendTest.classList.toggle('hidden', !showSendTest);
+    inboundSendTest.disabled = !showSendTest;
   }
   if (inboundProcessNow) {
-    inboundProcessNow.classList.remove('hidden');
-    inboundProcessNow.disabled = !inboundState.addressEmail;
+    const showProcessNow = readiness === 'forwarding_active' || readiness === 'awaiting_first_email';
+    inboundProcessNow.classList.toggle('hidden', !showProcessNow);
+    inboundProcessNow.disabled = !showProcessNow;
   }
   if (inboundRotateAddress) {
-    inboundRotateAddress.classList.remove('hidden');
-    inboundRotateAddress.disabled = !inboundState.addressEmail;
+    const showRotateAddress = Boolean(inboundState.addressEmail);
+    inboundRotateAddress.classList.toggle('hidden', !showRotateAddress);
+    inboundRotateAddress.disabled = !showRotateAddress;
   }
   if (inboundWhyToggle) {
-    inboundWhyToggle.classList.remove('hidden');
+    const showWhy = !inboundState.addressEmail && readiness !== 'forwarding_active';
+    inboundWhyToggle.classList.toggle('hidden', !showWhy);
+    if (!showWhy) {
+      inboundWhyToggle.setAttribute('aria-expanded', 'false');
+    }
+    if (!showWhy && inboundWhyPanel) {
+      inboundWhyPanel.classList.add('hidden');
+    }
   }
   if (inboundHelpSendTest) {
-    inboundHelpSendTest.classList.remove('hidden');
+    const showHelpSendTest = Boolean(inboundState.addressEmail) && readiness !== 'forwarding_active';
+    inboundHelpSendTest.classList.toggle('hidden', !showHelpSendTest);
+    inboundHelpSendTest.disabled = !showHelpSendTest;
   }
   if (inboundHelpWhy) {
-    inboundHelpWhy.classList.remove('hidden');
+    inboundHelpWhy.classList.toggle('hidden', Boolean(inboundState.addressEmail) || readiness === 'forwarding_active');
   }
   if (inboundAddressLabel) {
     inboundAddressLabel.textContent = 'Your Applictus inbox address';
   }
   if (inboundOpenSetup) {
-    inboundOpenSetup.textContent = setupState === 'active' ? 'View setup' : 'Open setup';
+    inboundOpenSetup.textContent = setupState === 'active' ? 'Open setup' : 'Complete setup';
   }
   if (accountHelpStatus) {
     accountHelpStatus.textContent = helpStatusText;
@@ -2280,9 +2292,6 @@ function updateInboundStatusPresentation() {
     }
   }
   renderAccountHelpProgressForwarding(readiness);
-  if (inboundHelpSendTest) {
-    inboundHelpSendTest.disabled = !inboundState.addressEmail;
-  }
   if (inboundOldAddressWarning) {
     const showWarning = Boolean(inboundState.inactiveAddressWarning);
     inboundOldAddressWarning.classList.toggle('hidden', !showWarning);
@@ -5567,6 +5576,15 @@ function renderPlanUsage(user = sessionUser) {
       accountManageSubscriptionButton.classList.remove('btn--ghost');
       accountManageSubscriptionButton.classList.add('btn--danger');
     }
+  }
+  if (accountPlanDetails) {
+    accountPlanDetails.classList.remove('hidden');
+    accountPlanDetails.disabled = false;
+  }
+  if (accountPlanReduceUsage) {
+    const showReduceUsage = inboundWarningLevel === 'soft' || inboundWarningLevel === 'strong';
+    accountPlanReduceUsage.classList.toggle('hidden', !showReduceUsage);
+    accountPlanReduceUsage.disabled = !showReduceUsage;
   }
   if (accountPlanTrustNote) {
     accountPlanTrustNote.classList.toggle('hidden', !isMonthlySubscription);

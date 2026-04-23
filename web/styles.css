@@ -6911,7 +6911,7 @@ details summary {
   gap: 14px;
   align-items: start;
   padding-bottom: 14px;
-  border-bottom: 1px solid rgba(25, 55, 103, 0.12);
+  border-bottom: 1px solid rgba(25, 55, 103, 0.08);
 }
 
 .account-inbox-head-main h3 {
@@ -7008,7 +7008,7 @@ details summary {
 .account-inbox-meta {
   margin-top: 10px;
   line-height: 1.45;
-  color: #4b6387;
+  color: #5b7294;
 }
 
 .account-inbox-username-prompt {
@@ -7154,11 +7154,18 @@ details summary {
 .account-inbox-actions {
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid rgba(25, 55, 103, 0.12);
+  border-top: 1px solid rgba(25, 55, 103, 0.08);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
+}
+
+.account-inline-action {
+  font-size: 12px;
+  line-height: 1.3;
+  color: #3c5f92;
+  text-decoration-color: rgba(60, 95, 146, 0.34);
 }
 
 .account-inbox-why {
@@ -7863,7 +7870,7 @@ button.inbound-diagnostics-row:hover {
   gap: 2px;
   margin-bottom: 14px;
   padding-bottom: 14px;
-  border-bottom: 1px solid rgba(25, 55, 103, 0.12);
+  border-bottom: 1px solid rgba(25, 55, 103, 0.08);
 }
 
 .account-card-header h3 {
@@ -7931,6 +7938,13 @@ button.inbound-diagnostics-row:hover {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.plan-action-link {
+  font-size: 12px;
+  line-height: 1.3;
+  color: #3e6297;
+  text-decoration-color: rgba(62, 98, 151, 0.36);
 }
 
 .account-help-body {
@@ -8080,11 +8094,11 @@ button.inbound-diagnostics-row:hover {
 .account-help-note {
   margin: 0;
   line-height: 1.36;
-  color: #486284;
+  color: #56708f;
   max-width: 55ch;
   font-size: 12px;
   padding-top: 4px;
-  border-top: 1px solid rgba(25, 55, 103, 0.1);
+  border-top: 1px solid rgba(25, 55, 103, 0.07);
 }
 
 .account-help-actions {
@@ -8094,7 +8108,7 @@ button.inbound-diagnostics-row:hover {
   gap: 8px;
   margin-top: 0;
   padding-top: 9px;
-  border-top: 1px solid rgba(25, 55, 103, 0.12);
+  border-top: 1px solid rgba(25, 55, 103, 0.08);
 }
 
 .account-help-actions .btn--secondary {
@@ -8344,12 +8358,16 @@ button.inbound-diagnostics-row:hover {
 }
 
 .account-actions-row {
-  border-top: 1px solid rgba(25, 55, 103, 0.12);
+  border-top: 1px solid rgba(25, 55, 103, 0.08);
   padding-top: 14px;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
+}
+
+.account-inbox-setup-progress {
+  margin-top: 10px;
 }
 
 .account-actions-primary {

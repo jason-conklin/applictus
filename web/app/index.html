@@ -2021,7 +2021,7 @@
       <section class="view" id="account-view" hidden>
         <div class="page-header">
           <h2>Account</h2>
-          <p class="muted">Manage your Applictus inbox and account security.</p>
+          <p class="muted">Manage inbox setup, plan usage, and account security.</p>
         </div>
         <div class="card account-inbox-card surface-raised">
           <div class="account-inbox-head">
@@ -2036,7 +2036,7 @@
                 <span>Your Applictus inbox</span>
               </h3>
               <p class="muted small">
-                Set-up forwarding once, and Applictus keeps your timeline updated automatically.
+                Complete setup once, then Applictus keeps your timeline updated automatically.
               </p>
             </div>
             <div class="pill" id="inbound-status-pill" data-state="idle">Not connected</div>
@@ -2075,13 +2075,33 @@
           <div class="callout callout-warning hidden" id="inbound-old-address-warning">
             We detected mail arriving at an old forwarding address. Update your forwarding settings.
           </div>
+          <div class="account-help-progress account-inbox-setup-progress" id="account-help-progress">
+            <div class="account-help-progress-head">
+              <div class="account-help-progress-title">Setup progress</div>
+              <div class="account-help-progress-count" id="account-help-progress-count">0 of 3 complete</div>
+            </div>
+            <div class="account-help-progress-list">
+              <div class="account-help-progress-step" id="account-help-progress-step-1" data-state="pending">
+                <div class="account-help-progress-step-label" id="account-help-progress-step-1-label">Address created</div>
+                <div class="account-help-progress-step-state" id="account-help-progress-step-1-state">Pending</div>
+              </div>
+              <div class="account-help-progress-step" id="account-help-progress-step-2" data-state="pending">
+                <div class="account-help-progress-step-label" id="account-help-progress-step-2-label">Forwarding configured</div>
+                <div class="account-help-progress-step-state" id="account-help-progress-step-2-state">Pending</div>
+              </div>
+              <div class="account-help-progress-step" id="account-help-progress-step-3" data-state="pending">
+                <div class="account-help-progress-step-label" id="account-help-progress-step-3-label">Verification complete</div>
+                <div class="account-help-progress-step-state" id="account-help-progress-step-3-state">Pending</div>
+              </div>
+            </div>
+          </div>
           <div class="account-inbox-actions">
-            <button class="btn btn--primary btn--md" type="button" id="inbound-open-setup">Open setup</button>
-            <button class="btn btn--secondary btn--sm" type="button" id="inbound-send-test">Send test email</button>
-            <button class="btn btn--ghost btn--sm" type="button" id="inbound-process-now">Process inbox now</button>
-            <button class="btn btn--ghost btn--sm" type="button" id="inbound-rotate-address">Change forwarding address</button>
+            <button class="btn btn--primary btn--md" type="button" id="inbound-open-setup">Complete setup</button>
+            <button class="btn btn--secondary btn--sm" type="button" id="inbound-process-now">Process inbox now</button>
+            <button class="link-button account-inline-action hidden" type="button" id="inbound-send-test">Send test email</button>
+            <button class="link-button account-inline-action hidden" type="button" id="inbound-rotate-address">Change forwarding address</button>
             <button
-              class="btn btn--ghost btn--sm"
+              class="link-button account-inline-action"
               type="button"
               id="inbound-why-toggle"
               aria-expanded="false"
@@ -2186,8 +2206,8 @@
                 <button class="btn btn--danger btn--md hidden" type="button" id="account-manage-subscription-button">
                   Cancel subscription
                 </button>
-                <button class="btn btn--ghost btn--md" type="button" id="account-plan-details">View pricing</button>
-                <button class="btn btn--ghost btn--md" type="button" id="account-plan-reduce-usage">Reduce usage with a filter</button>
+                <button class="btn btn--ghost btn--sm" type="button" id="account-plan-details">View pricing</button>
+                <button class="link-button plan-action-link hidden" type="button" id="account-plan-reduce-usage">Reduce usage with a filter</button>
               </div>
               <div class="plan-trust-note muted small hidden" id="account-plan-trust-note">Cancel anytime. No fees.</div>
             </div>
@@ -2225,8 +2245,8 @@
             </div>
             <div class="account-help-actions">
               <button class="btn btn--secondary btn--sm" type="button" id="inbound-help-open-setup">View setup guide</button>
-              <button class="btn btn--ghost btn--sm" type="button" id="inbound-help-send-test">Send test email</button>
-              <button class="btn btn--ghost btn--sm" type="button" id="inbound-help-why">Why forwarding?</button>
+              <button class="link-button account-inline-action hidden" type="button" id="inbound-help-send-test">Send test email</button>
+              <button class="link-button account-inline-action" type="button" id="inbound-help-why">Why forwarding?</button>
             </div>
           </div>
         </div>
