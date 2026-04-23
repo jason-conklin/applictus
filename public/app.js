@@ -5602,9 +5602,8 @@ function renderPlanUsage(user = sessionUser) {
     accountPlanDetails.disabled = false;
   }
   if (accountPlanReduceUsage) {
-    const showReduceUsage = !isInternalGmailMode();
-    accountPlanReduceUsage.classList.toggle('hidden', !showReduceUsage);
-    accountPlanReduceUsage.disabled = !showReduceUsage;
+    accountPlanReduceUsage.classList.remove('hidden');
+    accountPlanReduceUsage.disabled = false;
   }
   if (accountPlanTrustNote) {
     accountPlanTrustNote.classList.toggle('hidden', !isMonthlySubscription);
