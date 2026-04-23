@@ -369,19 +369,19 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 10px;
-        height: 10px;
+        width: 12px;
+        height: 12px;
         line-height: 1;
-        border-left: 1px solid rgba(0, 0, 0, 0.8);
-        border-top: 1px solid rgba(0, 0, 0, 0.8);
-        background: linear-gradient(180deg, #1b2230 0%, #0f141d 100%);
-        transform: rotate(45deg);
-        box-shadow:
-          2px 2px 8px rgba(0, 0, 0, 0.18),
-          inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        border: 0;
+        background: transparent;
+        transform: none;
+        box-shadow: none;
+        color: #111111;
+        font-size: 13px;
+        font-weight: 700;
       }
       .plan-progress-marker-tick::before {
-        content: '';
+        content: '⮝';
       }
       .plan-progress-marker-label {
         font-size: 11px;
