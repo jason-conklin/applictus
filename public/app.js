@@ -5880,6 +5880,8 @@ function buildPlanCard({
   iconVariant = 'free',
   ctaClassName = 'btn btn--ghost btn--sm plan-cta plan-cta--free',
   ctaIconSvg = '',
+  ctaDisabled = false,
+  ctaIsCurrent = false,
   onCtaClick = null
 }) {
   const card = document.createElement('div');
@@ -5994,6 +5996,14 @@ function buildPlanCard({
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = ctaClassName;
+  if (ctaIsCurrent) {
+    btn.classList.add('plan-cta--current');
+    btn.setAttribute('aria-label', `${ctaText} (current plan)`);
+  }
+  if (ctaDisabled) {
+    btn.disabled = true;
+    btn.setAttribute('aria-disabled', 'true');
+  }
   if (ctaIconSvg) {
     const icon = document.createElement('span');
     icon.className = 'plan-cta-icon';
@@ -6006,6 +6016,9 @@ function buildPlanCard({
   btnLabel.textContent = ctaText;
   btn.appendChild(btnLabel);
   btn.addEventListener('click', () => {
+    if (btn.disabled) {
+      return;
+    }
     if (typeof onCtaClick === 'function') {
       onCtaClick();
     } else {
@@ -6049,6 +6062,62 @@ function buildPlanCard({
   return card;
 }
 
+function getPricingModalPlanContext() {
+  const source = planState || sessionUser || {};
+  const tier = String(source.plan_tier || 'free').toLowerCase();
+  const billingPlan = String(source.billing_plan || '').toLowerCase();
+  const billingType = String(source.billing_type || '').toLowerCase();
+  const cancelAtPeriodEnd = (() => {
+    const raw = source.cancel_at_period_end;
+    if (raw === true || raw === 1 || raw === '1') return true;
+    if (typeof raw === 'string') {
+      return raw.trim().toLowerCase() === 'true';
+    }
+    return false;
+  })();
+  const planExpiresAt = source.plan_expires_at || null;
+  const hasActiveJobSearchPlan =
+    tier === 'pro' &&
+    billingType === 'one_time' &&
+    billingPlan === 'job_search_plan' &&
+    Boolean(planExpiresAt) &&
+    Number.isFinite(new Date(planExpiresAt).getTime()) &&
+    new Date(planExpiresAt).getTime() > Date.now();
+  const isProTier = tier === 'pro';
+  const isMonthlySubscription =
+    isProTier && (billingType === 'subscription' || billingPlan === 'pro_monthly');
+  const currentPlanKey = hasActiveJobSearchPlan
+    ? 'job_search_plan'
+    : isProTier
+      ? 'pro'
+      : 'free';
+  return {
+    currentPlanKey,
+    tier,
+    billingPlan,
+    billingType,
+    cancelAtPeriodEnd,
+    planExpiresAt,
+    isMonthlySubscription
+  };
+}
+
+function handleSwitchToFreeFromPricing(planContext) {
+  if (planContext?.currentPlanKey === 'pro') {
+    openCancelSubscriptionModal();
+    return;
+  }
+  if (planContext?.currentPlanKey === 'job_search_plan') {
+    const expiresLabel = planContext.planExpiresAt ? formatDate(planContext.planExpiresAt) : null;
+    const message = expiresLabel
+      ? `Job Search Plan access stays active until ${expiresLabel}. There is no recurring subscription to cancel, and your account will return to Free automatically after that date.`
+      : 'Job Search Plan is a one-time purchase. There is no recurring subscription to cancel, and your account will return to Free automatically when the plan period ends.';
+    showNotice(message, 'Switch to Free');
+    return;
+  }
+  showNotice('You are already on the Free tier.', 'Plan');
+}
+
 function openPricingModal() {
   const buildPricingCtaGlyph = (name) => {
     switch (name) {
@@ -6075,6 +6144,27 @@ function openPricingModal() {
 
   const container = document.createElement('div');
   container.className = 'plan-card-grid';
+  const planContext = getPricingModalPlanContext();
+  const isFreeCurrent = planContext.currentPlanKey === 'free';
+  const isProCurrent = planContext.currentPlanKey === 'pro';
+  const isJobSearchCurrent = planContext.currentPlanKey === 'job_search_plan';
+
+  const freeCtaText = isFreeCurrent ? 'Stay on Free' : 'Switch to Free';
+  const freeCtaSubtext = isFreeCurrent
+    ? 'Current plan'
+    : planContext.currentPlanKey === 'job_search_plan'
+      ? 'One-time plan expires automatically'
+      : 'Downgrade from paid plan';
+
+  const proCtaText = isProCurrent ? 'Pro tier active' : 'Upgrade to Pro';
+  const proCtaSubtext = isProCurrent
+    ? (planContext.cancelAtPeriodEnd ? 'Cancellation scheduled' : 'Current plan')
+    : 'Billed monthly • Cancel anytime';
+
+  const jobSearchCtaText = isJobSearchCurrent ? 'Job Search Plan active' : 'Start Job Search Plan';
+  const jobSearchCtaSubtext = isJobSearchCurrent
+    ? (planContext.planExpiresAt ? `Active until ${formatDate(planContext.planExpiresAt)}` : 'Current plan')
+    : 'One upfront payment for 3 months';
 
   const freeCard = buildPlanCard({
     title: 'Free Tier',
@@ -6091,9 +6181,13 @@ function openPricingModal() {
     badgeText: 'Included',
     badgeVariant: 'included',
     iconVariant: 'free',
-    ctaText: 'Stay on Free',
+    ctaText: freeCtaText,
+    ctaSubtext: freeCtaSubtext,
     cardClassName: 'plan-card--free',
-    ctaClassName: 'btn btn--ghost btn--sm plan-cta plan-cta--free'
+    ctaClassName: 'btn btn--ghost btn--sm plan-cta plan-cta--free',
+    ctaDisabled: isFreeCurrent,
+    ctaIsCurrent: isFreeCurrent,
+    onCtaClick: () => handleSwitchToFreeFromPricing(planContext)
   });
   const proCard = buildPlanCard({
     title: 'Pro Tier',
@@ -6106,11 +6200,13 @@ function openPricingModal() {
     badgeText: 'Most popular',
     badgeVariant: 'popular',
     iconVariant: 'pro',
-    ctaText: 'Upgrade to Pro',
-    ctaSubtext: 'Billed monthly • Cancel anytime',
+    ctaText: proCtaText,
+    ctaSubtext: proCtaSubtext,
     cardClassName: 'plan-card--pro',
     ctaClassName: 'btn btn--primary btn--md plan-cta plan-cta--pro',
     ctaIconSvg: buildPricingCtaGlyph('sparkles'),
+    ctaDisabled: isProCurrent,
+    ctaIsCurrent: isProCurrent,
     onCtaClick: () => requestUpgrade('monthly')
   });
   const jobSearchPlanCard = buildPlanCard({
@@ -6129,11 +6225,13 @@ function openPricingModal() {
     badgeText: 'Best for 2–3 month search',
     badgeVariant: 'commitment',
     iconVariant: 'jobsearch',
-    ctaText: 'Start Job Search Plan',
-    ctaSubtext: 'One upfront payment for 3 months',
+    ctaText: jobSearchCtaText,
+    ctaSubtext: jobSearchCtaSubtext,
     cardClassName: 'plan-card--jobsearch',
     ctaClassName: 'btn btn--md plan-cta plan-cta--jobsearch',
     ctaIconSvg: buildPricingCtaGlyph('trend'),
+    ctaDisabled: isJobSearchCurrent,
+    ctaIsCurrent: isJobSearchCurrent,
     onCtaClick: () => requestUpgrade('job_search_plan')
   });
   container.append(freeCard, proCard, jobSearchPlanCard);
