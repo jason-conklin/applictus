@@ -5845,7 +5845,7 @@ function createPricingPlanIcon(variant = 'free') {
     ? String(variant).toLowerCase()
     : 'free';
   const iconWrap = document.createElement('span');
-  iconWrap.className = `plan-logo-badge plan-logo-badge--${normalizedVariant}`;
+  iconWrap.className = `plan-logo-badge plan-icon plan-logo-badge--${normalizedVariant}`;
   iconWrap.setAttribute('aria-hidden', 'true');
 
   const iconImg = document.createElement('img');
