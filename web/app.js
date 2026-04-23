@@ -6115,7 +6115,7 @@ function openPricingModal() {
   });
   const jobSearchPlanCard = buildPlanCard({
     title: 'Job Search Plan',
-    context: 'Best for a focused 2–3 month search',
+    context: 'One-time plan for a focused job search cycle',
     priceMain: '$9.99',
     priceTerm: '/ 3 months',
     details: 'Up to 500 tracked updates per month',
