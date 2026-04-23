@@ -314,7 +314,7 @@
         background: linear-gradient(180deg, #eef2f7 0%, #e3e9f1 100%);
         border: 1px solid rgba(58, 86, 128, 0.18);
         border-radius: 999px;
-        overflow: visible;
+        overflow: hidden;
         margin: 10px 0 0;
         box-shadow:
           inset 0 1px 2px rgba(0, 0, 0, 0.06),
@@ -339,8 +339,14 @@
         background: linear-gradient(to bottom, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 60%);
         pointer-events: none;
       }
+      .plan-progress-marker-row {
+        position: relative;
+        height: 0;
+        margin-top: 0;
+        overflow: visible;
+      }
       .plan-progress-scale-row {
-        margin-top: 5px;
+        margin-top: -1px;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -353,7 +359,7 @@
       .plan-progress-scale-end {
         display: inline-flex;
         flex-direction: column;
-        gap: 2px;
+        gap: 4px;
         font-variant-numeric: tabular-nums;
       }
       .plan-progress-scale-start {
@@ -368,25 +374,26 @@
         color: #8fa0ba;
         font-size: 10px;
         line-height: 1;
+        transform: translateY(-5px);
       }
       .plan-progress-marker {
         position: absolute;
-        top: 0;
+        top: -26px;
         left: 0;
         display: inline-flex;
         flex-direction: column-reverse;
         align-items: center;
         gap: 1px;
-        transform: translate(-50%, calc(-100% - 6px));
+        transform: translateX(-50%);
         transition: left 400ms ease, transform 400ms ease;
         pointer-events: none;
       }
       .plan-progress-marker.is-start {
-        transform: translate(0, calc(-100% - 6px));
+        transform: translateX(0);
         align-items: flex-start;
       }
       .plan-progress-marker.is-end {
-        transform: translate(-100%, calc(-100% - 6px));
+        transform: translateX(-100%);
         align-items: flex-end;
       }
       .plan-progress-marker-tick {
@@ -2232,6 +2239,8 @@
               </div>
               <div class="plan-progress" aria-hidden="true">
                 <div class="plan-progress-bar" id="account-plan-progress"></div>
+              </div>
+              <div class="plan-progress-marker-row" aria-hidden="true">
                 <div class="plan-progress-marker is-start" id="account-plan-marker">
                   <span class="plan-progress-marker-tick"></span>
                   <span class="plan-progress-marker-label" id="account-plan-percent">0%</span>
