@@ -6165,8 +6165,23 @@ function openPricingModal() {
       case 'check':
         return `
           <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-            <circle cx="10" cy="10" r="7.1" fill="none" stroke="currentColor" stroke-width="1.6"></circle>
+            <circle cx="10" cy="10" r="7.1" fill="none" stroke="currentColor" stroke-width="1.75"></circle>
             <path d="M6.8 10.1 8.9 12.3 13.4 7.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        `;
+      case 'no_commitment':
+        return `
+          <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+            <circle cx="10" cy="10" r="7.1" fill="none" stroke="currentColor" stroke-width="1.75"></circle>
+            <path d="M7.4 7.4 12.6 12.6M12.6 7.4 7.4 12.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+          </svg>
+        `;
+      case 'user_shield':
+        return `
+          <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+            <path d="M10 2.9 15.6 5.1v4.1c0 3.1-2.2 5.7-5.6 7.2-3.4-1.5-5.6-4.1-5.6-7.2V5.1Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"></path>
+            <circle cx="10" cy="8.9" r="1.55" fill="none" stroke="currentColor" stroke-width="1.75"></circle>
+            <path d="M7.25 12.75c.8-1.05 1.72-1.58 2.75-1.58 1.04 0 1.96.53 2.75 1.58" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"></path>
           </svg>
         `;
       case 'diamond':
@@ -6180,8 +6195,9 @@ function openPricingModal() {
       default:
         return `
           <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-            <rect x="5.2" y="8.6" width="9.6" height="7.4" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect>
-            <path d="M7.2 8.5V6.9A2.8 2.8 0 0 1 10 4.1a2.8 2.8 0 0 1 2.8 2.8v1.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+            <path d="M10 2.8 15.5 5v4c0 3.1-2.2 5.6-5.5 7.1C6.7 14.6 4.5 12.1 4.5 9V5Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"></path>
+            <rect x="8" y="9.3" width="4" height="3.7" rx="0.95" fill="none" stroke="currentColor" stroke-width="1.7"></rect>
+            <path d="M8.8 9.3V8.2a1.2 1.2 0 0 1 2.4 0v1.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
           </svg>
         `;
     }
@@ -6209,12 +6225,12 @@ function openPricingModal() {
       detail: 'No hidden fees'
     },
     {
-      icon: 'diamond',
+      icon: 'no_commitment',
       title: 'No commitment',
       detail: 'Change or cancel plans anytime'
     },
     {
-      icon: 'secure',
+      icon: 'user_shield',
       title: 'Your data is yours',
       detail: 'We respect your privacy'
     }
