@@ -5597,7 +5597,7 @@ function renderPlanUsage(user = sessionUser) {
     accountPlanDetails.disabled = false;
   }
   if (accountPlanReduceUsage) {
-    const showReduceUsage = inboundWarningLevel === 'soft' || inboundWarningLevel === 'strong';
+    const showReduceUsage = !isInternalGmailMode();
     accountPlanReduceUsage.classList.toggle('hidden', !showReduceUsage);
     accountPlanReduceUsage.disabled = !showReduceUsage;
   }
