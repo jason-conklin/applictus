@@ -942,6 +942,19 @@
         gap: 0;
         justify-items: center;
       }
+      .modal--pricing .pricing-section--trust::after {
+        content: '';
+        justify-self: stretch;
+        height: 1px;
+        margin-top: 10px;
+        background: linear-gradient(
+          90deg,
+          rgba(67, 96, 141, 0) 0%,
+          rgba(67, 96, 141, 0.2) 18%,
+          rgba(67, 96, 141, 0.2) 82%,
+          rgba(67, 96, 141, 0) 100%
+        );
+      }
       .pricing-value-row {
         display: flex;
         flex-wrap: wrap;
