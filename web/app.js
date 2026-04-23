@@ -770,6 +770,7 @@ const detailConfidence = document.getElementById('detail-confidence');
 const detailMeta = document.getElementById('detail-meta');
 const detailExplanation = document.getElementById('detail-explanation');
 const detailTimeline = document.getElementById('detail-timeline');
+const detailContext = document.getElementById('detail-context');
 const detailSuggestion = document.getElementById('detail-suggestion');
 const detailSuggestionLabel = document.getElementById('detail-suggestion-label');
 const detailSuggestionExplanation = document.getElementById('detail-suggestion-explanation');
@@ -785,6 +786,10 @@ const detailNavPosition = document.getElementById('detail-nav-position');
 let explanationOpen = false;
 let lastDetailId = null;
 let lastDetailEvents = [];
+const detailContextExpanded = {
+  personal_notes: false,
+  job_description: false
+};
 let deleteConfirmForId = null;
 let deleteBusy = false;
 let deleteError = null;
@@ -9535,7 +9540,7 @@ function disableModalFooter(footer, isDisabled) {
   });
 }
 
-async function openEditModal(application) {
+async function openEditModal(application, options = {}) {
   if (!application) {
     return;
   }
@@ -9583,10 +9588,43 @@ async function openEditModal(application) {
     placeholder: 'Add a note for the audit trail.',
     type: 'textarea'
   });
+  const personalNotesField = createTextField({
+    label: 'Personal notes (optional)',
+    name: 'personal_notes',
+    value: application.personal_notes || '',
+    placeholder: 'Add reminders, interview prep, or follow-up context.',
+    type: 'textarea'
+  });
+  personalNotesField.input.rows = 4;
+  const jobDescriptionField = createTextField({
+    label: 'Job description (optional)',
+    name: 'job_description',
+    value: application.job_description || '',
+    placeholder: 'Paste the job description here for quick reference.',
+    type: 'textarea'
+  });
+  jobDescriptionField.input.rows = 8;
   const helper = document.createElement('div');
   helper.className = 'form-help';
   helper.textContent = 'Manual status locks this application and prevents automatic changes.';
   statusFields.append(statusField.wrapper, noteField.wrapper, helper);
+
+  const optionalDetailsSection = document.createElement('section');
+  optionalDetailsSection.className = 'modal-optional-details';
+  const optionalDetailsHeader = document.createElement('div');
+  const optionalDetailsTitle = document.createElement('h4');
+  optionalDetailsTitle.className = 'modal-optional-details__title';
+  optionalDetailsTitle.textContent = 'Optional details';
+  const optionalDetailsCopy = document.createElement('p');
+  optionalDetailsCopy.className = 'modal-optional-details__copy muted small';
+  optionalDetailsCopy.textContent =
+    'Keep extra context here without changing your core application details.';
+  optionalDetailsHeader.append(optionalDetailsTitle, optionalDetailsCopy);
+  optionalDetailsSection.append(
+    optionalDetailsHeader,
+    personalNotesField.wrapper,
+    jobDescriptionField.wrapper
+  );
 
   const errorEl = document.createElement('div');
   errorEl.className = 'form-error hidden';
@@ -9597,6 +9635,8 @@ async function openEditModal(application) {
   sourceField.wrapper.classList.add('modal-field', 'modal-field--source');
   statusField.wrapper.classList.add('modal-field', 'modal-field--status');
   noteField.wrapper.classList.add('modal-field', 'modal-field--note');
+  personalNotesField.wrapper.classList.add('modal-field', 'modal-field--personal-notes');
+  jobDescriptionField.wrapper.classList.add('modal-field', 'modal-field--job-description');
 
   const detailsRow = document.createElement('div');
   detailsRow.className = 'modal-row-two modal-row-two--edit-meta';
@@ -9607,8 +9647,17 @@ async function openEditModal(application) {
     titleField.wrapper,
     detailsRow,
     statusFields,
+    optionalDetailsSection,
     errorEl
   );
+
+  const focusField = String(options?.focusField || '').trim().toLowerCase();
+  const initialFocus =
+    focusField === 'personal_notes'
+      ? personalNotesField.input
+      : focusField === 'job_description'
+      ? jobDescriptionField.input
+      : companyField.input;
 
   const footer = buildModalFooter({ confirmText: 'Save changes', formId: form.id });
   openModal({
@@ -9617,7 +9666,7 @@ async function openEditModal(application) {
     body: form,
     footer,
     allowBackdropClose: false,
-    initialFocus: companyField.input,
+    initialFocus,
     onClose: () => statusField.destroy(),
     variantClass: APPLICATION_MODAL_VARIANT_CLASS
   });
@@ -9628,6 +9677,8 @@ async function openEditModal(application) {
     const title = titleField.input.value.trim();
     const location = locationField.input.value.trim();
     const source = sourceField.input.value.trim();
+    const personalNotes = personalNotesField.input.value.trim();
+    const jobDescription = jobDescriptionField.input.value.trim();
     const selectedStatus = String(statusField.select.value || 'UNKNOWN').trim().toUpperCase();
     const currentStatus = String(application.current_status || 'UNKNOWN').trim().toUpperCase();
 
@@ -9642,7 +9693,9 @@ async function openEditModal(application) {
         company_name: company,
         job_title: title,
         job_location: location,
-        source
+        source,
+        personal_notes: personalNotes,
+        job_description: jobDescription
       };
       const latestTimelineEventId =
         Array.isArray(lastDetailEvents) && lastDetailEvents.length ? lastDetailEvents[0]?.id : null;
@@ -10523,6 +10576,77 @@ async function navigateDetailByOffset(offset) {
   await openDetail(nextId);
 }
 
+function normalizeOptionalDetailText(value) {
+  return String(value || '').trim();
+}
+
+function buildDetailContextPreview(value, previewLimit) {
+  const normalized = normalizeOptionalDetailText(value).replace(/\s+/g, ' ');
+  if (!normalized) {
+    return '';
+  }
+  if (normalized.length <= previewLimit) {
+    return normalized;
+  }
+  return `${normalized.slice(0, previewLimit).trim()}…`;
+}
+
+function renderDetailContextItems(application) {
+  if (!detailContext) {
+    return;
+  }
+
+  const config = [
+    {
+      key: 'personal_notes',
+      title: 'Personal notes',
+      emptyText: 'No personal notes yet',
+      addLabel: 'Add notes',
+      editLabel: 'Edit notes',
+      previewLimit: 260
+    },
+    {
+      key: 'job_description',
+      title: 'Job description',
+      emptyText: 'No job description saved',
+      addLabel: 'Add description',
+      editLabel: 'Edit description',
+      previewLimit: 320
+    }
+  ];
+
+  detailContext.innerHTML = config
+    .map((item) => {
+      const rawValue = normalizeOptionalDetailText(application?.[item.key]);
+      const hasValue = Boolean(rawValue);
+      const isExpanded = hasValue && Boolean(detailContextExpanded[item.key]);
+      const preview = buildDetailContextPreview(rawValue, item.previewLimit);
+      const showToggle = hasValue && preview !== rawValue;
+      const bodyMarkup = hasValue
+        ? `<div class="${isExpanded ? 'detail-context-full' : 'detail-context-preview'}">${escapeHtml(
+            isExpanded ? rawValue : preview
+          )}</div>`
+        : `<div class="detail-context-empty">${item.emptyText}</div>`;
+      const toggleMarkup = showToggle
+        ? `<button class="detail-context-toggle" type="button" data-action="toggle-context" data-field="${item.key}" aria-expanded="${isExpanded ? 'true' : 'false'}">${isExpanded ? 'Show less' : 'Show more'}</button>`
+        : '';
+
+      return `
+        <div class="detail-context-item">
+          <div class="detail-context-head">
+            <div class="detail-context-title">${item.title}</div>
+            <button class="detail-context-action" type="button" data-action="edit-context" data-field="${item.key}">
+              ${hasValue ? item.editLabel : item.addLabel}
+            </button>
+          </div>
+          ${bodyMarkup}
+          ${toggleMarkup}
+        </div>
+      `;
+    })
+    .join('');
+}
+
 function renderDetail(application, events) {
   if (!application) {
     return;
@@ -10536,6 +10660,8 @@ function renderDetail(application, events) {
   if (lastDetailId !== application.id) {
     explanationOpen = false;
     lastDetailId = application.id;
+    detailContextExpanded.personal_notes = false;
+    detailContextExpanded.job_description = false;
     deleteConfirmForId = null;
     deleteBusy = false;
     deleteError = null;
@@ -10712,6 +10838,8 @@ function renderDetail(application, events) {
         .join('');
     }
   }
+
+  renderDetailContextItems(application);
 
   updateDetailNavigationUi();
 }
@@ -12538,6 +12666,21 @@ detailDrawer?.addEventListener('click', async (event) => {
     return;
   }
   if (!currentDetail) {
+    return;
+  }
+
+  if (action === 'edit-context') {
+    const field = String(actionTarget.dataset.field || '').trim();
+    const focusField = field === 'job_description' ? 'job_description' : 'personal_notes';
+    await openEditModal(currentDetail, { focusField });
+    return;
+  }
+  if (action === 'toggle-context') {
+    const field = String(actionTarget.dataset.field || '').trim();
+    if (field === 'personal_notes' || field === 'job_description') {
+      detailContextExpanded[field] = !detailContextExpanded[field];
+      renderDetail(currentDetail, lastDetailEvents);
+    }
     return;
   }
 

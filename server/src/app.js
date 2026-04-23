@@ -5576,6 +5576,28 @@ app.patch('/api/applications/:id', requireAuth, async (req, res) => {
     const metadataChanges = {};
     let archiveChange = null;
     const changedForHints = {};
+    let coreMetadataChanged = false;
+    const hasOwn = (key) => Object.prototype.hasOwnProperty.call(req.body, key);
+    const normalizeOptionalText = (value) => {
+      if (value === null || value === undefined) {
+        return null;
+      }
+      const next = String(value).trim();
+      return next || null;
+    };
+    const summarizeForAudit = (value) => {
+      if (value === null || value === undefined) {
+        return null;
+      }
+      const normalized = String(value);
+      if (!normalized) {
+        return null;
+      }
+      if (normalized.length <= 220) {
+        return normalized;
+      }
+      return `${normalized.slice(0, 217)}...`;
+    };
 
     if (req.body.company_name || req.body.company) {
       const nextCompany = String(req.body.company_name || req.body.company).trim();
@@ -5586,6 +5608,7 @@ app.patch('/api/applications/:id', requireAuth, async (req, res) => {
         updates.company_confidence = 100;
         updates.company_source = 'user';
         updates.company_explanation = 'Manual edit.';
+        coreMetadataChanged = true;
         payload.company_name = nextCompany;
         metadataChanges.company_name = {
           previous_value: prevCompany || null,
@@ -5604,6 +5627,7 @@ app.patch('/api/applications/:id', requireAuth, async (req, res) => {
         updates.role_confidence = 100;
         updates.role_source = 'user';
         updates.role_explanation = 'Manual edit.';
+        coreMetadataChanged = true;
         payload.job_title = nextRole;
         metadataChanges.job_title = {
           previous_value: prevRole || null,
@@ -5628,6 +5652,7 @@ app.patch('/api/applications/:id', requireAuth, async (req, res) => {
       const prevLocation = String(application.job_location || '').trim();
       if (nextLocation !== prevLocation) {
         updates.job_location = nextLocation;
+        coreMetadataChanged = true;
         payload.job_location = nextLocation;
         metadataChanges.job_location = {
           previous_value: prevLocation || null,
@@ -5641,10 +5666,41 @@ app.patch('/api/applications/:id', requireAuth, async (req, res) => {
       const prevSource = String(application.source || '').trim();
       if (nextSource !== prevSource) {
         updates.source = nextSource;
+        coreMetadataChanged = true;
         payload.source = nextSource;
         metadataChanges.source = {
           previous_value: prevSource || null,
           new_value: nextSource
+        };
+      }
+    }
+
+    if (hasOwn('personal_notes')) {
+      const nextNotes = normalizeOptionalText(req.body.personal_notes);
+      const prevNotes = normalizeOptionalText(application.personal_notes);
+      if (nextNotes !== prevNotes) {
+        updates.personal_notes = nextNotes;
+        payload.personal_notes = nextNotes;
+        metadataChanges.personal_notes = {
+          previous_value: summarizeForAudit(prevNotes),
+          new_value: summarizeForAudit(nextNotes),
+          previous_length: prevNotes ? prevNotes.length : 0,
+          new_length: nextNotes ? nextNotes.length : 0
+        };
+      }
+    }
+
+    if (hasOwn('job_description')) {
+      const nextDescription = normalizeOptionalText(req.body.job_description);
+      const prevDescription = normalizeOptionalText(application.job_description);
+      if (nextDescription !== prevDescription) {
+        updates.job_description = nextDescription;
+        payload.job_description = nextDescription;
+        metadataChanges.job_description = {
+          previous_value: summarizeForAudit(prevDescription),
+          new_value: summarizeForAudit(nextDescription),
+          previous_length: prevDescription ? prevDescription.length : 0,
+          new_length: nextDescription ? nextDescription.length : 0
         };
       }
     }
@@ -5674,7 +5730,7 @@ app.patch('/api/applications/:id', requireAuth, async (req, res) => {
       };
     }
 
-    if (Object.keys(metadataChanges).length) {
+    if (coreMetadataChanged) {
       updates.user_override = true;
     }
 
