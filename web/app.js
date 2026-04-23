@@ -7284,6 +7284,41 @@ function renderInboundSetupHeaderAddressPanel() {
   }
 }
 
+function toSingleStepInstruction(text) {
+  const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) {
+    return '';
+  }
+  const sentence = normalized.match(/^.*?[.!?](?=\s|$)/);
+  return sentence ? sentence[0] : normalized;
+}
+
+function renderInboundSetupHeaderStep({ stepLabel, title, subtitle } = {}) {
+  if (!modalRoot || !modalHeader || !modalRoot.classList.contains('modal--inbound-setup')) {
+    return;
+  }
+  let stepNode = modalHeader.querySelector('.inbound-setup-header-step');
+  if (!stepNode) {
+    stepNode = document.createElement('div');
+    stepNode.className = 'inbound-setup-header-step muted small';
+    stepNode.dataset.modalTransient = 'true';
+    if (modalTitle && modalTitle.parentNode === modalHeader) {
+      modalHeader.insertBefore(stepNode, modalTitle);
+    } else {
+      modalHeader.prepend(stepNode);
+    }
+  }
+  stepNode.textContent = stepLabel || '';
+  if (modalTitle) {
+    modalTitle.textContent = title || 'Connect inbox forwarding';
+  }
+  if (modalDescription) {
+    const descriptionText = subtitle || '';
+    modalDescription.textContent = descriptionText;
+    modalDescription.classList.toggle('hidden', !descriptionText);
+  }
+}
+
 function registerInboundSetupCleanup(setupContext, cleanupFn) {
   if (!setupContext || typeof cleanupFn !== 'function') {
     return;
@@ -7692,6 +7727,37 @@ function setInboundSetupSubstepIndex(setupContext, phase, nextIndex, maxIndex) {
   setupContext.substepByPhase[phase] = safeNext;
 }
 
+function getInboundSetupStepSnapshot(phase, setupContext) {
+  const phaseConfigs = [getInboundSetupPhaseConfig(0, setupContext), getInboundSetupPhaseConfig(1, setupContext)];
+  const safePhase = Math.max(0, Math.min(phaseConfigs.length - 1, Number(phase) || 0));
+  const phaseConfig = phaseConfigs[safePhase] || { substeps: [] };
+  const substeps = Array.isArray(phaseConfig.substeps) ? phaseConfig.substeps : [];
+  const substepCount = Math.max(1, substeps.length);
+  const maxIndex = substepCount - 1;
+  const substepIndex = Math.min(getInboundSetupSubstepIndex(setupContext, safePhase), maxIndex);
+  setInboundSetupSubstepIndex(setupContext, safePhase, substepIndex, maxIndex);
+  const activeSubstep = substeps[substepIndex] || null;
+
+  const countsByPhase = phaseConfigs.map((config) => Math.max(1, config?.substeps?.length || 0));
+  const totalSteps = Math.max(
+    1,
+    countsByPhase.reduce((sum, count) => sum + count, 0)
+  );
+  const stepsBeforePhase = countsByPhase.slice(0, safePhase).reduce((sum, count) => sum + count, 0);
+  const absoluteStep = Math.max(1, stepsBeforePhase + substepIndex + 1);
+
+  return {
+    safePhase,
+    phaseConfig,
+    substeps,
+    substepCount,
+    substepIndex,
+    activeSubstep,
+    totalSteps,
+    absoluteStep
+  };
+}
+
 function buildForwardingSendTestButton(setupContext) {
   const sendTestBtn = document.createElement('button');
   sendTestBtn.type = 'button';
@@ -7819,15 +7885,16 @@ function getInboundSetupPhaseConfig(phase, setupContext) {
         }
       },
       {
-        title: 'Finish setup',
-        description: 'Forward one recent application email or send a quick test email, then click Verify setup.',
+        title: "You're all set",
+        description: 'Send a quick test email or forward one recent application email, then click Verify setup.',
         appendActions: (actions) => {
-          actions.append(buildForwardingSendTestButton(setupContext), buildForwardingVerifyButton(setupContext));
+          actions.append(buildForwardingVerifyButton(setupContext), buildForwardingSendTestButton(setupContext));
         },
         appendExtras: (target) => {
           const completionNote = document.createElement('p');
           completionNote.className = 'forwarding-finish-note muted small';
-          completionNote.textContent = 'That’s it — once Gmail saves forwarding, Applictus can start tracking updates.';
+          completionNote.textContent =
+            'Once Gmail confirms forwarding, Applictus will start tracking updates automatically.';
           target.appendChild(completionNote);
           if (setupContext?.verifyMessage) {
             const verifyMessage = document.createElement('p');
@@ -8111,70 +8178,33 @@ function buildInboundSetupSecondaryHelp() {
 }
 
 function buildInboundSetupStep(phase, setupContext) {
-  const config = getInboundSetupPhaseConfig(phase, setupContext);
-  const substeps = Array.isArray(config.substeps) ? config.substeps : [];
-  const maxIndex = Math.max(0, substeps.length - 1);
-  const substepIndex = Math.min(getInboundSetupSubstepIndex(setupContext, phase), maxIndex);
-  setInboundSetupSubstepIndex(setupContext, phase, substepIndex, maxIndex);
-  const activeSubstep = substeps[substepIndex] || null;
+  const stepSnapshot = getInboundSetupStepSnapshot(phase, setupContext);
+  const { safePhase, substepIndex, substepCount, activeSubstep } = stepSnapshot;
+  const maxIndex = Math.max(0, substepCount - 1);
 
   const container = document.createElement('div');
   container.className = 'forwarding-setup-step';
 
-  const phaseProgress = document.createElement('div');
-  phaseProgress.className = 'forwarding-setup-progress muted small';
-  phaseProgress.textContent = `Phase ${phase + 1} of 2`;
-  container.appendChild(phaseProgress);
-
-  const phaseTitle = document.createElement('h4');
-  phaseTitle.textContent = config.title || '';
-  container.appendChild(phaseTitle);
-
-  const phaseNote = document.createElement('p');
-  phaseNote.className = 'muted small';
-  phaseNote.textContent = config.description || '';
-  container.appendChild(phaseNote);
-
-  const subProgress = document.createElement('div');
-  subProgress.className = 'forwarding-substep-progress';
-  const subCounter = document.createElement('span');
-  subCounter.className = 'forwarding-substep-counter muted small';
-  subCounter.textContent = `${substepIndex + 1} of ${Math.max(1, substeps.length)}`;
-  subProgress.appendChild(subCounter);
-
-  const subDots = document.createElement('div');
-  subDots.className = 'forwarding-substep-dots';
-  for (let i = 0; i < substeps.length; i += 1) {
-    const dot = document.createElement('span');
-    dot.className = 'forwarding-substep-dot';
-    if (i === substepIndex) {
-      dot.classList.add('is-active');
-    }
-    subDots.appendChild(dot);
-  }
-  subProgress.appendChild(subDots);
-  container.appendChild(subProgress);
-
   if (activeSubstep) {
     const card = document.createElement('article');
     card.className = 'forwarding-substep-card';
-    if (phase === 1 && substepIndex === maxIndex) {
+    if (safePhase === 1 && substepIndex === maxIndex) {
       card.classList.add('is-finish-step');
     }
 
-    const title = document.createElement('h5');
-    title.className = 'forwarding-substep-title';
-    title.textContent = activeSubstep.title || '';
-    card.appendChild(title);
-
-    if (activeSubstep.description) {
+    if (activeSubstep.description && typeof activeSubstep.mediaFactory !== 'function') {
       const description = document.createElement('p');
       description.className = 'forwarding-substep-desc muted small';
-      description.textContent = activeSubstep.description;
+      description.textContent = toSingleStepInstruction(activeSubstep.description);
       card.appendChild(description);
     }
 
     if (typeof activeSubstep.mediaFactory === 'function') {
+      const mediaLabel = document.createElement('div');
+      mediaLabel.className = 'forwarding-substep-media-label muted small';
+      mediaLabel.textContent = 'In Gmail';
+      card.appendChild(mediaLabel);
+
       const mediaNode = activeSubstep.mediaFactory();
       if (mediaNode) {
         const mediaWrap = document.createElement('div');
@@ -8200,11 +8230,14 @@ function buildInboundSetupStep(phase, setupContext) {
     container.appendChild(card);
   }
 
-  if (phase === 1) {
+  if (safePhase === 1) {
     container.appendChild(buildInboundSetupSecondaryHelp());
   }
 
-  return container;
+  return {
+    ...stepSnapshot,
+    node: container
+  };
 }
 
 function openInboundSetupModal({ startStep = 0 } = {}) {
@@ -8323,17 +8356,22 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
       setupContext.cleanupFns = [];
     }
     body.innerHTML = '';
-    body.appendChild(buildInboundSetupStep(currentStep, setupContext));
+    const stepSnapshot = buildInboundSetupStep(currentStep, setupContext);
+    body.appendChild(stepSnapshot.node);
+    renderInboundSetupHeaderStep({
+      stepLabel: `Step ${stepSnapshot.absoluteStep} of ${stepSnapshot.totalSteps}`,
+      title: stepSnapshot.activeSubstep?.title || 'Connect inbox forwarding',
+      subtitle:
+        toSingleStepInstruction(stepSnapshot.activeSubstep?.description) ||
+        toSingleStepInstruction(stepSnapshot.phaseConfig?.description)
+    });
     renderInboundSetupHeaderAddressPanel();
 
-    const phaseConfig = getInboundSetupPhaseConfig(currentStep, setupContext);
-    const substepCount = Math.max(1, phaseConfig.substeps?.length || 1);
-    const substepIndex = Math.max(0, Math.min(substepCount - 1, getInboundSetupSubstepIndex(setupContext, currentStep)));
-    const isFirstScreen = currentStep === 0 && substepIndex === 0;
-    const isLastScreen = currentStep === 1 && substepIndex === substepCount - 1;
+    const isFirstScreen = currentStep === 0 && stepSnapshot.substepIndex === 0;
+    const isLastScreen = currentStep === 1 && stepSnapshot.substepIndex === stepSnapshot.substepCount - 1;
 
     backBtn.textContent = isFirstScreen ? 'Close' : 'Back';
-    nextBtn.textContent = isLastScreen ? 'Done' : 'Next';
+    nextBtn.textContent = isLastScreen ? 'Finish setup' : 'Continue';
     nextBtn.className = 'btn btn--primary btn--md';
     nextBtn.disabled = Boolean(setupContext.verifying);
   };

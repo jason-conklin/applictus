@@ -5434,19 +5434,31 @@ details summary {
   padding-right: 86px;
 }
 
-.modal--inbound-setup .modal-header h3 {
+.inbound-setup-header-step {
   grid-column: 1;
   grid-row: 1;
+  margin: 0;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #4e6890;
+}
+
+.modal--inbound-setup .modal-header h3 {
+  grid-column: 1;
+  grid-row: 2;
+  margin-top: 0;
 }
 
 .modal--inbound-setup .modal-header p {
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 3;
+  max-width: 64ch;
 }
 
 .inbound-setup-header-address {
   grid-column: 2;
-  grid-row: 1 / span 2;
+  grid-row: 1 / span 3;
   align-self: start;
   padding: 10px 12px;
   border-radius: 12px;
@@ -5492,15 +5504,15 @@ details summary {
 
 .inbound-setup-header-summary {
   grid-column: 1 / -1;
-  grid-row: 3;
+  grid-row: 4;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px 12px;
-  margin-top: 2px;
+  gap: 5px 12px;
+  margin-top: 4px;
   padding-top: 8px;
-  border-top: 1px solid rgba(30, 63, 116, 0.12);
-  color: #4a6387;
+  border-top: 1px solid rgba(30, 63, 116, 0.08);
+  color: #60799d;
 }
 
 .inbound-setup-header-summary span {
@@ -5548,7 +5560,7 @@ details summary {
 
 .forwarding-setup-body {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .forwarding-filter-modal-body {
@@ -5563,61 +5575,13 @@ details summary {
 
 .forwarding-setup-step {
   display: grid;
-  gap: 8px;
-}
-
-.forwarding-setup-progress {
-  text-transform: none;
-  letter-spacing: 0.02em;
-  font-weight: 600;
-  font-size: 11px;
-  color: #567198;
-}
-
-.forwarding-setup-step h4 {
-  margin: 0;
-  font-size: 1.02rem;
-  color: #16345f;
-}
-
-.forwarding-setup-step p {
-  margin: 0;
-}
-
-.forwarding-substep-progress {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: 10px;
-}
-
-.forwarding-substep-counter {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  color: #4f6a90;
-}
-
-.forwarding-substep-dots {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.forwarding-substep-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: rgba(64, 96, 150, 0.24);
-}
-
-.forwarding-substep-dot.is-active {
-  background: rgba(34, 88, 168, 0.72);
 }
 
 .forwarding-substep-card {
   display: grid;
-  gap: 8px;
-  padding: 12px;
+  gap: 10px;
+  padding: 14px;
   border-radius: 14px;
   border: 1px solid rgba(33, 69, 127, 0.12);
   background: #ffffff;
@@ -5647,11 +5611,23 @@ details summary {
   line-height: 1.45;
 }
 
+.forwarding-substep-media-label {
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #5f7697;
+}
+
 .forwarding-substep-media {
+  display: grid;
+  gap: 6px;
   border-radius: 12px;
-  border: 1px solid rgba(37, 75, 136, 0.1);
-  background: #f6f9ff;
-  padding: 4px;
+  border: 1px solid rgba(37, 75, 136, 0.12);
+  background: linear-gradient(180deg, rgba(249, 252, 255, 0.98), rgba(241, 247, 255, 0.96));
+  box-shadow:
+    0 6px 16px rgba(25, 54, 102, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  padding: 8px;
 }
 
 .forwarding-substep-media .forwarding-tutorial-frame,
@@ -6414,7 +6390,8 @@ details summary {
   }
 
   .modal--inbound-setup .modal-header h3,
-  .modal--inbound-setup .modal-header p {
+  .modal--inbound-setup .modal-header p,
+  .inbound-setup-header-step {
     grid-column: 1;
     grid-row: auto;
   }
@@ -6456,12 +6433,6 @@ details summary {
     align-items: stretch;
   }
 
-  .forwarding-substep-progress {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 6px;
-  }
-
   .forwarding-filter-presets {
     grid-template-columns: 1fr;
   }
@@ -6500,7 +6471,8 @@ details summary {
   }
 
   .modal--inbound-setup .modal-header h3,
-  .modal--inbound-setup .modal-header p {
+  .modal--inbound-setup .modal-header p,
+  .inbound-setup-header-step {
     grid-column: 1;
     grid-row: auto;
   }
