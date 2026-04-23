@@ -2049,25 +2049,40 @@
             </div>
           </div>
           <div class="account-inbox-username-prompt hidden" id="account-inbox-username-prompt">
-            <div class="muted small account-inbox-label">Choose your Applictus inbox username</div>
+            <div class="muted small account-inbox-label">Create your Applictus inbox address</div>
             <div class="account-inbox-username-row">
-              <input
-                type="text"
-                id="account-inbox-username-input"
-                placeholder="jasonconklin"
-                autocapitalize="off"
-                autocomplete="off"
-                spellcheck="false"
-              />
-              <button class="btn btn--primary btn--sm" type="button" id="account-inbox-username-save">
+              <div class="account-inbox-username-composer">
+                <input
+                  type="text"
+                  id="account-inbox-username-input"
+                  placeholder="jasonconklin"
+                  autocapitalize="off"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <span class="account-inbox-username-domain">@mail.applictus.com</span>
+              </div>
+              <button class="btn btn--primary btn--sm" type="button" id="account-inbox-username-save" disabled>
                 Save
               </button>
             </div>
-            <div class="muted small account-inbox-username-hint" id="account-inbox-username-hint">
-              Pick a unique username. Your inbox address will be <code>&lt;username&gt;@mail.applictus.com</code>.
+            <div class="account-inbox-username-feedback-row">
+              <div class="account-inbox-username-preview">
+                <code id="account-inbox-username-preview">&lt;username&gt;@mail.applictus.com</code>
+              </div>
+              <div class="account-inbox-username-status" id="account-inbox-username-status" data-state="idle">
+                Use 3–30 lowercase letters, numbers, or hyphens
+              </div>
             </div>
+            <div class="muted small account-inbox-username-hint" id="account-inbox-username-hint">
+              This will be your personal Applictus inbox for forwarding job emails.
+            </div>
+            <div class="muted small account-inbox-username-rules">
+              Use 3–30 lowercase letters, numbers, or hyphens.
+            </div>
+            <div class="muted small account-inbox-username-suggestions-label">Suggestions</div>
             <div
-              class="account-inbox-username-suggestions hidden"
+              class="account-inbox-username-suggestions"
               id="account-inbox-username-suggestions"
             ></div>
           </div>

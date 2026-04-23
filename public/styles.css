@@ -6986,100 +6986,172 @@ details summary {
 .account-inbox-username-prompt {
   margin-top: 10px;
   display: grid;
-  gap: 7px;
-  padding: 10px 12px;
+  gap: 10px;
+  padding: 12px 13px;
   border-radius: 12px;
-  border: 1px dashed rgba(37, 72, 128, 0.24);
-  background: linear-gradient(180deg, rgba(250, 253, 255, 0.9), rgba(244, 249, 255, 0.86));
+  border: 1px solid rgba(37, 72, 128, 0.18);
+  background: linear-gradient(180deg, rgba(250, 253, 255, 0.96), rgba(244, 249, 255, 0.92));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 6px 16px rgba(20, 44, 86, 0.06);
 }
 
 .account-inbox-username-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  align-items: stretch;
+  gap: 10px;
 }
 
-.account-inbox-username-row input {
-  flex: 1 1 240px;
-  min-width: 180px;
+.account-inbox-username-composer {
+  flex: 1 1 300px;
+  min-width: 230px;
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+  border: 1px solid rgba(37, 72, 128, 0.22);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 250, 255, 0.94));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 2px 6px rgba(25, 52, 94, 0.05);
+  transition:
+    border-color 150ms ease,
+    box-shadow 180ms ease;
+}
+
+.account-inbox-username-composer:focus-within {
+  border-color: rgba(36, 90, 176, 0.46);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 0 0 3px rgba(63, 114, 199, 0.14);
+}
+
+.account-inbox-username-composer input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-weight: 600;
+  color: #173b69;
+}
+
+.account-inbox-username-composer input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.account-inbox-username-domain {
+  flex: 0 0 auto;
+  padding-right: 12px;
+  color: #526885;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 .account-inbox-username-feedback-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  flex-wrap: nowrap;
+  gap: 10px;
 }
 
 .account-inbox-username-preview {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  color: #3f5d87;
+  min-width: 0;
+  color: #2a4f82;
 }
 
 .account-inbox-username-preview code {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  min-height: 26px;
-  padding: 3px 9px;
-  border-radius: 8px;
-  border: 1px solid rgba(37, 72, 128, 0.2);
-  background: rgba(243, 248, 255, 0.92);
+  min-height: 30px;
+  width: 100%;
+  min-width: 0;
+  padding: 5px 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(37, 72, 128, 0.18);
+  background: linear-gradient(180deg, rgba(245, 250, 255, 0.94), rgba(239, 246, 255, 0.9));
   color: #173b69;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .account-inbox-username-status {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: #4c6489;
-  min-height: 18px;
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(80, 112, 164, 0.24);
+  background: linear-gradient(180deg, rgba(248, 252, 255, 0.98), rgba(238, 246, 255, 0.92));
+  color: #395986;
   font-weight: 600;
   white-space: nowrap;
   flex: 0 1 auto;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease,
+    opacity 140ms ease,
+    transform 140ms ease;
 }
 
 .account-inbox-username-status::before {
-  content: '';
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: rgba(88, 117, 163, 0.42);
+  content: '•';
+  font-size: 12px;
+  line-height: 1;
   flex-shrink: 0;
+  color: rgba(66, 95, 142, 0.8);
 }
 
 .account-inbox-username-status[data-state='checking'] {
-  color: #4e6385;
+  color: #315a8f;
+  border-color: rgba(63, 116, 198, 0.3);
+  background: linear-gradient(180deg, rgba(244, 250, 255, 0.98), rgba(232, 243, 255, 0.92));
+  box-shadow: 0 4px 12px rgba(28, 64, 123, 0.1);
 }
 
 .account-inbox-username-status[data-state='checking']::before {
-  background: rgba(79, 111, 161, 0.72);
+  content: '…';
+  color: rgba(45, 88, 157, 0.9);
 }
 
 .account-inbox-username-status[data-state='available'],
 .account-inbox-username-status[data-state='saved'] {
-  color: #1f7a3e;
+  color: #1e7440;
+  border-color: rgba(31, 123, 62, 0.36);
+  background: linear-gradient(180deg, rgba(245, 255, 250, 0.98), rgba(232, 249, 240, 0.92));
+  box-shadow: 0 5px 12px rgba(29, 112, 59, 0.11);
 }
 
 .account-inbox-username-status[data-state='available']::before,
 .account-inbox-username-status[data-state='saved']::before {
-  background: rgba(31, 122, 62, 0.92);
+  content: '✓';
+  color: rgba(31, 122, 62, 0.96);
 }
 
 .account-inbox-username-status[data-state='taken'],
 .account-inbox-username-status[data-state='invalid'] {
-  color: #b12c2c;
+  color: #9f3030;
+  border-color: rgba(170, 58, 58, 0.34);
+  background: linear-gradient(180deg, rgba(255, 248, 248, 0.98), rgba(253, 238, 238, 0.92));
+  box-shadow: 0 5px 12px rgba(148, 40, 40, 0.1);
 }
 
 .account-inbox-username-status[data-state='taken']::before,
 .account-inbox-username-status[data-state='invalid']::before {
-  background: rgba(177, 44, 44, 0.92);
+  content: '✕';
+  color: rgba(177, 44, 44, 0.96);
 }
 
 .account-inbox-username-hint code {
@@ -7087,12 +7159,25 @@ details summary {
 }
 
 .account-inbox-username-hint {
-  color: #5e7393;
+  color: #4f6688;
+}
+
+.account-inbox-username-rules {
+  margin-top: -4px;
+  color: rgba(74, 96, 128, 0.78);
+}
+
+.account-inbox-username-suggestions-label {
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: #60789f;
 }
 
 @media (max-width: 900px) {
   .account-inbox-username-feedback-row {
-    flex-wrap: wrap;
+    grid-template-columns: 1fr;
     gap: 8px;
   }
 
@@ -7116,7 +7201,23 @@ details summary {
 }
 
 .account-inbox-username-suggestions .signup-inbox-suggestion {
-  font-size: 10.5px;
+  font-size: 11px;
+}
+
+.account-inbox-username-row .btn.is-loading {
+  pointer-events: none;
+}
+
+.account-inbox-username-row .btn.is-loading::before {
+  content: '';
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: rgba(255, 255, 255, 0.95);
+  display: inline-block;
+  margin-right: 6px;
+  animation: spin 0.8s linear infinite;
 }
 
 #inbound-old-address-warning {

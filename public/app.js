@@ -1127,6 +1127,8 @@ const accountUsernameState = {
   savedFlashUntil: 0,
   savedFlashTimer: null
 };
+const ACCOUNT_INBOX_HELPER_TEXT = 'This will be your personal Applictus inbox for forwarding job emails.';
+const ACCOUNT_INBOX_INVALID_TEXT = 'Use 3–30 lowercase letters, numbers, or hyphens';
 const INBOUND_AUTO_SYNC_INTERVAL_MS = 9000;
 const INBOUND_AUTO_SYNC_DEBOUNCE_MS = 15000;
 renderSyncSummary({ status: 'idle', rawDetails: '' });
@@ -1531,15 +1533,31 @@ function deriveDefaultInboxUsernameSeed() {
 
 function setAccountUsernameStatus(state, message) {
   accountUsernameState.status = state || 'idle';
+  if (accountInboxUsernameSave) {
+    accountInboxUsernameSave.classList.toggle('is-loading', accountUsernameState.status === 'checking');
+    if (accountUsernameState.status === 'checking') {
+      accountInboxUsernameSave.setAttribute('aria-busy', 'true');
+    } else {
+      accountInboxUsernameSave.removeAttribute('aria-busy');
+    }
+  }
   setInlineHintState(accountInboxUsernameStatus, message || '', state || null);
+}
+
+function formatAccountUsernameInvalidMessage(code) {
+  if (code === 'INBOX_USERNAME_RESERVED' || code === 'INBOX_USERNAME_TAKEN') {
+    return 'Already taken';
+  }
+  return ACCOUNT_INBOX_INVALID_TEXT;
 }
 
 function setAccountUsernamePreview(username) {
   if (!accountInboxUsernamePreview) {
     return;
   }
-  const previewAddress = buildInboxAddressPreview(username);
-  const fallback = `<username>@${getInboundDomainForDisplay()}`;
+  const normalized = normalizeInboxUsernameInput(username);
+  const previewAddress = normalized ? `${normalized}@${INBOUND_DOMAIN_FALLBACK}` : null;
+  const fallback = `<username>@${INBOUND_DOMAIN_FALLBACK}`;
   accountInboxUsernamePreview.textContent = previewAddress || fallback;
 }
 
@@ -1665,7 +1683,7 @@ function renderAccountInboxUsernamePrompt({ checkAvailability = true } = {}) {
 
   const persistedUsername = normalizeInboxUsernameInput(sessionUser?.inbox_username || '');
   if (accountInboxUsernameHint) {
-    setInlineHintState(accountInboxUsernameHint, 'Use 3-30 characters: lowercase letters, numbers, and hyphens.', null);
+    setInlineHintState(accountInboxUsernameHint, ACCOUNT_INBOX_HELPER_TEXT, null);
   }
   if (savedFlashActive && persistedUsername) {
     if (accountInboxUsernameInput) {
@@ -1673,7 +1691,7 @@ function renderAccountInboxUsernamePrompt({ checkAvailability = true } = {}) {
       accountInboxUsernameInput.disabled = true;
     }
     setAccountUsernamePreview(persistedUsername);
-    setAccountUsernameStatus('saved', 'Saved. Your Applictus inbox is ready.');
+    setAccountUsernameStatus('saved', 'Available');
     if (accountInboxUsernameSuggestions) {
       accountInboxUsernameSuggestions.innerHTML = '';
       accountInboxUsernameSuggestions.classList.add('hidden');
@@ -1708,25 +1726,22 @@ function renderAccountInboxUsernamePrompt({ checkAvailability = true } = {}) {
   };
 
   if (!normalized) {
-    setAccountUsernameStatus('idle', 'Choose a username to create your Applictus inbox address.');
+    setAccountUsernameStatus('idle', ACCOUNT_INBOX_INVALID_TEXT);
     setSaveEnabled(false);
     return;
   }
   if (!validation.ok) {
-    setAccountUsernameStatus('invalid', authErrorMessage(validation.code));
+    setAccountUsernameStatus('invalid', formatAccountUsernameInvalidMessage(validation.code));
     setSaveEnabled(false);
     return;
   }
   if (!hasChanged) {
-    setAccountUsernameStatus(
-      'saved',
-      persistedUsername ? 'Saved. This username is already set for your inbox.' : 'Choose a username to continue.'
-    );
+    setAccountUsernameStatus('saved', persistedUsername ? 'Available' : ACCOUNT_INBOX_INVALID_TEXT);
     setSaveEnabled(false);
     return;
   }
   if (canSave) {
-    setAccountUsernameStatus('available', 'Available. You can save this inbox username.');
+    setAccountUsernameStatus('available', 'Available');
     setSaveEnabled(true);
     return;
   }
@@ -1734,12 +1749,12 @@ function renderAccountInboxUsernamePrompt({ checkAvailability = true } = {}) {
   if (accountUsernameState.checkedUsername === normalized && accountUsernameState.checkedResult) {
     const availability = accountUsernameState.checkedResult;
     if (!availability.valid) {
-      setAccountUsernameStatus('invalid', authErrorMessage(availability.error));
+      setAccountUsernameStatus('invalid', formatAccountUsernameInvalidMessage(availability.error));
       setSaveEnabled(false);
       return;
     }
     if (!availability.available) {
-      setAccountUsernameStatus('taken', 'That username is already taken. Try one of these.');
+      setAccountUsernameStatus('taken', 'Already taken');
       renderAccountUsernameSuggestions(normalized, { preferAlternatives: true });
       setSaveEnabled(false);
       return;
@@ -1747,7 +1762,7 @@ function renderAccountInboxUsernamePrompt({ checkAvailability = true } = {}) {
   }
 
   if (!checkAvailability) {
-    setAccountUsernameStatus('idle', 'Looks good. We’ll check availability as you type.');
+    setAccountUsernameStatus('idle', ACCOUNT_INBOX_INVALID_TEXT);
     setSaveEnabled(false);
     return;
   }
@@ -1757,7 +1772,7 @@ function renderAccountInboxUsernamePrompt({ checkAvailability = true } = {}) {
     accountUsernameState.debounceTimer = null;
   }
   const expectedToken = ++accountUsernameState.requestToken;
-  setAccountUsernameStatus('checking', 'Checking availability...');
+  setAccountUsernameStatus('checking', 'Checking availability…');
   setSaveEnabled(false);
   accountUsernameState.debounceTimer = window.setTimeout(async () => {
     const availability = await checkInboxUsernameAvailability(normalized, {
@@ -1770,17 +1785,17 @@ function renderAccountInboxUsernamePrompt({ checkAvailability = true } = {}) {
     accountUsernameState.checkedUsername = normalized;
     accountUsernameState.checkedResult = availability;
     if (!availability.valid) {
-      setAccountUsernameStatus('invalid', authErrorMessage(availability.error));
+      setAccountUsernameStatus('invalid', formatAccountUsernameInvalidMessage(availability.error));
       setSaveEnabled(false);
       return;
     }
     if (!availability.available) {
-      setAccountUsernameStatus('taken', 'That username is already taken. Try one of these.');
+      setAccountUsernameStatus('taken', 'Already taken');
       renderAccountUsernameSuggestions(normalized, { preferAlternatives: true });
       setSaveEnabled(false);
       return;
     }
-    setAccountUsernameStatus('available', 'Available. You can save this inbox username.');
+    setAccountUsernameStatus('available', 'Available');
     setSaveEnabled(true);
   }, 220);
 }
@@ -8514,21 +8529,21 @@ async function saveAccountInboxUsername() {
   const persistedUsername = normalizeInboxUsernameInput(sessionUser.inbox_username || '');
   const validation = validateInboxUsernameInput(currentUsername, { allowEmpty: false });
   if (!validation.ok) {
-    setAccountUsernameStatus('invalid', authErrorMessage(validation.code));
+    setAccountUsernameStatus('invalid', formatAccountUsernameInvalidMessage(validation.code));
     if (accountInboxUsernameSave) {
       accountInboxUsernameSave.disabled = true;
     }
     return;
   }
   if (validation.value === persistedUsername) {
-    setAccountUsernameStatus('saved', 'Saved. This username is already set for your inbox.');
+    setAccountUsernameStatus('saved', 'Available');
     if (accountInboxUsernameSave) {
       accountInboxUsernameSave.disabled = true;
     }
     return;
   }
 
-  setAccountUsernameStatus('checking', 'Checking availability...');
+  setAccountUsernameStatus('checking', 'Checking availability…');
   const availability = await checkInboxUsernameAvailability(validation.value).catch(() => null);
   if (!availability) {
     setAccountUsernameStatus('idle', 'Unable to verify availability right now. Try again.');
@@ -8540,14 +8555,14 @@ async function saveAccountInboxUsername() {
   accountUsernameState.checkedUsername = validation.value;
   accountUsernameState.checkedResult = availability;
   if (!availability.valid) {
-    setAccountUsernameStatus('invalid', authErrorMessage(availability.error));
+    setAccountUsernameStatus('invalid', formatAccountUsernameInvalidMessage(availability.error));
     if (accountInboxUsernameSave) {
       accountInboxUsernameSave.disabled = true;
     }
     return;
   }
   if (!availability.available) {
-    setAccountUsernameStatus('taken', 'That username is already taken. Try one of these.');
+    setAccountUsernameStatus('taken', 'Already taken');
     renderAccountUsernameSuggestions(validation.value, { preferAlternatives: true });
     if (accountInboxUsernameSave) {
       accountInboxUsernameSave.disabled = true;
@@ -8559,7 +8574,7 @@ async function saveAccountInboxUsername() {
     accountInboxUsernameSave.disabled = true;
   }
   accountInboxUsernameInput.disabled = true;
-  setAccountUsernameStatus('checking', 'Saving...');
+  setAccountUsernameStatus('checking', 'Saving…');
 
   try {
     const payload = await api('/api/account/inbox-username', {
@@ -8578,10 +8593,10 @@ async function saveAccountInboxUsername() {
     } else {
       await refreshInboundStatus({ ensureAddress: true });
     }
-    setAccountUsernameStatus('saved', 'Saved. Your Applictus inbox is ready.');
+    setAccountUsernameStatus('saved', 'Available');
     showToast('Inbox username saved.', { tone: 'success' });
   } catch (err) {
-    setAccountUsernameStatus('invalid', authErrorMessage(err?.message || err?.code));
+    setAccountUsernameStatus('invalid', formatAccountUsernameInvalidMessage(err?.message || err?.code));
   } finally {
     if (accountInboxUsernameInput) {
       accountInboxUsernameInput.disabled = false;
