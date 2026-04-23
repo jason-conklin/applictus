@@ -5162,12 +5162,41 @@ details summary {
 .modal--application-form .modal-dialog,
 .modal--add-application .modal-dialog {
   width: min(660px, 92vw);
-  overflow: visible;
+  max-height: min(88vh, 940px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal--application-form .modal-header,
+.modal--add-application .modal-header {
+  flex: 0 0 auto;
+  margin-bottom: 12px;
+  padding-bottom: 14px;
+}
+
+.modal--application-form .modal-body,
+.modal--add-application .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  padding: 0 4px 2px;
+}
+
+.modal--application-form .modal-footer,
+.modal--add-application .modal-footer {
+  flex: 0 0 auto;
+  margin-top: 12px;
+  padding-top: 14px;
+  padding-bottom: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(247, 250, 255, 0.94));
 }
 
 .modal--application-form .modal-form--app-entry,
 .modal--add-application .modal-form--add-app {
-  gap: 18px;
+  gap: 14px;
 }
 
 .modal--application-form .modal-form--app-entry .modal-field,
@@ -5205,7 +5234,9 @@ details summary {
 }
 
 .modal--application-form .modal-form--app-entry .modal-field textarea {
-  min-height: 108px;
+  min-height: 96px;
+  max-height: 320px;
+  resize: vertical;
   padding: 11px 13px;
   line-height: 1.45;
 }
@@ -5344,8 +5375,8 @@ details summary {
 }
 
 .modal--application-form .modal-edit-status {
-  gap: 12px;
-  padding: 14px;
+  gap: 10px;
+  padding: 12px;
   border-radius: 14px;
   border: 1px solid rgba(40, 80, 160, 0.12);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(244, 249, 255, 0.9));
@@ -5361,14 +5392,14 @@ details summary {
 
 .modal--application-form .modal-optional-details {
   display: grid;
-  gap: 12px;
-  padding: 14px;
+  gap: 10px;
+  padding: 12px;
   border-radius: 14px;
-  border: 1px solid rgba(40, 80, 160, 0.12);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(244, 249, 255, 0.9));
+  border: 1px solid rgba(40, 80, 160, 0.1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(246, 250, 255, 0.86));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.75),
-    0 10px 22px rgba(20, 40, 80, 0.08);
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 6px 16px rgba(20, 40, 80, 0.06);
 }
 
 .modal--application-form .modal-optional-details__title {
@@ -5381,12 +5412,12 @@ details summary {
 }
 
 .modal--application-form .modal-optional-details__copy {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   color: #5f7190;
 }
 
 .modal--application-form .modal-optional-details .modal-field--job-description textarea {
-  min-height: 172px;
+  min-height: 136px;
 }
 
 .modal--application-form .modal-footer .btn[data-role='cancel'],
@@ -6826,25 +6857,52 @@ details summary {
 
 .detail-context-action,
 .detail-context-toggle {
+  appearance: none;
+  -webkit-appearance: none;
   border: 0;
   background: transparent;
   padding: 0;
   font-size: 12px;
-  font-weight: 600;
-  color: var(--color-primary);
+  font-weight: 620;
+  line-height: 1.2;
+  color: #466694;
   cursor: pointer;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  text-decoration-color: rgba(70, 102, 148, 0);
+  border-radius: 6px;
+  transition:
+    color 120ms ease,
+    text-decoration-color 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .detail-context-action:hover,
 .detail-context-toggle:hover {
-  color: var(--color-accent);
+  color: #2e4d7b;
+  text-decoration-color: rgba(46, 77, 123, 0.52);
+  background: transparent;
+  transform: none;
+  box-shadow: none;
 }
 
 .detail-context-action:focus-visible,
 .detail-context-toggle:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-  border-radius: 6px;
+  outline: none;
+  background: transparent;
+  transform: none;
+  box-shadow: 0 0 0 2px rgba(62, 102, 163, 0.22);
+  text-decoration-color: rgba(46, 77, 123, 0.52);
+}
+
+.detail-context-action:active,
+.detail-context-toggle:active {
+  color: #233f68;
+  background: transparent;
+  transform: none;
+  box-shadow: none;
+  text-decoration-color: rgba(35, 63, 104, 0.5);
 }
 
 .detail-context-empty {
