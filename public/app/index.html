@@ -345,6 +345,20 @@
         margin-top: 0;
         overflow: visible;
       }
+      .plan-progress-scale-row {
+        margin-top: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1;
+        color: #6a7f9f;
+      }
+      .plan-progress-scale-start,
+      .plan-progress-scale-end {
+        font-variant-numeric: tabular-nums;
+      }
       .plan-progress-marker {
         position: absolute;
         top: -26px;
@@ -2214,6 +2228,10 @@
                   <span class="plan-progress-marker-tick"></span>
                   <span class="plan-progress-marker-label" id="account-plan-percent">0%</span>
                 </div>
+              </div>
+              <div class="plan-progress-scale-row" aria-hidden="true">
+                <span class="plan-progress-scale-start" id="account-plan-scale-start">0</span>
+                <span class="plan-progress-scale-end" id="account-plan-scale-end">0</span>
               </div>
               <div class="plan-warning muted small" id="account-plan-warning"></div>
               <div class="plan-actions">

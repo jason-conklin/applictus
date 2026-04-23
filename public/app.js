@@ -624,6 +624,8 @@ const accountPlanUsage = document.getElementById('account-plan-usage');
 const accountPlanProgress = document.getElementById('account-plan-progress');
 const accountPlanMarker = document.getElementById('account-plan-marker');
 const accountPlanPercent = document.getElementById('account-plan-percent');
+const accountPlanScaleStart = document.getElementById('account-plan-scale-start');
+const accountPlanScaleEnd = document.getElementById('account-plan-scale-end');
 const accountPlanWarning = document.getElementById('account-plan-warning');
 const accountUpgradeButton = document.getElementById('account-upgrade-button');
 const accountManageSubscriptionButton = document.getElementById('account-manage-subscription-button');
@@ -5221,6 +5223,12 @@ function renderPlanProgressMarker(usage = 0, limit = 0) {
   accountPlanMarker.classList.toggle('is-start', percent <= 5);
   accountPlanMarker.classList.toggle('is-end', percent >= 95);
   accountPlanPercent.textContent = `${percent}%`;
+  if (accountPlanScaleStart) {
+    accountPlanScaleStart.textContent = '0';
+  }
+  if (accountPlanScaleEnd) {
+    accountPlanScaleEnd.textContent = safeLimit > 0 ? Math.round(safeLimit).toLocaleString() : '0';
+  }
 }
 
 function getPlanUsageSnapshot(user = sessionUser) {
@@ -5425,7 +5433,7 @@ function renderPlanUsage(user = sessionUser) {
     closePlanUsageInfoTooltip();
     accountPlanUsage.textContent = '—';
     accountPlanProgress.style.width = '0%';
-    renderPlanProgressMarker(0, 1);
+    renderPlanProgressMarker(0, PLAN_LIMITS.free);
     if (accountPlanWarning) {
       accountPlanWarning.textContent = '';
       accountPlanWarning.classList.remove('plan-warning--near', 'plan-warning--at');
