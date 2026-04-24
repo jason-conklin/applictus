@@ -8434,13 +8434,6 @@ function buildInboundSetupSecondaryHelp() {
     heading.textContent = 'Additional help';
   secondary.appendChild(heading);
 
-    const filterPanel = createForwardingCollapsible({
-      title: 'Smart Gmail filter for job emails',
-      open: false
-    });
-  filterPanel.body.appendChild(buildGmailFilterHelpContent());
-  secondary.appendChild(filterPanel.details);
-
   const outlookPanel = createForwardingCollapsible({
     title: 'Using Outlook instead?',
     open: false
