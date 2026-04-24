@@ -6066,9 +6066,9 @@ function updateAdminAnalyticsVisibility() {
 }
 
 const SHARED_PRO_FEATURES = [
-  'Automatic tracking from forwarded job emails',
-  'Organized timelines for every company and role',
-  'Smart Gmail filtering keeps unrelated emails out'
+  'Track every job update automatically',
+  'Full timeline for every application',
+  'Focused tracking with smart filtering'
 ];
 
 function createPricingPlanIcon(variant = 'free') {
