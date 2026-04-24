@@ -7511,7 +7511,9 @@ function renderInboundSetupHeaderAddressPanel() {
     summaryRow = document.createElement('div');
     summaryRow.className = 'inbound-setup-header-summary muted small';
     summaryRow.dataset.modalTransient = 'true';
-    summaryRow.innerHTML = `
+    const summaryMeta = document.createElement('div');
+    summaryMeta.className = 'inbound-setup-header-meta';
+    summaryMeta.innerHTML = `
       <span>Takes about 2 minutes</span>
       <span>No inbox access required</span>
       <span>You control what gets forwarded</span>
@@ -7534,7 +7536,7 @@ function renderInboundSetupHeaderAddressPanel() {
     const walkthroughLabel = document.createElement('span');
     walkthroughLabel.textContent = 'Watch setup walkthrough';
     walkthroughLink.append(walkthroughIcon, walkthroughLabel);
-    summaryRow.appendChild(walkthroughLink);
+    summaryRow.append(summaryMeta, walkthroughLink);
     modalHeader.appendChild(summaryRow);
   }
 
