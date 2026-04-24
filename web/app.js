@@ -627,6 +627,10 @@ const accountPlanMarker = document.getElementById('account-plan-marker');
 const accountPlanPercent = document.getElementById('account-plan-percent');
 const accountPlanScaleStart = document.getElementById('account-plan-scale-start');
 const accountPlanScaleEnd = document.getElementById('account-plan-scale-end');
+const accountPlanFilterStatus = document.getElementById('account-plan-filter-status');
+const accountPlanFilterStatusPill = document.getElementById('account-plan-filter-status-pill');
+const accountPlanFilterStatusText = document.getElementById('account-plan-filter-status-text');
+const accountPlanFilterStatusAction = document.getElementById('account-plan-filter-status-action');
 const accountPlanWarning = document.getElementById('account-plan-warning');
 const accountUpgradeButton = document.getElementById('account-upgrade-button');
 const accountManageSubscriptionButton = document.getElementById('account-manage-subscription-button');
@@ -5520,14 +5524,14 @@ function getForwardingFilterHealthMeta(source = {}) {
     return {
       status,
       tone: 'soft',
-      label: serverLabel || 'Filter review recommended',
+      label: 'Review filter',
       detail: serverDetail || 'Review your Gmail filter to keep tracking accurate and private.'
     };
   }
   if (status === 'ingestion_paused_or_limited') {
     return {
       status,
-      tone: 'strong',
+      tone: 'danger',
       label: serverLabel || 'Forwarding limited',
       detail: serverDetail || 'Review your forwarding setup before sending more emails.'
     };
@@ -5560,6 +5564,7 @@ function renderPlanUsage(user = sessionUser) {
     accountPlanProgress.closest('.plan-progress')?.classList.remove('hidden');
     accountPlanMarker?.closest('.plan-progress-marker-row')?.classList.remove('hidden');
     accountPlanScaleStart?.closest('.plan-progress-scale-row')?.classList.remove('hidden');
+    accountPlanFilterStatus?.classList.add('hidden');
     if (accountPlanWarning) {
       accountPlanWarning.textContent = '';
       accountPlanWarning.classList.remove('plan-warning--near', 'plan-warning--at');
@@ -5628,7 +5633,7 @@ function renderPlanUsage(user = sessionUser) {
   const forwardingHealth = getForwardingFilterHealthMeta(source);
   const inboundWarningLevel =
     isPaidPlan
-      ? forwardingHealth.tone === 'strong'
+      ? forwardingHealth.tone === 'strong' || forwardingHealth.tone === 'danger'
         ? 'strong'
         : forwardingHealth.tone === 'soft'
           ? 'soft'
@@ -5662,53 +5667,50 @@ function renderPlanUsage(user = sessionUser) {
   closePlanUsageInfoTooltip();
   if (isPaidPlan) {
     accountPlanUsage.innerHTML = `
-	      <span class="plan-usage-primary">${Math.floor(usage).toLocaleString()} tracked job updates this month</span>
-	      <span class="plan-usage-secondary">
-	        <span class="plan-usage-secondary-text">${inboundUsage.toLocaleString()} forwarded emails reviewed this month</span>
-	        <span class="plan-usage-info">
-	          <button
-	            type="button"
-	            class="plan-usage-info-btn"
-	            aria-label="Explain forwarded emails and tracked updates"
-	            aria-expanded="false"
-	            aria-describedby="plan-usage-info-tooltip"
-	            title="What do these usage numbers mean?"
-	          >
-	            <span aria-hidden="true">i</span>
-	          </button>
-	          <span class="plan-usage-tooltip" id="plan-usage-info-tooltip" role="tooltip">
-	            <span>Forwarded emails are emails sent to your Applictus inbox.</span>
-	            <span>Tracked updates are job-related emails saved to your timeline.</span>
-	          </span>
-	        </span>
-	      </span>
-	      <span class="plan-usage-health plan-usage-health--${escapeHtml(forwardingHealth.tone)}">
-	        ${escapeHtml(forwardingHealth.label)}
-	      </span>
-	    `;
+      <span class="plan-usage-primary">${Math.floor(usage).toLocaleString()} tracked job updates this month</span>
+      <span class="plan-usage-secondary">
+        <span class="plan-usage-secondary-text">${inboundUsage.toLocaleString()} forwarded emails reviewed this month</span>
+        <span class="plan-usage-info">
+          <button
+            type="button"
+            class="plan-usage-info-btn"
+            aria-label="Explain forwarded emails and tracked updates"
+            aria-expanded="false"
+            aria-describedby="plan-usage-info-tooltip"
+            title="What do these usage numbers mean?"
+          >
+            <span aria-hidden="true">i</span>
+          </button>
+          <span class="plan-usage-tooltip" id="plan-usage-info-tooltip" role="tooltip">
+            <span>Forwarded emails are emails sent to your Applictus inbox.</span>
+            <span>Tracked updates are job-related emails saved to your timeline.</span>
+          </span>
+        </span>
+      </span>
+    `;
   } else {
     accountPlanUsage.innerHTML = `
-	      <span class="plan-usage-primary">${usage} / ${limit} tracked updates this month</span>
-	      <span class="plan-usage-secondary">
-	        <span class="plan-usage-secondary-text">${inboundUsage} / ${inboundLimit} forwarded emails this month</span>
-	        <span class="plan-usage-info">
-	          <button
-	            type="button"
-	            class="plan-usage-info-btn"
-	            aria-label="Explain forwarded emails and tracked updates"
-	            aria-expanded="false"
-	            aria-describedby="plan-usage-info-tooltip"
-	            title="What do these usage numbers mean?"
-	          >
-	            <span aria-hidden="true">i</span>
-	          </button>
-	          <span class="plan-usage-tooltip" id="plan-usage-info-tooltip" role="tooltip">
-	            <span>Forwarded emails are emails sent to your Applictus inbox.</span>
-	            <span>Tracked updates are job-related emails saved to your timeline.</span>
-	          </span>
-	        </span>
-	      </span>
-	    `;
+      <span class="plan-usage-primary">${usage} / ${limit} tracked updates this month</span>
+      <span class="plan-usage-secondary">
+        <span class="plan-usage-secondary-text">${inboundUsage} / ${inboundLimit} forwarded emails this month</span>
+        <span class="plan-usage-info">
+          <button
+            type="button"
+            class="plan-usage-info-btn"
+            aria-label="Explain forwarded emails and tracked updates"
+            aria-expanded="false"
+            aria-describedby="plan-usage-info-tooltip"
+            title="What do these usage numbers mean?"
+          >
+            <span aria-hidden="true">i</span>
+          </button>
+          <span class="plan-usage-tooltip" id="plan-usage-info-tooltip" role="tooltip">
+            <span>Forwarded emails are emails sent to your Applictus inbox.</span>
+            <span>Tracked updates are job-related emails saved to your timeline.</span>
+          </span>
+        </span>
+      </span>
+    `;
   }
   bindPlanUsageInfoTooltipInteractions();
   const progressTrack = accountPlanProgress.closest('.plan-progress');
@@ -5717,6 +5719,16 @@ function renderPlanUsage(user = sessionUser) {
   progressTrack?.classList.toggle('hidden', isPaidPlan);
   markerRow?.classList.toggle('hidden', isPaidPlan);
   scaleRow?.classList.toggle('hidden', isPaidPlan);
+  if (accountPlanFilterStatus) {
+    accountPlanFilterStatus.classList.toggle('hidden', !isPaidPlan);
+  }
+  if (accountPlanFilterStatusPill) {
+    accountPlanFilterStatusPill.className = `plan-usage-health plan-usage-health--${forwardingHealth.tone}`;
+    accountPlanFilterStatusPill.textContent = forwardingHealth.label;
+  }
+  if (accountPlanFilterStatusText) {
+    accountPlanFilterStatusText.textContent = 'Only job-related emails should be forwarded to Applictus.';
+  }
   const ratio = !isPaidPlan && limit > 0 ? Math.min(1, usage / limit) : 0;
   accountPlanProgress.style.width = `${Math.round(ratio * 100)}%`;
   renderPlanProgressMarker(isPaidPlan ? 0 : usage, isPaidPlan ? PLAN_LIMITS.free : limit);
@@ -5783,8 +5795,9 @@ function renderPlanUsage(user = sessionUser) {
     accountPlanDetails.disabled = false;
   }
   if (accountPlanReduceUsage) {
-    accountPlanReduceUsage.classList.remove('hidden');
+    accountPlanReduceUsage.classList.toggle('hidden', isPaidPlan);
     accountPlanReduceUsage.disabled = false;
+    accountPlanReduceUsage.textContent = isPaidPlan ? 'Review forwarding filter' : 'Reduce usage with a filter';
   }
   if (accountPlanTrustNote) {
     accountPlanTrustNote.classList.toggle('hidden', !isMonthlySubscription);
@@ -6410,10 +6423,10 @@ function openPricingModal() {
   const proCard = buildPlanCard({
     title: 'Pro Tier',
     context: 'Best for an active ongoing search',
-	    priceMain: '$3.99',
-	    priceTerm: '/ month',
-	    details: 'Unlimited job tracking',
-	    billingNote: 'Monthly billing for full, always-on job tracking',
+      priceMain: '$3.99',
+      priceTerm: '/ month',
+      details: 'Unlimited job tracking',
+      billingNote: 'Monthly billing for full, always-on job tracking',
     features: SHARED_PRO_FEATURES,
     badgeText: 'Most popular',
     badgeVariant: 'popular',
@@ -6430,16 +6443,16 @@ function openPricingModal() {
   const jobSearchPlanCard = buildPlanCard({
     title: 'Job Search Plan',
     context: 'One-time plan for a focused job search cycle',
-	    priceMain: '$9.99',
-	    priceTerm: '/ 3 months',
-	    details: 'Unlimited tracking for 3 months',
-	    priceHint: '≈ $3.33/month effective rate',
-	    features: [],
-	    summaryTitle: 'All Pro features included',
-	    summaryLines: [
-	      'Unlimited job tracking for a focused 2–3 month search cycle.',
-	      'One upfront payment, organized timelines, and smart Gmail filtering.'
-	    ],
+      priceMain: '$9.99',
+      priceTerm: '/ 3 months',
+      details: 'Unlimited tracking for 3 months',
+      priceHint: '≈ $3.33/month effective rate',
+      features: [],
+      summaryTitle: 'All Pro features included',
+      summaryLines: [
+        'Unlimited job tracking for a focused 2–3 month search cycle.',
+        'One upfront payment, organized timelines, and smart Gmail filtering.'
+      ],
     badgeText: 'Best for 2–3 month search',
     badgeVariant: 'commitment',
     iconVariant: 'jobsearch',
@@ -6563,11 +6576,11 @@ function openPricingModal() {
     trustItem.append(icon, textWrap);
     trustPanel.appendChild(trustItem);
   });
-	  const fairUseNote = document.createElement('p');
-	  fairUseNote.className = 'pricing-fair-use-note muted small';
-	  fairUseNote.textContent =
-	    'Unlimited tracking applies to job-related emails. Fair use and forwarding safeguards apply.';
-	  trustSection.append(trustPanel, fairUseNote);
+    const fairUseNote = document.createElement('p');
+    fairUseNote.className = 'pricing-fair-use-note muted small';
+    fairUseNote.textContent =
+      'Unlimited tracking applies to job-related emails. Fair use and forwarding safeguards apply.';
+    trustSection.append(trustPanel, fairUseNote);
   body.append(plansSection, trustSection);
 
   openModal({
@@ -6599,21 +6612,21 @@ async function refreshPlanUsage() {
       sessionUser.plan_bucket = data.tracked_email_month_bucket;
       sessionUser.plan_near_limit = data.near_limit;
       sessionUser.plan_at_limit = data.at_limit;
-	      sessionUser.plan_near_limit_threshold = data.near_limit_threshold;
-	      sessionUser.plan_near_limit_threshold_count = data.near_limit_threshold_count;
-	      sessionUser.plan_global_blocked = data.global_blocked;
-	      sessionUser.monthly_tracked_email_limit = data.monthly_tracked_email_limit;
-	      sessionUser.monthly_inbound_email_limit = data.monthly_inbound_email_limit;
-	      sessionUser.inbound_monthly_limit = data.monthly_inbound_email_limit;
-	      sessionUser.inbound_email_count_current_month = data.inbound_email_count_current_month;
-	      sessionUser.inbound_usage = data.inbound_email_count_current_month;
-	      sessionUser.inbound_email_relevant_count_current_month = data.inbound_email_relevant_count_current_month;
-	      sessionUser.inbound_relevant_count = data.inbound_email_relevant_count_current_month;
-	      sessionUser.forwarding_filter_status = data.forwarding_filter_status;
-	      sessionUser.forwarding_filter_status_level = data.forwarding_filter_status_level;
-	      sessionUser.forwarding_filter_status_label = data.forwarding_filter_status_label;
-	      sessionUser.forwarding_filter_status_detail = data.forwarding_filter_status_detail;
-	    }
+        sessionUser.plan_near_limit_threshold = data.near_limit_threshold;
+        sessionUser.plan_near_limit_threshold_count = data.near_limit_threshold_count;
+        sessionUser.plan_global_blocked = data.global_blocked;
+        sessionUser.monthly_tracked_email_limit = data.monthly_tracked_email_limit;
+        sessionUser.monthly_inbound_email_limit = data.monthly_inbound_email_limit;
+        sessionUser.inbound_monthly_limit = data.monthly_inbound_email_limit;
+        sessionUser.inbound_email_count_current_month = data.inbound_email_count_current_month;
+        sessionUser.inbound_usage = data.inbound_email_count_current_month;
+        sessionUser.inbound_email_relevant_count_current_month = data.inbound_email_relevant_count_current_month;
+        sessionUser.inbound_relevant_count = data.inbound_email_relevant_count_current_month;
+        sessionUser.forwarding_filter_status = data.forwarding_filter_status;
+        sessionUser.forwarding_filter_status_level = data.forwarding_filter_status_level;
+        sessionUser.forwarding_filter_status_label = data.forwarding_filter_status_label;
+        sessionUser.forwarding_filter_status_detail = data.forwarding_filter_status_detail;
+      }
     renderPlanUsage(sessionUser);
   } catch (err) {
     if (DEBUG_APP) {
@@ -7228,27 +7241,27 @@ const FORWARDING_FILTER_PRESETS = [
     summary: 'Full timeline coverage with broader ATS/job-platform matching.',
     description: 'Captures confirmations, interviews, offers, rejections, and common hiring-platform updates.',
     subjectTerms: [
-	      'application',
-	      'application update',
-	      'application submitted',
-	      'application received',
-	      'your application',
-	      'we received your application',
-	      'thank you for applying',
-	      'under review',
-	      'status update',
-	      'next steps',
-	      'interview',
-	      'assessment',
-	      'phone screen',
-	      'onsite',
-	      'final round',
-	      'offer',
-	      'hiring team',
-	      'recruiter',
-	      'rejection',
-	      'not selected',
-	      'declined'
+        'application',
+        'application update',
+        'application submitted',
+        'application received',
+        'your application',
+        'we received your application',
+        'thank you for applying',
+        'under review',
+        'status update',
+        'next steps',
+        'interview',
+        'assessment',
+        'phone screen',
+        'onsite',
+        'final round',
+        'offer',
+        'hiring team',
+        'recruiter',
+        'rejection',
+        'not selected',
+        'declined'
     ],
     includeProviders: true,
     negativeSubjectTerms: [
@@ -7259,10 +7272,10 @@ const FORWARDING_FILTER_PRESETS = [
       'recommended for you',
       'new jobs in',
       'based on your search',
-	      'daily job alert',
-	      'weekly job alert',
-	      'newsletter',
-	      'promotion'
+        'daily job alert',
+        'weekly job alert',
+        'newsletter',
+        'promotion'
     ]
   },
   {
@@ -7276,10 +7289,10 @@ const FORWARDING_FILTER_PRESETS = [
       'onsite',
       'final round',
       'assessment',
-	      'next steps',
-	      'status update',
-	      'offer',
-	      'rejection',
+        'next steps',
+        'status update',
+        'offer',
+        'rejection',
       'not selected',
       'declined'
     ],
@@ -8014,9 +8027,9 @@ function buildForwardingVerifyButton(setupContext) {
 
 function getInboundSetupPhaseConfig(phase, setupContext) {
   if (phase === 0) {
-	    return {
-	      title: 'Phase 1: Add your Applictus inbox to Gmail',
-	      description: 'Add your Applictus address so Gmail can forward matched job emails.',
+      return {
+        title: 'Phase 1: Add your Applictus inbox to Gmail',
+        description: 'Add your Applictus address so Gmail can forward matched job emails.',
       substeps: [
         {
           title: 'Open Gmail settings',
@@ -8074,12 +8087,12 @@ function getInboundSetupPhaseConfig(phase, setupContext) {
   }
 
   return {
-	    title: 'Phase 2: Filter job emails and verify setup',
-	    description: 'Create a Gmail filter so only job-related emails reach your Applictus timeline.',
-	    substeps: [
-	      {
-	        title: 'Confirm your Applictus forwarding address',
-	        description: 'After Gmail confirms your address, make sure your Applictus inbox is available for forwarding filters.',
+      title: 'Phase 2: Filter job emails and verify setup',
+      description: 'Create a Gmail filter so only job-related emails reach your Applictus timeline.',
+      substeps: [
+        {
+          title: 'Confirm your Applictus forwarding address',
+          description: 'After Gmail confirms your address, make sure your Applictus inbox is available for forwarding filters.',
         mediaFactory: () =>
           buildForwardingAnimatedTutorial({
             setupContext,
@@ -8100,32 +8113,32 @@ function getInboundSetupPhaseConfig(phase, setupContext) {
             ]
           }),
         appendExtras: (target) => {
-	          appendForwardingVerificationHelper(target);
-	        }
-	      },
-	      {
-	        title: 'Create a job-email filter',
-	        description: 'Use the suggested Gmail filter to forward only application, interview, offer, and rejection emails.',
-	        appendExtras: (target) => {
-	          target.appendChild(
-	            buildGmailFilterHelpContent({
-	              introText:
-	                'Core setup: forward only job-related emails. This keeps your timeline cleaner, improves tracking accuracy, and limits unrelated personal email.'
-	            })
-	          );
-	        }
-	      },
-	      {
-	        title: "You're all set",
-	        description: 'Send a quick test email or forward one recent job-related email, then click Verify setup.',
+            appendForwardingVerificationHelper(target);
+          }
+        },
+        {
+          title: 'Create a job-email filter',
+          description: 'Use the suggested Gmail filter to forward only application, interview, offer, and rejection emails.',
+          appendExtras: (target) => {
+            target.appendChild(
+              buildGmailFilterHelpContent({
+                introText:
+                  'Core setup: forward only job-related emails. This keeps your timeline cleaner, improves tracking accuracy, and limits unrelated personal email.'
+              })
+            );
+          }
+        },
+        {
+          title: "You're all set",
+          description: 'Send a quick test email or forward one recent job-related email, then click Verify setup.',
         appendActions: (actions) => {
           actions.append(buildForwardingVerifyButton(setupContext), buildForwardingSendTestButton(setupContext));
         },
         appendExtras: (target) => {
-	          const completionNote = document.createElement('p');
-	          completionNote.className = 'forwarding-finish-note muted small';
-	          completionNote.textContent =
-	            'Once Gmail confirms forwarding and your filter is in place, Applictus will start tracking job updates automatically.';
+            const completionNote = document.createElement('p');
+            completionNote.className = 'forwarding-finish-note muted small';
+            completionNote.textContent =
+              'Once Gmail confirms forwarding and your filter is in place, Applictus will start tracking job updates automatically.';
           target.appendChild(completionNote);
           if (setupContext?.verifyMessage) {
             const verifyMessage = document.createElement('p');
@@ -8362,16 +8375,16 @@ function openGmailFilterHelpModal() {
   const body = document.createElement('div');
   body.className = 'forwarding-filter-modal-body';
   body.appendChild(
-	    buildGmailFilterHelpContent({
-	      introText: 'Choose a preset, copy the query, then follow the Gmail steps below so only job-related emails forward to Applictus.'
-	    })
-	  );
+      buildGmailFilterHelpContent({
+        introText: 'Choose a preset, copy the query, then follow the Gmail steps below so only job-related emails forward to Applictus.'
+      })
+    );
   const footer = buildModalFooter({ confirmText: 'Done', cancelText: null });
   const doneButton = footer.querySelector('[data-role="confirm"]');
   doneButton?.addEventListener('click', () => closeModal('done'));
-	  openModal({
-	    title: 'Set up job-email filtering',
-	    description: 'Forward only job-related emails to keep your timeline clean, accurate, and privacy-conscious.',
+    openModal({
+      title: 'Set up job-email filtering',
+      description: 'Forward only job-related emails to keep your timeline clean, accurate, and privacy-conscious.',
     body,
     footer,
     allowBackdropClose: true,
@@ -8385,13 +8398,13 @@ function buildInboundSetupSecondaryHelp() {
 
   const heading = document.createElement('div');
   heading.className = 'forwarding-secondary-help-heading muted small';
-	  heading.textContent = 'Additional help';
+    heading.textContent = 'Additional help';
   secondary.appendChild(heading);
 
-	  const filterPanel = createForwardingCollapsible({
-	    title: 'Smart Gmail filter for job emails',
-	    open: false
-	  });
+    const filterPanel = createForwardingCollapsible({
+      title: 'Smart Gmail filter for job emails',
+      open: false
+    });
   filterPanel.body.appendChild(buildGmailFilterHelpContent());
   secondary.appendChild(filterPanel.details);
 
@@ -11561,6 +11574,7 @@ googleAuth?.addEventListener('click', () => {
 accountUpgradeButton?.addEventListener('click', openPricingModal);
 accountPlanDetails?.addEventListener('click', openPricingModal);
 accountPlanReduceUsage?.addEventListener('click', openGmailFilterHelpModal);
+accountPlanFilterStatusAction?.addEventListener('click', openGmailFilterHelpModal);
 dashboardPlanWarningCta?.addEventListener('click', openPricingModal);
 
 function getCurrentBillingSnapshot() {
