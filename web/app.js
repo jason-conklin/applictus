@@ -621,6 +621,7 @@ const contactError = document.getElementById('contact-error');
 const contactSuccess = document.getElementById('contact-success');
 const accountPlanName = document.getElementById('account-plan-name');
 const accountPlanUsage = document.getElementById('account-plan-usage');
+const accountPlanUsagePeriod = document.getElementById('account-plan-usage-period');
 const accountPlanProgress = document.getElementById('account-plan-progress');
 const accountPlanMarker = document.getElementById('account-plan-marker');
 const accountPlanPercent = document.getElementById('account-plan-percent');
@@ -5211,6 +5212,68 @@ function getPlanLimitForUser(user = sessionUser) {
   return PLAN_LIMITS[tier] || PLAN_LIMITS.free;
 }
 
+function parseMonthBucketRange(bucket) {
+  const text = String(bucket || '').trim();
+  const match = /^(\d{4})-(\d{2})$/.exec(text);
+  if (!match) {
+    return null;
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+    return null;
+  }
+  return {
+    start: new Date(year, month - 1, 1),
+    end: new Date(year, month, 0)
+  };
+}
+
+function formatUsagePeriodRange(startDate, endDate) {
+  if (!(startDate instanceof Date) || Number.isNaN(startDate.getTime())) {
+    return '—';
+  }
+  if (!(endDate instanceof Date) || Number.isNaN(endDate.getTime())) {
+    return '—';
+  }
+  const nowYear = new Date().getFullYear();
+  const sameYear = startDate.getFullYear() === endDate.getFullYear();
+  const showYear =
+    !sameYear || startDate.getFullYear() !== nowYear || endDate.getFullYear() !== nowYear;
+  const dateFormat = showYear
+    ? { month: 'short', day: 'numeric', year: 'numeric' }
+    : { month: 'short', day: 'numeric' };
+  return `${startDate.toLocaleDateString(undefined, dateFormat)} – ${endDate.toLocaleDateString(undefined, dateFormat)}`;
+}
+
+function resolvePlanUsagePeriodLabel(source = planState || sessionUser) {
+  const explicitStart = parseDate(
+    source?.current_period_start || source?.plan_period_start || source?.usage_period_start || null
+  );
+  const explicitEnd = parseDate(
+    source?.current_period_end || source?.plan_period_end || source?.usage_period_end || null
+  );
+  if (explicitStart && explicitEnd && explicitEnd.getTime() >= explicitStart.getTime()) {
+    return formatUsagePeriodRange(explicitStart, explicitEnd);
+  }
+
+  const bucketRange = parseMonthBucketRange(
+    source?.tracked_email_month_bucket ||
+      source?.plan_bucket ||
+      source?.bucket ||
+      source?.inbound_email_month_bucket ||
+      source?.inbound_bucket
+  );
+  if (bucketRange) {
+    return formatUsagePeriodRange(bucketRange.start, bucketRange.end);
+  }
+
+  const now = new Date();
+  const fallbackStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const fallbackEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return formatUsagePeriodRange(fallbackStart, fallbackEnd);
+}
+
 function renderPlanProgressMarker(usage = 0, limit = 0) {
   if (!accountPlanMarker || !accountPlanPercent) {
     return;
@@ -5431,6 +5494,9 @@ function renderPlanUsage(user = sessionUser) {
   if (!user) {
     renderAccountPlanName('Free', 'free');
     closePlanUsageInfoTooltip();
+    if (accountPlanUsagePeriod) {
+      accountPlanUsagePeriod.textContent = resolvePlanUsagePeriodLabel();
+    }
     accountPlanUsage.textContent = '—';
     accountPlanProgress.style.width = '0%';
     renderPlanProgressMarker(0, PLAN_LIMITS.free);
@@ -5453,6 +5519,9 @@ function renderPlanUsage(user = sessionUser) {
     return;
   }
   const source = planState || user;
+  if (accountPlanUsagePeriod) {
+    accountPlanUsagePeriod.textContent = resolvePlanUsagePeriodLabel(source);
+  }
   const tier = planUsage?.tier || String(source.plan_tier || 'free').toLowerCase();
   const billingPlan = String(source.billing_plan || '').toLowerCase();
   const billingType = String(source.billing_type || '').toLowerCase();
