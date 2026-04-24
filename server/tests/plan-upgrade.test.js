@@ -53,7 +53,7 @@ function setupDb() {
   return db;
 }
 
-test('upgrade free -> pro sets limit and status', (t) => {
+test('upgrade free -> pro sets unlimited paid limits and status', (t) => {
   const db = setupDb();
   if (!db) {
     t.skip('better-sqlite3 native module unavailable in this environment');
@@ -63,9 +63,9 @@ test('upgrade free -> pro sets limit and status', (t) => {
   updateUserPlan(db, { userId: 'u1', tier: 'pro', status: 'active' });
   const plan = getUserPlan(db, 'u1');
   assert.equal(plan.tier, 'pro');
-  assert.equal(plan.status, 'active');
-  assert.equal(plan.limit, resolvePlanLimit('pro', null));
-  assert.equal(plan.inbound_limit, 1000);
+	  assert.equal(plan.status, 'active');
+	  assert.equal(plan.limit, resolvePlanLimit('pro', null));
+	  assert.equal(plan.inbound_limit, null);
 });
 
 test('dev-set plan to pro via helper', (t) => {

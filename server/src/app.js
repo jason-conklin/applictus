@@ -68,6 +68,8 @@ const {
   ensurePlanState,
   resolvePlanLimit,
   resolveInboundLimit,
+  resolveForwardingFairUseStatus,
+  resolveForwardingFairUseThresholds,
   applyInboundEmailReceiptUsage,
   applyInboundOutcomeUsage,
   currentMonthBucket
@@ -1158,6 +1160,14 @@ function toSessionUserPayload(user) {
     return null;
   }
   const inboxMode = resolveInboxModeForUser(user);
+  const forwardingFairUse = resolveForwardingFairUseStatus({
+    planTier: user.plan_tier || 'free',
+    billingPlan: user.billing_plan || null,
+    inboundUsage: user.inbound_email_count_current_month || 0,
+    inboundRelevant: user.inbound_email_relevant_count_current_month || 0,
+    inboundDroppedIrrelevant: user.inbound_email_dropped_irrelevant_count_current_month || 0,
+    inboundDroppedOverCap: user.inbound_email_dropped_over_cap_count_current_month || 0
+  });
   return {
     id: user.id,
     email: user.email,
@@ -1185,7 +1195,12 @@ function toSessionUserPayload(user) {
     inbound_relevant_count: Number(user.inbound_email_relevant_count_current_month || 0),
     inbound_dropped_count: Number(user.inbound_email_dropped_count_current_month || 0),
     inbound_dropped_irrelevant_count: Number(user.inbound_email_dropped_irrelevant_count_current_month || 0),
-    inbound_dropped_over_cap_count: Number(user.inbound_email_dropped_over_cap_count_current_month || 0)
+    inbound_dropped_over_cap_count: Number(user.inbound_email_dropped_over_cap_count_current_month || 0),
+    forwarding_filter_status: forwardingFairUse.status,
+    forwarding_filter_status_level: forwardingFairUse.level,
+    forwarding_filter_status_label: forwardingFairUse.label,
+    forwarding_filter_status_detail: forwardingFairUse.detail,
+    forwarding_relevance_rate: forwardingFairUse.relevanceRate
   };
 }
 
@@ -2793,6 +2808,14 @@ app.post('/api/inbound/postmark', async (req, res) => {
     const rawInboundLimitCount = Number(rawInboundCap?.limit || 0);
     const rawInboundSoftThreshold = rawInboundLimitCount > 0 ? Math.ceil(rawInboundLimitCount * 0.7) : 0;
     const rawInboundStrongThreshold = rawInboundLimitCount > 0 ? Math.ceil(rawInboundLimitCount * 0.9) : 0;
+    const forwardingFairUse = resolveForwardingFairUseStatus({
+      planTier: rawInboundUsage?.plan?.planTier || 'free',
+      billingPlan: rawInboundUsage?.plan?.billingPlan || null,
+      inboundUsage: rawInboundUsageCount,
+      inboundRelevant: rawInboundUsage?.plan?.inboundRelevant || 0,
+      inboundDroppedIrrelevant: rawInboundUsage?.plan?.inboundDroppedIrrelevant || 0,
+      inboundDroppedOverCap: rawInboundUsage?.plan?.inboundDroppedOverCap || 0
+    });
 
     if (!rawInboundOverCap && rawInboundLimitCount > 0) {
       if (rawInboundUsageCount === rawInboundSoftThreshold) {
@@ -2812,18 +2835,21 @@ app.post('/api/inbound/postmark', async (req, res) => {
       }
     }
 
-    if (rawInboundUsageCount >= 100 && rawInboundUsageCount % 100 === 0) {
-      const relevant = Number(rawInboundUsage?.plan?.inboundRelevant || 0);
-      const relevanceRatio = rawInboundUsageCount > 0 ? relevant / rawInboundUsageCount : 0;
-      if (Number.isFinite(relevanceRatio) && relevanceRatio < 0.2) {
-        logWarn('inbound.anomaly.low_relevance_ratio', {
-          provider,
-          userId: mappedAddress.user_id,
-          inbound_usage: rawInboundUsageCount,
-          inbound_relevant: relevant,
-          relevance_ratio: Number(relevanceRatio.toFixed(4))
-        });
-      }
+    if (
+      !rawInboundOverCap &&
+      forwardingFairUse.status !== 'healthy' &&
+      rawInboundUsageCount >= 100 &&
+      rawInboundUsageCount % 100 === 0
+    ) {
+      logWarn('inbound.forwarding_filter.review_recommended', {
+        provider,
+        userId: mappedAddress.user_id,
+        status: forwardingFairUse.status,
+        reason: forwardingFairUse.reason,
+        inbound_usage: rawInboundUsageCount,
+        inbound_relevant: Number(rawInboundUsage?.plan?.inboundRelevant || 0),
+        relevance_rate: forwardingFairUse.relevanceRate
+      });
     }
 
     if (rawInboundOverCap) {
@@ -3621,28 +3647,64 @@ app.get('/api/account/plan', requireAuth, async (req, res) => {
         .get(planState.bucket);
       globalUsage = Number(row?.total || 0);
     }
-    const limit = planState.limit || resolvePlanLimit(planState.planTier, null, planState.billingPlan);
+    const limit = planState.limit == null
+      ? resolvePlanLimit(planState.planTier, null, planState.billingPlan)
+      : planState.limit;
     const usage = planState.usage || 0;
     const subscriptionStatus =
       normalizeSubscriptionStatus(userRow.subscription_status) ||
       (String(planState.billingType || '').toLowerCase() === BILLING_TYPES.SUBSCRIPTION ? 'active' : null);
     const currentPeriodEnd = userRow.current_period_end || null;
     const cancelAtPeriodEnd = normalizeDbBool(userRow.cancel_at_period_end);
-    const inboundLimit = planState.inboundLimit || resolveInboundLimit(planState.planTier, null, planState.billingPlan);
+    const inboundLimit = planState.inboundLimit == null
+      ? resolveInboundLimit(planState.planTier, null, planState.billingPlan)
+      : planState.inboundLimit;
     const inboundUsage = Number(planState.inboundUsage || 0);
     const inboundRelevant = Number(planState.inboundRelevant || 0);
     const inboundDropped = Number(planState.inboundDropped || 0);
     const inboundDroppedIrrelevant = Number(planState.inboundDroppedIrrelevant || 0);
     const inboundDroppedOverCap = Number(planState.inboundDroppedOverCap || 0);
-    const inboundWarningSoftThreshold = inboundLimit > 0 ? Math.ceil(inboundLimit * 0.7) : 0;
-    const inboundWarningStrongThreshold = inboundLimit > 0 ? Math.ceil(inboundLimit * 0.9) : 0;
+    const fairUseThresholds = resolveForwardingFairUseThresholds();
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const dailyInboundRow = await dbGet(
+      `SELECT COUNT(*) AS count
+         FROM inbound_messages
+        WHERE user_id = ?
+          AND received_at >= ?`,
+      req.user.id,
+      todayStart.toISOString()
+    );
+    const dailyInboundUsage = Number(dailyInboundRow?.count || 0);
+    const forwardingFairUse = resolveForwardingFairUseStatus({
+      planTier: planState.planTier,
+      billingPlan: planState.billingPlan,
+      inboundUsage,
+      inboundRelevant,
+      inboundDroppedIrrelevant,
+      inboundDroppedOverCap,
+      dailyInboundUsage,
+      thresholds: fairUseThresholds
+    });
+    const inboundWarningSoftThreshold = isFreeTier
+      ? inboundLimit > 0
+        ? Math.ceil(inboundLimit * 0.7)
+        : 0
+      : fairUseThresholds.paidWarningThreshold;
+    const inboundWarningStrongThreshold = isFreeTier
+      ? inboundLimit > 0
+        ? Math.ceil(inboundLimit * 0.9)
+        : 0
+      : fairUseThresholds.paidReviewThreshold;
     const inboundUsageRatio = inboundLimit > 0 ? inboundUsage / inboundLimit : 0;
     const inboundWarningLevel =
-      inboundLimit > 0 && inboundUsage >= inboundWarningStrongThreshold
-        ? 'strong'
-        : inboundLimit > 0 && inboundUsage >= inboundWarningSoftThreshold
-          ? 'soft'
-          : 'none';
+      isFreeTier
+        ? inboundLimit > 0 && inboundUsage >= inboundWarningStrongThreshold
+          ? 'strong'
+          : inboundLimit > 0 && inboundUsage >= inboundWarningSoftThreshold
+            ? 'soft'
+            : 'none'
+        : forwardingFairUse.level;
     const nearLimitThresholdCount = limit > 0 ? Math.ceil(limit * PLAN_NEAR_LIMIT_THRESHOLD) : 0;
     const nearLimit = isFreeTier && limit > 0 ? usage >= nearLimitThresholdCount && usage < limit : false;
     const atLimit = isFreeTier && limit > 0 ? usage >= limit : false;
@@ -3678,6 +3740,14 @@ app.get('/api/account/plan', requireAuth, async (req, res) => {
       inbound_warning_soft_threshold: inboundWarningSoftThreshold,
       inbound_warning_strong_threshold: inboundWarningStrongThreshold,
       inbound_usage_ratio: Number.isFinite(inboundUsageRatio) ? Number(inboundUsageRatio.toFixed(4)) : 0,
+      forwarding_filter_status: forwardingFairUse.status,
+      forwarding_filter_status_level: forwardingFairUse.level,
+      forwarding_filter_status_label: forwardingFairUse.label,
+      forwarding_filter_status_detail: forwardingFairUse.detail,
+      forwarding_filter_status_reason: forwardingFairUse.reason,
+      forwarding_relevance_rate: forwardingFairUse.relevanceRate,
+      forwarding_daily_count: dailyInboundUsage,
+      forwarding_fair_use_thresholds: forwardingFairUse.thresholds,
       raw_inbound_over_cap: rawInboundOverCap,
       near_limit: nearLimit,
       at_limit: atLimit,

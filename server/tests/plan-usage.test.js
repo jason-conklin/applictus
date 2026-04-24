@@ -4,10 +4,12 @@ const assert = require('node:assert/strict');
 const {
   applyTrackedEmailUsage,
   applyInboundEmailReceiptUsage,
-  applyInboundOutcomeUsage,
-  currentMonthBucket,
-  resolveInboundLimit
-} = require('../src/planUsage');
+	  applyInboundOutcomeUsage,
+	  currentMonthBucket,
+	  resolveInboundLimit,
+	  resolvePlanLimit,
+	  resolveForwardingFairUseStatus
+	} = require('../src/planUsage');
 
 function createMockDb(initialUsers = []) {
   const users = new Map();
@@ -191,8 +193,8 @@ function createMockDb(initialUsers = []) {
             normalized.includes('updated_at = ?') &&
             normalized.includes('where id = ?')
           ) {
-            const trackedLimit = Number(args[0] || 0);
-            const inboundLimit = Number(args[1] || 0);
+	            const trackedLimit = args[0] ?? null;
+	            const inboundLimit = args[1] ?? null;
             const userId = args[3];
             const row = users.get(userId);
             if (!row) throw new Error('USER_NOT_FOUND');
@@ -250,24 +252,52 @@ test('free user at limit is blocked', () => {
   assert.equal(res.reason, 'user_cap_reached');
 });
 
-test('pro user under limit allowed', () => {
+test('paid tracked-update limits resolve as unlimited', () => {
+  assert.equal(resolvePlanLimit('pro', null, 'pro_monthly'), null);
+  assert.equal(resolvePlanLimit('pro', null, 'job_search_plan'), null);
+  assert.equal(resolvePlanLimit('free', null, 'free'), 50);
+});
+
+test('pro user is not blocked at the former 500 tracked-update limit', () => {
   const db = createMockDb([{
     id: 'u1',
     plan_tier: 'pro',
-    tracked_email_count_current_month: 499,
+    billing_plan: 'pro_monthly',
+    billing_type: 'subscription',
+    tracked_email_count_current_month: 500,
     tracked_email_month_bucket: currentMonthBucket()
   }]);
   const res = applyTrackedEmailUsage(db, { userId: 'u1', isJobRelated: true, newEvent: true });
   assert.equal(res.allowed, true);
   assert.equal(res.counted, true);
+  assert.equal(res.plan.limit, null);
+  assert.equal(db._dump()[0].tracked_email_count_current_month, 501);
+});
+
+test('job search plan user is not blocked at the former 500 tracked-update limit', () => {
+  const db = createMockDb([{
+    id: 'u1',
+    plan_tier: 'pro',
+    billing_plan: 'job_search_plan',
+    billing_type: 'one_time',
+    plan_expires_at: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
+    tracked_email_count_current_month: 500,
+    tracked_email_month_bucket: currentMonthBucket()
+  }]);
+  const res = applyTrackedEmailUsage(db, { userId: 'u1', isJobRelated: true, newEvent: true });
+  assert.equal(res.allowed, true);
+  assert.equal(res.counted, true);
+  assert.equal(res.plan.limit, null);
+  assert.equal(db._dump()[0].tracked_email_count_current_month, 501);
 });
 
 test('ignored email does not count', () => {
   const db = createMockDb([{ id: 'u1', plan_tier: 'free' }]);
-  const res = applyTrackedEmailUsage(db, { userId: 'u1', isJobRelated: false, newEvent: true });
-  assert.equal(res.allowed, true);
-  assert.equal(res.counted, false);
-});
+	  const res = applyTrackedEmailUsage(db, { userId: 'u1', isJobRelated: false, newEvent: true });
+	  assert.equal(res.allowed, true);
+	  assert.equal(res.counted, false);
+	  assert.equal(db._dump()[0].tracked_email_count_current_month, 0);
+	});
 
 test('duplicate event does not count', () => {
   const db = createMockDb([{ id: 'u1', plan_tier: 'free', tracked_email_count_current_month: 2 }]);
@@ -308,7 +338,7 @@ test('global cap blocks free but not pro', () => {
   delete process.env.GLOBAL_TRACKED_EMAIL_CAP;
 });
 
-test('async db plan usage keeps pro users as pro and applies pro limit', async () => {
+test('async db plan usage keeps pro users as pro and applies unlimited tracked limit', async () => {
   const db = createAsyncMockDb([
     {
       id: 'u1',
@@ -322,12 +352,12 @@ test('async db plan usage keeps pro users as pro and applies pro limit', async (
     }
   ]);
   const res = await applyTrackedEmailUsage(db, { userId: 'u1', isJobRelated: true, newEvent: true });
-  assert.equal(res.allowed, true);
-  assert.equal(res.counted, true);
-  assert.equal(res.plan.planTier, 'pro');
-  assert.equal(res.plan.limit, 500);
-  assert.equal(db._dump()[0].tracked_email_count_current_month, 1);
-});
+	  assert.equal(res.allowed, true);
+	  assert.equal(res.counted, true);
+	  assert.equal(res.plan.planTier, 'pro');
+	  assert.equal(res.plan.limit, null);
+	  assert.equal(db._dump()[0].tracked_email_count_current_month, 1);
+	});
 
 test('raw inbound counting and tracked usage stay separate', () => {
   const bucket = currentMonthBucket();
@@ -395,7 +425,7 @@ test('raw inbound cap blocks only when usage exceeds configured cap', () => {
   }
 });
 
-test('pro inbound cap enforces paid forwarding limit', () => {
+test('paid raw inbound is counted without a hard monthly cap', () => {
   const bucket = currentMonthBucket();
   const paidInboundLimit = resolveInboundLimit('pro', null, 'pro_monthly');
   const db = createMockDb([
@@ -405,20 +435,56 @@ test('pro inbound cap enforces paid forwarding limit', () => {
       billing_plan: 'pro_monthly',
       billing_type: 'subscription',
       monthly_inbound_email_limit: paidInboundLimit,
-      inbound_email_count_current_month: paidInboundLimit - 1,
+      inbound_email_count_current_month: 1000,
       inbound_email_month_bucket: bucket,
       tracked_email_count_current_month: 0,
       tracked_email_month_bucket: bucket
     }
   ]);
 
-  const atLimit = applyInboundEmailReceiptUsage(db, { userId: 'u1', countable: true });
-  assert.equal(atLimit.cap.usage, paidInboundLimit);
-  assert.equal(atLimit.cap.overCap, false);
+  assert.equal(paidInboundLimit, null);
+  const receipt = applyInboundEmailReceiptUsage(db, { userId: 'u1', countable: true });
+  assert.equal(receipt.cap.usage, 1001);
+  assert.equal(receipt.cap.limit, 0);
+  assert.equal(receipt.cap.overCap, false);
+});
 
-  const overLimit = applyInboundEmailReceiptUsage(db, { userId: 'u1', countable: true });
-  assert.equal(overLimit.cap.usage, paidInboundLimit + 1);
-  assert.equal(overLimit.cap.overCap, true);
+test('high raw forwarded volume triggers paid forwarding warning', () => {
+  const status = resolveForwardingFairUseStatus({
+    planTier: 'pro',
+    billingPlan: 'pro_monthly',
+    inboundUsage: 2000,
+    inboundRelevant: 1700,
+    thresholds: {
+      paidWarningThreshold: 1000,
+      paidReviewThreshold: 2000,
+      paidDailySpikeThreshold: 250,
+      paidPauseThreshold: 5000,
+      lowRelevanceMinVolume: 100,
+      minRelevanceRate: 0.2
+    }
+  });
+  assert.equal(status.status, 'high_forwarding_volume');
+  assert.equal(status.level, 'strong');
+});
+
+test('low relevance rate triggers paid filter-review warning', () => {
+  const status = resolveForwardingFairUseStatus({
+    planTier: 'pro',
+    billingPlan: 'pro_monthly',
+    inboundUsage: 150,
+    inboundRelevant: 10,
+    thresholds: {
+      paidWarningThreshold: 1000,
+      paidReviewThreshold: 2000,
+      paidDailySpikeThreshold: 250,
+      paidPauseThreshold: 5000,
+      lowRelevanceMinVolume: 100,
+      minRelevanceRate: 0.2
+    }
+  });
+  assert.equal(status.status, 'filter_review_recommended');
+  assert.equal(status.reason, 'low_relevance_rate');
 });
 
 test('inbound month rollover resets inbound counters before counting', () => {

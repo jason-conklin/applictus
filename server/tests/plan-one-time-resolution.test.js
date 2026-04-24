@@ -67,20 +67,20 @@ test('ensurePlanState treats active one-time job search plan as Pro', (t) => {
   ).run(userId, 'active@example.com', now, now, 'free', 'active', 'job_search_plan', 'one_time', future, 50);
 
   const plan = ensurePlanState(db, userId);
-  assert.equal(plan.planTier, 'pro');
-  assert.equal(plan.planStatus, 'active');
-  assert.equal(plan.limit, resolvePlanLimit('pro', null));
-  assert.equal(plan.inboundLimit, 1000);
+	  assert.equal(plan.planTier, 'pro');
+	  assert.equal(plan.planStatus, 'active');
+	  assert.equal(plan.limit, resolvePlanLimit('pro', null));
+	  assert.equal(plan.inboundLimit, null);
   assert.equal(plan.billingType, 'one_time');
   assert.equal(plan.billingPlan, 'job_search_plan');
 
   const row = db
     .prepare('SELECT plan_tier, plan_status, monthly_tracked_email_limit, monthly_inbound_email_limit FROM users WHERE id = ?')
     .get(userId);
-  assert.equal(String(row.plan_tier || '').toLowerCase(), 'pro');
-  assert.equal(String(row.plan_status || '').toLowerCase(), 'active');
-  assert.equal(Number(row.monthly_tracked_email_limit || 0), resolvePlanLimit('pro', null));
-  assert.equal(Number(row.monthly_inbound_email_limit || 0), 1000);
+	  assert.equal(String(row.plan_tier || '').toLowerCase(), 'pro');
+	  assert.equal(String(row.plan_status || '').toLowerCase(), 'active');
+	  assert.equal(row.monthly_tracked_email_limit, null);
+	  assert.equal(row.monthly_inbound_email_limit, null);
 });
 
 test('ensurePlanState downgrades expired one-time plan back to Free', (t) => {

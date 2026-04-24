@@ -11,18 +11,14 @@ const PLAN_CONFIGS = Object.freeze({
     inboundEnvKeys: Object.freeze(['JOBTRACK_FREE_MONTHLY_INBOUND_LIMIT'])
   }),
   [BILLING_OPTIONS.PRO_MONTHLY]: Object.freeze({
-    tracked: 500,
-    inboundDefault: 1000,
-    inboundEnvKeys: Object.freeze(['JOBTRACK_PRO_MONTHLY_INBOUND_LIMIT', 'JOBTRACK_PAID_MONTHLY_INBOUND_LIMIT'])
+    tracked: null,
+    inboundDefault: null,
+    inboundEnvKeys: Object.freeze([])
   }),
   [BILLING_OPTIONS.JOB_SEARCH_PLAN]: Object.freeze({
-    tracked: 500,
-    inboundDefault: 1000,
-    inboundEnvKeys: Object.freeze([
-      'JOBTRACK_JOB_SEARCH_MONTHLY_INBOUND_LIMIT',
-      'JOBTRACK_PRO_MONTHLY_INBOUND_LIMIT',
-      'JOBTRACK_PAID_MONTHLY_INBOUND_LIMIT'
-    ])
+    tracked: null,
+    inboundDefault: null,
+    inboundEnvKeys: Object.freeze([])
   })
 });
 
@@ -34,6 +30,22 @@ const PLAN_LIMITS = Object.freeze({
 const INBOUND_PLAN_LIMITS = Object.freeze({
   free: PLAN_CONFIGS[BILLING_OPTIONS.FREE].inboundDefault,
   pro: PLAN_CONFIGS[BILLING_OPTIONS.PRO_MONTHLY].inboundDefault
+});
+
+const FORWARDING_FILTER_STATUSES = Object.freeze({
+  HEALTHY: 'healthy',
+  FILTER_REVIEW_RECOMMENDED: 'filter_review_recommended',
+  HIGH_FORWARDING_VOLUME: 'high_forwarding_volume',
+  INGESTION_PAUSED_OR_LIMITED: 'ingestion_paused_or_limited'
+});
+
+const FORWARDING_FAIR_USE_DEFAULTS = Object.freeze({
+  paidWarningThreshold: 1000,
+  paidReviewThreshold: 2000,
+  paidDailySpikeThreshold: 250,
+  paidPauseThreshold: 5000,
+  lowRelevanceMinVolume: 100,
+  minRelevanceRate: 0.2
 });
 
 const BILLING_TYPES = Object.freeze({
@@ -91,12 +103,186 @@ function resolveConfiguredInboundLimit(planKey) {
 function resolvePlanLimit(tier, _explicitLimit = null, billingPlan = null) {
   const planKey = resolvePlanKey(tier, billingPlan);
   const config = PLAN_CONFIGS[planKey] || PLAN_CONFIGS[BILLING_OPTIONS.FREE];
-  return Number(config.tracked || PLAN_LIMITS.free);
+  if (config.tracked == null) {
+    return null;
+  }
+  return Number(config.tracked);
 }
 
 function resolveInboundLimit(tier, _explicitLimit = null, billingPlan = null) {
   const planKey = resolvePlanKey(tier, billingPlan);
   return resolveConfiguredInboundLimit(planKey);
+}
+
+function readPositiveIntegerEnv(keys, fallback) {
+  const envKeys = Array.isArray(keys) ? keys : [keys];
+  for (const key of envKeys) {
+    const parsed = Number(process.env[key] || '');
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return Math.max(1, Math.floor(parsed));
+    }
+  }
+  return fallback;
+}
+
+function readRatioEnv(keys, fallback) {
+  const envKeys = Array.isArray(keys) ? keys : [keys];
+  for (const key of envKeys) {
+    const parsed = Number(process.env[key] || '');
+    if (Number.isFinite(parsed) && parsed > 0 && parsed < 1) {
+      return parsed;
+    }
+  }
+  return fallback;
+}
+
+function resolveForwardingFairUseThresholds() {
+  return {
+    paidWarningThreshold: readPositiveIntegerEnv(
+      ['JOBTRACK_PAID_FORWARDING_WARNING_THRESHOLD', 'JOBTRACK_PAID_FORWARDING_SOFT_THRESHOLD'],
+      FORWARDING_FAIR_USE_DEFAULTS.paidWarningThreshold
+    ),
+    paidReviewThreshold: readPositiveIntegerEnv(
+      ['JOBTRACK_PAID_FORWARDING_REVIEW_THRESHOLD', 'JOBTRACK_PAID_FORWARDING_STRONG_THRESHOLD'],
+      FORWARDING_FAIR_USE_DEFAULTS.paidReviewThreshold
+    ),
+    paidDailySpikeThreshold: readPositiveIntegerEnv(
+      'JOBTRACK_PAID_FORWARDING_DAILY_SPIKE_THRESHOLD',
+      FORWARDING_FAIR_USE_DEFAULTS.paidDailySpikeThreshold
+    ),
+    paidPauseThreshold: readPositiveIntegerEnv(
+      'JOBTRACK_PAID_FORWARDING_PAUSE_THRESHOLD',
+      FORWARDING_FAIR_USE_DEFAULTS.paidPauseThreshold
+    ),
+    lowRelevanceMinVolume: readPositiveIntegerEnv(
+      'JOBTRACK_PAID_FORWARDING_LOW_RELEVANCE_MIN_VOLUME',
+      FORWARDING_FAIR_USE_DEFAULTS.lowRelevanceMinVolume
+    ),
+    minRelevanceRate: readRatioEnv(
+      'JOBTRACK_PAID_FORWARDING_MIN_RELEVANCE_RATE',
+      FORWARDING_FAIR_USE_DEFAULTS.minRelevanceRate
+    )
+  };
+}
+
+function isPaidPlan({ planTier, billingPlan } = {}) {
+  const planKey = resolvePlanKey(planTier, billingPlan);
+  return planKey === BILLING_OPTIONS.PRO_MONTHLY || planKey === BILLING_OPTIONS.JOB_SEARCH_PLAN;
+}
+
+function formatRelevanceRate(value) {
+  return Number.isFinite(value) ? Number(value.toFixed(4)) : null;
+}
+
+function resolveForwardingFairUseStatus({
+  planTier = 'free',
+  billingPlan = null,
+  inboundUsage = 0,
+  inboundRelevant = 0,
+  inboundDroppedIrrelevant = 0,
+  inboundDroppedOverCap = 0,
+  dailyInboundUsage = 0,
+  thresholds = resolveForwardingFairUseThresholds()
+} = {}) {
+  const usage = Math.max(0, Math.floor(Number(inboundUsage || 0)));
+  const relevant = Math.max(0, Math.floor(Number(inboundRelevant || 0)));
+  const droppedIrrelevant = Math.max(0, Math.floor(Number(inboundDroppedIrrelevant || 0)));
+  const droppedOverCap = Math.max(0, Math.floor(Number(inboundDroppedOverCap || 0)));
+  const dailyUsage = Math.max(0, Math.floor(Number(dailyInboundUsage || 0)));
+  const relevanceRate = usage > 0 ? relevant / usage : 1;
+  const paid = isPaidPlan({ planTier, billingPlan });
+
+  if (!paid) {
+    return {
+      status: FORWARDING_FILTER_STATUSES.HEALTHY,
+      level: 'none',
+      label: 'Smart filter healthy',
+      detail: 'Forwarding volume is normal.',
+      reason: 'free_quota_managed',
+      thresholds,
+      relevanceRate: formatRelevanceRate(relevanceRate)
+    };
+  }
+
+  if (droppedOverCap > 0) {
+    return {
+      status: FORWARDING_FILTER_STATUSES.INGESTION_PAUSED_OR_LIMITED,
+      level: 'strong',
+      label: 'Forwarding limited',
+      detail: 'Forwarding volume is unusually high. Review your Gmail filter before sending more emails.',
+      reason: 'over_cap_drop_detected',
+      thresholds,
+      relevanceRate: formatRelevanceRate(relevanceRate)
+    };
+  }
+
+  if (
+    usage >= thresholds.paidReviewThreshold ||
+    usage >= thresholds.paidPauseThreshold ||
+    dailyUsage >= thresholds.paidDailySpikeThreshold
+  ) {
+    return {
+      status: FORWARDING_FILTER_STATUSES.HIGH_FORWARDING_VOLUME,
+      level: 'strong',
+      label: 'High forwarding volume',
+      detail: 'Forwarding volume is high. Tighten your Gmail filter so only job-related emails are forwarded.',
+      reason:
+        usage >= thresholds.paidPauseThreshold
+          ? 'monthly_volume_severe'
+          : usage >= thresholds.paidReviewThreshold
+            ? 'monthly_volume_high'
+            : 'daily_spike',
+      thresholds,
+      relevanceRate: formatRelevanceRate(relevanceRate)
+    };
+  }
+
+  if (
+    usage >= thresholds.lowRelevanceMinVolume &&
+    Number.isFinite(relevanceRate) &&
+    relevanceRate < thresholds.minRelevanceRate
+  ) {
+    return {
+      status: FORWARDING_FILTER_STATUSES.FILTER_REVIEW_RECOMMENDED,
+      level: 'soft',
+      label: 'Filter review recommended',
+      detail: 'Most forwarded emails are not job updates. Review your Gmail filter to keep your timeline cleaner.',
+      reason: 'low_relevance_rate',
+      thresholds,
+      relevanceRate: formatRelevanceRate(relevanceRate)
+    };
+  }
+
+  if (usage >= thresholds.paidWarningThreshold || droppedIrrelevant >= thresholds.lowRelevanceMinVolume) {
+    return {
+      status: FORWARDING_FILTER_STATUSES.FILTER_REVIEW_RECOMMENDED,
+      level: 'soft',
+      label: 'Filter review recommended',
+      detail: 'Forwarding volume is rising. A focused Gmail filter keeps tracking accurate and private.',
+      reason: usage >= thresholds.paidWarningThreshold ? 'monthly_volume_warning' : 'irrelevant_volume_warning',
+      thresholds,
+      relevanceRate: formatRelevanceRate(relevanceRate)
+    };
+  }
+
+  return {
+    status: FORWARDING_FILTER_STATUSES.HEALTHY,
+    level: 'none',
+    label: 'Smart filter healthy',
+    detail: 'Forwarding looks focused on job-related emails.',
+    reason: 'healthy',
+    thresholds,
+    relevanceRate: formatRelevanceRate(relevanceRate)
+  };
+}
+
+function planLimitsEqual(left, right) {
+  const normalizedLeft = left == null ? null : Number(left);
+  const normalizedRight = right == null ? null : Number(right);
+  if (normalizedLeft == null || normalizedRight == null) {
+    return normalizedLeft == null && normalizedRight == null;
+  }
+  return normalizedLeft === normalizedRight;
 }
 
 function parseIsoMs(value) {
@@ -296,12 +482,12 @@ function ensurePlanStateSync(db, userId) {
       planTier: 'pro',
       billingPlan: BILLING_OPTIONS.JOB_SEARCH_PLAN
     });
-    if (
-      normalizePlanTier(planTier) !== oneTimeEntitlements.planTier ||
-      planStatus !== 'active' ||
-      Number(row.monthly_tracked_email_limit || 0) !== oneTimeEntitlements.trackedLimit ||
-      Number(row.monthly_inbound_email_limit || 0) !== oneTimeEntitlements.inboundLimit
-    ) {
+	    if (
+	      normalizePlanTier(planTier) !== oneTimeEntitlements.planTier ||
+	      planStatus !== 'active' ||
+	      !planLimitsEqual(row.monthly_tracked_email_limit, oneTimeEntitlements.trackedLimit) ||
+	      !planLimitsEqual(row.monthly_inbound_email_limit, oneTimeEntitlements.inboundLimit)
+	    ) {
       db.prepare(
         `UPDATE users
            SET plan_tier = 'pro',
@@ -323,11 +509,11 @@ function ensurePlanStateSync(db, userId) {
       planTier: 'pro',
       billingPlan: BILLING_OPTIONS.PRO_MONTHLY
     });
-    if (
-      normalizePlanTier(planTier) !== monthlyEntitlements.planTier ||
-      Number(row.monthly_tracked_email_limit || 0) !== monthlyEntitlements.trackedLimit ||
-      Number(row.monthly_inbound_email_limit || 0) !== monthlyEntitlements.inboundLimit
-    ) {
+	    if (
+	      normalizePlanTier(planTier) !== monthlyEntitlements.planTier ||
+	      !planLimitsEqual(row.monthly_tracked_email_limit, monthlyEntitlements.trackedLimit) ||
+	      !planLimitsEqual(row.monthly_inbound_email_limit, monthlyEntitlements.inboundLimit)
+	    ) {
       db.prepare(
         `UPDATE users
            SET plan_tier = 'pro',
@@ -376,11 +562,11 @@ function ensurePlanStateSync(db, userId) {
   effectiveLimit = finalEntitlements.trackedLimit;
   inboundLimit = finalEntitlements.inboundLimit;
 
-  const needsEntitlementSync =
-    normalizePlanTier(row.plan_tier) !== planTier ||
-    normalizeBillingPlan(row.billing_plan) !== billingPlan ||
-    Number(row.monthly_tracked_email_limit || 0) !== Number(effectiveLimit || 0) ||
-    Number(row.monthly_inbound_email_limit || 0) !== Number(inboundLimit || 0);
+	  const needsEntitlementSync =
+	    normalizePlanTier(row.plan_tier) !== planTier ||
+	    normalizeBillingPlan(row.billing_plan) !== billingPlan ||
+	    !planLimitsEqual(row.monthly_tracked_email_limit, effectiveLimit) ||
+	    !planLimitsEqual(row.monthly_inbound_email_limit, inboundLimit);
   if (needsEntitlementSync) {
     db.prepare(
       `UPDATE users
@@ -482,12 +668,12 @@ async function ensurePlanStateAsync(db, userId) {
       planTier: 'pro',
       billingPlan: BILLING_OPTIONS.JOB_SEARCH_PLAN
     });
-    if (
-      normalizePlanTier(planTier) !== oneTimeEntitlements.planTier ||
-      planStatus !== 'active' ||
-      Number(row.monthly_tracked_email_limit || 0) !== oneTimeEntitlements.trackedLimit ||
-      Number(row.monthly_inbound_email_limit || 0) !== oneTimeEntitlements.inboundLimit
-    ) {
+	    if (
+	      normalizePlanTier(planTier) !== oneTimeEntitlements.planTier ||
+	      planStatus !== 'active' ||
+	      !planLimitsEqual(row.monthly_tracked_email_limit, oneTimeEntitlements.trackedLimit) ||
+	      !planLimitsEqual(row.monthly_inbound_email_limit, oneTimeEntitlements.inboundLimit)
+	    ) {
       await db
         .prepare(
           `UPDATE users
@@ -511,11 +697,11 @@ async function ensurePlanStateAsync(db, userId) {
       planTier: 'pro',
       billingPlan: BILLING_OPTIONS.PRO_MONTHLY
     });
-    if (
-      normalizePlanTier(planTier) !== monthlyEntitlements.planTier ||
-      Number(row.monthly_tracked_email_limit || 0) !== monthlyEntitlements.trackedLimit ||
-      Number(row.monthly_inbound_email_limit || 0) !== monthlyEntitlements.inboundLimit
-    ) {
+	    if (
+	      normalizePlanTier(planTier) !== monthlyEntitlements.planTier ||
+	      !planLimitsEqual(row.monthly_tracked_email_limit, monthlyEntitlements.trackedLimit) ||
+	      !planLimitsEqual(row.monthly_inbound_email_limit, monthlyEntitlements.inboundLimit)
+	    ) {
       await db
         .prepare(
           `UPDATE users
@@ -568,11 +754,11 @@ async function ensurePlanStateAsync(db, userId) {
   effectiveLimit = finalEntitlements.trackedLimit;
   inboundLimit = finalEntitlements.inboundLimit;
 
-  const needsEntitlementSync =
-    normalizePlanTier(row.plan_tier) !== planTier ||
-    normalizeBillingPlan(row.billing_plan) !== billingPlan ||
-    Number(row.monthly_tracked_email_limit || 0) !== Number(effectiveLimit || 0) ||
-    Number(row.monthly_inbound_email_limit || 0) !== Number(inboundLimit || 0);
+	  const needsEntitlementSync =
+	    normalizePlanTier(row.plan_tier) !== planTier ||
+	    normalizeBillingPlan(row.billing_plan) !== billingPlan ||
+	    !planLimitsEqual(row.monthly_tracked_email_limit, effectiveLimit) ||
+	    !planLimitsEqual(row.monthly_inbound_email_limit, inboundLimit);
   if (needsEntitlementSync) {
     await db
       .prepare(
@@ -725,7 +911,8 @@ function applyTrackedEmailUsageSync(db, {
     };
   }
 
-  if (plan.usage >= plan.limit) {
+  const userLimit = Number(plan.limit || 0);
+  if (userLimit > 0 && plan.usage >= userLimit) {
     return {
       allowed: false,
       counted: false,
@@ -799,7 +986,8 @@ async function applyTrackedEmailUsageAsync(db, {
     };
   }
 
-  if (plan.usage >= plan.limit) {
+  const userLimit = Number(plan.limit || 0);
+  if (userLimit > 0 && plan.usage >= userLimit) {
     return {
       allowed: false,
       counted: false,
@@ -1067,10 +1255,14 @@ function applyInboundOutcomeUsage(db, args) {
 module.exports = {
   PLAN_LIMITS,
   INBOUND_PLAN_LIMITS,
+  FORWARDING_FILTER_STATUSES,
+  FORWARDING_FAIR_USE_DEFAULTS,
   BILLING_TYPES,
   currentMonthBucket,
   resolvePlanLimit,
   resolveInboundLimit,
+  resolveForwardingFairUseThresholds,
+  resolveForwardingFairUseStatus,
   applyTrackedEmailUsage,
   applyInboundEmailReceiptUsage,
   applyInboundOutcomeUsage,

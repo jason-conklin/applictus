@@ -192,6 +192,35 @@
       .plan-usage-secondary-text {
         min-width: 0;
       }
+      .plan-usage-health {
+        width: fit-content;
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 3px 9px;
+        font-size: 11.5px;
+        line-height: 1.2;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        border: 1px solid rgba(68, 103, 154, 0.22);
+        color: #2e578e;
+        background: linear-gradient(180deg, rgba(247, 251, 255, 0.96), rgba(232, 240, 255, 0.88));
+      }
+      .plan-usage-health--healthy {
+        color: #236342;
+        border-color: rgba(54, 145, 96, 0.26);
+        background: linear-gradient(180deg, rgba(244, 253, 248, 0.98), rgba(229, 247, 237, 0.9));
+      }
+      .plan-usage-health--soft {
+        color: #5d4d0d;
+        border-color: rgba(202, 158, 49, 0.32);
+        background: linear-gradient(180deg, rgba(255, 252, 241, 0.98), rgba(250, 238, 196, 0.88));
+      }
+      .plan-usage-health--strong {
+        color: #7b3417;
+        border-color: rgba(215, 111, 52, 0.34);
+        background: linear-gradient(180deg, rgba(255, 248, 242, 0.98), rgba(255, 229, 213, 0.9));
+      }
       .plan-usage-info {
         position: relative;
         display: inline-flex;
@@ -1464,6 +1493,14 @@
         box-shadow:
           inset 0 1px 0 rgba(255, 255, 255, 0.9),
           0 10px 20px rgba(21, 45, 86, 0.08);
+      }
+      .pricing-fair-use-note {
+        margin: 0 auto;
+        width: min(900px, 92%);
+        text-align: center;
+        color: #5a6f91;
+        font-size: 11.5px;
+        line-height: 1.45;
       }
       .pricing-trust-item {
         display: grid;
