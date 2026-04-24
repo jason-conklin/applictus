@@ -6097,6 +6097,8 @@ function buildPlanCard({
   priceMain,
   priceTerm = '',
   details,
+  valueLine = '',
+  valueSupport = '',
   billingNote = '',
   priceHint = '',
   features,
@@ -6159,9 +6161,32 @@ function buildPlanCard({
     priceEl.appendChild(priceTermEl);
   }
 
-  const limitEl = document.createElement('div');
-  limitEl.className = 'plan-limit muted small';
-  limitEl.textContent = details || '';
+  let valueBlockEl = null;
+  if (valueLine || valueSupport) {
+    valueBlockEl = document.createElement('div');
+    valueBlockEl.className = 'plan-value-block';
+
+    if (valueLine) {
+      const valueLineEl = document.createElement('div');
+      valueLineEl.className = 'plan-value-line';
+      valueLineEl.textContent = valueLine;
+      valueBlockEl.appendChild(valueLineEl);
+    }
+
+    if (valueSupport) {
+      const valueSupportEl = document.createElement('div');
+      valueSupportEl.className = 'plan-value-support muted small';
+      valueSupportEl.textContent = valueSupport;
+      valueBlockEl.appendChild(valueSupportEl);
+    }
+  }
+
+  let limitEl = null;
+  if (details) {
+    limitEl = document.createElement('div');
+    limitEl.className = 'plan-limit muted small';
+    limitEl.textContent = details;
+  }
 
   let billingNoteEl = null;
   if (billingNote) {
@@ -6273,7 +6298,13 @@ function buildPlanCard({
 
   const cardMain = document.createElement('div');
   cardMain.className = 'plan-card-main';
-  cardMain.append(top, priceEl, limitEl);
+  cardMain.append(top, priceEl);
+  if (valueBlockEl) {
+    cardMain.appendChild(valueBlockEl);
+  }
+  if (limitEl) {
+    cardMain.appendChild(limitEl);
+  }
   if (billingNoteEl) {
     cardMain.appendChild(billingNoteEl);
   }
@@ -6423,10 +6454,11 @@ function openPricingModal() {
   const proCard = buildPlanCard({
     title: 'Pro Tier',
     context: 'Best for an active ongoing search',
-      priceMain: '$3.99',
-      priceTerm: '/ month',
-      details: 'Unlimited job tracking',
-      billingNote: 'Monthly billing for full, always-on job tracking',
+    priceMain: '$3.99',
+    priceTerm: '/ month',
+    valueLine: 'Unlimited job tracking',
+    valueSupport: 'Always-on tracking for your entire job search',
+    billingNote: 'Monthly billing for full, always-on job tracking',
     features: SHARED_PRO_FEATURES,
     badgeText: 'Most popular',
     badgeVariant: 'popular',
@@ -6443,16 +6475,17 @@ function openPricingModal() {
   const jobSearchPlanCard = buildPlanCard({
     title: 'Job Search Plan',
     context: 'One-time plan for a focused job search cycle',
-      priceMain: '$9.99',
-      priceTerm: '/ 3 months',
-      details: 'Unlimited tracking for 3 months',
-      priceHint: '≈ $3.33/month effective rate',
-      features: [],
-      summaryTitle: 'All Pro features included',
-      summaryLines: [
-        'Unlimited job tracking for a focused 2–3 month search cycle.',
-        'One upfront payment, organized timelines, and smart Gmail filtering.'
-      ],
+    priceMain: '$9.99',
+    priceTerm: '/ 3 months',
+    valueLine: 'Unlimited tracking for your search cycle',
+    valueSupport: 'Designed for a focused 2–3 month job search',
+    priceHint: '≈ $3.33/month effective rate',
+    features: [],
+    summaryTitle: 'All Pro features included',
+    summaryLines: [
+      'Unlimited job tracking for a focused 2–3 month search cycle.',
+      'One upfront payment, organized timelines, and smart Gmail filtering.'
+    ],
     badgeText: 'Best for 2–3 month search',
     badgeVariant: 'commitment',
     iconVariant: 'jobsearch',

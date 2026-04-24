@@ -838,6 +838,22 @@
         margin-bottom: 14px;
         color: #4f6079;
       }
+      .plan-value-block {
+        display: grid;
+        gap: 3px;
+        margin: 5px 0 13px;
+      }
+      .plan-value-line {
+        font-size: 15px;
+        line-height: 1.25;
+        font-weight: 750;
+        letter-spacing: -0.01em;
+        color: #1d436f;
+      }
+      .plan-value-support {
+        line-height: 1.35;
+        color: #566f94;
+      }
       .plan-billing-note,
       .plan-price-hint {
         margin-top: -8px;
@@ -1314,6 +1330,27 @@
         margin-bottom: 10px;
         color: #415f85;
       }
+      .modal--pricing .plan-value-block {
+        margin: 7px 0 15px;
+      }
+      .modal--pricing .plan-value-line {
+        font-size: 16px;
+        line-height: 1.24;
+        color: #173a67;
+      }
+      .modal--pricing .plan-value-support {
+        font-size: 12.5px;
+        color: #50698f;
+      }
+      .modal--pricing .plan-card--pro .plan-value-line {
+        color: #2d4fb4;
+      }
+      .modal--pricing .plan-card--jobsearch .plan-value-line {
+        color: #7a4317;
+      }
+      .modal--pricing .plan-card--jobsearch .plan-value-support {
+        color: #775f43;
+      }
       .modal--pricing .plan-billing-note,
       .modal--pricing .plan-price-hint {
         margin-top: -5px;
@@ -1747,6 +1784,12 @@
         }
         .modal--pricing .plan-price-term {
           font-size: 17px;
+        }
+        .modal--pricing .plan-value-line {
+          font-size: 15px;
+        }
+        .modal--pricing .plan-value-support {
+          font-size: 12px;
         }
         .modal--pricing .plan-cta {
           min-height: 50px;
