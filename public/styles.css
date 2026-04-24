@@ -10231,7 +10231,6 @@ body.home-page .home-hero-platforms__title {
 }
 
 body.home-page .home-hero-platforms__marquee {
-  --platform-drag-offset: 0px;
   position: relative;
   width: 100%;
   overflow: hidden;
@@ -10250,13 +10249,6 @@ body.home-page .home-hero-platforms__marquee.is-dragging {
 body.home-page .home-hero-platforms__drag-layer {
   display: flex;
   width: max-content;
-  transform: translate3d(var(--platform-drag-offset), 0, 0);
-  transition: transform 340ms cubic-bezier(0.22, 0.61, 0.36, 1);
-  will-change: transform;
-}
-
-body.home-page .home-hero-platforms__marquee.is-dragging .home-hero-platforms__drag-layer {
-  transition: none;
 }
 
 body.home-page .home-hero-platforms__track {

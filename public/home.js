@@ -258,11 +258,10 @@ function setupHeroBanner(reducedEffects) {
   });
 }
 
-function setupHeroPlatformMarqueeInteraction() {
+function setupHeroPlatformMarqueeInteraction({ reducedMotion = false } = {}) {
   const marquee = document.querySelector('[data-platform-marquee]');
-  const dragLayer = marquee?.querySelector('[data-platform-drag-layer]');
   const track = marquee?.querySelector('[data-platform-track]');
-  if (!marquee || !dragLayer || !track) {
+  if (!marquee || !track) {
     return;
   }
 
@@ -271,56 +270,130 @@ function setupHeroPlatformMarqueeInteraction() {
     img.addEventListener('dragstart', (event) => event.preventDefault());
   });
 
-  let activePointerId = null;
-  let dragStartX = 0;
-  let dragStartOffset = 0;
-  let dragOffset = 0;
-  let maxDragOffset = 120;
+  let cycleWidth = 0;
+  let autoVelocityPxPerMs = 0;
+  let positionPx = 0;
+  let inertiaVelocityPxPerMs = 0;
+
+  let rafId = 0;
+  let lastFrameTs = 0;
+
   let dragging = false;
+  let activePointerId = null;
+  let lastPointerX = 0;
+  let lastPointerTs = 0;
+  let pointerVelocityPxPerMs = 0;
 
-  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const MAX_INERTIA_VELOCITY = 3.4;
+  const MIN_INERTIA_VELOCITY = 0.02;
+  const FRICTION_PER_16MS = 0.9;
 
-  const updateDragOffset = () => {
-    marquee.style.setProperty('--platform-drag-offset', `${dragOffset.toFixed(2)}px`);
+  const parseAnimationDurationMs = (value) => {
+    const raw = String(value || '').split(',')[0].trim();
+    if (!raw) return 42000;
+    if (raw.endsWith('ms')) {
+      const parsedMs = Number.parseFloat(raw);
+      return Number.isFinite(parsedMs) && parsedMs > 0 ? parsedMs : 42000;
+    }
+    if (raw.endsWith('s')) {
+      const parsedSeconds = Number.parseFloat(raw);
+      return Number.isFinite(parsedSeconds) && parsedSeconds > 0 ? parsedSeconds * 1000 : 42000;
+    }
+    const parsed = Number.parseFloat(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed * 1000 : 42000;
   };
 
-  const updateMaxDragOffset = () => {
-    const width = marquee.getBoundingClientRect().width || 0;
-    maxDragOffset = clamp(width * 0.28, 56, 180);
+  const wrapPosition = (value) => {
+    if (!cycleWidth || !Number.isFinite(value)) {
+      return 0;
+    }
+    let wrapped = value % cycleWidth;
+    if (wrapped > 0) {
+      wrapped -= cycleWidth;
+    }
+    return wrapped;
   };
 
-  const pauseTrack = () => {
-    track.style.animationPlayState = 'paused';
+  const applyTransform = () => {
+    track.style.transform = `translate3d(${positionPx.toFixed(2)}px, 0, 0)`;
   };
 
-  const resumeTrack = () => {
-    track.style.animationPlayState = 'running';
-  };
-
-  const finishDrag = () => {
-    if (!dragging) {
+  const recalcMetrics = () => {
+    const totalWidth = track.scrollWidth || 0;
+    cycleWidth = totalWidth > 0 ? totalWidth / 2 : 0;
+    if (!cycleWidth) {
+      autoVelocityPxPerMs = 0;
       return;
     }
+    const durationMs = parseAnimationDurationMs(window.getComputedStyle(track).animationDuration);
+    autoVelocityPxPerMs = durationMs > 0 ? -(cycleWidth / durationMs) : -(cycleWidth / 42000);
+    positionPx = wrapPosition(positionPx);
+    applyTransform();
+  };
+
+  const startLoop = () => {
+    if (rafId) return;
+    lastFrameTs = performance.now();
+    rafId = window.requestAnimationFrame(tick);
+  };
+
+  const stopLoop = () => {
+    if (!rafId) return;
+    window.cancelAnimationFrame(rafId);
+    rafId = 0;
+  };
+
+  const endDrag = () => {
+    if (!dragging) return;
     dragging = false;
     activePointerId = null;
     marquee.classList.remove('is-dragging');
-    dragOffset = 0;
-    updateDragOffset();
-    window.requestAnimationFrame(resumeTrack);
+    inertiaVelocityPxPerMs = Math.max(
+      -MAX_INERTIA_VELOCITY,
+      Math.min(MAX_INERTIA_VELOCITY, pointerVelocityPxPerMs)
+    );
+    pointerVelocityPxPerMs = 0;
+    startLoop();
   };
+
+  function tick(now) {
+    const deltaMs = Math.max(1, Math.min(64, now - lastFrameTs));
+    lastFrameTs = now;
+
+    if (!cycleWidth) {
+      recalcMetrics();
+    }
+
+    if (!dragging) {
+      if (Math.abs(inertiaVelocityPxPerMs) > MIN_INERTIA_VELOCITY) {
+        positionPx = wrapPosition(positionPx + inertiaVelocityPxPerMs * deltaMs);
+        const decay = Math.pow(FRICTION_PER_16MS, deltaMs / 16);
+        inertiaVelocityPxPerMs *= decay;
+        if (Math.abs(inertiaVelocityPxPerMs) <= MIN_INERTIA_VELOCITY) {
+          inertiaVelocityPxPerMs = 0;
+        }
+      } else if (!reducedMotion) {
+        positionPx = wrapPosition(positionPx + autoVelocityPxPerMs * deltaMs);
+      }
+      applyTransform();
+    }
+
+    rafId = window.requestAnimationFrame(tick);
+  }
 
   const onPointerDown = (event) => {
     if (event.button !== undefined && event.button !== 0) {
       return;
     }
-    updateMaxDragOffset();
     dragging = true;
     activePointerId = event.pointerId;
-    dragStartX = event.clientX;
-    dragStartOffset = dragOffset;
+    lastPointerX = event.clientX;
+    lastPointerTs = event.timeStamp || performance.now();
+    pointerVelocityPxPerMs = 0;
+    inertiaVelocityPxPerMs = 0;
     marquee.classList.add('is-dragging');
-    pauseTrack();
     marquee.setPointerCapture?.(event.pointerId);
+    startLoop();
     event.preventDefault();
   };
 
@@ -328,9 +401,16 @@ function setupHeroPlatformMarqueeInteraction() {
     if (!dragging || event.pointerId !== activePointerId) {
       return;
     }
-    const deltaX = event.clientX - dragStartX;
-    dragOffset = clamp(dragStartOffset + deltaX, -maxDragOffset, maxDragOffset);
-    updateDragOffset();
+    const nowTs = event.timeStamp || performance.now();
+    const deltaX = event.clientX - lastPointerX;
+    const deltaMs = Math.max(1, nowTs - lastPointerTs);
+
+    positionPx = wrapPosition(positionPx + deltaX);
+    applyTransform();
+
+    pointerVelocityPxPerMs = deltaX / deltaMs;
+    lastPointerX = event.clientX;
+    lastPointerTs = nowTs;
     event.preventDefault();
   };
 
@@ -339,26 +419,27 @@ function setupHeroPlatformMarqueeInteraction() {
       return;
     }
     marquee.releasePointerCapture?.(event.pointerId);
-    finishDrag();
+    endDrag();
   };
+
+  track.style.animation = 'none';
+  recalcMetrics();
+  applyTransform();
+  startLoop();
 
   marquee.addEventListener('pointerdown', onPointerDown);
   marquee.addEventListener('pointermove', onPointerMove);
   marquee.addEventListener('pointerup', onPointerUpOrCancel);
   marquee.addEventListener('pointercancel', onPointerUpOrCancel);
-  marquee.addEventListener('lostpointercapture', () => {
-    finishDrag();
-  });
-  window.addEventListener('resize', updateMaxDragOffset, { passive: true });
-  window.addEventListener('blur', finishDrag);
+  marquee.addEventListener('lostpointercapture', endDrag);
+  window.addEventListener('resize', recalcMetrics, { passive: true });
+  window.addEventListener('blur', endDrag);
+  window.addEventListener('pagehide', stopLoop, { once: true });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') {
-      finishDrag();
+      endDrag();
     }
   });
-
-  updateMaxDragOffset();
-  updateDragOffset();
 }
 
 function setupHowStepperConnector() {
@@ -811,7 +892,7 @@ function bootHomepage() {
 
   setupHomeIntroPlayback(reducedEffects);
   setupHeroBanner(reducedEffects);
-  setupHeroPlatformMarqueeInteraction();
+  setupHeroPlatformMarqueeInteraction({ reducedMotion });
   setupHowStepperConnector();
   setupProductPreview(reducedMotion);
   setupScrollCtas(reducedMotion);
