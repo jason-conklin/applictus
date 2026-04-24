@@ -6483,8 +6483,7 @@ function openPricingModal() {
     features: [],
     summaryTitle: 'All Pro features included',
     summaryLines: [
-      'Unlimited job tracking for a focused 2–3 month search cycle.',
-      'One upfront payment, organized timelines, and smart Gmail filtering.'
+      'One upfront payment for a complete, focused job search experience.',
     ],
     badgeText: 'Best for 2–3 month search',
     badgeVariant: 'commitment',
