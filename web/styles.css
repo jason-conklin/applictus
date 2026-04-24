@@ -6321,7 +6321,15 @@ details summary {
 }
 
 .forwarding-filter-tutorial-control {
-  min-width: 88px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  min-width: 42px;
+  height: 34px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
 }
 
 .forwarding-filter-query-wrap {
@@ -6526,11 +6534,11 @@ details summary {
   }
 
   .forwarding-filter-tutorial-controls {
-    justify-content: stretch;
+    justify-content: space-between;
   }
 
   .forwarding-filter-tutorial-control {
-    flex: 1;
+    flex: 0 0 42px;
   }
 
   .forwarding-setup-footer {

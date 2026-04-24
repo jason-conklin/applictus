@@ -8241,11 +8241,15 @@ function buildGmailFilterHelpContent({
   const tutorialPrevBtn = document.createElement('button');
   tutorialPrevBtn.type = 'button';
   tutorialPrevBtn.className = 'btn btn--ghost btn--sm forwarding-filter-tutorial-control';
-  tutorialPrevBtn.textContent = 'Previous';
+  tutorialPrevBtn.setAttribute('aria-label', 'Previous screenshot');
+  tutorialPrevBtn.title = 'Previous screenshot';
+  tutorialPrevBtn.textContent = '🠜';
   const tutorialNextBtn = document.createElement('button');
   tutorialNextBtn.type = 'button';
   tutorialNextBtn.className = 'btn btn--ghost btn--sm forwarding-filter-tutorial-control';
-  tutorialNextBtn.textContent = 'Next';
+  tutorialNextBtn.setAttribute('aria-label', 'Next screenshot');
+  tutorialNextBtn.title = 'Next screenshot';
+  tutorialNextBtn.textContent = '🠞';
   tutorialControls.append(tutorialPrevBtn, tutorialNextBtn);
   tutorialViewer.append(
     tutorialViewerStep,
