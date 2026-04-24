@@ -6367,11 +6367,6 @@ function openPricingModal() {
       detail: 'No hidden fees'
     },
     {
-      icon: 'no_commitment',
-      title: 'No commitment',
-      detail: 'Change or cancel plans anytime'
-    },
-    {
       icon: 'user_shield',
       title: 'Your data is yours',
       detail: 'We respect your privacy'
