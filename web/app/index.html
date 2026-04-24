@@ -2137,26 +2137,6 @@
           <div class="callout callout-warning hidden" id="inbound-old-address-warning">
             We detected mail arriving at an old forwarding address. Update your forwarding settings.
           </div>
-          <div class="account-help-progress account-inbox-setup-progress" id="account-help-progress">
-            <div class="account-help-progress-head">
-              <div class="account-help-progress-title">Setup progress</div>
-              <div class="account-help-progress-count" id="account-help-progress-count">0 of 3 complete</div>
-            </div>
-            <div class="account-help-progress-list">
-              <div class="account-help-progress-step" id="account-help-progress-step-1" data-state="pending">
-                <div class="account-help-progress-step-label" id="account-help-progress-step-1-label">Address created</div>
-                <div class="account-help-progress-step-state" id="account-help-progress-step-1-state">Pending</div>
-              </div>
-              <div class="account-help-progress-step" id="account-help-progress-step-2" data-state="pending">
-                <div class="account-help-progress-step-label" id="account-help-progress-step-2-label">Forwarding configured</div>
-                <div class="account-help-progress-step-state" id="account-help-progress-step-2-state">Pending</div>
-              </div>
-              <div class="account-help-progress-step" id="account-help-progress-step-3" data-state="pending">
-                <div class="account-help-progress-step-label" id="account-help-progress-step-3-label">Verification complete</div>
-                <div class="account-help-progress-step-state" id="account-help-progress-step-3-state">Pending</div>
-              </div>
-            </div>
-          </div>
           <div class="account-inbox-actions">
             <button class="btn btn--primary btn--md" type="button" id="inbound-open-setup">Complete setup</button>
             <button class="btn btn--secondary btn--sm" type="button" id="inbound-process-now">Process inbox now</button>
@@ -2305,12 +2285,28 @@
               <div class="account-row-label muted small">Last email received</div>
               <div class="account-help-value muted small" id="account-help-last-email">—</div>
             </div>
-            <div class="account-help-row">
-              <div class="account-row-label muted small">Setup type</div>
-              <div class="account-help-value" id="account-help-setup-type">Forwarding-based</div>
-            </div>
             <div class="muted small account-help-note" id="account-help-note">
               Applictus processes only forwarded mail and keeps this setup lightweight.
+            </div>
+            <div class="account-help-progress account-inbox-setup-progress" id="account-help-progress">
+              <div class="account-help-progress-head">
+                <div class="account-help-progress-title">Setup progress</div>
+                <div class="account-help-progress-count" id="account-help-progress-count">0 of 3 complete</div>
+              </div>
+              <div class="account-help-progress-list">
+                <div class="account-help-progress-step" id="account-help-progress-step-1" data-state="pending">
+                  <div class="account-help-progress-step-label" id="account-help-progress-step-1-label">Address created</div>
+                  <div class="account-help-progress-step-state" id="account-help-progress-step-1-state">Pending</div>
+                </div>
+                <div class="account-help-progress-step" id="account-help-progress-step-2" data-state="pending">
+                  <div class="account-help-progress-step-label" id="account-help-progress-step-2-label">Forwarding configured</div>
+                  <div class="account-help-progress-step-state" id="account-help-progress-step-2-state">Pending</div>
+                </div>
+                <div class="account-help-progress-step" id="account-help-progress-step-3" data-state="pending">
+                  <div class="account-help-progress-step-label" id="account-help-progress-step-3-label">Verification complete</div>
+                  <div class="account-help-progress-step-state" id="account-help-progress-step-3-state">Pending</div>
+                </div>
+              </div>
             </div>
             <div class="account-help-actions">
               <button class="btn btn--secondary btn--sm" type="button" id="inbound-help-open-setup">View setup guide</button>
