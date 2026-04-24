@@ -5243,7 +5243,7 @@ function formatUsagePeriodRange(startDate, endDate) {
   const dateFormat = showYear
     ? { month: 'short', day: 'numeric', year: 'numeric' }
     : { month: 'short', day: 'numeric' };
-  return `${startDate.toLocaleDateString(undefined, dateFormat)} – ${endDate.toLocaleDateString(undefined, dateFormat)}`;
+  return `(${startDate.toLocaleDateString(undefined, dateFormat)} - ${endDate.toLocaleDateString(undefined, dateFormat)})`;
 }
 
 function resolvePlanUsagePeriodLabel(source = planState || sessionUser) {
