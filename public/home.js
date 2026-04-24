@@ -258,6 +258,109 @@ function setupHeroBanner(reducedEffects) {
   });
 }
 
+function setupHeroPlatformMarqueeInteraction() {
+  const marquee = document.querySelector('[data-platform-marquee]');
+  const dragLayer = marquee?.querySelector('[data-platform-drag-layer]');
+  const track = marquee?.querySelector('[data-platform-track]');
+  if (!marquee || !dragLayer || !track) {
+    return;
+  }
+
+  marquee.querySelectorAll('img').forEach((img) => {
+    img.setAttribute('draggable', 'false');
+    img.addEventListener('dragstart', (event) => event.preventDefault());
+  });
+
+  let activePointerId = null;
+  let dragStartX = 0;
+  let dragStartOffset = 0;
+  let dragOffset = 0;
+  let maxDragOffset = 120;
+  let dragging = false;
+
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+  const updateDragOffset = () => {
+    marquee.style.setProperty('--platform-drag-offset', `${dragOffset.toFixed(2)}px`);
+  };
+
+  const updateMaxDragOffset = () => {
+    const width = marquee.getBoundingClientRect().width || 0;
+    maxDragOffset = clamp(width * 0.28, 56, 180);
+  };
+
+  const pauseTrack = () => {
+    track.style.animationPlayState = 'paused';
+  };
+
+  const resumeTrack = () => {
+    track.style.animationPlayState = 'running';
+  };
+
+  const finishDrag = () => {
+    if (!dragging) {
+      return;
+    }
+    dragging = false;
+    activePointerId = null;
+    marquee.classList.remove('is-dragging');
+    dragOffset = 0;
+    updateDragOffset();
+    window.requestAnimationFrame(resumeTrack);
+  };
+
+  const onPointerDown = (event) => {
+    if (event.button !== undefined && event.button !== 0) {
+      return;
+    }
+    updateMaxDragOffset();
+    dragging = true;
+    activePointerId = event.pointerId;
+    dragStartX = event.clientX;
+    dragStartOffset = dragOffset;
+    marquee.classList.add('is-dragging');
+    pauseTrack();
+    marquee.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  };
+
+  const onPointerMove = (event) => {
+    if (!dragging || event.pointerId !== activePointerId) {
+      return;
+    }
+    const deltaX = event.clientX - dragStartX;
+    dragOffset = clamp(dragStartOffset + deltaX, -maxDragOffset, maxDragOffset);
+    updateDragOffset();
+    event.preventDefault();
+  };
+
+  const onPointerUpOrCancel = (event) => {
+    if (!dragging || event.pointerId !== activePointerId) {
+      return;
+    }
+    marquee.releasePointerCapture?.(event.pointerId);
+    finishDrag();
+  };
+
+  marquee.addEventListener('pointerdown', onPointerDown);
+  marquee.addEventListener('pointermove', onPointerMove);
+  marquee.addEventListener('pointerup', onPointerUpOrCancel);
+  marquee.addEventListener('pointercancel', onPointerUpOrCancel);
+  marquee.addEventListener('lostpointercapture', () => {
+    finishDrag();
+  });
+  window.addEventListener('resize', updateMaxDragOffset, { passive: true });
+  window.addEventListener('blur', finishDrag);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') {
+      finishDrag();
+    }
+  });
+
+  updateMaxDragOffset();
+  updateDragOffset();
+}
+
 function setupHowStepperConnector() {
   const steppers = Array.from(document.querySelectorAll('.how-stepper'));
   if (!steppers.length) {
@@ -708,6 +811,7 @@ function bootHomepage() {
 
   setupHomeIntroPlayback(reducedEffects);
   setupHeroBanner(reducedEffects);
+  setupHeroPlatformMarqueeInteraction();
   setupHowStepperConnector();
   setupProductPreview(reducedMotion);
   setupScrollCtas(reducedMotion);
