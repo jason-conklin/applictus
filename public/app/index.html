@@ -362,27 +362,33 @@
         overflow: visible;
       }
       .plan-progress-scale-row {
-        margin-top: -1px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+        position: relative;
+        margin-top: 4px;
+        height: 18px;
         font-size: 11px;
         font-weight: 600;
         line-height: 1;
         color: #6a7f9f;
+        pointer-events: none;
       }
       .plan-progress-scale-start,
       .plan-progress-scale-end {
-        display: inline-flex;
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform: translateX(-50%);
+        display: flex;
         flex-direction: column;
-        gap: 4px;
+        align-items: center;
+        gap: 2px;
         font-variant-numeric: tabular-nums;
+        white-space: nowrap;
       }
       .plan-progress-scale-start {
-        align-items: flex-start;
+        left: 0%;
       }
       .plan-progress-scale-end {
-        align-items: flex-end;
+        left: 100%;
       }
       .plan-progress-scale-start::before,
       .plan-progress-scale-end::before {
@@ -390,7 +396,6 @@
         color: #8fa0ba;
         font-size: 10px;
         line-height: 1;
-        transform: translateY(-5px);
       }
       .plan-progress-marker {
         position: absolute;
@@ -401,16 +406,8 @@
         align-items: center;
         gap: 1px;
         transform: translateX(-50%);
-        transition: left 400ms ease, transform 400ms ease;
+        transition: left 400ms ease;
         pointer-events: none;
-      }
-      .plan-progress-marker.is-start {
-        transform: translateX(0);
-        align-items: flex-start;
-      }
-      .plan-progress-marker.is-end {
-        transform: translateX(-100%);
-        align-items: flex-end;
       }
       .plan-progress-marker-tick {
         display: inline-flex;

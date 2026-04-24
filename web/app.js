@@ -5283,8 +5283,6 @@ function renderPlanProgressMarker(usage = 0, limit = 0) {
   const ratio = safeLimit > 0 ? Math.min(1, safeUsage / safeLimit) : 0;
   const percent = Math.max(0, Math.min(100, Math.round(ratio * 100)));
   accountPlanMarker.style.left = `${percent}%`;
-  accountPlanMarker.classList.toggle('is-start', percent <= 5);
-  accountPlanMarker.classList.toggle('is-end', percent >= 95);
   accountPlanPercent.textContent = `${percent}%`;
   if (accountPlanScaleStart) {
     accountPlanScaleStart.textContent = '0';
