@@ -7517,7 +7517,6 @@ function renderInboundSetupHeaderAddressPanel() {
       <span>Takes about 2 minutes</span>
       <span>No inbox access required</span>
       <span>You control what gets forwarded</span>
-      <span>Rotate anytime</span>
     `;
     const walkthroughLink = document.createElement('a');
     walkthroughLink.className = 'inbound-setup-header-walkthrough';
