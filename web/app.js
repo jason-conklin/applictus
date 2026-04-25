@@ -8207,8 +8207,6 @@ function getInboundSetupPhaseConfig(phase, setupContext) {
   };
 }
 
-let forwardingFilterQueryDisclosureId = 0;
-
 function createForwardingFilterPresetIcon(iconName = 'checklist') {
   const icon = document.createElement('span');
   icon.className = `forwarding-filter-preset-icon forwarding-filter-preset-icon--${iconName}`;
@@ -8396,18 +8394,8 @@ function buildGmailFilterHelpContent({
   copyFilterBtn.textContent = 'Copy filter query';
   queryHeader.append(queryHeaderText, copyFilterBtn);
 
-  const queryToggleBtn = document.createElement('button');
-  queryToggleBtn.type = 'button';
-  queryToggleBtn.className = 'link-button forwarding-filter-query-toggle';
-  queryToggleBtn.textContent = 'View filter query';
-  queryToggleBtn.setAttribute('aria-expanded', 'false');
-
   const queryContent = document.createElement('div');
   queryContent.className = 'forwarding-filter-query-content';
-  const queryContentId = `forwarding-filter-query-content-${++forwardingFilterQueryDisclosureId}`;
-  queryContent.id = queryContentId;
-  queryContent.hidden = true;
-  queryToggleBtn.setAttribute('aria-controls', queryContentId);
 
   const filterSnippet = document.createElement('pre');
   filterSnippet.className = 'forwarding-filter-query';
@@ -8417,7 +8405,7 @@ function buildGmailFilterHelpContent({
   queryNote.textContent = "Paste the entire query into 'Has the words' and leave the other Gmail fields blank.";
 
   queryContent.append(filterSnippet, queryNote);
-  queryWrap.append(queryHeader, queryToggleBtn, queryContent);
+  queryWrap.append(queryHeader, queryContent);
 
   let selectedPresetId = FORWARDING_FILTER_PRESETS[0]?.id || 'all_updates';
   let selectedQuery = buildForwardingFilterQuery(selectedPresetId);
@@ -8484,13 +8472,6 @@ function buildGmailFilterHelpContent({
     });
     presetButtons.push({ id: preset.id, button });
     presetList.appendChild(button);
-  });
-
-  queryToggleBtn.addEventListener('click', () => {
-    const willExpand = queryContent.hidden;
-    queryContent.hidden = !willExpand;
-    queryToggleBtn.setAttribute('aria-expanded', willExpand ? 'true' : 'false');
-    queryToggleBtn.textContent = willExpand ? 'Hide filter query' : 'View filter query';
   });
 
   copyFilterBtn.addEventListener('click', () => {
