@@ -7254,8 +7254,12 @@ const FORWARDING_FILTER_PROVIDER_TERMS = [
   'glassdoor.com',
   'monster.com',
   'workday.com',
+  'myworkdayjobs.com',
   'greenhouse.io',
+  'boards.greenhouse.io',
   'lever.co',
+  'jobs.lever.co',
+  'apply.workable.com',
   'icims.com',
   'smartrecruiters.com',
   'workablemail.com',
@@ -7270,8 +7274,10 @@ const FORWARDING_FILTER_PRESETS = [
   {
     id: 'all_updates',
     label: 'All job updates',
-    summary: 'Full timeline coverage with broader ATS/job-platform matching.',
-    description: 'Captures confirmations, interviews, offers, rejections, and common hiring-platform updates.',
+    summary: 'Capture your full application timeline',
+    description: 'Includes confirmations, interviews, offers, rejections, and common hiring platform updates.',
+    icon: 'checklist',
+    recommended: true,
     subjectTerms: [
         'application',
         'application update',
@@ -7280,10 +7286,16 @@ const FORWARDING_FILTER_PRESETS = [
         'your application',
         'we received your application',
         'thank you for applying',
+        'opportunity',
+        'position',
+        'role',
         'under review',
         'status update',
         'next steps',
         'interview',
+        'schedule interview',
+        'availability',
+        'calendar link',
         'assessment',
         'phone screen',
         'onsite',
@@ -7313,10 +7325,14 @@ const FORWARDING_FILTER_PRESETS = [
   {
     id: 'status_changes',
     label: 'Only status changes',
-    summary: 'Higher-signal updates focused on movement in the hiring process.',
-    description: 'Focuses on interview, assessment, offer, rejection, and next-step updates to reduce noise.',
+    summary: 'Focus on meaningful progress',
+    description: 'Includes interviews, offers, rejections, and key status updates — skips confirmations and low-signal emails.',
+    icon: 'activity',
     subjectTerms: [
       'interview',
+      'schedule interview',
+      'availability',
+      'calendar link',
       'phone screen',
       'onsite',
       'final round',
@@ -8191,6 +8207,31 @@ function getInboundSetupPhaseConfig(phase, setupContext) {
   };
 }
 
+let forwardingFilterQueryDisclosureId = 0;
+
+function createForwardingFilterPresetIcon(iconName = 'checklist') {
+  const icon = document.createElement('span');
+  icon.className = `forwarding-filter-preset-icon forwarding-filter-preset-icon--${iconName}`;
+  icon.setAttribute('aria-hidden', 'true');
+
+  if (iconName === 'activity') {
+    icon.innerHTML = `
+      <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+        <path d="M3 13.5h3.2l2.1-6 3.1 8 2.1-5.1H17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+    `;
+    return icon;
+  }
+
+  icon.innerHTML = `
+    <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+      <path d="M7.2 5.8h8.1M7.2 10h8.1M7.2 14.2h8.1" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round"></path>
+      <path d="m3.4 5.8.8.8 1.7-1.9M3.4 10l.8.8 1.7-1.9M3.4 14.2l.8.8 1.7-1.9" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+  `;
+  return icon;
+}
+
 function buildGmailFilterHelpContent({
   introText = 'Use a Gmail filter so only job-related emails forward to Applictus. This keeps your timeline cleaner, more accurate, and more privacy-conscious.'
 } = {}) {
@@ -8208,8 +8249,9 @@ function buildGmailFilterHelpContent({
   presetDescriptionLabel.className = 'forwarding-filter-preset-description-label muted small';
   presetDescriptionLabel.textContent = 'Select a filter';
 
-  const presetDescription = document.createElement('p');
-  presetDescription.className = 'forwarding-filter-preset-description muted small';
+  const presetGuideText = document.createElement('p');
+  presetGuideText.className = 'forwarding-filter-preset-description muted small';
+  presetGuideText.textContent = 'This filter ensures only job-related emails are forwarded to Applictus.';
 
   const tutorial = document.createElement('div');
   tutorial.className = 'forwarding-filter-tutorial';
@@ -8333,9 +8375,39 @@ function buildGmailFilterHelpContent({
   const queryWrap = document.createElement('div');
   queryWrap.className = 'forwarding-filter-query-wrap';
 
+  const queryHeader = document.createElement('div');
+  queryHeader.className = 'forwarding-filter-query-header';
+
+  const queryHeaderText = document.createElement('div');
+  queryHeaderText.className = 'forwarding-filter-query-heading';
+
   const queryLabel = document.createElement('div');
   queryLabel.className = 'forwarding-filter-query-label muted small';
   queryLabel.textContent = "Copy this into 'Has the words'";
+
+  const queryHint = document.createElement('p');
+  queryHint.className = 'forwarding-filter-query-hint muted small';
+  queryHint.textContent = 'Generated from the selected filter preset.';
+  queryHeaderText.append(queryLabel, queryHint);
+
+  const copyFilterBtn = document.createElement('button');
+  copyFilterBtn.type = 'button';
+  copyFilterBtn.className = 'btn btn--secondary btn--sm forwarding-filter-copy';
+  copyFilterBtn.textContent = 'Copy filter query';
+  queryHeader.append(queryHeaderText, copyFilterBtn);
+
+  const queryToggleBtn = document.createElement('button');
+  queryToggleBtn.type = 'button';
+  queryToggleBtn.className = 'link-button forwarding-filter-query-toggle';
+  queryToggleBtn.textContent = 'View filter query';
+  queryToggleBtn.setAttribute('aria-expanded', 'false');
+
+  const queryContent = document.createElement('div');
+  queryContent.className = 'forwarding-filter-query-content';
+  const queryContentId = `forwarding-filter-query-content-${++forwardingFilterQueryDisclosureId}`;
+  queryContent.id = queryContentId;
+  queryContent.hidden = true;
+  queryToggleBtn.setAttribute('aria-controls', queryContentId);
 
   const filterSnippet = document.createElement('pre');
   filterSnippet.className = 'forwarding-filter-query';
@@ -8344,29 +8416,22 @@ function buildGmailFilterHelpContent({
   queryNote.className = 'forwarding-filter-query-note muted small';
   queryNote.textContent = "Paste the entire query into 'Has the words' and leave the other Gmail fields blank.";
 
-  const filterActions = document.createElement('div');
-  filterActions.className = 'forwarding-step-actions forwarding-filter-actions';
-  const copyFilterBtn = document.createElement('button');
-  copyFilterBtn.type = 'button';
-  copyFilterBtn.className = 'btn btn--secondary btn--sm';
-  copyFilterBtn.textContent = 'Copy filter query';
-  filterActions.append(copyFilterBtn);
-  queryWrap.append(queryLabel, filterSnippet, queryNote, filterActions);
+  queryContent.append(filterSnippet, queryNote);
+  queryWrap.append(queryHeader, queryToggleBtn, queryContent);
 
   let selectedPresetId = FORWARDING_FILTER_PRESETS[0]?.id || 'all_updates';
   let selectedQuery = buildForwardingFilterQuery(selectedPresetId);
   const presetButtons = [];
 
   const renderFilterPresetUi = () => {
-    const activePreset =
-      FORWARDING_FILTER_PRESETS.find((preset) => preset.id === selectedPresetId) || FORWARDING_FILTER_PRESETS[0];
     selectedQuery = buildForwardingFilterQuery(selectedPresetId);
     filterSnippet.textContent = selectedQuery;
-    presetDescription.textContent = activePreset?.description || '';
     presetButtons.forEach(({ id, button }) => {
       const selected = id === selectedPresetId;
       button.classList.toggle('is-selected', selected);
       button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      const presetLabel = button.dataset.presetLabel || 'Filter preset';
+      button.setAttribute('aria-label', selected ? `${presetLabel}, selected` : presetLabel);
     });
   };
 
@@ -8375,18 +8440,43 @@ function buildGmailFilterHelpContent({
     button.type = 'button';
     button.className = 'forwarding-filter-preset';
     button.dataset.preset = preset.id;
+    button.dataset.presetLabel = preset.label || 'Filter preset';
     button.setAttribute('aria-pressed', 'false');
+
+    const icon = createForwardingFilterPresetIcon(preset.icon);
+
+    const body = document.createElement('span');
+    body.className = 'forwarding-filter-preset-body';
+
+    const heading = document.createElement('span');
+    heading.className = 'forwarding-filter-preset-heading';
 
     const title = document.createElement('span');
     title.className = 'forwarding-filter-preset-title';
     title.textContent = preset.label;
-    button.appendChild(title);
+    heading.appendChild(title);
+
+    if (preset.recommended) {
+      const badge = document.createElement('span');
+      badge.className = 'forwarding-filter-preset-badge';
+      badge.textContent = 'Recommended';
+      heading.appendChild(badge);
+    }
+
+    body.appendChild(heading);
     if (preset.summary) {
       const summary = document.createElement('span');
       summary.className = 'forwarding-filter-preset-summary';
       summary.textContent = preset.summary;
-      button.appendChild(summary);
+      body.appendChild(summary);
     }
+    if (preset.description) {
+      const description = document.createElement('span');
+      description.className = 'forwarding-filter-preset-copy';
+      description.textContent = preset.description;
+      body.appendChild(description);
+    }
+    button.append(icon, body);
 
     button.addEventListener('click', () => {
       selectedPresetId = preset.id;
@@ -8394,6 +8484,13 @@ function buildGmailFilterHelpContent({
     });
     presetButtons.push({ id: preset.id, button });
     presetList.appendChild(button);
+  });
+
+  queryToggleBtn.addEventListener('click', () => {
+    const willExpand = queryContent.hidden;
+    queryContent.hidden = !willExpand;
+    queryToggleBtn.setAttribute('aria-expanded', willExpand ? 'true' : 'false');
+    queryToggleBtn.textContent = willExpand ? 'Hide filter query' : 'View filter query';
   });
 
   copyFilterBtn.addEventListener('click', () => {
@@ -8404,7 +8501,7 @@ function buildGmailFilterHelpContent({
   });
 
   renderFilterPresetUi();
-  content.append(filterIntro, tutorial, presetDescriptionLabel, presetList, presetDescription, queryWrap);
+  content.append(filterIntro, tutorial, presetDescriptionLabel, presetGuideText, presetList, queryWrap);
   return content;
 }
 
