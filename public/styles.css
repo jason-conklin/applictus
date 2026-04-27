@@ -9923,7 +9923,18 @@ body.home-page .home-step-copy p {
 }
 
 body.home-page .home-panel-permissions {
-  background: linear-gradient(180deg, #ffffff 0%, #f9fcff 60%, #f2f7ff 100%) !important;
+  border-radius: 28px !important;
+  border: 1px solid rgba(180, 200, 230, 0.35) !important;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.55),
+    rgba(255, 255, 255, 0.35)
+  ) !important;
+  box-shadow:
+    0 20px 50px rgba(30, 64, 120, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
 }
 
 body.home-page .home-scope-label {
