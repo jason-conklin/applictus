@@ -11290,7 +11290,18 @@ body.home-page .info-section__left {
   display: grid;
   align-content: start;
   gap: 12px;
+  width: min(100%, 540px);
   max-width: 540px;
+  box-sizing: border-box;
+  padding: clamp(18px, 2.1vw, 24px);
+  border: 1px solid rgba(190, 205, 230, 0.38);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.46);
+  box-shadow:
+    0 10px 24px rgba(15, 48, 92, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 body.home-page .info-section--how .info-section__left {
@@ -11308,7 +11319,18 @@ body.home-page .info-section--how .info-section__right {
   gap: 10px;
   width: 100%;
   max-width: 560px;
+  box-sizing: border-box;
   justify-self: end;
+  padding: clamp(16px, 2vw, 20px);
+  border: 1px solid rgba(170, 190, 220, 0.45);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 251, 255, 0.86));
+  box-shadow:
+    0 18px 44px rgba(30, 64, 120, 0.16),
+    0 7px 18px rgba(30, 64, 120, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
 }
 
 body.home-page .how-stepper-meta {
@@ -11323,12 +11345,12 @@ body.home-page .how-stepper-meta__label {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: 700;
-  color: #3f648f;
+  color: #2f5687;
 }
 
 body.home-page .how-stepper-meta__copy {
   margin: 0;
-  color: #57799f;
+  color: #41668f;
   font-size: 0.84rem;
   line-height: 1.4;
 }
@@ -11339,7 +11361,7 @@ body.home-page .info-section__kicker {
   letter-spacing: 0.11em;
   font-weight: 700;
   text-transform: uppercase;
-  color: #3a5f91;
+  color: #2d568c;
 }
 
 body.home-page .info-section__left h2 {
@@ -11363,7 +11385,7 @@ body.home-page .info-section__left h2::after {
 body.home-page .info-section__lead {
   margin: 0;
   max-width: 37ch;
-  color: #3d618f;
+  color: #2f5683;
   line-height: 1.56;
 }
 
@@ -11372,7 +11394,7 @@ body.home-page .info-bullets {
   padding-left: 18px;
   display: grid;
   gap: 8px;
-  color: #2c4f79;
+  color: #254b76;
   line-height: 1.45;
 }
 
@@ -11393,9 +11415,9 @@ body.home-page .info-badge-pill {
   min-height: 27px;
   padding: 0.28rem 0.66rem;
   border-radius: 999px;
-  border: 1px solid rgba(20, 60, 116, 0.15);
-  background: rgba(255, 255, 255, 0.64);
-  color: #35577f;
+  border: 1px solid rgba(20, 60, 116, 0.2);
+  background: rgba(255, 255, 255, 0.78);
+  color: #1f436e;
   font-size: 0.73rem;
   font-weight: 600;
   letter-spacing: 0.03em;
@@ -11411,8 +11433,8 @@ body.home-page .info-time-pill {
   min-height: 30px;
   padding: 0.36rem 0.75rem;
   border-radius: 999px;
-  border: 1px solid rgba(20, 60, 116, 0.2);
-  color: #1b4a86;
+  border: 1px solid rgba(20, 60, 116, 0.24);
+  color: #173f76;
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -11421,7 +11443,7 @@ body.home-page .info-time-pill {
     0 6px 14px rgba(12, 42, 87, 0.08);
   width: fit-content;
   margin-top: 2px;
-  background: rgba(255, 255, 255, 0.68);
+  background: rgba(255, 255, 255, 0.8);
 }
 
 body.home-page .info-workflow-note {
@@ -11443,7 +11465,7 @@ body.home-page .info-workflow-points {
 body.home-page .info-workflow-points li {
   position: relative;
   padding-left: 19px;
-  color: #355981;
+  color: #274f78;
   line-height: 1.45;
 }
 
@@ -11484,17 +11506,20 @@ body.home-page .info-section--what .info-section__right {
 body.home-page .product-preview {
   --preview-loop-duration: 14s;
   width: 100%;
-  padding: 16px;
+  padding: clamp(16px, 2vw, 20px);
   display: grid;
   gap: 14px;
-  border-color: rgba(19, 60, 117, 0.2);
+  border-color: rgba(170, 190, 220, 0.45);
+  border-radius: 24px;
   box-shadow:
-    0 20px 42px rgba(8, 34, 74, 0.16),
-    0 7px 18px rgba(8, 34, 74, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 18px 44px rgba(30, 64, 120, 0.16),
+    0 7px 18px rgba(30, 64, 120, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
     inset 0 -8px 16px rgba(8, 34, 74, 0.05);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 251, 255, 0.94));
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 251, 255, 0.86));
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
 }
 
 body.home-page .product-preview__header {
@@ -12020,14 +12045,12 @@ body.home-page .how-stepper {
   --stepper-inset-bottom: 10px;
   position: relative;
   padding: var(--stepper-inset-top) 10px var(--stepper-inset-bottom) 2px;
-  border-radius: 20px;
-  border: 1px solid rgba(22, 63, 121, 0.16);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 251, 255, 0.94));
+  border-radius: 18px;
+  border: 1px solid rgba(22, 63, 121, 0.13);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(245, 251, 255, 0.68));
   box-shadow:
-    0 18px 38px rgba(10, 39, 82, 0.14),
-    0 6px 16px rgba(10, 39, 82, 0.07),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    inset 0 -8px 14px rgba(10, 39, 82, 0.045);
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    inset 0 -8px 14px rgba(10, 39, 82, 0.035);
 }
 
 body.home-page .how-stepper::before {
