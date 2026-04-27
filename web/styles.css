@@ -11302,7 +11302,7 @@ body.home-page .info-section__grid {
   display: grid;
   grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.06fr);
   gap: clamp(26px, 3.2vw, 44px);
-  align-items: center;
+  align-items: start;
 }
 
 body.home-page .info-section__left {
