@@ -11490,6 +11490,33 @@ body.home-page .info-workflow-points li::before {
   box-shadow: 0 0 0 2px rgba(61, 119, 215, 0.16);
 }
 
+body.home-page .info-after-setup {
+  margin-top: 6px;
+  max-width: 44ch;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(180, 200, 230, 0.35);
+  background: rgba(255, 255, 255, 0.28);
+}
+
+body.home-page .info-after-setup h3 {
+  margin: 0;
+  color: #173f69;
+  font-size: 0.86rem;
+  font-weight: 750;
+  letter-spacing: -0.005em;
+}
+
+body.home-page .info-after-setup ul {
+  margin: 8px 0 0;
+  padding-left: 17px;
+  display: grid;
+  gap: 5px;
+  color: #335a83;
+  font-size: 0.84rem;
+  line-height: 1.42;
+}
+
 body.home-page .info-section .tile {
   background: #ffffff;
   border: 1px solid rgba(20, 60, 116, 0.14);
