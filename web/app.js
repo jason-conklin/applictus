@@ -605,7 +605,6 @@ const inboundWhyToggle = document.getElementById('inbound-why-toggle');
 const inboundWhyPanel = document.getElementById('inbound-why-panel');
 const inboundHelpVerifySetup = document.getElementById('inbound-help-verify-setup');
 const inboundHelpOpenSetup = document.getElementById('inbound-help-open-setup');
-const inboundHelpSendTest = document.getElementById('inbound-help-send-test');
 const inboundHelpWhy = document.getElementById('inbound-help-why');
 const inboundDiagnosticsWrap = document.getElementById('inbound-diagnostics-wrap');
 const inboundDiagnosticsLink = document.getElementById('inbound-diagnostics-link');
@@ -1917,7 +1916,7 @@ function formatInboundMetaText() {
     if (syncParts.length) {
       return `${syncParts.join(' · ')} • No forwarded emails yet.`;
     }
-    return 'No forwarded emails yet. Forward one real application email or complete the Gmail forwarding confirmation to activate Applictus.';
+    return 'No forwarded emails yet. Click Verify setup to open a test email, or forward one real application email to activate Applictus.';
   }
   if (readiness === 'awaiting_confirmation') {
     return 'Waiting for forwarding verification in Gmail. Complete Step 2 in setup.';
@@ -2181,10 +2180,6 @@ function updateInboundStatusPresentation() {
       inboundHelpVerifySetup.classList.add('hidden');
       inboundHelpVerifySetup.disabled = true;
     }
-    if (inboundHelpSendTest) {
-      inboundHelpSendTest.classList.add('hidden');
-      inboundHelpSendTest.disabled = true;
-    }
     if (inboundHelpWhy) {
       inboundHelpWhy.classList.add('hidden');
     }
@@ -2205,7 +2200,7 @@ function updateInboundStatusPresentation() {
   let dashboardState = 'idle';
   let syncText = 'Setup needed';
   let helpStatusText = 'Not connected';
-  let helpNoteText = 'Verify forwarding in Gmail, then send a test email or forward one recent application email.';
+  let helpNoteText = 'Verify forwarding in Gmail, then click Verify setup to check delivery with a test email.';
 
   if (readiness === 'forwarding_active') {
     pillText = 'Connected · receiving forwarded emails';
@@ -2222,7 +2217,7 @@ function updateInboundStatusPresentation() {
     dashboardState = 'info';
     syncText = 'Address reachable';
     helpStatusText = 'Waiting for verification';
-    helpNoteText = 'Complete Step 2 in setup, then send one forwarded email to finish activation.';
+    helpNoteText = 'Complete Step 2 in setup, then click Verify setup to check delivery with a test email.';
   } else if (readiness === 'address_reachable') {
     pillText = 'Address reachable';
     pillState = 'info';
@@ -2230,7 +2225,7 @@ function updateInboundStatusPresentation() {
     dashboardState = 'info';
     syncText = 'Address reachable';
     helpStatusText = 'Verification in progress';
-    helpNoteText = 'Great progress. Send one forwarded email, then verify setup.';
+    helpNoteText = 'Great progress. Click Verify setup to check delivery with a test email.';
   } else if (readiness === 'awaiting_first_email') {
     pillText = 'Waiting for first forwarded email';
     pillState = 'info';
@@ -2238,7 +2233,7 @@ function updateInboundStatusPresentation() {
     dashboardState = 'info';
     syncText = 'Waiting for first email';
     helpStatusText = 'Waiting for first forwarded email';
-    helpNoteText = 'Setup is complete. Forward one recent application email to start tracking.';
+    helpNoteText = 'Setup is complete. Click Verify setup to check delivery with a test email.';
   } else if (readiness === 'awaiting_confirmation') {
     pillText = 'Waiting for forwarding verification';
     pillState = 'idle';
@@ -2246,7 +2241,7 @@ function updateInboundStatusPresentation() {
     dashboardState = 'idle';
     syncText = 'Waiting for verification';
     helpStatusText = 'Waiting for forwarding verification';
-    helpNoteText = 'Verify forwarding in Gmail, then send a test email or forward one recent application email.';
+    helpNoteText = 'Verify forwarding in Gmail, then click Verify setup to check delivery with a test email.';
   } else {
     helpNoteText = 'Open setup, add your Applictus inbox, then verify forwarding in Gmail.';
   }
@@ -2296,11 +2291,6 @@ function updateInboundStatusPresentation() {
     inboundHelpVerifySetup.classList.toggle('hidden', !showHelpVerify);
     inboundHelpVerifySetup.disabled = !showHelpVerify || !inboundState.addressEmail || inboundHelpVerifyState.inFlight;
     inboundHelpVerifySetup.textContent = inboundHelpVerifyState.inFlight ? 'Checking…' : 'Verify setup';
-  }
-  if (inboundHelpSendTest) {
-    const showHelpSendTest = Boolean(inboundState.addressEmail) && readiness !== 'forwarding_active';
-    inboundHelpSendTest.classList.toggle('hidden', !showHelpSendTest);
-    inboundHelpSendTest.disabled = !showHelpSendTest;
   }
   if (inboundHelpWhy) {
     inboundHelpWhy.classList.toggle('hidden', Boolean(inboundState.addressEmail) || readiness === 'forwarding_active');
@@ -7456,6 +7446,15 @@ function buildForwardingTestMailto(addressEmail) {
   return `mailto:${encodeURIComponent(target)}?subject=${subject}&body=${body}`;
 }
 
+function openForwardingTestEmailDraft() {
+  const mailto = buildForwardingTestMailto(inboundState.addressEmail);
+  if (!mailto) {
+    return false;
+  }
+  window.location.href = mailto;
+  return true;
+}
+
 function createForwardingCollapsible({ title, open = false } = {}) {
   const details = document.createElement('details');
   details.className = 'forwarding-collapsible';
@@ -8047,22 +8046,6 @@ function getInboundSetupStepSnapshot(phase, setupContext) {
   };
 }
 
-function buildForwardingSendTestButton(setupContext) {
-  const sendTestBtn = document.createElement('button');
-  sendTestBtn.type = 'button';
-  sendTestBtn.className = 'btn btn--secondary btn--sm';
-  sendTestBtn.textContent = 'Send test email';
-  sendTestBtn.disabled = !inboundState.addressEmail || Boolean(setupContext?.verifying);
-  sendTestBtn.addEventListener('click', () => {
-    const mailto = buildForwardingTestMailto(inboundState.addressEmail);
-    if (!mailto) {
-      return;
-    }
-    window.location.href = mailto;
-  });
-  return sendTestBtn;
-}
-
 function buildForwardingVerifyButton(setupContext) {
   const verifyBtn = document.createElement('button');
   verifyBtn.type = 'button';
@@ -8072,7 +8055,7 @@ function buildForwardingVerifyButton(setupContext) {
     : setupContext?.verifying
       ? 'Checking…'
       : 'Verify setup';
-  verifyBtn.disabled = Boolean(setupContext?.verifying || setupContext?.verified);
+  verifyBtn.disabled = Boolean(setupContext?.verifying || setupContext?.verified || !inboundState.addressEmail);
   verifyBtn.addEventListener('click', () => {
     if (!setupContext || typeof setupContext.runVerificationCheck !== 'function') {
       return;
@@ -8187,31 +8170,31 @@ function getInboundSetupPhaseConfig(phase, setupContext) {
         },
         {
           title: "You're all set",
-          description: 'Send a quick test email or forward one recent job-related email, then click Verify setup.',
-        appendActions: (actions) => {
-          actions.append(buildForwardingVerifyButton(setupContext), buildForwardingSendTestButton(setupContext));
-        },
-        appendExtras: (target) => {
+          description: 'Click Verify setup. Applictus will open a ready-to-send test email and check for delivery.',
+          appendActions: (actions) => {
+            actions.append(buildForwardingVerifyButton(setupContext));
+          },
+          appendExtras: (target) => {
             const completionNote = document.createElement('p');
             completionNote.className = 'forwarding-finish-note muted small';
             completionNote.textContent =
               'Once Gmail confirms forwarding and your filter is in place, Applictus will start tracking job updates automatically.';
-          target.appendChild(completionNote);
-          if (setupContext?.verifyMessage) {
-            const verifyMessage = document.createElement('p');
-            verifyMessage.className = 'forwarding-verify-message muted small';
-            verifyMessage.textContent = setupContext.verifyMessage;
-            target.appendChild(verifyMessage);
-          }
-          if (setupContext?.verified || isForwardingActive()) {
-            const connected = document.createElement('div');
-            connected.className = 'forwarding-connected-note';
-            connected.textContent = 'Connected ✓ Your Applictus inbox is ready.';
-            target.appendChild(connected);
+            target.appendChild(completionNote);
+            if (setupContext?.verifyMessage) {
+              const verifyMessage = document.createElement('p');
+              verifyMessage.className = 'forwarding-verify-message muted small';
+              verifyMessage.textContent = setupContext.verifyMessage;
+              target.appendChild(verifyMessage);
+            }
+            if (setupContext?.verified || isForwardingActive()) {
+              const connected = document.createElement('div');
+              connected.className = 'forwarding-connected-note';
+              connected.textContent = 'Connected ✓ Your Applictus inbox is ready.';
+              target.appendChild(connected);
+            }
           }
         }
-      }
-    ]
+      ]
   };
 }
 
@@ -8641,8 +8624,11 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
     if (setupContext.verifying || setupContext.closed) {
       return;
     }
+    const draftOpened = openForwardingTestEmailDraft();
     setupContext.verifying = true;
-    setupContext.verifyMessage = 'Checking for forwarded email…';
+    setupContext.verifyMessage = draftOpened
+      ? 'A ready-to-send test email is open. Send it, and Applictus will keep checking for delivery.'
+      : 'Checking for email delivery…';
     safeRender();
 
     const maxAttempts = 6;
@@ -8671,7 +8657,7 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
         return;
       }
       if (attempt < maxAttempts - 1) {
-        setupContext.verifyMessage = `Waiting for forwarded email… (${attempt + 1}/${maxAttempts})`;
+        setupContext.verifyMessage = `Waiting for email delivery… (${attempt + 1}/${maxAttempts})`;
         safeRender();
         await waitForMs(waitMs);
       }
@@ -8686,8 +8672,9 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
       setupContext.verifyMessage = 'Address reachable, but Gmail verification is still pending in Gmail.';
       showToast('Address reachable. Finish Gmail verification to complete setup.', { tone: 'info' });
     } else {
-      setupContext.verifyMessage = 'No forwarded email detected yet. Forward one email, then try Verify setup again.';
-      showToast('Still waiting for the first forwarded email.', { tone: 'info' });
+      setupContext.verifyMessage =
+        'No test email or forwarded email detected yet. Send the opened test email or forward one job-related email, then try Verify setup again.';
+      showToast('Still waiting for the test email or first forwarded email.', { tone: 'info' });
     }
     safeRender();
   };
@@ -12789,20 +12776,6 @@ inboundCopyAddress?.addEventListener('click', () => {
   void copyTextToClipboard(target, message);
 });
 
-function sendInboundTestEmail() {
-  const target = isInternalGmailMode() ? emailState.email : inboundState.addressEmail;
-  if (!target) {
-    return;
-  }
-  const subject = encodeURIComponent('Applictus test');
-  const body = encodeURIComponent(
-    isInternalGmailMode()
-      ? 'This is a Gmail internal-mode test email for Applictus.'
-      : 'This is a forwarding test email for Applictus.'
-  );
-  window.location.href = `mailto:${encodeURIComponent(target)}?subject=${subject}&body=${body}`;
-}
-
 async function verifyInboundSetupFromAccountHelp() {
   if (inboundHelpVerifyState.inFlight) {
     return;
@@ -12811,10 +12784,13 @@ async function verifyInboundSetupFromAccountHelp() {
     showToast('Open setup and add your Applictus inbox before verifying.', { tone: 'info' });
     return;
   }
+  const draftOpened = openForwardingTestEmailDraft();
   inboundHelpVerifyState.inFlight = true;
   updateInboundStatusPresentation();
   if (accountHelpNote) {
-    accountHelpNote.textContent = 'Checking for forwarded email…';
+    accountHelpNote.textContent = draftOpened
+      ? 'A ready-to-send test email is open. Send it, and Applictus will keep checking for delivery.'
+      : 'Checking for email delivery…';
   }
 
   const maxAttempts = 6;
@@ -12831,7 +12807,7 @@ async function verifyInboundSetupFromAccountHelp() {
     }
     if (attempt < maxAttempts - 1) {
       if (accountHelpNote) {
-        accountHelpNote.textContent = `Waiting for forwarded email… (${attempt + 1}/${maxAttempts})`;
+        accountHelpNote.textContent = `Waiting for email delivery… (${attempt + 1}/${maxAttempts})`;
       }
       await waitForMs(waitMs);
     }
@@ -12842,17 +12818,13 @@ async function verifyInboundSetupFromAccountHelp() {
   if (readiness === 'gmail_verification_pending') {
     showToast('Address reachable. Finish Gmail verification to complete setup.', { tone: 'info' });
   } else {
-    showToast('Still waiting for the first forwarded email.', { tone: 'info' });
+    showToast('Still waiting for the test email or first forwarded email.', { tone: 'info' });
   }
   updateInboundStatusPresentation();
 }
 
 inboundHelpVerifySetup?.addEventListener('click', () => {
   void verifyInboundSetupFromAccountHelp();
-});
-
-inboundHelpSendTest?.addEventListener('click', () => {
-  sendInboundTestEmail();
 });
 
 inboundProcessNow?.addEventListener('click', async () => {
