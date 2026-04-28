@@ -194,6 +194,7 @@ const INBOUND_MESSAGE_COUNT_WINDOW_DAYS = 7;
 const INBOUND_INACTIVE_WARNING_WINDOW_DAYS = 7;
 const INBOUND_SUBJECT_MAX = 80;
 const INBOUND_SYNC_LOCK_TTL_MS = 2 * 60 * 1000;
+const POSTMARK_OUTBOUND_API_URL = 'https://api.postmarkapp.com/email';
 const VALID_STATUSES = new Set(Object.values(ApplicationStatus));
 const CSRF_HEADER = 'x-csrf-token';
 const INBOUND_SECRET_HEADER = 'x-applictus-inbound-secret';
@@ -458,6 +459,88 @@ function inferForwardingReadiness({
     return 'awaiting_confirmation';
   }
   return 'not_started';
+}
+
+function getPostmarkOutboundConfig() {
+  const token = String(process.env.POSTMARK_SERVER_TOKEN || process.env.POSTMARK_OUTBOUND_TOKEN || '').trim();
+  const from = String(process.env.POSTMARK_FROM_EMAIL || process.env.OUTBOUND_FROM_EMAIL || '').trim();
+  const messageStream = String(process.env.POSTMARK_OUTBOUND_MESSAGE_STREAM || '').trim();
+  const apiUrl = String(process.env.POSTMARK_API_URL || POSTMARK_OUTBOUND_API_URL).trim() || POSTMARK_OUTBOUND_API_URL;
+  return {
+    configured: Boolean(token && from),
+    token,
+    from,
+    messageStream,
+    apiUrl
+  };
+}
+
+async function sendInboundSetupTestEmail({ toEmail, userEmail }) {
+  const config = getPostmarkOutboundConfig();
+  if (!config.configured) {
+    const err = new Error('Automatic setup test email is not configured');
+    err.code = 'OUTBOUND_EMAIL_NOT_CONFIGURED';
+    throw err;
+  }
+
+  const payload = {
+    From: config.from,
+    To: toEmail,
+    Subject: 'Applictus setup test',
+    TextBody: [
+      'This is an Applictus setup test email.',
+      '',
+      'If this message reaches your Applictus inbox, your forwarding address can receive email.',
+      'You can return to Applictus and click Verify setup again.'
+    ].join('\n'),
+    HtmlBody:
+      '<p>This is an Applictus setup test email.</p><p>If this message reaches your Applictus inbox, your forwarding address can receive email.</p><p>You can return to Applictus and click Verify setup again.</p>',
+    Tag: 'setup-test',
+    Metadata: {
+      purpose: 'inbound_setup_test',
+      user_email: normalizeEmail(userEmail) || ''
+    }
+  };
+  if (config.messageStream) {
+    payload.MessageStream = config.messageStream;
+  }
+
+  let response;
+  let rawBody = '';
+  try {
+    response = await fetch(config.apiUrl, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Postmark-Server-Token': config.token
+      },
+      body: JSON.stringify(payload)
+    });
+    rawBody = await response.text().catch(() => '');
+  } catch (fetchErr) {
+    const err = new Error('Unable to send setup test email');
+    err.code = 'OUTBOUND_EMAIL_SEND_FAILED';
+    err.detail = fetchErr?.message ? String(fetchErr.message).slice(0, 220) : String(fetchErr);
+    throw err;
+  }
+
+  let body = {};
+  try {
+    body = rawBody ? JSON.parse(rawBody) : {};
+  } catch (_) {
+    body = {};
+  }
+
+  if (!response.ok) {
+    const err = new Error(body.Message || body.message || 'Unable to send setup test email');
+    err.code = 'OUTBOUND_EMAIL_SEND_FAILED';
+    err.status = response.status;
+    err.detail = rawBody ? rawBody.slice(0, 500) : null;
+    throw err;
+  }
+
+  return body;
 }
 
 function extractDomainFromAddress(value) {
@@ -4704,6 +4787,72 @@ app.get('/api/inbound/status', requireAuth, async (req, res) => {
       detail: err?.message ? String(err.message).slice(0, 220) : String(err)
     });
     return res.status(500).json({ error: 'INBOUND_STATUS_FAILED' });
+  }
+});
+
+app.post('/api/inbound/test-email', requireAuth, async (req, res) => {
+  try {
+    const statusBefore = await buildInboundAddressStatus(req.user.id, { ensureAddress: true });
+    if (!statusBefore.address_email) {
+      return res.status(409).json({
+        error: 'INBOUND_ADDRESS_MISSING',
+        message: 'Create your Applictus inbox address before sending a setup test email.',
+        status: statusBefore
+      });
+    }
+
+    if (statusBefore.last_received_at || statusBefore.address_reachable) {
+      return res.json({
+        ok: true,
+        sent: false,
+        already_received: true,
+        status: statusBefore
+      });
+    }
+
+    await sendInboundSetupTestEmail({
+      toEmail: statusBefore.address_email,
+      userEmail: req.user?.email || ''
+    });
+
+    const statusAfter = await buildInboundAddressStatus(req.user.id, { ensureAddress: false });
+    return res.json({
+      ok: true,
+      sent: true,
+      already_received: false,
+      status: statusAfter
+    });
+  } catch (err) {
+    if (isDbUnavailableError(err)) {
+      return respondDbUnavailable(res, err, 'inbound.test_email');
+    }
+    if (err?.code === 'INBOUND_DOMAIN_REQUIRED') {
+      return res.status(503).json({ error: 'INBOUND_NOT_CONFIGURED' });
+    }
+    if (err?.code === 'OUTBOUND_EMAIL_NOT_CONFIGURED') {
+      return res.status(503).json({
+        error: 'OUTBOUND_EMAIL_NOT_CONFIGURED',
+        message:
+          'Automatic setup test email is not configured. Set POSTMARK_SERVER_TOKEN and POSTMARK_FROM_EMAIL, or use Gmail resend verification.'
+      });
+    }
+    if (err?.code === 'OUTBOUND_EMAIL_SEND_FAILED') {
+      logError('inbound.test_email.send_failed', {
+        userId: req.user?.id || null,
+        status: err.status || null,
+        detail: err.detail || err.message || String(err)
+      });
+      return res.status(502).json({
+        error: 'OUTBOUND_EMAIL_SEND_FAILED',
+        message: 'Unable to send the setup test email right now.'
+      });
+    }
+    logError('inbound.test_email.failed', {
+      userId: req.user?.id || null,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+    return res.status(500).json({ error: 'INBOUND_TEST_EMAIL_FAILED' });
   }
 });
 

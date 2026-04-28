@@ -1544,6 +1544,29 @@ function getInboundSetupVerificationSuccessMessage() {
   return 'Address verified ✓ Continue to create the Gmail filter.';
 }
 
+async function requestInboundSetupTestEmail() {
+  try {
+    const result = await api('/api/inbound/test-email', {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+    if (result?.status) {
+      applyInboundStatusPayload(result.status);
+    }
+    return {
+      ok: true,
+      sent: Boolean(result?.sent),
+      alreadyReceived: Boolean(result?.already_received)
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      code: err?.code || err?.status || 'TEST_EMAIL_FAILED',
+      message: err?.message || 'Unable to send setup test email.'
+    };
+  }
+}
+
 function setInlineHintState(element, message, state = null) {
   if (!element) {
     return;
@@ -7455,25 +7478,6 @@ function waitForMs(durationMs) {
   });
 }
 
-function buildForwardingTestMailto(addressEmail) {
-  const target = String(addressEmail || '').trim();
-  if (!target) {
-    return '';
-  }
-  const subject = encodeURIComponent('Applictus test');
-  const body = encodeURIComponent('This is a forwarding test email for Applictus.');
-  return `mailto:${encodeURI(target)}?subject=${subject}&body=${body}`;
-}
-
-function openForwardingTestEmailDraft() {
-  const mailto = buildForwardingTestMailto(inboundState.addressEmail);
-  if (!mailto) {
-    return false;
-  }
-  window.location.href = mailto;
-  return true;
-}
-
 function createForwardingCollapsible({ title, open = false } = {}) {
   const details = document.createElement('details');
   details.className = 'forwarding-collapsible';
@@ -8676,11 +8680,39 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
       return;
     }
 
-    const draftOpened = openForwardingTestEmailDraft();
-    setupContext.verifyMessage = draftOpened
-      ? 'A ready-to-send test email is open. Send it, and Applictus will keep checking for delivery.'
-      : 'No email has reached your Applictus inbox yet. Use Gmail resend or send a test email, then try again.';
+    const testEmailResult = await requestInboundSetupTestEmail();
+    if (testEmailResult.ok && isInboundInboxReachableForSetup()) {
+      setupContext.verifying = false;
+      setupContext.verified = true;
+      setupContext.verifyMessage = getInboundSetupVerificationSuccessMessage();
+      showToast('Applictus inbox verified.', { tone: 'success' });
+      safeRender();
+      return;
+    }
+    if (testEmailResult.ok && testEmailResult.sent) {
+      setupContext.verifyMessage =
+        'Applictus sent a setup test email. It can take a moment to arrive, so we will keep checking.';
+    } else if (testEmailResult.ok && testEmailResult.alreadyReceived) {
+      setupContext.verifyMessage = getInboundSetupVerificationSuccessMessage();
+    } else if (testEmailResult.code === 'OUTBOUND_EMAIL_NOT_CONFIGURED') {
+      setupContext.verifyMessage =
+        'Automatic setup test email is not configured here. In Gmail, click Resend verification, then try Verify setup again.';
+    } else {
+      setupContext.verifyMessage =
+        'Applictus could not send the setup test email right now. In Gmail, click Resend verification, then try Verify setup again.';
+    }
     safeRender();
+    if (!testEmailResult.ok) {
+      setupContext.verifying = false;
+      showToast(
+        testEmailResult.code === 'OUTBOUND_EMAIL_NOT_CONFIGURED'
+          ? 'Automatic setup test email is not configured.'
+          : 'Unable to send setup test email.',
+        { tone: 'info' }
+      );
+      safeRender();
+      return;
+    }
 
     const maxAttempts = 6;
     const waitMs = 2500;
@@ -8714,7 +8746,7 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
       showToast('Applictus inbox verified. Finish Gmail verification in Gmail.', { tone: 'info' });
     } else {
       setupContext.verifyMessage =
-        'No email has reached your Applictus inbox yet. Use Gmail resend or send the opened test email, then try Verify setup again.';
+        'No email has reached your Applictus inbox yet. In Gmail, click Resend verification, then try Verify setup again.';
       showToast('Still waiting for an email to reach your Applictus inbox.', { tone: 'info' });
     }
     safeRender();
@@ -12841,11 +12873,48 @@ async function verifyInboundSetupFromAccountHelp() {
     return;
   }
 
-  const draftOpened = openForwardingTestEmailDraft();
+  const testEmailResult = await requestInboundSetupTestEmail();
+  if (testEmailResult.ok && isInboundInboxReachableForSetup()) {
+    inboundHelpVerifyState.inFlight = false;
+    const readiness = resolveForwardingReadiness();
+    const tone = readiness === 'gmail_verification_pending' ? 'info' : 'success';
+    const message =
+      readiness === 'gmail_verification_pending'
+        ? 'Applictus inbox verified. Finish Gmail verification in Gmail.'
+        : 'Applictus inbox verified.';
+    showToast(message, { tone });
+    updateInboundStatusPresentation();
+    return;
+  }
   if (accountHelpNote) {
-    accountHelpNote.textContent = draftOpened
-      ? 'A ready-to-send test email is open. Send it, and Applictus will keep checking for delivery.'
-      : 'No email has reached your Applictus inbox yet. Use Gmail resend or send a test email, then try again.';
+    if (testEmailResult.ok && testEmailResult.sent) {
+      accountHelpNote.textContent =
+        'Applictus sent a setup test email. It can take a moment to arrive, so we will keep checking.';
+    } else if (testEmailResult.code === 'OUTBOUND_EMAIL_NOT_CONFIGURED') {
+      accountHelpNote.textContent =
+        'Automatic setup test email is not configured here. In Gmail, click Resend verification, then try Verify setup again.';
+    } else {
+      accountHelpNote.textContent =
+        'Applictus could not send the setup test email right now. In Gmail, click Resend verification, then try Verify setup again.';
+    }
+  }
+  if (!testEmailResult.ok) {
+    const note =
+      testEmailResult.code === 'OUTBOUND_EMAIL_NOT_CONFIGURED'
+        ? 'Automatic setup test email is not configured here. In Gmail, click Resend verification, then try Verify setup again.'
+        : 'Applictus could not send the setup test email right now. In Gmail, click Resend verification, then try Verify setup again.';
+    inboundHelpVerifyState.inFlight = false;
+    updateInboundStatusPresentation();
+    if (accountHelpNote) {
+      accountHelpNote.textContent = note;
+    }
+    showToast(
+      testEmailResult.code === 'OUTBOUND_EMAIL_NOT_CONFIGURED'
+        ? 'Automatic setup test email is not configured.'
+        : 'Unable to send setup test email.',
+      { tone: 'info' }
+    );
+    return;
   }
 
   const maxAttempts = 6;
