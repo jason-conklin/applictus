@@ -8065,6 +8065,57 @@ function buildForwardingVerifyButton(setupContext) {
   return verifyBtn;
 }
 
+function buildForwardingVerifySetupStepConfig(setupContext) {
+  return {
+    title: 'Verify your Applictus inbox',
+    description:
+      'After Gmail accepts the forwarding address, click Verify setup to confirm Applictus can receive email.',
+    appendActions: (actions) => {
+      actions.append(buildForwardingVerifyButton(setupContext));
+    },
+    appendExtras: (target) => {
+      const completionNote = document.createElement('p');
+      completionNote.className = 'forwarding-finish-note muted small';
+      completionNote.textContent =
+        'Once this address is verified, continue to the Gmail filter step to control what gets forwarded.';
+      target.appendChild(completionNote);
+      if (setupContext?.verifyMessage) {
+        const verifyMessage = document.createElement('p');
+        verifyMessage.className = 'forwarding-verify-message muted small';
+        verifyMessage.textContent = setupContext.verifyMessage;
+        target.appendChild(verifyMessage);
+      }
+      if (setupContext?.verified || isForwardingActive()) {
+        const connected = document.createElement('div');
+        connected.className = 'forwarding-connected-note';
+        connected.textContent = 'Address verified ✓ Your Applictus inbox can receive email.';
+        target.appendChild(connected);
+      }
+    }
+  };
+}
+
+function buildForwardingFilterSetupStepConfig() {
+  return {
+    title: 'Create a job-email filter',
+    description:
+      'Now that Gmail can forward to Applictus, add the suggested filter for application, interview, offer, and rejection emails.',
+    appendExtras: (target) => {
+      target.appendChild(
+        buildGmailFilterHelpContent({
+          introText:
+            'Final setup: create a Gmail filter so only job-related emails forward to Applictus. This keeps your timeline cleaner, improves tracking accuracy, and limits unrelated personal email.'
+        })
+      );
+      const finishNote = document.createElement('p');
+      finishNote.className = 'forwarding-finish-note muted small';
+      finishNote.textContent =
+        'After you create this filter in Gmail, Applictus will start tracking matching job updates automatically.';
+      target.appendChild(finishNote);
+    }
+  };
+}
+
 function getInboundSetupPhaseConfig(phase, setupContext) {
   if (phase === 0) {
       return {
@@ -8127,12 +8178,14 @@ function getInboundSetupPhaseConfig(phase, setupContext) {
   }
 
   return {
-      title: 'Phase 2: Filter job emails and verify setup',
-      description: 'Create a Gmail filter so only job-related emails reach your Applictus timeline.',
-      substeps: [
-        {
-          title: 'Confirm your Applictus forwarding address',
-          description: 'After Gmail confirms your address, make sure your Applictus inbox is available for forwarding filters.',
+    title: 'Phase 2: Verify forwarding and filter job emails',
+    description:
+      'Confirm the Gmail forwarding address first, then create a filter so only job-related emails reach your Applictus timeline.',
+    substeps: [
+      {
+        title: 'Confirm your Applictus forwarding address',
+        description:
+          'Use the Gmail confirmation email Applictus received. Gmail needs this before filters can forward to your Applictus address.',
         mediaFactory: () =>
           buildForwardingAnimatedTutorial({
             setupContext,
@@ -8153,48 +8206,12 @@ function getInboundSetupPhaseConfig(phase, setupContext) {
             ]
           }),
         appendExtras: (target) => {
-            appendForwardingVerificationHelper(target);
-          }
-        },
-        {
-          title: 'Create a job-email filter',
-          description: 'Use the suggested Gmail filter to forward only application, interview, offer, and rejection emails.',
-          appendExtras: (target) => {
-            target.appendChild(
-              buildGmailFilterHelpContent({
-                introText:
-                  'Core setup: forward only job-related emails. This keeps your timeline cleaner, improves tracking accuracy, and limits unrelated personal email.'
-              })
-            );
-          }
-        },
-        {
-          title: "You're all set",
-          description: 'Click Verify setup. Applictus will open a ready-to-send test email and check for delivery.',
-          appendActions: (actions) => {
-            actions.append(buildForwardingVerifyButton(setupContext));
-          },
-          appendExtras: (target) => {
-            const completionNote = document.createElement('p');
-            completionNote.className = 'forwarding-finish-note muted small';
-            completionNote.textContent =
-              'Once Gmail confirms forwarding and your filter is in place, Applictus will start tracking job updates automatically.';
-            target.appendChild(completionNote);
-            if (setupContext?.verifyMessage) {
-              const verifyMessage = document.createElement('p');
-              verifyMessage.className = 'forwarding-verify-message muted small';
-              verifyMessage.textContent = setupContext.verifyMessage;
-              target.appendChild(verifyMessage);
-            }
-            if (setupContext?.verified || isForwardingActive()) {
-              const connected = document.createElement('div');
-              connected.className = 'forwarding-connected-note';
-              connected.textContent = 'Connected ✓ Your Applictus inbox is ready.';
-              target.appendChild(connected);
-            }
-          }
+          appendForwardingVerificationHelper(target);
         }
-      ]
+      },
+      buildForwardingVerifySetupStepConfig(setupContext),
+      buildForwardingFilterSetupStepConfig()
+    ]
   };
 }
 
@@ -8594,18 +8611,17 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
   const initialReadiness = resolveForwardingReadiness();
   const initialVerifyMessage =
     initialReadiness === 'forwarding_active'
-      ? 'Forwarding is active.'
+      ? 'Address verified. Continue to create or review the Gmail filter.'
       : initialReadiness === 'gmail_verification_pending'
         ? 'Address reachable. Gmail verification is still pending.'
         : initialReadiness === 'address_reachable'
-          ? 'Address reachable. Forward one more non-verification email to complete activation.'
+          ? 'Address reachable. Continue to create the Gmail filter.'
           : '';
   const setupContext = {
     verifying: false,
     verified: isForwardingActive(),
     verifyMessage: initialVerifyMessage,
     closed: false,
-    closeTimer: null,
     runVerificationCheck: null,
     cleanupFns: [],
     substepByPhase: {
@@ -8643,17 +8659,9 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
       if (activeNow) {
         setupContext.verifying = false;
         setupContext.verified = true;
-        setupContext.verifyMessage = 'Connected ✓ We are receiving forwarded emails.';
-        showToast('Forwarding verified.', { tone: 'success' });
+        setupContext.verifyMessage = 'Address verified ✓ Continue to create the Gmail filter.';
+        showToast('Applictus inbox verified.', { tone: 'success' });
         safeRender();
-        if (setupContext.closeTimer) {
-          window.clearTimeout(setupContext.closeTimer);
-        }
-        setupContext.closeTimer = window.setTimeout(() => {
-          if (!setupContext.closed) {
-            closeModal('verified');
-          }
-        }, 900);
         return;
       }
       if (attempt < maxAttempts - 1) {
@@ -8788,10 +8796,6 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
           }
         });
         setupContext.cleanupFns = [];
-      }
-      if (setupContext.closeTimer) {
-        window.clearTimeout(setupContext.closeTimer);
-        setupContext.closeTimer = null;
       }
     }
   });
