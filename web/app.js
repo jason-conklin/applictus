@@ -1467,6 +1467,10 @@ function hasForwardingAddress(addressEmail = inboundState.addressEmail) {
   return Boolean(String(addressEmail || '').trim());
 }
 
+function hasCustomInboxUsername() {
+  return Boolean(normalizeInboxUsernameInput(inboundState.inboxUsername || sessionUser?.inbox_username || ''));
+}
+
 function resolveInboundSetupState(
   reportedSetupState = inboundState.setupState,
   {
@@ -2273,7 +2277,7 @@ function updateInboundStatusPresentation() {
     inboundProcessNow.disabled = !showProcessNow;
   }
   if (inboundRotateAddress) {
-    const showRotateAddress = Boolean(inboundState.addressEmail);
+    const showRotateAddress = Boolean(inboundState.addressEmail) && hasCustomInboxUsername();
     inboundRotateAddress.classList.toggle('hidden', !showRotateAddress);
     inboundRotateAddress.disabled = !showRotateAddress;
   }
