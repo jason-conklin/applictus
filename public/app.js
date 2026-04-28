@@ -600,10 +600,10 @@ const inboundOldAddressWarning = document.getElementById('inbound-old-address-wa
 const inboundOpenSetup = document.getElementById('inbound-open-setup');
 const inboundRotateAddress = document.getElementById('inbound-rotate-address');
 const inboundCopyAddress = document.getElementById('inbound-copy-address');
-const inboundSendTest = document.getElementById('inbound-send-test');
 const inboundProcessNow = document.getElementById('inbound-process-now');
 const inboundWhyToggle = document.getElementById('inbound-why-toggle');
 const inboundWhyPanel = document.getElementById('inbound-why-panel');
+const inboundHelpVerifySetup = document.getElementById('inbound-help-verify-setup');
 const inboundHelpOpenSetup = document.getElementById('inbound-help-open-setup');
 const inboundHelpSendTest = document.getElementById('inbound-help-send-test');
 const inboundHelpWhy = document.getElementById('inbound-help-why');
@@ -1124,6 +1124,9 @@ const inboundAutoSyncState = {
   lastTriggeredSignalAt: null,
   lastToastAt: 0,
   lastAutoSyncAt: 0
+};
+const inboundHelpVerifyState = {
+  inFlight: false
 };
 const signupUsernameState = {
   debounceTimer: null,
@@ -2137,10 +2140,6 @@ function updateInboundStatusPresentation() {
       inboundCopyAddress.disabled = !connectedEmail;
       inboundCopyAddress.textContent = 'Copy';
     }
-    if (inboundSendTest) {
-      inboundSendTest.classList.add('hidden');
-      inboundSendTest.disabled = true;
-    }
     if (inboundProcessNow) {
       inboundProcessNow.classList.add('hidden');
       inboundProcessNow.disabled = !connected;
@@ -2173,6 +2172,10 @@ function updateInboundStatusPresentation() {
     }
     if (inboundHelpOpenSetup) {
       inboundHelpOpenSetup.textContent = connected ? 'Reconnect Gmail' : 'Connect Gmail';
+    }
+    if (inboundHelpVerifySetup) {
+      inboundHelpVerifySetup.classList.add('hidden');
+      inboundHelpVerifySetup.disabled = true;
     }
     if (inboundHelpSendTest) {
       inboundHelpSendTest.classList.add('hidden');
@@ -2264,11 +2267,6 @@ function updateInboundStatusPresentation() {
     inboundCopyAddress.disabled = !inboundState.addressEmail;
     inboundCopyAddress.textContent = 'Copy';
   }
-  if (inboundSendTest) {
-    const showSendTest = Boolean(inboundState.addressEmail) && readiness !== 'forwarding_active';
-    inboundSendTest.classList.toggle('hidden', !showSendTest);
-    inboundSendTest.disabled = !showSendTest;
-  }
   if (inboundProcessNow) {
     const showProcessNow = readiness === 'forwarding_active' || readiness === 'awaiting_first_email';
     inboundProcessNow.classList.toggle('hidden', !showProcessNow);
@@ -2288,6 +2286,12 @@ function updateInboundStatusPresentation() {
     if (!showWhy && inboundWhyPanel) {
       inboundWhyPanel.classList.add('hidden');
     }
+  }
+  if (inboundHelpVerifySetup) {
+    const showHelpVerify = readiness !== 'forwarding_active';
+    inboundHelpVerifySetup.classList.toggle('hidden', !showHelpVerify);
+    inboundHelpVerifySetup.disabled = !showHelpVerify || !inboundState.addressEmail || inboundHelpVerifyState.inFlight;
+    inboundHelpVerifySetup.textContent = inboundHelpVerifyState.inFlight ? 'Checking…' : 'Verify setup';
   }
   if (inboundHelpSendTest) {
     const showHelpSendTest = Boolean(inboundState.addressEmail) && readiness !== 'forwarding_active';
@@ -12795,8 +12799,52 @@ function sendInboundTestEmail() {
   window.location.href = `mailto:${encodeURIComponent(target)}?subject=${subject}&body=${body}`;
 }
 
-inboundSendTest?.addEventListener('click', () => {
-  sendInboundTestEmail();
+async function verifyInboundSetupFromAccountHelp() {
+  if (inboundHelpVerifyState.inFlight) {
+    return;
+  }
+  if (!inboundState.addressEmail) {
+    showToast('Open setup and add your Applictus inbox before verifying.', { tone: 'info' });
+    return;
+  }
+  inboundHelpVerifyState.inFlight = true;
+  updateInboundStatusPresentation();
+  if (accountHelpNote) {
+    accountHelpNote.textContent = 'Checking for forwarded email…';
+  }
+
+  const maxAttempts = 6;
+  const waitMs = 2500;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    await refreshInboundStatus({ ensureAddress: false });
+    const receivedMs = Date.parse(inboundState.lastReceivedAt || '');
+    const activeNow = isForwardingActive() && Number.isFinite(receivedMs);
+    if (activeNow) {
+      inboundHelpVerifyState.inFlight = false;
+      showToast('Forwarding verified.', { tone: 'success' });
+      updateInboundStatusPresentation();
+      return;
+    }
+    if (attempt < maxAttempts - 1) {
+      if (accountHelpNote) {
+        accountHelpNote.textContent = `Waiting for forwarded email… (${attempt + 1}/${maxAttempts})`;
+      }
+      await waitForMs(waitMs);
+    }
+  }
+
+  inboundHelpVerifyState.inFlight = false;
+  const readiness = resolveForwardingReadiness();
+  if (readiness === 'gmail_verification_pending') {
+    showToast('Address reachable. Finish Gmail verification to complete setup.', { tone: 'info' });
+  } else {
+    showToast('Still waiting for the first forwarded email.', { tone: 'info' });
+  }
+  updateInboundStatusPresentation();
+}
+
+inboundHelpVerifySetup?.addEventListener('click', () => {
+  void verifyInboundSetupFromAccountHelp();
 });
 
 inboundHelpSendTest?.addEventListener('click', () => {
