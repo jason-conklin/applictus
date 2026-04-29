@@ -16,17 +16,19 @@ CREATE INDEX IF NOT EXISTS idx_inbound_addresses_email_status
   ON inbound_addresses(address_email, status);
 
 CREATE TABLE IF NOT EXISTS inbound_webhook_events (
-  id text PRIMARY KEY,
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   provider text NOT NULL DEFAULT 'postmark',
   recipient_email text,
-  inbound_address_id text,
-  user_id text REFERENCES users(id) ON DELETE SET NULL,
+  inbound_address_id uuid REFERENCES inbound_addresses(id) ON DELETE SET NULL,
+  user_id uuid REFERENCES users(id) ON DELETE SET NULL,
   address_status text,
   reason text NOT NULL,
   subject text,
-  received_at text NOT NULL,
-  created_at text NOT NULL
+  received_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL
 );
+
+ALTER TABLE inbound_webhook_events ENABLE ROW LEVEL SECURITY;
 
 CREATE INDEX IF NOT EXISTS idx_inbound_webhook_events_recipient
   ON inbound_webhook_events(recipient_email);
