@@ -13841,6 +13841,13 @@ body.app-page-bg .topbar .nav-link.active {
   color: rgba(22, 49, 86, 0.74);
 }
 
+#dashboard-view .sync-summary-main.status-strip-meta .sync-summary-status {
+  flex: 0 0 auto;
+  overflow: visible;
+  min-width: 16px;
+  line-height: 1;
+}
+
 #dashboard-view .sync-summary-main.status-strip-meta .sync-summary {
   display: inline-flex;
   align-items: center;
