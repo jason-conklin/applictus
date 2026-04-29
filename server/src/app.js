@@ -438,13 +438,14 @@ function inferForwardingReadiness({
   hasAddress,
   setupState,
   lastReceivedAt,
+  forwardingActiveAt,
   hasNonVerificationInbound,
   hasGmailVerification
 }) {
   if (!hasAddress) {
     return 'not_started';
   }
-  if (hasNonVerificationInbound) {
+  if (forwardingActiveAt || hasNonVerificationInbound) {
     return 'forwarding_active';
   }
   if (hasGmailVerification) {
@@ -467,35 +468,85 @@ function getPostmarkOutboundConfig() {
   const from = String(process.env.POSTMARK_FROM_EMAIL || process.env.OUTBOUND_FROM_EMAIL || '').trim();
   const messageStream = String(process.env.POSTMARK_OUTBOUND_MESSAGE_STREAM || '').trim();
   const apiUrl = String(process.env.POSTMARK_API_URL || POSTMARK_OUTBOUND_API_URL).trim() || POSTMARK_OUTBOUND_API_URL;
+  const missing = [];
+  if (!token) missing.push('POSTMARK_SERVER_TOKEN');
+  if (!from) missing.push('POSTMARK_FROM_EMAIL');
+  if (!messageStream) missing.push('POSTMARK_OUTBOUND_MESSAGE_STREAM');
   return {
-    configured: Boolean(token && from),
+    configured: missing.length === 0,
     token,
     from,
     messageStream,
-    apiUrl
+    apiUrl,
+    missing
   };
 }
 
-async function sendInboundSetupTestEmail({ toEmail, userEmail }) {
+function generateInboundSetupToken() {
+  return crypto.randomBytes(18).toString('hex');
+}
+
+function hashInboundSetupToken(token) {
+  const normalized = String(token || '').trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+  return crypto.createHash('sha256').update(`inbound-setup-test:${normalized}`).digest('hex');
+}
+
+function extractInboundSetupTokens({ subject, bodyText, bodyHtml } = {}) {
+  const combined = [subject, bodyText, stripInboundHtml(bodyHtml)]
+    .filter(Boolean)
+    .join('\n');
+  const tokens = [];
+  const patterns = [
+    /applictus setup test token[:\s]+([a-f0-9]{24,96})/gi,
+    /\bsetup test token[:\s]+([a-f0-9]{24,96})/gi
+  ];
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(combined))) {
+      if (match[1]) {
+        tokens.push(String(match[1]).trim().toLowerCase());
+      }
+    }
+  }
+  return Array.from(new Set(tokens));
+}
+
+function hasMatchingInboundSetupToken(address, tokens = []) {
+  const expectedHash = String(address?.setup_test_token_hash || '').trim().toLowerCase();
+  if (!expectedHash || !tokens.length) {
+    return false;
+  }
+  return tokens.some((token) => {
+    const actualHash = hashInboundSetupToken(token);
+    return actualHash ? safeCompareSecret(actualHash, expectedHash) : false;
+  });
+}
+
+async function sendInboundSetupTestEmail({ toEmail, userEmail, token }) {
   const config = getPostmarkOutboundConfig();
   if (!config.configured) {
     const err = new Error('Automatic setup test email is not configured');
     err.code = 'OUTBOUND_EMAIL_NOT_CONFIGURED';
+    err.missing = config.missing;
     throw err;
   }
 
   const payload = {
     From: config.from,
     To: toEmail,
-    Subject: 'Applictus setup test',
+    Subject: 'Application submitted — Applictus setup test',
     TextBody: [
       'This is an Applictus setup test email.',
+      `Applictus setup test token: ${token}`,
       '',
-      'If this message reaches your Applictus inbox, your forwarding address can receive email.',
-      'You can return to Applictus and click Verify setup again.'
+      'If Gmail forwarding is active, this message should be forwarded to your Applictus inbox.',
+      'You can return to Applictus and wait for verification to finish.'
     ].join('\n'),
     HtmlBody:
-      '<p>This is an Applictus setup test email.</p><p>If this message reaches your Applictus inbox, your forwarding address can receive email.</p><p>You can return to Applictus and click Verify setup again.</p>',
+      `<p>This is an Applictus setup test email.</p><p>Applictus setup test token: <code>${token}</code></p><p>If Gmail forwarding is active, this message should be forwarded to your Applictus inbox.</p><p>You can return to Applictus and wait for verification to finish.</p>`,
     Tag: 'setup-test',
     Metadata: {
       purpose: 'inbound_setup_test',
@@ -1990,11 +2041,11 @@ function truncateInboundSubject(subject) {
   return `${normalized.slice(0, INBOUND_SUBJECT_MAX - 1)}…`;
 }
 
-function inferInboundSetupState({ hasAddress, confirmedAt, lastReceivedAt }) {
+function inferInboundSetupState({ hasAddress, confirmedAt, forwardingActiveAt }) {
   if (!hasAddress) {
     return 'not_started';
   }
-  if (lastReceivedAt) {
+  if (forwardingActiveAt) {
     return 'active';
   }
   if (confirmedAt) {
@@ -2048,6 +2099,13 @@ async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) 
       last_received_subject: null,
       forwarding_readiness: 'not_started',
       address_reachable: false,
+      inbox_reachable: false,
+      gmail_confirmation_received_at: null,
+      gmail_forwarding_active: false,
+      forwarding_active_at: null,
+      setup_complete: false,
+      setup_test_sent_at: null,
+      setup_test_received_at: null,
       has_non_verification_inbound: false,
       gmail_verification_pending: false,
       gmail_forwarding_verification: null,
@@ -2111,14 +2169,10 @@ async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) 
   const recentThreshold = new Date(Date.now() - INBOUND_CONNECTED_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   const parsedLastReceived = parseIsoDate(lastReceivedAt);
   const hasRecentInbound = Boolean(parsedLastReceived && parsedLastReceived >= recentThreshold);
-  const setupState = inferInboundSetupState({
-    hasAddress: true,
-    confirmedAt: address.confirmed_at || null,
-    lastReceivedAt
-  });
   const inboundRows = Array.isArray(recentInboundRows) ? recentInboundRows : [];
   let latestGmailVerification = null;
   let hasNonVerificationInbound = false;
+  let latestNonVerificationInboundAt = null;
   for (const row of inboundRows) {
     const verification = extractGmailForwardingVerificationInfo({
       subject: row?.subject || null,
@@ -2138,14 +2192,29 @@ async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) 
       continue;
     }
     hasNonVerificationInbound = true;
+    latestNonVerificationInboundAt = row?.received_at || row?.created_at || null;
     break;
   }
+  const gmailConfirmationReceivedAt =
+    address.last_gmail_confirmation_at || latestGmailVerification?.received_at || null;
+  const forwardingActiveAt =
+    address.forwarding_active_at ||
+    address.setup_test_received_at ||
+    latestNonVerificationInboundAt ||
+    null;
+  const gmailForwardingActive = Boolean(forwardingActiveAt || hasNonVerificationInbound);
+  const setupState = inferInboundSetupState({
+    hasAddress: true,
+    confirmedAt: address.confirmed_at || gmailConfirmationReceivedAt || null,
+    forwardingActiveAt
+  });
   const forwardingReadiness = inferForwardingReadiness({
     hasAddress: true,
     setupState,
     lastReceivedAt,
+    forwardingActiveAt,
     hasNonVerificationInbound,
-    hasGmailVerification: Boolean(latestGmailVerification)
+    hasGmailVerification: Boolean(latestGmailVerification || gmailConfirmationReceivedAt)
   });
   const fallbackPendingCount = signalRow ? null : await countPendingInboundQueue(userId);
   const pendingCount = signalRow ? Number(signalRow.pending_count || 0) : Number(fallbackPendingCount || 0);
@@ -2168,6 +2237,13 @@ async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) 
     last_received_subject: truncateInboundSubject(latestInbound?.subject || null),
     forwarding_readiness: forwardingReadiness,
     address_reachable: Boolean(lastReceivedAt),
+    inbox_reachable: Boolean(lastReceivedAt || gmailConfirmationReceivedAt),
+    gmail_confirmation_received_at: gmailConfirmationReceivedAt,
+    gmail_forwarding_active: gmailForwardingActive,
+    forwarding_active_at: forwardingActiveAt,
+    setup_complete: gmailForwardingActive,
+    setup_test_sent_at: address.setup_test_sent_at || null,
+    setup_test_received_at: address.setup_test_received_at || null,
     has_non_verification_inbound: Boolean(hasNonVerificationInbound),
     gmail_verification_pending: forwardingReadiness === 'gmail_verification_pending',
     gmail_forwarding_verification: latestGmailVerification,
@@ -2185,7 +2261,7 @@ async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) 
         }
       : null,
     setup_state: setupState,
-    connected: hasRecentInbound,
+    connected: Boolean(gmailForwardingActive && hasRecentInbound),
     effective_connected: Boolean(lastReceivedAt),
     last_inbound_sync_at: inboundSyncMeta?.last_inbound_sync_at || null,
     last_inbound_sync: inboundSyncMeta || null
@@ -2762,7 +2838,9 @@ app.post('/api/inbound/postmark', async (req, res) => {
     const mappedAddress = await dbTimed(async () => {
       const rowOrPromise = db
         .prepare(
-          `SELECT id, user_id, address_email, is_active, status, rotated_at
+          `SELECT id, user_id, address_email, is_active, status, rotated_at,
+                  setup_test_token_hash, setup_test_sent_at, setup_test_received_at,
+                  forwarding_active_at, last_gmail_confirmation_at
            FROM inbound_addresses
            WHERE lower(address_email) = ?
            ORDER BY is_active DESC, created_at DESC
@@ -2894,6 +2972,80 @@ app.post('/api/inbound/postmark', async (req, res) => {
       bodyHtmlLength: bodyHtml ? bodyHtml.length : 0,
       sha256Prefix: sha256.slice(0, 12)
     });
+
+    const gmailVerification = extractGmailForwardingVerificationInfo({
+      subject,
+      bodyText,
+      bodyHtml,
+      rawPayload: payload
+    });
+    if (gmailVerification.detected) {
+      const confirmationAt = nowIso();
+      await dbRun(
+        `UPDATE inbound_addresses
+            SET last_received_at = ?,
+                last_gmail_confirmation_at = COALESCE(last_gmail_confirmation_at, ?)
+          WHERE id = ?`,
+        confirmationAt,
+        confirmationAt,
+        mappedAddress.id
+      );
+      await touchUserInboxSignal(mappedAddress.user_id, {
+        lastInboundAt: confirmationAt,
+        lastSubjectPreview: subject || null
+      });
+      logInfo('gmail_confirmation_received', {
+        provider,
+        userId: mappedAddress.user_id,
+        inboundAddressId: mappedAddress.id,
+        recipientEmail
+      });
+    }
+
+    const setupTokens = extractInboundSetupTokens({ subject, bodyText, bodyHtml });
+    if (hasMatchingInboundSetupToken(mappedAddress, setupTokens)) {
+      const receivedAtIso = nowIso();
+      await dbRun(
+        `UPDATE inbound_addresses
+            SET last_received_at = ?,
+                setup_test_received_at = ?,
+                forwarding_active_at = COALESCE(forwarding_active_at, ?)
+          WHERE id = ?`,
+        receivedAtIso,
+        receivedAtIso,
+        receivedAtIso,
+        mappedAddress.id
+      );
+      await touchUserInboxSignal(mappedAddress.user_id, {
+        lastInboundAt: receivedAtIso,
+        lastSubjectPreview: subject || null
+      });
+      await recordInboundWebhookEvent({
+        provider,
+        recipientEmail,
+        mappedAddress,
+        addressStatus: mappedAddressStatus,
+        reason: 'setup_test_email_received',
+        subject,
+        receivedAt
+      });
+      logInfo('setup_test_email_received', {
+        provider,
+        userId: mappedAddress.user_id,
+        inboundAddressId: mappedAddress.id,
+        recipientEmail
+      });
+      logInfo('setup_completed_from_test_email', {
+        provider,
+        userId: mappedAddress.user_id,
+        inboundAddressId: mappedAddress.id
+      });
+      return res.status(200).json({
+        ok: true,
+        ignored: true,
+        reason: 'setup_test_email_received'
+      });
+    }
 
     const dedupeBySha = await dbTimed(async () => {
       const rowOrPromise = db
@@ -3037,8 +3189,16 @@ app.post('/api/inbound/postmark', async (req, res) => {
     const inboundReceivedAt = nowIso();
     await dbTimed(async () => {
       const runRes = db
-        .prepare('UPDATE inbound_addresses SET last_received_at = ? WHERE id = ?')
-        .run(inboundReceivedAt, mappedAddress.id);
+        .prepare(
+          gmailVerification.detected
+            ? 'UPDATE inbound_addresses SET last_received_at = ? WHERE id = ?'
+            : 'UPDATE inbound_addresses SET last_received_at = ?, forwarding_active_at = COALESCE(forwarding_active_at, ?) WHERE id = ?'
+        )
+        .run(
+          ...(gmailVerification.detected
+            ? [inboundReceivedAt, mappedAddress.id]
+            : [inboundReceivedAt, inboundReceivedAt, mappedAddress.id])
+        );
       if (runRes && typeof runRes.then === 'function') {
         await runRes;
       }
@@ -5123,8 +5283,14 @@ app.get('/api/inbound/status', requireAuth, async (req, res) => {
 });
 
 app.post('/api/inbound/test-email', requireAuth, async (req, res) => {
+  let setupTestTokenHash = null;
   try {
     const statusBefore = await buildInboundAddressStatus(req.user.id, { ensureAddress: true });
+    logInfo('verify_setup_clicked', {
+      userId: req.user?.id || null,
+      forwardingReadiness: statusBefore.forwarding_readiness || null,
+      setupComplete: Boolean(statusBefore.setup_complete)
+    });
     if (!statusBefore.address_email) {
       return res.status(409).json({
         error: 'INBOUND_ADDRESS_MISSING',
@@ -5133,7 +5299,7 @@ app.post('/api/inbound/test-email', requireAuth, async (req, res) => {
       });
     }
 
-    if (statusBefore.last_received_at || statusBefore.address_reachable) {
+    if (statusBefore.setup_complete || statusBefore.gmail_forwarding_active) {
       return res.json({
         ok: true,
         sent: false,
@@ -5142,9 +5308,59 @@ app.post('/api/inbound/test-email', requireAuth, async (req, res) => {
       });
     }
 
+    if (!statusBefore.address_reachable && !statusBefore.inbox_reachable) {
+      return res.status(409).json({
+        error: 'INBOX_NOT_REACHABLE',
+        message:
+          "Applictus has not received Gmail's confirmation email yet. In Gmail, click Verify or Resend verification, then try again.",
+        status: statusBefore
+      });
+    }
+
+    const targetEmail = normalizeEmail(req.user?.email || '');
+    if (!targetEmail) {
+      return res.status(400).json({
+        error: 'USER_EMAIL_REQUIRED',
+        message: 'Your account needs a primary email address before Applictus can send a setup test.',
+        status: statusBefore
+      });
+    }
+
+    const activeAddress = await getActiveInboundAddress(db, req.user.id, { includeInactive: false });
+    if (!activeAddress) {
+      return res.status(409).json({
+        error: 'INBOUND_ADDRESS_MISSING',
+        message: 'Create your Applictus inbox address before sending a setup test email.',
+        status: statusBefore
+      });
+    }
+    const setupToken = generateInboundSetupToken();
+    setupTestTokenHash = hashInboundSetupToken(setupToken);
+    const sentAt = nowIso();
+    await dbRun(
+      `UPDATE inbound_addresses
+          SET setup_test_token_hash = ?,
+              setup_test_sent_at = ?,
+              setup_test_received_at = NULL
+        WHERE id = ?`,
+      setupTestTokenHash,
+      sentAt,
+      activeAddress.id
+    );
+    logInfo('setup_test_email_send_attempt', {
+      userId: req.user?.id || null,
+      inboundAddressId: activeAddress.id,
+      toEmail: targetEmail
+    });
     await sendInboundSetupTestEmail({
-      toEmail: statusBefore.address_email,
-      userEmail: req.user?.email || ''
+      toEmail: targetEmail,
+      userEmail: targetEmail,
+      token: setupToken
+    });
+    logInfo('setup_test_email_sent', {
+      userId: req.user?.id || null,
+      inboundAddressId: activeAddress.id,
+      toEmail: targetEmail
     });
 
     const statusAfter = await buildInboundAddressStatus(req.user.id, { ensureAddress: false });
@@ -5152,6 +5368,7 @@ app.post('/api/inbound/test-email', requireAuth, async (req, res) => {
       ok: true,
       sent: true,
       already_received: false,
+      message: 'Test email sent. Waiting for Gmail to forward it…',
       status: statusAfter
     });
   } catch (err) {
@@ -5162,14 +5379,20 @@ app.post('/api/inbound/test-email', requireAuth, async (req, res) => {
       return res.status(503).json({ error: 'INBOUND_NOT_CONFIGURED' });
     }
     if (err?.code === 'OUTBOUND_EMAIL_NOT_CONFIGURED') {
+      logWarn('setup_test_email_send_failed', {
+        userId: req.user?.id || null,
+        code: err.code,
+        missing: Array.isArray(err.missing) ? err.missing : []
+      });
       return res.status(503).json({
         error: 'OUTBOUND_EMAIL_NOT_CONFIGURED',
+        missing: Array.isArray(err.missing) ? err.missing : [],
         message:
-          'Automatic setup test email is not configured. Set POSTMARK_SERVER_TOKEN and POSTMARK_FROM_EMAIL, or use Gmail resend verification.'
+          'Automatic setup test email is not configured. Set POSTMARK_SERVER_TOKEN, POSTMARK_FROM_EMAIL, and POSTMARK_OUTBOUND_MESSAGE_STREAM.'
       });
     }
     if (err?.code === 'OUTBOUND_EMAIL_SEND_FAILED') {
-      logError('inbound.test_email.send_failed', {
+      logError('setup_test_email_send_failed', {
         userId: req.user?.id || null,
         status: err.status || null,
         detail: err.detail || err.message || String(err)

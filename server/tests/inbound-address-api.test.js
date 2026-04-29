@@ -11,13 +11,14 @@ async function startServerWithEnv(envOverrides = {}) {
   const envBackup = { ...process.env };
   Object.assign(process.env, envOverrides);
   try {
-    const { startServer, stopServer } = requireFreshServer();
+    const { startServer, stopServer, db } = requireFreshServer();
     const server = await startServer(0, { log: false, host: '127.0.0.1' });
     const address = server.address();
     const baseUrl =
       address && typeof address === 'object' ? `http://localhost:${address.port}` : 'http://localhost';
     return {
       baseUrl,
+      db,
       stop: async () => {
         await stopServer();
         Object.assign(process.env, envBackup);
@@ -29,6 +30,7 @@ async function startServerWithEnv(envOverrides = {}) {
     if (/better-sqlite3|invalid ELF header|SQLITE_NATIVE_(OPEN|LOAD)_FAILED/i.test(message)) {
       return {
         baseUrl: null,
+        db: null,
         stop: async () => {}
       };
     }
@@ -228,6 +230,11 @@ test('inbound status exposes Gmail forwarding verification helper and readiness 
   assert.equal(pendingStatus.status, 200);
   assert.equal(pendingStatus.body.forwarding_readiness, 'gmail_verification_pending');
   assert.equal(pendingStatus.body.gmail_verification_pending, true);
+  assert.equal(pendingStatus.body.address_reachable, true);
+  assert.equal(pendingStatus.body.inbox_reachable, true);
+  assert.equal(pendingStatus.body.gmail_forwarding_active, false);
+  assert.equal(pendingStatus.body.setup_complete, false);
+  assert.notEqual(pendingStatus.body.setup_state, 'active');
   assert.ok(pendingStatus.body.gmail_forwarding_verification);
   assert.equal(pendingStatus.body.gmail_forwarding_verification.confirmation_code, '123456');
   assert.match(
@@ -251,8 +258,8 @@ test('inbound status exposes Gmail forwarding verification helper and readiness 
   assert.equal(activeStatus.body.gmail_verification_pending, false);
 });
 
-test('inbound setup test email sends through configured Postmark outbound API', async (t) => {
-  const { baseUrl, stop } = await startServerWithEnv({
+test('inbound setup test email sends to user email and forwarded token completes setup', async (t) => {
+  const { baseUrl, db, stop } = await startServerWithEnv({
     NODE_ENV: 'test',
     JOBTRACK_DB_PATH: ':memory:',
     JOBTRACK_LOG_LEVEL: 'error',
@@ -260,10 +267,11 @@ test('inbound setup test email sends through configured Postmark outbound API', 
     POSTMARK_INBOUND_SECRET: 'test-inbound-secret',
     POSTMARK_SERVER_TOKEN: 'test-outbound-token',
     POSTMARK_FROM_EMAIL: 'Applictus <no-reply@applictus.test>',
+    POSTMARK_OUTBOUND_MESSAGE_STREAM: 'outbound',
     POSTMARK_API_URL: 'https://postmark.test/email'
   });
   t.after(stop);
-  if (!baseUrl) {
+  if (!baseUrl || !db) {
     t.skip('better-sqlite3 native module unavailable in this environment');
     return;
   }
@@ -307,6 +315,16 @@ test('inbound setup test email sends through configured Postmark outbound API', 
   assert.equal(addressRes.status, 200);
   assert.ok(addressRes.body.address_email);
 
+  const verificationInbound = await fetch(`${baseUrl}/api/inbound/postmark`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-applictus-inbound-secret': 'test-inbound-secret'
+    },
+    body: JSON.stringify(buildGmailForwardingVerificationPayload(addressRes.body.address_email))
+  });
+  assert.equal(verificationInbound.status, 200);
+
   const testEmailRes = await request('/api/inbound/test-email', { method: 'POST', body: JSON.stringify({}) });
   assert.equal(testEmailRes.status, 200);
   assert.equal(testEmailRes.body.ok, true);
@@ -316,7 +334,96 @@ test('inbound setup test email sends through configured Postmark outbound API', 
   assert.equal(postmarkRequests.length, 1);
   assert.equal(postmarkRequests[0].method, 'POST');
   assert.equal(postmarkRequests[0].token, 'test-outbound-token');
-  assert.equal(postmarkRequests[0].body.To, addressRes.body.address_email);
+  assert.equal(postmarkRequests[0].body.To, email);
+  assert.notEqual(postmarkRequests[0].body.To, addressRes.body.address_email);
   assert.equal(postmarkRequests[0].body.From, 'Applictus <no-reply@applictus.test>');
+  assert.equal(postmarkRequests[0].body.MessageStream, 'outbound');
+  assert.match(String(postmarkRequests[0].body.Subject || ''), /Application submitted/i);
   assert.match(String(postmarkRequests[0].body.Subject || ''), /Applictus setup test/i);
+  const tokenMatch = String(postmarkRequests[0].body.TextBody || '').match(/Applictus setup test token:\s*([a-f0-9]+)/i);
+  assert.ok(tokenMatch);
+  assert.ok(tokenMatch[1]);
+  const tokenRow = db
+    .prepare('SELECT setup_test_token_hash, setup_test_sent_at FROM inbound_addresses WHERE address_email = ?')
+    .get(addressRes.body.address_email);
+  assert.ok(tokenRow.setup_test_token_hash);
+  assert.ok(tokenRow.setup_test_sent_at);
+
+  const forwardedPayload = buildInboundPayload(addressRes.body.address_email);
+  forwardedPayload.Subject = postmarkRequests[0].body.Subject;
+  forwardedPayload.TextBody = postmarkRequests[0].body.TextBody;
+  forwardedPayload.HtmlBody = postmarkRequests[0].body.HtmlBody;
+  forwardedPayload.MessageID = `<forwarded-setup-test-${Date.now()}@gmail.example>`;
+  forwardedPayload.Headers = [{ Name: 'Message-ID', Value: `<forwarded-setup-test-rfc-${Date.now()}@gmail.example>` }];
+  const forwardedInbound = await fetch(`${baseUrl}/api/inbound/postmark`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-applictus-inbound-secret': 'test-inbound-secret'
+    },
+    body: JSON.stringify(forwardedPayload)
+  });
+  const forwardedBody = await forwardedInbound.json();
+  assert.equal(forwardedInbound.status, 200);
+  assert.equal(forwardedBody.ok, true);
+  assert.equal(forwardedBody.ignored, true);
+  assert.equal(forwardedBody.reason, 'setup_test_email_received');
+
+  const completeStatus = await request('/api/inbound/status');
+  assert.equal(completeStatus.status, 200);
+  assert.equal(completeStatus.body.forwarding_readiness, 'forwarding_active');
+  assert.equal(completeStatus.body.gmail_forwarding_active, true);
+  assert.equal(completeStatus.body.setup_complete, true);
+  assert.ok(completeStatus.body.setup_test_received_at);
+
+  const appCount = db
+    .prepare('SELECT COUNT(*) AS count FROM job_applications WHERE user_id = ?')
+    .get(signup.body.user.id);
+  assert.equal(Number(appCount.count), 0);
+});
+
+test('inbound setup test email reports missing outbound config clearly', async (t) => {
+  const { baseUrl, stop } = await startServerWithEnv({
+    NODE_ENV: 'test',
+    JOBTRACK_DB_PATH: ':memory:',
+    JOBTRACK_LOG_LEVEL: 'error',
+    INBOUND_DOMAIN: 'mail.applictus.com',
+    POSTMARK_INBOUND_SECRET: 'test-inbound-secret',
+    POSTMARK_SERVER_TOKEN: 'test-outbound-token',
+    POSTMARK_FROM_EMAIL: 'Applictus <no-reply@applictus.test>',
+    POSTMARK_OUTBOUND_MESSAGE_STREAM: ''
+  });
+  t.after(stop);
+  if (!baseUrl) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  const request = await createClient(baseUrl);
+  const email = `missing-config-${crypto.randomUUID()}@example.com`;
+  const password = 'StrongPassword123!';
+  const signup = await request('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({ email, password })
+  });
+  assert.equal(signup.status, 200);
+
+  const addressRes = await request('/api/inbound/address');
+  assert.equal(addressRes.status, 200);
+  const verificationInbound = await fetch(`${baseUrl}/api/inbound/postmark`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-applictus-inbound-secret': 'test-inbound-secret'
+    },
+    body: JSON.stringify(buildGmailForwardingVerificationPayload(addressRes.body.address_email))
+  });
+  assert.equal(verificationInbound.status, 200);
+
+  const testEmailRes = await request('/api/inbound/test-email', { method: 'POST', body: JSON.stringify({}) });
+  assert.equal(testEmailRes.status, 503);
+  assert.equal(testEmailRes.body.error, 'OUTBOUND_EMAIL_NOT_CONFIGURED');
+  assert.ok(Array.isArray(testEmailRes.body.missing));
+  assert.ok(testEmailRes.body.missing.includes('POSTMARK_OUTBOUND_MESSAGE_STREAM'));
+  assert.match(String(testEmailRes.body.message || ''), /POSTMARK_OUTBOUND_MESSAGE_STREAM/);
 });

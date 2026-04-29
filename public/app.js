@@ -1086,6 +1086,13 @@ const inboundState = {
   isActive: false,
   forwardingReadiness: 'not_started',
   addressReachable: false,
+  inboxReachable: false,
+  gmailForwardingActive: false,
+  setupComplete: false,
+  forwardingActiveAt: null,
+  gmailConfirmationReceivedAt: null,
+  setupTestSentAt: null,
+  setupTestReceivedAt: null,
   hasNonVerificationInbound: false,
   gmailVerificationPending: false,
   gmailVerification: null,
@@ -1481,10 +1488,12 @@ function resolveInboundSetupState(
   {
     addressEmail = inboundState.addressEmail,
     confirmedAt = inboundState.confirmedAt,
-    lastReceivedAt = inboundState.lastReceivedAt
+    lastReceivedAt = inboundState.lastReceivedAt,
+    setupComplete = inboundState.setupComplete,
+    gmailForwardingActive = inboundState.gmailForwardingActive
   } = {}
 ) {
-  if (lastReceivedAt) {
+  if (setupComplete || gmailForwardingActive) {
     return 'active';
   }
   if (confirmedAt) {
@@ -1501,6 +1510,7 @@ function resolveForwardingReadiness(
   {
     setupState = inboundState.setupState,
     lastReceivedAt = inboundState.lastReceivedAt,
+    gmailForwardingActive = inboundState.gmailForwardingActive,
     hasNonVerificationInbound = inboundState.hasNonVerificationInbound,
     gmailVerificationPending = inboundState.gmailVerificationPending
   } = {}
@@ -1509,7 +1519,7 @@ function resolveForwardingReadiness(
   if (normalizedReported) {
     return normalizedReported;
   }
-  if (hasNonVerificationInbound) {
+  if (gmailForwardingActive || hasNonVerificationInbound) {
     return 'forwarding_active';
   }
   if (gmailVerificationPending) {
@@ -1536,6 +1546,7 @@ function isInboundInboxReachableForSetup() {
   return Boolean(
     inboundState.lastReceivedAt ||
       inboundState.addressReachable ||
+      inboundState.inboxReachable ||
       readiness === 'forwarding_active' ||
       readiness === 'address_reachable' ||
       readiness === 'gmail_verification_pending'
@@ -1545,7 +1556,7 @@ function isInboundInboxReachableForSetup() {
 function getInboundSetupVerificationSuccessMessage() {
   const readiness = resolveForwardingReadiness();
   if (readiness === 'gmail_verification_pending') {
-    return "Applictus received Gmail's confirmation email. Finish the Gmail verification, then continue to create the filter.";
+    return "Applictus received Gmail's confirmation email. Finish confirming the address in Gmail, then send a setup test.";
   }
   return 'Address verified ✓ Continue to create the Gmail filter.';
 }
@@ -1562,12 +1573,14 @@ async function requestInboundSetupTestEmail() {
     return {
       ok: true,
       sent: Boolean(result?.sent),
-      alreadyReceived: Boolean(result?.already_received)
+      alreadyReceived: Boolean(result?.already_received),
+      message: result?.message || ''
     };
   } catch (err) {
     return {
       ok: false,
       code: err?.code || err?.status || 'TEST_EMAIL_FAILED',
+      missing: Array.isArray(err?.missing) ? err.missing : [],
       message: err?.message || 'Unable to send setup test email.'
     };
   }
@@ -1964,7 +1977,7 @@ function formatInboundMetaText() {
     if (syncParts.length) {
       return `${syncParts.join(' · ')} • No forwarded emails yet.`;
     }
-    return "No emails have reached your Applictus inbox yet. Verify setup can use Gmail's confirmation email or a test email.";
+    return "No emails have reached your Applictus inbox yet. First confirm the forwarding address in Gmail, then send a setup test.";
   }
   if (readiness === 'awaiting_confirmation') {
     return 'Waiting for forwarding verification in Gmail. Complete Step 2 in setup.';
@@ -2248,7 +2261,7 @@ function updateInboundStatusPresentation() {
   let dashboardState = 'idle';
   let syncText = 'Setup needed';
   let helpStatusText = 'Not connected';
-  let helpNoteText = "Verify setup will pass once Gmail's confirmation email or a test email reaches Applictus.";
+  let helpNoteText = 'Verify setup sends a test email to your Gmail account and waits for Gmail to forward it.';
 
   if (readiness === 'forwarding_active') {
     pillText = 'Connected · receiving forwarded emails';
@@ -2265,7 +2278,7 @@ function updateInboundStatusPresentation() {
     dashboardState = 'info';
     syncText = 'Address reachable';
     helpStatusText = 'Waiting for verification';
-    helpNoteText = "Applictus received Gmail's confirmation email. Finish the Gmail verification, then create the filter.";
+    helpNoteText = "Applictus received Gmail's confirmation email. Finish confirming the address in Gmail, then send a setup test.";
   } else if (readiness === 'address_reachable') {
     pillText = 'Address reachable';
     pillState = 'info';
@@ -2273,7 +2286,7 @@ function updateInboundStatusPresentation() {
     dashboardState = 'info';
     syncText = 'Address reachable';
     helpStatusText = 'Verification in progress';
-    helpNoteText = 'Applictus inbox is reachable. Continue setup to create the Gmail filter.';
+    helpNoteText = 'Applictus inbox is reachable. Send a setup test to confirm Gmail forwarding is active.';
   } else if (readiness === 'awaiting_first_email') {
     pillText = 'Waiting for first forwarded email';
     pillState = 'info';
@@ -2281,7 +2294,7 @@ function updateInboundStatusPresentation() {
     dashboardState = 'info';
     syncText = 'Waiting for first email';
     helpStatusText = 'Waiting for first forwarded email';
-    helpNoteText = "Click Verify setup to confirm that Gmail's confirmation email or a test email reached Applictus.";
+    helpNoteText = 'Click Verify setup to send a test email through Gmail forwarding.';
   } else if (readiness === 'awaiting_confirmation') {
     pillText = 'Waiting for forwarding verification';
     pillState = 'idle';
@@ -2289,7 +2302,7 @@ function updateInboundStatusPresentation() {
     dashboardState = 'idle';
     syncText = 'Waiting for verification';
     helpStatusText = 'Waiting for forwarding verification';
-    helpNoteText = "Add your address in Gmail. Verify setup will pass after Gmail's confirmation email or a test email reaches Applictus.";
+    helpNoteText = "Add your address in Gmail. After Applictus receives Gmail's confirmation email, Verify setup can send a forwarding test.";
   } else {
     helpNoteText = 'Open setup, add your Applictus inbox, then verify forwarding in Gmail.';
   }
@@ -2472,7 +2485,7 @@ function updateSyncHelperText() {
     if (readiness === 'forwarding_active') {
       syncHelperText.textContent = 'Applictus monitors emails forwarded to your secure inbox address.';
     } else if (readiness === 'gmail_verification_pending') {
-      syncHelperText.textContent = 'Address reachable. Gmail verification is still pending in Step 2.';
+      syncHelperText.textContent = 'Address reachable. Finish Gmail verification, then send a setup test.';
     } else if (readiness === 'address_reachable') {
       syncHelperText.textContent = 'Address reachable. Waiting for first non-verification forwarded email.';
     } else if (readiness === 'awaiting_first_email') {
@@ -7118,10 +7131,19 @@ function applyInboundStatusPayload(data = {}) {
   inboundState.signalLastSubject = data.inbound_signal_last_subject || null;
   inboundState.inactiveAddressWarning = Boolean(data.inactive_address_warning);
   inboundState.inactiveAddressWarningMeta = data.inactive_address_warning_meta || null;
+  inboundState.inboxReachable = Boolean(data.inbox_reachable || data.address_reachable || data.last_received_at);
+  inboundState.gmailForwardingActive = Boolean(data.gmail_forwarding_active || data.setup_complete);
+  inboundState.setupComplete = Boolean(data.setup_complete || data.gmail_forwarding_active);
+  inboundState.forwardingActiveAt = data.forwarding_active_at || null;
+  inboundState.gmailConfirmationReceivedAt = data.gmail_confirmation_received_at || null;
+  inboundState.setupTestSentAt = data.setup_test_sent_at || null;
+  inboundState.setupTestReceivedAt = data.setup_test_received_at || null;
   inboundState.setupState = resolveInboundSetupState(data.setup_state || 'not_started', {
     addressEmail: data.address_email || null,
     confirmedAt: data.confirmed_at || null,
-    lastReceivedAt: data.last_received_at || null
+    lastReceivedAt: data.last_received_at || null,
+    setupComplete: inboundState.setupComplete,
+    gmailForwardingActive: inboundState.gmailForwardingActive
   });
   inboundState.gmailVerification = data.gmail_forwarding_verification
     ? {
@@ -7137,6 +7159,7 @@ function applyInboundStatusPayload(data = {}) {
   inboundState.forwardingReadiness = resolveForwardingReadiness(data.forwarding_readiness || '', {
     setupState: inboundState.setupState,
     lastReceivedAt: inboundState.lastReceivedAt,
+    gmailForwardingActive: inboundState.gmailForwardingActive,
     hasNonVerificationInbound: inboundState.hasNonVerificationInbound,
     gmailVerificationPending: inboundState.gmailVerificationPending
   });
@@ -8140,7 +8163,7 @@ function buildForwardingVerifySetupStepConfig(setupContext) {
   return {
     title: 'Verify your Applictus inbox',
     description:
-      "Confirm that an email has reached your Applictus address. Gmail's confirmation email or the setup test email both count.",
+      'Send a setup test to your Gmail account and confirm Gmail forwards it to Applictus.',
     appendActions: (actions) => {
       actions.append(buildForwardingVerifyButton(setupContext));
     },
@@ -8684,9 +8707,9 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
     initialReadiness === 'forwarding_active'
       ? 'Address verified. Continue to create or review the Gmail filter.'
       : initialReadiness === 'gmail_verification_pending'
-        ? 'Address reachable. Gmail verification is still pending.'
+        ? "Applictus received Gmail's confirmation email. Finish confirming it in Gmail, then send a setup test."
         : initialReadiness === 'address_reachable'
-          ? 'Address reachable. Continue to create the Gmail filter.'
+          ? 'Address reachable. Send a setup test to confirm Gmail forwarding is active.'
           : '';
   const setupContext = {
     verifying: false,
@@ -8712,42 +8735,45 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
       return;
     }
     setupContext.verifying = true;
-    setupContext.verifyMessage = 'Checking whether your Applictus inbox received an email…';
+    setupContext.verifyMessage = 'Checking whether Gmail forwarding is active…';
     safeRender();
 
     await refreshInboundStatus({ ensureAddress: false });
     if (setupContext.closed) {
       return;
     }
-    if (isInboundInboxReachableForSetup()) {
+    if (isForwardingActive()) {
       setupContext.verifying = false;
       setupContext.verified = true;
       setupContext.verifyMessage = getInboundSetupVerificationSuccessMessage();
-      showToast('Applictus inbox verified.', { tone: 'success' });
+      showToast('Gmail forwarding verified.', { tone: 'success' });
       safeRender();
       return;
     }
 
     const testEmailResult = await requestInboundSetupTestEmail();
-    if (testEmailResult.ok && isInboundInboxReachableForSetup()) {
+    if (testEmailResult.ok && isForwardingActive()) {
       setupContext.verifying = false;
       setupContext.verified = true;
       setupContext.verifyMessage = getInboundSetupVerificationSuccessMessage();
-      showToast('Applictus inbox verified.', { tone: 'success' });
+      showToast('Gmail forwarding verified.', { tone: 'success' });
       safeRender();
       return;
     }
     if (testEmailResult.ok && testEmailResult.sent) {
       setupContext.verifyMessage =
-        'Applictus sent a setup test email. It can take a moment to arrive, so we will keep checking.';
+        testEmailResult.message || 'Test email sent. Waiting for Gmail to forward it…';
     } else if (testEmailResult.ok && testEmailResult.alreadyReceived) {
       setupContext.verifyMessage = getInboundSetupVerificationSuccessMessage();
+    } else if (testEmailResult.code === 'INBOX_NOT_REACHABLE') {
+      setupContext.verifyMessage =
+        "Applictus received Gmail's confirmation email only after you click Verify in Gmail. Finish that first, then send a setup test.";
     } else if (testEmailResult.code === 'OUTBOUND_EMAIL_NOT_CONFIGURED') {
       setupContext.verifyMessage =
-        'Automatic setup test email is not configured here. In Gmail, click Resend verification, then try Verify setup again.';
+        'Automatic setup test email is not configured. Set POSTMARK_SERVER_TOKEN, POSTMARK_FROM_EMAIL, and POSTMARK_OUTBOUND_MESSAGE_STREAM.';
     } else {
       setupContext.verifyMessage =
-        'Applictus could not send the setup test email right now. In Gmail, click Resend verification, then try Verify setup again.';
+        'Applictus could not send the setup test email right now.';
     }
     safeRender();
     if (!testEmailResult.ok) {
@@ -8769,11 +8795,11 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
         return;
       }
       await refreshInboundStatus({ ensureAddress: false });
-      if (isInboundInboxReachableForSetup()) {
+      if (isForwardingActive()) {
         setupContext.verifying = false;
         setupContext.verified = true;
         setupContext.verifyMessage = getInboundSetupVerificationSuccessMessage();
-        showToast('Applictus inbox verified.', { tone: 'success' });
+        showToast('Gmail forwarding verified.', { tone: 'success' });
         safeRender();
         return;
       }
@@ -8791,11 +8817,11 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
     const readiness = resolveForwardingReadiness();
     if (readiness === 'gmail_verification_pending') {
       setupContext.verifyMessage = getInboundSetupVerificationSuccessMessage();
-      showToast('Applictus inbox verified. Finish Gmail verification in Gmail.', { tone: 'info' });
+      showToast('Applictus received Gmail confirmation. Finish verification and send a setup test.', { tone: 'info' });
     } else {
       setupContext.verifyMessage =
-        'No email has reached your Applictus inbox yet. In Gmail, click Resend verification, then try Verify setup again.';
-      showToast('Still waiting for an email to reach your Applictus inbox.', { tone: 'info' });
+        'No forwarded setup test has reached Applictus yet. Confirm forwarding in Gmail, then try Verify setup again.';
+      showToast('Still waiting for Gmail to forward the setup test.', { tone: 'info' });
     }
     safeRender();
   };
@@ -12904,53 +12930,46 @@ async function verifyInboundSetupFromAccountHelp() {
   inboundHelpVerifyState.inFlight = true;
   updateInboundStatusPresentation();
   if (accountHelpNote) {
-    accountHelpNote.textContent = 'Checking whether your Applictus inbox received an email…';
+    accountHelpNote.textContent = 'Checking whether Gmail forwarding is active…';
   }
 
   await refreshInboundStatus({ ensureAddress: false });
-  if (isInboundInboxReachableForSetup()) {
+  if (isForwardingActive()) {
     inboundHelpVerifyState.inFlight = false;
-    const readiness = resolveForwardingReadiness();
-    const tone = readiness === 'gmail_verification_pending' ? 'info' : 'success';
-    const message =
-      readiness === 'gmail_verification_pending'
-        ? 'Applictus inbox verified. Finish Gmail verification in Gmail.'
-        : 'Applictus inbox verified.';
-    showToast(message, { tone });
+    showToast('Gmail forwarding verified.', { tone: 'success' });
     updateInboundStatusPresentation();
     return;
   }
 
   const testEmailResult = await requestInboundSetupTestEmail();
-  if (testEmailResult.ok && isInboundInboxReachableForSetup()) {
+  if (testEmailResult.ok && isForwardingActive()) {
     inboundHelpVerifyState.inFlight = false;
-    const readiness = resolveForwardingReadiness();
-    const tone = readiness === 'gmail_verification_pending' ? 'info' : 'success';
-    const message =
-      readiness === 'gmail_verification_pending'
-        ? 'Applictus inbox verified. Finish Gmail verification in Gmail.'
-        : 'Applictus inbox verified.';
-    showToast(message, { tone });
+    showToast('Gmail forwarding verified.', { tone: 'success' });
     updateInboundStatusPresentation();
     return;
   }
   if (accountHelpNote) {
     if (testEmailResult.ok && testEmailResult.sent) {
       accountHelpNote.textContent =
-        'Applictus sent a setup test email. It can take a moment to arrive, so we will keep checking.';
+        testEmailResult.message || 'Test email sent. Waiting for Gmail to forward it…';
+    } else if (testEmailResult.code === 'INBOX_NOT_REACHABLE') {
+      accountHelpNote.textContent =
+        "Applictus received Gmail's confirmation email only after you click Verify in Gmail. Finish that first, then send a setup test.";
     } else if (testEmailResult.code === 'OUTBOUND_EMAIL_NOT_CONFIGURED') {
       accountHelpNote.textContent =
-        'Automatic setup test email is not configured here. In Gmail, click Resend verification, then try Verify setup again.';
+        'Automatic setup test email is not configured. Set POSTMARK_SERVER_TOKEN, POSTMARK_FROM_EMAIL, and POSTMARK_OUTBOUND_MESSAGE_STREAM.';
     } else {
       accountHelpNote.textContent =
-        'Applictus could not send the setup test email right now. In Gmail, click Resend verification, then try Verify setup again.';
+        'Applictus could not send the setup test email right now.';
     }
   }
   if (!testEmailResult.ok) {
     const note =
       testEmailResult.code === 'OUTBOUND_EMAIL_NOT_CONFIGURED'
-        ? 'Automatic setup test email is not configured here. In Gmail, click Resend verification, then try Verify setup again.'
-        : 'Applictus could not send the setup test email right now. In Gmail, click Resend verification, then try Verify setup again.';
+        ? 'Automatic setup test email is not configured. Set POSTMARK_SERVER_TOKEN, POSTMARK_FROM_EMAIL, and POSTMARK_OUTBOUND_MESSAGE_STREAM.'
+        : testEmailResult.code === 'INBOX_NOT_REACHABLE'
+          ? "Applictus has not received Gmail's confirmation email yet. In Gmail, click Verify or Resend verification, then try again."
+          : 'Applictus could not send the setup test email right now.';
     inboundHelpVerifyState.inFlight = false;
     updateInboundStatusPresentation();
     if (accountHelpNote) {
@@ -12969,15 +12988,9 @@ async function verifyInboundSetupFromAccountHelp() {
   const waitMs = 2500;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     await refreshInboundStatus({ ensureAddress: false });
-    if (isInboundInboxReachableForSetup()) {
+    if (isForwardingActive()) {
       inboundHelpVerifyState.inFlight = false;
-      const readiness = resolveForwardingReadiness();
-      const tone = readiness === 'gmail_verification_pending' ? 'info' : 'success';
-      const message =
-        readiness === 'gmail_verification_pending'
-          ? 'Applictus inbox verified. Finish Gmail verification in Gmail.'
-          : 'Applictus inbox verified.';
-      showToast(message, { tone });
+      showToast('Gmail forwarding verified.', { tone: 'success' });
       updateInboundStatusPresentation();
       return;
     }
@@ -12992,9 +13005,9 @@ async function verifyInboundSetupFromAccountHelp() {
   inboundHelpVerifyState.inFlight = false;
   const readiness = resolveForwardingReadiness();
   if (readiness === 'gmail_verification_pending') {
-    showToast('Applictus inbox verified. Finish Gmail verification in Gmail.', { tone: 'info' });
+    showToast('Applictus received Gmail confirmation. Finish verification and send a setup test.', { tone: 'info' });
   } else {
-    showToast('Still waiting for an email to reach your Applictus inbox.', { tone: 'info' });
+    showToast('Still waiting for Gmail to forward the setup test.', { tone: 'info' });
   }
   updateInboundStatusPresentation();
 }

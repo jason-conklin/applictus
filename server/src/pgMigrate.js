@@ -375,13 +375,29 @@ async function assertPgSchema(db) {
          FROM information_schema.columns
          WHERE table_schema='public'
            AND table_name='inbound_addresses'
-         AND column_name IN ('confirmed_at', 'last_received_at', 'status')`
+         AND column_name IN (
+           'confirmed_at',
+           'last_received_at',
+           'status',
+           'setup_test_token_hash',
+           'setup_test_sent_at',
+           'setup_test_received_at',
+           'forwarding_active_at',
+           'last_gmail_confirmation_at'
+         )`
     )
     .all();
   const inboundAddressPresent = new Set((inboundAddressColumns || []).map((row) => row.column_name));
-  const inboundAddressMissing = ['confirmed_at', 'last_received_at', 'status'].filter(
-    (name) => !inboundAddressPresent.has(name)
-  );
+  const inboundAddressMissing = [
+    'confirmed_at',
+    'last_received_at',
+    'status',
+    'setup_test_token_hash',
+    'setup_test_sent_at',
+    'setup_test_received_at',
+    'forwarding_active_at',
+    'last_gmail_confirmation_at'
+  ].filter((name) => !inboundAddressPresent.has(name));
 
   if (inboundAddressMissing.length) {
     const message = [
@@ -390,6 +406,7 @@ async function assertPgSchema(db) {
       'Run migrations (or ensure startup migrations run). The migration that adds these is:',
       '  server/migrations/026_inbound_forwarding_status_postgres.sql',
       '  server/migrations/041_inbound_abuse_controls_postgres.sql',
+      '  server/migrations/042_inbound_setup_test_state_postgres.sql',
       'Set SKIP_SCHEMA_CHECK=1 to bypass this check (not recommended).'
     ].join('\n');
 

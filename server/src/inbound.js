@@ -211,6 +211,24 @@ function isInboundAddressActive(row) {
   return status === INBOUND_ADDRESS_STATUSES.ACTIVE && normalizeDbBool(row.is_active);
 }
 
+const INBOUND_ADDRESS_SELECT_COLUMNS = [
+  'id',
+  'user_id',
+  'address_local',
+  'address_email',
+  'is_active',
+  'status',
+  'created_at',
+  'rotated_at',
+  'confirmed_at',
+  'last_received_at',
+  'setup_test_token_hash',
+  'setup_test_sent_at',
+  'setup_test_received_at',
+  'forwarding_active_at',
+  'last_gmail_confirmation_at'
+].join(', ');
+
 function isUniqueViolation(err) {
   const code = String(err?.code || '').toUpperCase();
   if (code === '23505' || code.startsWith('SQLITE_CONSTRAINT')) {
@@ -241,12 +259,12 @@ async function getActiveInboundAddress(db, userId, { includeInactive = false, is
     db
       .prepare(
         includeInactive
-          ? `SELECT id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at
+          ? `SELECT ${INBOUND_ADDRESS_SELECT_COLUMNS}
              FROM inbound_addresses
              WHERE user_id = ?
              ORDER BY is_active DESC, created_at DESC
              LIMIT 1`
-          : `SELECT id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at
+          : `SELECT ${INBOUND_ADDRESS_SELECT_COLUMNS}
              FROM inbound_addresses
              WHERE user_id = ? AND is_active = ? AND status = 'active'
              ORDER BY created_at DESC
@@ -272,12 +290,12 @@ async function getInboundAddressByLocal(
     db
       .prepare(
         includeInactive
-          ? `SELECT id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at
+          ? `SELECT ${INBOUND_ADDRESS_SELECT_COLUMNS}
              FROM inbound_addresses
              WHERE user_id = ? AND lower(address_local) = ?
              ORDER BY is_active DESC, created_at DESC
              LIMIT 1`
-          : `SELECT id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at
+          : `SELECT ${INBOUND_ADDRESS_SELECT_COLUMNS}
              FROM inbound_addresses
              WHERE user_id = ? AND lower(address_local) = ? AND is_active = ? AND status = 'active'
              ORDER BY created_at DESC
@@ -318,7 +336,7 @@ async function setActiveInboundAddressById(db, userId, addressId, { isAsyncMode 
   const row = await awaitMaybe(
     db
       .prepare(
-        `SELECT id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at
+        `SELECT ${INBOUND_ADDRESS_SELECT_COLUMNS}
          FROM inbound_addresses
          WHERE id = ? AND user_id = ?
          LIMIT 1`
@@ -378,7 +396,12 @@ async function createInboundAddress(
         created_at: createdAt,
         rotated_at: null,
         confirmed_at: null,
-        last_received_at: null
+        last_received_at: null,
+        setup_test_token_hash: null,
+        setup_test_sent_at: null,
+        setup_test_received_at: null,
+        forwarding_active_at: null,
+        last_gmail_confirmation_at: null
       };
     } catch (err) {
       if (isUniqueViolation(err)) {
@@ -490,7 +513,7 @@ async function rotateInboundAddress(
         const existingPreferred = await awaitMaybe(
           tx
             .prepare(
-              `SELECT id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at
+              `SELECT ${INBOUND_ADDRESS_SELECT_COLUMNS}
                FROM inbound_addresses
                WHERE user_id = ? AND lower(address_local) = ?
                ORDER BY created_at DESC
@@ -533,7 +556,7 @@ async function rotateInboundAddress(
         ? normalizeInboundAddressRow(
             db
               .prepare(
-                `SELECT id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at
+                `SELECT ${INBOUND_ADDRESS_SELECT_COLUMNS}
                  FROM inbound_addresses
                  WHERE user_id = ? AND lower(address_local) = ?
                  ORDER BY created_at DESC
@@ -583,7 +606,12 @@ async function rotateInboundAddress(
             created_at: createdAt,
             rotated_at: null,
             confirmed_at: null,
-            last_received_at: null
+            last_received_at: null,
+            setup_test_token_hash: null,
+            setup_test_sent_at: null,
+            setup_test_received_at: null,
+            forwarding_active_at: null,
+            last_gmail_confirmation_at: null
           };
         } catch (err) {
           if (isUniqueViolation(err)) {
