@@ -10606,11 +10606,13 @@ function renderApplicationsTable(applications) {
       const newlyCreatedBadge = isNewlyCreated
         ? '<span class="table-new-badge" aria-label="Newly added application">NEW</span>'
         : '';
+      const companyText = String(app.company_name || '').trim() || '—';
+      const roleText = String(app.job_title || '').trim() || '—';
       return `
         <div class="table-row application-row${isSelected ? ' table-row-selected' : ''}${isOffer ? ' is-offer' : ''}${isInterviewRequested ? ' is-interview' : ''}${isPriority ? ' is-priority' : ''}${isOffer ? ' is-priority-offer' : ''}${isInterviewRequested ? ' is-priority-interview' : ''}${isNewSignal ? ' is-new-signal' : ''}${isNewlyCreated ? ' is-newly-created' : ''}${isRecentUpdate ? ' is-recent-update' : ''}" style="--stagger: ${index}" data-id="${app.id}" data-status-tone="${statusBandTone}">
           <div class="status-band" aria-hidden="true"></div>
-          <div class="cell-company table-col-company"><div class="cell-company-main"><strong>${app.company_name || '—'}</strong>${newlyCreatedBadge}</div></div>
-          <div class="cell-role table-col-role" title="${app.job_title || '—'}">${app.job_title || '—'}</div>
+          <div class="cell-company table-col-company"><div class="cell-company-main"><strong>${escapeHtml(companyText)}</strong>${newlyCreatedBadge}</div></div>
+          <div class="cell-role table-col-role" title="${escapeHtml(roleText)}">${escapeHtml(roleText)}</div>
           <div class="table-col-status status-col">
             <div class="status-cell">${statusPill}</div>
             ${priorityPrompt}

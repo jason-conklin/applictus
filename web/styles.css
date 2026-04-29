@@ -14747,11 +14747,23 @@ body.app-page-bg .topbar .nav-link.active {
   text-align: left;
 }
 
+#dashboard-view #applications-table .table-row.application-row .table-col-company {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+#dashboard-view #applications-table .table-row.application-row .table-col-role {
+  grid-column: 2;
+  grid-row: 1;
+}
+
 #dashboard-view #applications-table .table-row.application-row .table-col-activity {
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
+  grid-column: 4;
+  grid-row: 1;
 }
 
 #dashboard-view #applications-table .table-row.application-row .table-col-status {
@@ -14759,6 +14771,8 @@ body.app-page-bg .topbar .nav-link.active {
   align-items: center;
   justify-content: center;
   text-align: center;
+  grid-column: 3;
+  grid-row: 1;
 }
 
 #dashboard-view #applications-table .table-row.application-row .status-col {
@@ -14771,6 +14785,8 @@ body.app-page-bg .topbar .nav-link.active {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  grid-column: 5;
+  grid-row: 1;
   padding-right: 7px;
   padding-left: 4px;
 }
