@@ -1441,7 +1441,13 @@ function setPillState(element, text, state) {
 
 function setSyncStatusText(text) {
   if (syncStatus) {
-    syncStatus.textContent = text;
+    const normalized = String(text || '').trim();
+    syncStatus.textContent = normalized;
+    syncStatus.classList.toggle('hidden', !normalized);
+    const divider = syncStatus.nextElementSibling;
+    if (divider?.classList?.contains('status-strip-divider')) {
+      divider.classList.toggle('hidden', !normalized);
+    }
   }
 }
 
@@ -2012,7 +2018,7 @@ function renderForwardingSummary() {
   const readiness = resolveForwardingReadiness();
   let statusText = 'Inbox not connected';
   if (readiness === 'forwarding_active') {
-    statusText = '✅ Forwarding active';
+    statusText = '✅';
   } else if (readiness === 'gmail_verification_pending') {
     statusText = 'Address reachable • Gmail verification pending';
   } else if (readiness === 'address_reachable') {
@@ -2268,7 +2274,7 @@ function updateInboundStatusPresentation() {
     pillState = 'connected';
     dashboardText = 'Connected ✓';
     dashboardState = 'connected';
-    syncText = 'Forwarding active';
+    syncText = '';
     helpStatusText = 'Connected';
     helpNoteText = 'Forwarding is active. Run a scan anytime to pull the latest updates.';
   } else if (readiness === 'gmail_verification_pending') {
@@ -2314,9 +2320,7 @@ function updateInboundStatusPresentation() {
       ? `Forwarding to ${inboundState.addressEmail}`
       : 'Forwarding address not ready';
   }
-  if (syncStatus) {
-    syncStatus.textContent = syncText;
-  }
+  setSyncStatusText(syncText);
   if (inboundAddressEmail) {
     inboundAddressEmail.textContent = inboundState.addressEmail || '—';
   }
@@ -9300,7 +9304,7 @@ async function refreshForwardingInbox({
       if (syncResult) {
         syncResult.textContent = summaryLine;
       }
-      setSyncStatusText('Forwarding active');
+      setSyncStatusText('');
     } else {
       renderSyncSummary({
         status: 'success',
