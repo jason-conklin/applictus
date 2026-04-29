@@ -90,6 +90,10 @@ function pushNote(notes, message) {
 }
 
 function normalizeCompany(value, { notes } = {}) {
+  if (normalizeJobFields.looksLikeUrlFragment(value)) {
+    pushNote(notes, `company_rejected:url_fragment:${String(value).slice(0, 120)}`);
+    return undefined;
+  }
   const normalized = normalizeJobFields.normalizeCompany(value);
   if (!normalized) {
     if (value) {
@@ -99,6 +103,10 @@ function normalizeCompany(value, { notes } = {}) {
   }
   if (normalizeJobFields.looksLikeEmailOrDomain(normalized)) {
     pushNote(notes, `company_rejected:email_or_domain:${normalized}`);
+    return undefined;
+  }
+  if (normalizeJobFields.looksLikeUrlFragment(normalized)) {
+    pushNote(notes, `company_rejected:url_fragment:${normalized}`);
     return undefined;
   }
   if (isMostlyPunctuation(normalized)) {

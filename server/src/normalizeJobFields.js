@@ -51,6 +51,34 @@ function looksLikeEmailOrDomain(value) {
   return /\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/i.test(text);
 }
 
+function looksLikeUrlFragment(value) {
+  const text = normalizeWhitespace(
+    String(value || '')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;|&apos;/gi, "'")
+  ).toLowerCase();
+  if (!text) {
+    return false;
+  }
+  if (/\bhref\s*=\s*["']?\s*(?:https?:|www\.)/i.test(text)) {
+    return true;
+  }
+  if (/\bhttps?:\/\/\S+/i.test(text) || text.includes('://')) {
+    return true;
+  }
+  if (/^<?\s*www\./i.test(text) || /\bwww\.[^\s]+/i.test(text)) {
+    return true;
+  }
+  const strippedPrefix = text.replace(/^["'`<\s]+/g, '').trim();
+  if (/^https?(?::|\/|$|[>"'])/i.test(strippedPrefix)) {
+    return true;
+  }
+  const compact = text.replace(/[^a-z]/g, '');
+  return compact === 'http' || compact === 'https';
+}
+
 function trimTrailingPunctuation(value) {
   return String(value || '')
     .replace(/\s*[,:;.!]+$/g, '')
@@ -111,6 +139,9 @@ function normalizeCompany(name) {
   text = split.company || text;
   text = stripCompanySuffixNoise(text);
   text = trimTrailingPunctuation(text);
+  if (looksLikeUrlFragment(text)) {
+    return null;
+  }
   if (!text || text.length < 2 || text.length > 60) {
     return null;
   }
@@ -228,6 +259,7 @@ function buildApplicationKey({ company, role }) {
 module.exports = {
   stripNoiseTokens,
   looksLikeEmailOrDomain,
+  looksLikeUrlFragment,
   splitCompanyRoleCombined,
   normalizeCompany,
   normalizeRole,

@@ -23,7 +23,8 @@ const { coalesceTimestamps } = require('./sqlHelpers');
 const {
   buildApplicationKey,
   normalizeCompany: normalizeCompanyStrict,
-  normalizeRole: normalizeRoleStrict
+  normalizeRole: normalizeRoleStrict,
+  looksLikeUrlFragment
 } = require('./normalizeJobFields');
 const {
   applyFieldUpdate,
@@ -204,8 +205,11 @@ function looksLikeEmailOrDomain(text) {
 }
 
 function isLowQualityCompanyCandidate(value) {
-  const text = normalizeCompany(value) || String(value || '').trim();
+  const text = normalizeCompanyStrict(value) || normalizeCompany(value) || String(value || '').trim();
   if (!text) {
+    return true;
+  }
+  if (looksLikeUrlFragment(value) || looksLikeUrlFragment(text)) {
     return true;
   }
   if (looksLikeEmailOrDomain(text)) {
@@ -904,7 +908,7 @@ function selectCompanyCandidate(identity) {
   if (!identity?.companyName) {
     return null;
   }
-  const normalizedName = normalizeCompany(identity.companyName) || identity.companyName;
+  const normalizedName = normalizeCompanyStrict(identity.companyName) || normalizeCompany(identity.companyName);
   if (!normalizedName || isLowQualityCompanyCandidate(normalizedName)) {
     return null;
   }

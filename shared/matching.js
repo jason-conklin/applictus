@@ -845,6 +845,34 @@ function looksLikeEmailOrDomain(value) {
   return false;
 }
 
+function looksLikeUrlFragment(value) {
+  const text = normalize(
+    String(value || '')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;|&apos;/gi, "'")
+  ).toLowerCase();
+  if (!text) {
+    return false;
+  }
+  if (/\bhref\s*=\s*["']?\s*(?:https?:|www\.)/i.test(text)) {
+    return true;
+  }
+  if (/\bhttps?:\/\/\S+/i.test(text) || text.includes('://')) {
+    return true;
+  }
+  if (/^<?\s*www\./i.test(text) || /\bwww\.[^\s]+/i.test(text)) {
+    return true;
+  }
+  const strippedPrefix = text.replace(/^["'`<\s]+/g, '').trim();
+  if (/^https?(?::|\/|$|[>"'])/i.test(strippedPrefix)) {
+    return true;
+  }
+  const compact = text.replace(/[^a-z]/g, '');
+  return compact === 'http' || compact === 'https';
+}
+
 function isInvalidCompanyCandidate(value) {
   const text = normalize(value);
   if (!text) {
@@ -857,6 +885,9 @@ function isInvalidCompanyCandidate(value) {
     return true;
   }
   if (looksLikeEmailOrDomain(text)) {
+    return true;
+  }
+  if (looksLikeUrlFragment(text)) {
     return true;
   }
   const lower = text.toLowerCase();
@@ -988,6 +1019,9 @@ function normalizeCompany(raw) {
   text = text.replace(/\s+(?:Recruiting Department|Talent Acquisition Team|Department)\s*$/i, '');
   text = text.replace(/[.!,;:]+$/g, '').trim();
   text = normalize(text);
+  if (looksLikeUrlFragment(text)) {
+    return null;
+  }
   return text || null;
 }
 
@@ -3193,6 +3227,7 @@ module.exports = {
   normalizeJobIdentity,
   isProviderName,
   isInvalidCompanyCandidate,
+  looksLikeUrlFragment,
   extractCompanyFromBodyText,
   normalizeExternalReqId,
   sanitizeJobTitle,
