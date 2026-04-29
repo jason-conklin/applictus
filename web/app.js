@@ -658,12 +658,18 @@ function ensureAdminElements() {
     kpiInboundRelevant: document.getElementById('admin-kpi-inbound-relevant'),
     kpiInboundDroppedIrrelevant: document.getElementById('admin-kpi-inbound-dropped-irrelevant'),
     kpiInboundDroppedOverCap: document.getElementById('admin-kpi-inbound-dropped-over-cap'),
+    kpiInboundUnknown: document.getElementById('admin-kpi-inbound-unknown'),
+    kpiInboundOverCap: document.getElementById('admin-kpi-inbound-over-cap'),
+    kpiInboundDisabled: document.getElementById('admin-kpi-inbound-disabled'),
+    kpiInboundDisabledTotal: document.getElementById('admin-kpi-inbound-disabled-total'),
     kpiNewUsers: document.getElementById('admin-kpi-new-users'),
     metricSelect: adminMetricSelect || document.getElementById('analytics-metric-select'),
     rangeSelect: adminRangeSelect || document.getElementById('analytics-range-select'),
     chartSvg: adminChartSvgStatic || document.getElementById('analytics-chart'),
     chartHint: adminChartHintStatic || document.getElementById('analytics-chart-hint'),
     statusText: adminStatusStatic || document.getElementById('admin-analytics-status'),
+    noisyRecipientsList: document.getElementById('admin-noisy-recipients-list'),
+    noisyRecipientsCount: document.getElementById('admin-noisy-recipients-count'),
     userList: document.getElementById('admin-users-list'),
     userCount: document.getElementById('admin-users-count')
   };
@@ -5941,7 +5947,49 @@ function renderAdminKpis(summary) {
   setVal(els.kpiInboundRelevant, summary.inbound_relevant_month);
   setVal(els.kpiInboundDroppedIrrelevant, summary.inbound_dropped_irrelevant_month);
   setVal(els.kpiInboundDroppedOverCap, summary.inbound_dropped_over_cap_month);
+  setVal(els.kpiInboundUnknown, summary.inbound_abuse?.unknown_recipient_count);
+  setVal(els.kpiInboundOverCap, summary.inbound_abuse?.over_cap_count);
+  setVal(els.kpiInboundDisabled, summary.inbound_abuse?.disabled_address_count);
+  setVal(els.kpiInboundDisabledTotal, summary.inbound_abuse?.disabled_or_rotated_address_total);
   setVal(els.kpiNewUsers, summary.new_users_month);
+  renderAdminNoisyRecipients(summary.inbound_abuse?.top_noisy_recipients_month || []);
+}
+
+function renderAdminNoisyRecipients(rows = []) {
+  const els = ensureAdminElements();
+  if (els.noisyRecipientsCount) {
+    els.noisyRecipientsCount.textContent = `${rows.length.toLocaleString()} shown`;
+  }
+  if (!els.noisyRecipientsList) return;
+  els.noisyRecipientsList.innerHTML = '';
+  if (!rows.length) {
+    const item = document.createElement('li');
+    item.className = 'muted small';
+    item.textContent = 'No inbound recipient noise recorded this month.';
+    els.noisyRecipientsList.appendChild(item);
+    return;
+  }
+  rows.slice(0, 10).forEach((row) => {
+    const item = document.createElement('li');
+    item.className = 'admin-user-item';
+    const main = document.createElement('div');
+    const email = document.createElement('div');
+    email.className = 'admin-user-email';
+    email.textContent = row.recipient_email || '(missing recipient)';
+    const meta = document.createElement('div');
+    meta.className = 'muted small';
+    const parts = [
+      `${Number(row.count || 0).toLocaleString()} inbound`,
+      `${Number(row.unknown_count || 0).toLocaleString()} unknown`,
+      `${Number(row.over_cap_count || 0).toLocaleString()} over cap`,
+      `${Number(row.disabled_count || 0).toLocaleString()} disabled`
+    ];
+    meta.textContent = parts.join(' • ');
+    main.appendChild(email);
+    main.appendChild(meta);
+    item.appendChild(main);
+    els.noisyRecipientsList.appendChild(item);
+  });
 }
 
 function renderAdminChart(trend) {

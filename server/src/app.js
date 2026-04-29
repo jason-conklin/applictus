@@ -37,6 +37,7 @@ const {
   normalizeText: normalizeInboundText,
   stripHtml: stripInboundHtml,
   toIsoDate,
+  normalizeInboundAddressStatus,
   getActiveInboundAddress,
   getInboundAddressByLocal,
   getOrCreateInboundAddress,
@@ -1025,7 +1026,7 @@ async function pgHasColumns(dbInstance, table, columns = []) {
 
 async function getAdminSchemaCapabilities(dbInstance) {
   if (!dbInstance.isAsync) {
-    return { hasPlanTier: true, hasPlanUsage: true, hasInboundUsage: true };
+    return { hasPlanTier: true, hasPlanUsage: true, hasInboundUsage: true, hasInboundWebhookEvents: true };
   }
   const hasPlanTier = await pgHasColumns(dbInstance, 'users', ['plan_tier']);
   const hasPlanUsage = await pgHasColumns(dbInstance, 'users', ['tracked_email_count_current_month', 'tracked_email_month_bucket']);
@@ -1036,7 +1037,8 @@ async function getAdminSchemaCapabilities(dbInstance) {
     'inbound_email_dropped_irrelevant_count_current_month',
     'inbound_email_dropped_over_cap_count_current_month'
   ]);
-  return { hasPlanTier, hasPlanUsage, hasInboundUsage };
+  const hasInboundWebhookEvents = await pgHasTable(dbInstance, 'inbound_webhook_events');
+  return { hasPlanTier, hasPlanUsage, hasInboundUsage, hasInboundWebhookEvents };
 }
 
 async function pgHasTable(dbInstance, table) {
@@ -2040,6 +2042,7 @@ async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) 
       preferred_address_email: preferredAddressEmail,
       inbox_username: inboxUsername,
       is_active: false,
+      address_status: 'missing',
       confirmed_at: null,
       last_received_at: null,
       last_received_subject: null,
@@ -2156,6 +2159,10 @@ async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) 
     preferred_address_email: preferredAddressEmail,
     inbox_username: inboxUsername,
     is_active: normalizeDbBool(address.is_active),
+    address_status: normalizeInboundAddressStatus(address.status, {
+      isActive: address.is_active,
+      rotatedAt: address.rotated_at
+    }),
     confirmed_at: address.confirmed_at || null,
     last_received_at: lastReceivedAt,
     last_received_subject: truncateInboundSubject(latestInbound?.subject || null),
@@ -2621,6 +2628,53 @@ app.get('/api/health/db', async (_req, res) => {
   }
 });
 
+async function recordInboundWebhookEvent({
+  provider = 'postmark',
+  recipientEmail = null,
+  mappedAddress = null,
+  addressStatus = null,
+  reason,
+  subject = null,
+  receivedAt = null
+} = {}) {
+  const normalizedReason = String(reason || '').trim();
+  if (!normalizedReason) {
+    return;
+  }
+  const timestamp = nowIso();
+  try {
+    await dbTimed(async () => {
+      const runRes = db
+        .prepare(
+          `INSERT INTO inbound_webhook_events
+           (id, provider, recipient_email, inbound_address_id, user_id, address_status, reason, subject, received_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          crypto.randomUUID(),
+          provider,
+          recipientEmail ? normalizeEmail(recipientEmail) : null,
+          mappedAddress?.id || null,
+          mappedAddress?.user_id || null,
+          addressStatus || null,
+          normalizedReason,
+          subject || null,
+          receivedAt || timestamp,
+          timestamp
+        );
+      if (runRes && typeof runRes.then === 'function') {
+        await runRes;
+      }
+    });
+  } catch (err) {
+    logWarn('inbound.webhook_event.record_failed', {
+      reason: normalizedReason,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 180) : String(err)
+    });
+  }
+}
+
 app.post('/api/inbound/postmark', async (req, res) => {
   const configuredSecret = String(process.env.POSTMARK_INBOUND_SECRET || '').trim();
   const querySecretRaw = req.query?.secret;
@@ -2671,31 +2725,21 @@ app.post('/api/inbound/postmark', async (req, res) => {
     .replace(/^@+/, '');
   const provider = 'postmark';
   const recipientEmail = extractInboundRecipient(payload, { inboundDomain });
-  const fromEmail = extractInboundSenderEmail(payload);
   const subject = String(payload.Subject || '').trim() || null;
   const providerMessageId = payload.MessageID ? String(payload.MessageID).trim() : null;
   const messageIdHeader = extractMessageIdHeader(payload);
-  const bodyText = normalizeInboundText(payload.TextBody || '');
-  const bodyHtml = payload.HtmlBody ? String(payload.HtmlBody) : null;
   const receivedAt = toIsoDate(payload.Date);
-  const sha256 = buildInboundMessageSha256({
-    fromEmail,
-    subject,
-    receivedAt,
-    textBody: bodyText,
-    htmlBody: bodyHtml
-  });
+  let fromEmail = null;
+  let bodyText = '';
+  let bodyHtml = null;
+  let sha256 = '';
 
   logInfo('inbound.received', {
     provider,
     recipientEmail: recipientEmail || null,
-    fromEmail: fromEmail || null,
     providerMessageIdHash: hashSampleId(providerMessageId),
     messageIdHeaderHash: hashSampleId(messageIdHeader),
-    subjectLength: subject ? subject.length : 0,
-    bodyTextLength: bodyText.length,
-    bodyHtmlLength: bodyHtml ? bodyHtml.length : 0,
-    sha256Prefix: sha256.slice(0, 12)
+    subjectLength: subject ? subject.length : 0
   });
 
   if (!recipientEmail) {
@@ -2704,14 +2748,21 @@ app.post('/api/inbound/postmark', async (req, res) => {
       mapped: false,
       reason: 'missing_recipient'
     });
-    return res.status(202).json({ ok: true, ignored: true, reason: 'MISSING_RECIPIENT' });
+    await recordInboundWebhookEvent({
+      provider,
+      recipientEmail: null,
+      reason: 'missing_recipient',
+      subject,
+      receivedAt
+    });
+    return res.status(200).json({ ok: true, ignored: true, reason: 'missing_recipient' });
   }
 
   try {
     const mappedAddress = await dbTimed(async () => {
       const rowOrPromise = db
         .prepare(
-          `SELECT id, user_id, address_email, is_active
+          `SELECT id, user_id, address_email, is_active, status, rotated_at
            FROM inbound_addresses
            WHERE lower(address_email) = ?
            ORDER BY is_active DESC, created_at DESC
@@ -2727,39 +2778,52 @@ app.post('/api/inbound/postmark', async (req, res) => {
         mapped: false,
         recipientEmail
       });
-      return res.status(202).json({ ok: true, ignored: true, reason: 'RECIPIENT_NOT_MAPPED' });
+      await recordInboundWebhookEvent({
+        provider,
+        recipientEmail,
+        reason: 'unknown_recipient',
+        subject,
+        receivedAt
+      });
+      return res.status(200).json({ ok: true, ignored: true, reason: 'unknown_recipient' });
     }
+
+    const mappedAddressStatus = normalizeInboundAddressStatus(mappedAddress.status, {
+      isActive: mappedAddress.is_active,
+      rotatedAt: mappedAddress.rotated_at
+    });
+    const mappedAddressActive =
+      mappedAddressStatus === 'active' && normalizeDbBool(mappedAddress.is_active);
 
     logInfo('inbound.mapped_user', {
       provider,
       mapped: true,
       userId: mappedAddress.user_id,
       inboundAddressId: mappedAddress.id,
-      inboundAddressActive: normalizeDbBool(mappedAddress.is_active)
+      inboundAddressActive: mappedAddressActive,
+      inboundAddressStatus: mappedAddressStatus
     });
 
-    if (!normalizeDbBool(mappedAddress.is_active)) {
-      logWarn('inbound.inactive_address_received', {
+    if (!mappedAddressActive) {
+      logWarn('inbound.address_drop', {
         provider,
         userId: mappedAddress.user_id,
         inboundAddressId: mappedAddress.id,
-        recipientEmail
+        recipientEmail,
+        addressStatus: mappedAddressStatus,
+        reason: 'inbox_address_disabled'
       });
+      await recordInboundWebhookEvent({
+        provider,
+        recipientEmail,
+        mappedAddress,
+        addressStatus: mappedAddressStatus,
+        reason: 'inbox_address_disabled',
+        subject,
+        receivedAt
+      });
+      return res.status(200).json({ ok: true, ignored: true, reason: 'inbox_address_disabled' });
     }
-
-    const inboundReceivedAt = nowIso();
-    await dbTimed(async () => {
-      const runRes = db
-        .prepare('UPDATE inbound_addresses SET last_received_at = ? WHERE id = ?')
-        .run(inboundReceivedAt, mappedAddress.id);
-      if (runRes && typeof runRes.then === 'function') {
-        await runRes;
-      }
-    });
-    await touchUserInboxSignal(mappedAddress.user_id, {
-      lastInboundAt: inboundReceivedAt,
-      lastSubjectPreview: subject || null
-    });
 
     const dedupeByHeader = messageIdHeader
       ? await dbTimed(async () => {
@@ -2811,6 +2875,26 @@ app.post('/api/inbound/postmark', async (req, res) => {
       return res.status(200).json({ ok: true, deduped: true });
     }
 
+    fromEmail = extractInboundSenderEmail(payload);
+    bodyText = normalizeInboundText(payload.TextBody || '');
+    bodyHtml = payload.HtmlBody ? String(payload.HtmlBody) : null;
+    sha256 = buildInboundMessageSha256({
+      fromEmail,
+      subject,
+      receivedAt,
+      textBody: bodyText,
+      htmlBody: bodyHtml
+    });
+    logInfo('inbound.content_prepared', {
+      provider,
+      userId: mappedAddress.user_id,
+      inboundAddressId: mappedAddress.id,
+      fromEmail: fromEmail || null,
+      bodyTextLength: bodyText.length,
+      bodyHtmlLength: bodyHtml ? bodyHtml.length : 0,
+      sha256Prefix: sha256.slice(0, 12)
+    });
+
     const dedupeBySha = await dbTimed(async () => {
       const rowOrPromise = db
         .prepare(
@@ -2831,6 +2915,138 @@ app.post('/api/inbound/postmark', async (req, res) => {
       });
       return res.status(200).json({ ok: true, deduped: true });
     }
+
+    const processingInboundUsage = await Promise.resolve(
+      applyInboundEmailReceiptUsage(db, {
+        userId: mappedAddress.user_id,
+        countable: true
+      })
+    );
+    const processingInboundCap = processingInboundUsage?.cap || null;
+    const processingInboundOverCap = Boolean(processingInboundCap?.overCap);
+    const processingInboundUsageCount = Number(processingInboundCap?.usage || 0);
+    const processingInboundLimitCount = Number(processingInboundCap?.limit || 0);
+    const processingInboundSoftThreshold =
+      processingInboundLimitCount > 0 ? Math.ceil(processingInboundLimitCount * 0.7) : 0;
+    const processingInboundStrongThreshold =
+      processingInboundLimitCount > 0 ? Math.ceil(processingInboundLimitCount * 0.9) : 0;
+    const forwardingFairUse = resolveForwardingFairUseStatus({
+      planTier: processingInboundUsage?.plan?.planTier || 'free',
+      billingPlan: processingInboundUsage?.plan?.billingPlan || null,
+      inboundUsage: processingInboundUsageCount,
+      inboundRelevant: processingInboundUsage?.plan?.inboundRelevant || 0,
+      inboundDroppedIrrelevant: processingInboundUsage?.plan?.inboundDroppedIrrelevant || 0,
+      inboundDroppedOverCap: processingInboundUsage?.plan?.inboundDroppedOverCap || 0
+    });
+
+    if (!processingInboundOverCap && processingInboundLimitCount > 0) {
+      if (processingInboundUsageCount === processingInboundSoftThreshold) {
+        logInfo('inbound.processing_cap.warning_70', {
+          provider,
+          userId: mappedAddress.user_id,
+          usage: processingInboundUsageCount,
+          limit: processingInboundLimitCount
+        });
+      } else if (processingInboundUsageCount === processingInboundStrongThreshold) {
+        logWarn('inbound.processing_cap.warning_90', {
+          provider,
+          userId: mappedAddress.user_id,
+          usage: processingInboundUsageCount,
+          limit: processingInboundLimitCount
+        });
+      }
+    }
+
+    if (
+      !processingInboundOverCap &&
+      forwardingFairUse.status !== 'healthy' &&
+      processingInboundUsageCount >= 100 &&
+      processingInboundUsageCount % 100 === 0
+    ) {
+      logWarn('inbound.forwarding_filter.review_recommended', {
+        provider,
+        userId: mappedAddress.user_id,
+        status: forwardingFairUse.status,
+        reason: forwardingFairUse.reason,
+        inbound_usage: processingInboundUsageCount,
+        inbound_relevant: Number(processingInboundUsage?.plan?.inboundRelevant || 0),
+        relevance_rate: forwardingFairUse.relevanceRate
+      });
+    }
+
+    if (processingInboundOverCap) {
+      await Promise.resolve(
+        applyInboundOutcomeUsage(db, {
+          userId: mappedAddress.user_id,
+          dropped: true,
+          dropReason: 'processing_cap'
+        })
+      );
+
+      const usage = processingInboundUsageCount;
+      const limit = processingInboundLimitCount;
+      const relevant = Number(processingInboundUsage?.plan?.inboundRelevant || 0);
+      const relevanceRatio = usage > 0 ? relevant / usage : null;
+
+      logWarn('inbound.processing_cap.reached', {
+        provider,
+        userId: mappedAddress.user_id,
+        inboundAddressId: mappedAddress.id,
+        recipientEmail,
+        usage,
+        limit
+      });
+      await recordInboundWebhookEvent({
+        provider,
+        recipientEmail,
+        mappedAddress,
+        addressStatus: mappedAddressStatus,
+        reason: 'processing_cap_reached',
+        subject,
+        receivedAt
+      });
+
+      if (usage >= 100 && Number.isFinite(relevanceRatio) && relevanceRatio < 0.2) {
+        logWarn('inbound.anomaly.low_relevance_ratio', {
+          provider,
+          userId: mappedAddress.user_id,
+          inbound_usage: usage,
+          inbound_relevant: relevant,
+          relevance_ratio: Number(relevanceRatio.toFixed(4)),
+          dropped_over_cap: Number(processingInboundUsage?.plan?.inboundDroppedOverCap || 0)
+        });
+      }
+
+      return res.status(200).json({
+        ok: true,
+        ignored: true,
+        reason: 'processing_cap_reached'
+      });
+    }
+
+    await recordInboundWebhookEvent({
+      provider,
+      recipientEmail,
+      mappedAddress,
+      addressStatus: mappedAddressStatus,
+      reason: 'accepted',
+      subject,
+      receivedAt
+    });
+
+    const inboundReceivedAt = nowIso();
+    await dbTimed(async () => {
+      const runRes = db
+        .prepare('UPDATE inbound_addresses SET last_received_at = ? WHERE id = ?')
+        .run(inboundReceivedAt, mappedAddress.id);
+      if (runRes && typeof runRes.then === 'function') {
+        await runRes;
+      }
+    });
+    await touchUserInboxSignal(mappedAddress.user_id, {
+      lastInboundAt: inboundReceivedAt,
+      lastSubjectPreview: subject || null
+    });
 
     const inboundMessageId = crypto.randomUUID();
     const createdAt = nowIso();
@@ -2879,119 +3095,6 @@ app.post('/api/inbound/postmark', async (req, res) => {
       throw insertErr;
     }
 
-    const rawInboundUsage = await Promise.resolve(
-      applyInboundEmailReceiptUsage(db, {
-        userId: mappedAddress.user_id,
-        countable: true
-      })
-    );
-    const rawInboundCap = rawInboundUsage?.cap || null;
-    const rawInboundOverCap = Boolean(rawInboundCap?.overCap);
-    const rawInboundUsageCount = Number(rawInboundCap?.usage || 0);
-    const rawInboundLimitCount = Number(rawInboundCap?.limit || 0);
-    const rawInboundSoftThreshold = rawInboundLimitCount > 0 ? Math.ceil(rawInboundLimitCount * 0.7) : 0;
-    const rawInboundStrongThreshold = rawInboundLimitCount > 0 ? Math.ceil(rawInboundLimitCount * 0.9) : 0;
-    const forwardingFairUse = resolveForwardingFairUseStatus({
-      planTier: rawInboundUsage?.plan?.planTier || 'free',
-      billingPlan: rawInboundUsage?.plan?.billingPlan || null,
-      inboundUsage: rawInboundUsageCount,
-      inboundRelevant: rawInboundUsage?.plan?.inboundRelevant || 0,
-      inboundDroppedIrrelevant: rawInboundUsage?.plan?.inboundDroppedIrrelevant || 0,
-      inboundDroppedOverCap: rawInboundUsage?.plan?.inboundDroppedOverCap || 0
-    });
-
-    if (!rawInboundOverCap && rawInboundLimitCount > 0) {
-      if (rawInboundUsageCount === rawInboundSoftThreshold) {
-        logInfo('inbound.usage.warning_soft', {
-          provider,
-          userId: mappedAddress.user_id,
-          usage: rawInboundUsageCount,
-          limit: rawInboundLimitCount
-        });
-      } else if (rawInboundUsageCount === rawInboundStrongThreshold) {
-        logWarn('inbound.usage.warning_strong', {
-          provider,
-          userId: mappedAddress.user_id,
-          usage: rawInboundUsageCount,
-          limit: rawInboundLimitCount
-        });
-      }
-    }
-
-    if (
-      !rawInboundOverCap &&
-      forwardingFairUse.status !== 'healthy' &&
-      rawInboundUsageCount >= 100 &&
-      rawInboundUsageCount % 100 === 0
-    ) {
-      logWarn('inbound.forwarding_filter.review_recommended', {
-        provider,
-        userId: mappedAddress.user_id,
-        status: forwardingFairUse.status,
-        reason: forwardingFairUse.reason,
-        inbound_usage: rawInboundUsageCount,
-        inbound_relevant: Number(rawInboundUsage?.plan?.inboundRelevant || 0),
-        relevance_rate: forwardingFairUse.relevanceRate
-      });
-    }
-
-    if (rawInboundOverCap) {
-      const dropProcessedAt = nowIso();
-      await dbTimed(async () => {
-        const runRes = db
-          .prepare(
-            `UPDATE inbound_messages
-               SET processing_status = 'ignored',
-                   processed_at = ?,
-                   processing_error = 'raw_inbound_cap_reached'
-             WHERE id = ?`
-          )
-          .run(dropProcessedAt, inboundMessageId);
-        if (runRes && typeof runRes.then === 'function') {
-          await runRes;
-        }
-      });
-      await Promise.resolve(
-        applyInboundOutcomeUsage(db, {
-          userId: mappedAddress.user_id,
-          dropped: true,
-          dropReason: 'raw_inbound_cap'
-        })
-      );
-
-      const usage = rawInboundUsageCount;
-      const limit = rawInboundLimitCount;
-      const relevant = Number(rawInboundUsage?.plan?.inboundRelevant || 0);
-      const relevanceRatio = usage > 0 ? relevant / usage : null;
-
-      logWarn('inbound.raw_cap_reached', {
-        provider,
-        userId: mappedAddress.user_id,
-        inboundMessageId,
-        usage,
-        limit
-      });
-
-      if (usage >= 100 && Number.isFinite(relevanceRatio) && relevanceRatio < 0.2) {
-        logWarn('inbound.anomaly.low_relevance_ratio', {
-          provider,
-          userId: mappedAddress.user_id,
-          inbound_usage: usage,
-          inbound_relevant: relevant,
-          relevance_ratio: Number(relevanceRatio.toFixed(4)),
-          dropped_over_cap: Number(rawInboundUsage?.plan?.inboundDroppedOverCap || 0)
-        });
-      }
-
-      return res.status(200).json({
-        ok: true,
-        inbound_message_id: inboundMessageId,
-        deduped: false,
-        ignored: true,
-        reason: 'RAW_INBOUND_CAP_REACHED'
-      });
-    }
-
     logInfo('inbound.persisted', {
       provider,
       inboundMessageId,
@@ -3001,8 +3104,8 @@ app.post('/api/inbound/postmark', async (req, res) => {
       bodyTextLength: bodyText.length,
       bodyHtmlLength: bodyHtml ? bodyHtml.length : 0,
       sha256Prefix: sha256.slice(0, 12),
-      inboundUsage: Number(rawInboundCap?.usage || 0),
-      inboundLimit: Number(rawInboundCap?.limit || 0)
+      inboundUsage: Number(processingInboundCap?.usage || 0),
+      inboundLimit: Number(processingInboundCap?.limit || 0)
     });
 
     await upsertUserInboxSignalIncrement(mappedAddress.user_id, {
@@ -3791,7 +3894,7 @@ app.get('/api/account/plan', requireAuth, async (req, res) => {
     const nearLimitThresholdCount = limit > 0 ? Math.ceil(limit * PLAN_NEAR_LIMIT_THRESHOLD) : 0;
     const nearLimit = isFreeTier && limit > 0 ? usage >= nearLimitThresholdCount && usage < limit : false;
     const atLimit = isFreeTier && limit > 0 ? usage >= limit : false;
-    const rawInboundOverCap = inboundLimit > 0 ? inboundUsage > inboundLimit : false;
+    const processingInboundOverCap = inboundLimit > 0 ? inboundUsage > inboundLimit : false;
     const planExpiresAt = planState.planExpiresAt || null;
     const oneTimeActive =
       String(planState.billingType || '').toLowerCase() === BILLING_TYPES.ONE_TIME &&
@@ -3831,7 +3934,8 @@ app.get('/api/account/plan', requireAuth, async (req, res) => {
       forwarding_relevance_rate: forwardingFairUse.relevanceRate,
       forwarding_daily_count: dailyInboundUsage,
       forwarding_fair_use_thresholds: forwardingFairUse.thresholds,
-      raw_inbound_over_cap: rawInboundOverCap,
+      processing_inbound_over_cap: processingInboundOverCap,
+      raw_inbound_over_cap: processingInboundOverCap,
       near_limit: nearLimit,
       at_limit: atLimit,
       near_limit_threshold: PLAN_NEAR_LIMIT_THRESHOLD,
@@ -4308,12 +4412,136 @@ app.post('/api/account/plan/dev-set', async (req, res) => {
 });
 
 // Admin analytics (internal-only)
+function getCurrentMonthRangeIso() {
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  return {
+    start: start.toISOString(),
+    end: end.toISOString()
+  };
+}
+
+function normalizeAdminInboundRows(rows = []) {
+  return (Array.isArray(rows) ? rows : rows?.rows || []).map((row) => {
+    const normalized = { ...row };
+    for (const key of Object.keys(normalized)) {
+      if (/_count$/.test(key) || key === 'count') {
+        normalized[key] = Number(normalized[key] || 0);
+      }
+    }
+    return normalized;
+  });
+}
+
+async function buildAdminInboundAbuseSummary(dbInstance, { hasInboundWebhookEvents = true } = {}) {
+  if (!hasInboundWebhookEvents) {
+    return {
+      inbound_by_recipient: [],
+      unknown_recipient_count: 0,
+      over_cap_count: 0,
+      disabled_address_count: 0,
+      active_address_total: 0,
+      disabled_or_rotated_address_total: 0,
+      top_noisy_recipients_month: []
+    };
+  }
+
+  const monthRange = getCurrentMonthRangeIso();
+  const monthParams = [monthRange.start, monthRange.end];
+  const inboundByRecipient = normalizeAdminInboundRows(
+    await runPrepared(
+      dbInstance,
+      `SELECT COALESCE(recipient_email, '(missing recipient)') AS recipient_email,
+              COUNT(*) AS count
+         FROM inbound_webhook_events
+        WHERE received_at >= ? AND received_at < ?
+        GROUP BY COALESCE(recipient_email, '(missing recipient)')
+        ORDER BY count DESC, recipient_email ASC
+        LIMIT 25`,
+      monthParams,
+      'all'
+    )
+  );
+  const unknownRecipientCount = await readCount(
+    dbInstance,
+    `SELECT COUNT(*) AS count
+       FROM inbound_webhook_events
+      WHERE received_at >= ? AND received_at < ?
+        AND reason IN ('unknown_recipient', 'missing_recipient')`,
+    monthParams
+  );
+  const overCapCount = await readCount(
+    dbInstance,
+    `SELECT COUNT(*) AS count
+       FROM inbound_webhook_events
+      WHERE received_at >= ? AND received_at < ?
+        AND reason = 'processing_cap_reached'`,
+    monthParams
+  );
+  const disabledAddressCount = await readCount(
+    dbInstance,
+    `SELECT COUNT(*) AS count
+       FROM inbound_webhook_events
+      WHERE received_at >= ? AND received_at < ?
+        AND reason = 'inbox_address_disabled'`,
+    monthParams
+  );
+  const activeAddressTotal = await readCount(
+    dbInstance,
+    `SELECT COUNT(*) AS count
+       FROM inbound_addresses
+      WHERE is_active = ? AND status = 'active'`,
+    [boolBind(dbInstance, true)]
+  );
+  const disabledOrRotatedAddressTotal = await readCount(
+    dbInstance,
+    `SELECT COUNT(*) AS count
+       FROM inbound_addresses
+      WHERE status IN ('disabled', 'rotated') OR is_active = ?`,
+    [boolBind(dbInstance, false)]
+  );
+  const topNoisyRecipients = normalizeAdminInboundRows(
+    await runPrepared(
+      dbInstance,
+      `SELECT COALESCE(recipient_email, '(missing recipient)') AS recipient_email,
+              COUNT(*) AS count,
+              SUM(CASE WHEN reason IN ('unknown_recipient', 'missing_recipient') THEN 1 ELSE 0 END) AS unknown_count,
+              SUM(CASE WHEN reason = 'processing_cap_reached' THEN 1 ELSE 0 END) AS over_cap_count,
+              SUM(CASE WHEN reason = 'inbox_address_disabled' THEN 1 ELSE 0 END) AS disabled_count,
+              MAX(received_at) AS last_received_at
+         FROM inbound_webhook_events
+        WHERE received_at >= ? AND received_at < ?
+        GROUP BY COALESCE(recipient_email, '(missing recipient)')
+        ORDER BY count DESC, disabled_count DESC, over_cap_count DESC
+        LIMIT 10`,
+      monthParams,
+      'all'
+    )
+  );
+
+  return {
+    inbound_by_recipient: inboundByRecipient,
+    unknown_recipient_count: unknownRecipientCount,
+    over_cap_count: overCapCount,
+    disabled_address_count: disabledAddressCount,
+    active_address_total: activeAddressTotal,
+    disabled_or_rotated_address_total: disabledOrRotatedAddressTotal,
+    top_noisy_recipients_month: topNoisyRecipients
+  };
+}
+
 async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
   const isPg = !!dbInstance.isAsync;
   const filters = getDateFilters(isPg);
   const bucket = currentMonthBucket();
 
-  const { hasPlanTier = true, hasPlanUsage = true, hasInboundUsage = true } =
+  const {
+    hasPlanTier = true,
+    hasPlanUsage = true,
+    hasInboundUsage = true,
+    hasInboundWebhookEvents = true
+  } =
     caps || (await getAdminSchemaCapabilities(dbInstance));
   if (!hasPlanTier || !hasPlanUsage || !hasInboundUsage) {
     logWarn('admin.analytics.schema.missing_plan_fields', { hasPlanTier, hasPlanUsage, hasInboundUsage });
@@ -4421,6 +4649,7 @@ async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
     : 0;
   const inboundRelevanceRatioMonth =
     inboundReceivedMonth > 0 ? Number((inboundRelevantMonth / inboundReceivedMonth).toFixed(4)) : 0;
+  const inboundAbuse = await buildAdminInboundAbuseSummary(dbInstance, { hasInboundWebhookEvents });
 
   return {
     total_users: totalUsers,
@@ -4439,6 +4668,7 @@ async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
     inbound_relevance_ratio_month: inboundRelevanceRatioMonth,
     users_near_inbound_cap_month: usersNearInboundCapMonth,
     users_over_inbound_cap_month: usersOverInboundCapMonth,
+    inbound_abuse: inboundAbuse,
     new_users_month: newUsersMonth
   };
 }
@@ -4634,6 +4864,108 @@ app.get('/api/admin/analytics/users', requireAuth, async (req, res) => {
       error: err?.message || String(err)
     });
     return res.status(500).json({ error: 'ANALYTICS_FAILED' });
+  }
+});
+
+app.post('/api/admin/inbound/users/:userId/rotate', requireAuth, async (req, res) => {
+  try {
+    if (!isInternalAdminUser(req.user)) {
+      return res.status(403).json({ error: 'ADMIN_ONLY' });
+    }
+    const targetUserId = String(req.params.userId || '').trim();
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'USER_ID_REQUIRED' });
+    }
+    const user = await runPrepared(db, 'SELECT id, email FROM users WHERE id = ? LIMIT 1', [targetUserId], 'get');
+    if (!user) {
+      return res.status(404).json({ error: 'USER_NOT_FOUND' });
+    }
+    const previousAddress = await getActiveInboundAddress(db, targetUserId, { includeInactive: false });
+    const address = await rotateInboundAddress(db, targetUserId, {
+      inboundDomain: process.env.INBOUND_DOMAIN
+    });
+    resetAdminCache();
+    logWarn('admin.inbound_address.rotated', {
+      adminUserId: req.user?.id || null,
+      userId: targetUserId,
+      previousInboundAddressId: previousAddress?.id || null,
+      newInboundAddressId: address?.id || null
+    });
+    return res.json({
+      ok: true,
+      user: { id: user.id, email: user.email },
+      previous_address: previousAddress || null,
+      address
+    });
+  } catch (err) {
+    logError('admin.inbound_address.rotate_failed', {
+      adminUserId: req.user?.id || null,
+      targetUserId: req.params?.userId || null,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+    return res.status(500).json({ error: 'INBOUND_ADDRESS_ROTATE_FAILED' });
+  }
+});
+
+app.post('/api/admin/inbound/addresses/:addressId/disable', requireAuth, async (req, res) => {
+  try {
+    if (!isInternalAdminUser(req.user)) {
+      return res.status(403).json({ error: 'ADMIN_ONLY' });
+    }
+    const addressId = String(req.params.addressId || '').trim();
+    if (!addressId) {
+      return res.status(400).json({ error: 'ADDRESS_ID_REQUIRED' });
+    }
+    const existing = await runPrepared(
+      db,
+      `SELECT id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at
+         FROM inbound_addresses
+        WHERE id = ?
+        LIMIT 1`,
+      [addressId],
+      'get'
+    );
+    if (!existing) {
+      return res.status(404).json({ error: 'ADDRESS_NOT_FOUND' });
+    }
+    const activeFalse = boolBind(db, false);
+    await runPrepared(
+      db,
+      "UPDATE inbound_addresses SET is_active = ?, status = 'disabled' WHERE id = ?",
+      [activeFalse, addressId],
+      'run'
+    );
+    const disabled = await runPrepared(
+      db,
+      `SELECT id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at
+         FROM inbound_addresses
+        WHERE id = ?
+        LIMIT 1`,
+      [addressId],
+      'get'
+    );
+    resetAdminCache();
+    logWarn('admin.inbound_address.disabled', {
+      adminUserId: req.user?.id || null,
+      userId: existing.user_id,
+      inboundAddressId: addressId
+    });
+    return res.json({
+      ok: true,
+      address: {
+        ...disabled,
+        is_active: normalizeDbBool(disabled?.is_active)
+      }
+    });
+  } catch (err) {
+    logError('admin.inbound_address.disable_failed', {
+      adminUserId: req.user?.id || null,
+      addressId: req.params?.addressId || null,
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 220) : String(err)
+    });
+    return res.status(500).json({ error: 'INBOUND_ADDRESS_DISABLE_FAILED' });
   }
 });
 

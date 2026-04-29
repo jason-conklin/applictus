@@ -180,6 +180,37 @@ function normalizeDbBool(value) {
   return value === true || value === 1 || value === '1';
 }
 
+const INBOUND_ADDRESS_STATUSES = Object.freeze({
+  ACTIVE: 'active',
+  DISABLED: 'disabled',
+  ROTATED: 'rotated'
+});
+
+function normalizeInboundAddressStatus(value, { isActive = null, rotatedAt = null } = {}) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (Object.values(INBOUND_ADDRESS_STATUSES).includes(normalized)) {
+    return normalized;
+  }
+  if (rotatedAt) {
+    return INBOUND_ADDRESS_STATUSES.ROTATED;
+  }
+  if (isActive === false || isActive === 0 || isActive === '0') {
+    return INBOUND_ADDRESS_STATUSES.DISABLED;
+  }
+  return INBOUND_ADDRESS_STATUSES.ACTIVE;
+}
+
+function isInboundAddressActive(row) {
+  if (!row) {
+    return false;
+  }
+  const status = normalizeInboundAddressStatus(row.status, {
+    isActive: row.is_active,
+    rotatedAt: row.rotated_at
+  });
+  return status === INBOUND_ADDRESS_STATUSES.ACTIVE && normalizeDbBool(row.is_active);
+}
+
 function isUniqueViolation(err) {
   const code = String(err?.code || '').toUpperCase();
   if (code === '23505' || code.startsWith('SQLITE_CONSTRAINT')) {
@@ -192,9 +223,15 @@ function normalizeInboundAddressRow(row) {
   if (!row) {
     return null;
   }
+  const isActive = normalizeDbBool(row.is_active);
+  const status = normalizeInboundAddressStatus(row.status, {
+    isActive,
+    rotatedAt: row.rotated_at
+  });
   return {
     ...row,
-    is_active: normalizeDbBool(row.is_active)
+    is_active: isActive,
+    status
   };
 }
 
@@ -204,14 +241,14 @@ async function getActiveInboundAddress(db, userId, { includeInactive = false, is
     db
       .prepare(
         includeInactive
-          ? `SELECT id, user_id, address_local, address_email, is_active, created_at, rotated_at, confirmed_at, last_received_at
+          ? `SELECT id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at
              FROM inbound_addresses
              WHERE user_id = ?
              ORDER BY is_active DESC, created_at DESC
              LIMIT 1`
-          : `SELECT id, user_id, address_local, address_email, is_active, created_at, rotated_at, confirmed_at, last_received_at
+          : `SELECT id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at
              FROM inbound_addresses
-             WHERE user_id = ? AND is_active = ?
+             WHERE user_id = ? AND is_active = ? AND status = 'active'
              ORDER BY created_at DESC
              LIMIT 1`
       )
@@ -235,14 +272,14 @@ async function getInboundAddressByLocal(
     db
       .prepare(
         includeInactive
-          ? `SELECT id, user_id, address_local, address_email, is_active, created_at, rotated_at, confirmed_at, last_received_at
+          ? `SELECT id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at
              FROM inbound_addresses
              WHERE user_id = ? AND lower(address_local) = ?
              ORDER BY is_active DESC, created_at DESC
              LIMIT 1`
-          : `SELECT id, user_id, address_local, address_email, is_active, created_at, rotated_at, confirmed_at, last_received_at
+          : `SELECT id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at
              FROM inbound_addresses
-             WHERE user_id = ? AND lower(address_local) = ? AND is_active = ?
+             WHERE user_id = ? AND lower(address_local) = ? AND is_active = ? AND status = 'active'
              ORDER BY created_at DESC
              LIMIT 1`
       )
@@ -275,13 +312,13 @@ async function setActiveInboundAddressById(db, userId, addressId, { isAsyncMode 
   const activeTrue = boolBind(db, true, isAsyncMode);
   await awaitMaybe(
     db
-      .prepare('UPDATE inbound_addresses SET is_active = ?, rotated_at = NULL WHERE id = ?')
+      .prepare("UPDATE inbound_addresses SET is_active = ?, status = 'active', rotated_at = NULL WHERE id = ?")
       .run(activeTrue, addressId)
   );
   const row = await awaitMaybe(
     db
       .prepare(
-        `SELECT id, user_id, address_local, address_email, is_active, created_at, rotated_at, confirmed_at, last_received_at
+        `SELECT id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at
          FROM inbound_addresses
          WHERE id = ? AND user_id = ?
          LIMIT 1`
@@ -326,10 +363,10 @@ async function createInboundAddress(
         db
           .prepare(
             `INSERT INTO inbound_addresses
-             (id, user_id, address_local, address_email, is_active, created_at, rotated_at, confirmed_at, last_received_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             (id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
           )
-          .run(id, userId, addressLocal, addressEmail, activeBind, createdAt, null, null, null)
+          .run(id, userId, addressLocal, addressEmail, activeBind, INBOUND_ADDRESS_STATUSES.ACTIVE, createdAt, null, null, null)
       );
       return {
         id,
@@ -337,6 +374,7 @@ async function createInboundAddress(
         address_local: addressLocal,
         address_email: addressEmail,
         is_active: true,
+        status: INBOUND_ADDRESS_STATUSES.ACTIVE,
         created_at: createdAt,
         rotated_at: null,
         confirmed_at: null,
@@ -373,10 +411,13 @@ async function getOrCreateInboundAddress(db, userId, { inboundDomain = process.e
       includeInactive: true
     });
     if (existingPreferred) {
-      if (existingPreferred.is_active) {
+      if (isInboundAddressActive(existingPreferred)) {
         return existingPreferred;
       }
-      return setActiveInboundAddressById(db, userId, existingPreferred.id, {});
+      return createInboundAddress(db, userId, {
+        inboundDomain,
+        allowFallbackRandom: true
+      });
     }
     return createInboundAddress(db, userId, {
       inboundDomain,
@@ -440,7 +481,7 @@ async function rotateInboundAddress(
         tx
           .prepare(
             `UPDATE inbound_addresses
-             SET is_active = ?, rotated_at = ?
+             SET is_active = ?, status = 'rotated', rotated_at = ?
              WHERE user_id = ? AND is_active = ?`
           )
           .run(activeFalse, rotatedAt, userId, activeTrue)
@@ -449,7 +490,7 @@ async function rotateInboundAddress(
         const existingPreferred = await awaitMaybe(
           tx
             .prepare(
-              `SELECT id, user_id, address_local, address_email, is_active, created_at, rotated_at, confirmed_at, last_received_at
+              `SELECT id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at
                FROM inbound_addresses
                WHERE user_id = ? AND lower(address_local) = ?
                ORDER BY created_at DESC
@@ -460,12 +501,13 @@ async function rotateInboundAddress(
         if (existingPreferred) {
           await awaitMaybe(
             tx
-              .prepare('UPDATE inbound_addresses SET is_active = ?, rotated_at = NULL WHERE id = ?')
+              .prepare("UPDATE inbound_addresses SET is_active = ?, status = 'active', rotated_at = NULL WHERE id = ?")
               .run(activeTrue, existingPreferred.id)
           );
           return {
             ...existingPreferred,
             is_active: true,
+            status: INBOUND_ADDRESS_STATUSES.ACTIVE,
             rotated_at: null
           };
         }
@@ -483,7 +525,7 @@ async function rotateInboundAddress(
     const tx = db.transaction((targetUserId, domain, preferredLocalInput, fallbackRandom) => {
       db.prepare(
         `UPDATE inbound_addresses
-         SET is_active = ?, rotated_at = ?
+         SET is_active = ?, status = 'rotated', rotated_at = ?
          WHERE user_id = ? AND is_active = ?`
       ).run(activeFalse, rotatedAt, targetUserId, activeTrue);
 
@@ -491,7 +533,7 @@ async function rotateInboundAddress(
         ? normalizeInboundAddressRow(
             db
               .prepare(
-                `SELECT id, user_id, address_local, address_email, is_active, created_at, rotated_at, confirmed_at, last_received_at
+                `SELECT id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at
                  FROM inbound_addresses
                  WHERE user_id = ? AND lower(address_local) = ?
                  ORDER BY created_at DESC
@@ -501,13 +543,14 @@ async function rotateInboundAddress(
           )
         : null;
       if (preferredExisting) {
-        db.prepare('UPDATE inbound_addresses SET is_active = ?, rotated_at = NULL WHERE id = ?').run(
+        db.prepare("UPDATE inbound_addresses SET is_active = ?, status = 'active', rotated_at = NULL WHERE id = ?").run(
           activeTrue,
           preferredExisting.id
         );
         return {
           ...preferredExisting,
           is_active: true,
+          status: INBOUND_ADDRESS_STATUSES.ACTIVE,
           rotated_at: null
         };
       }
@@ -527,15 +570,16 @@ async function rotateInboundAddress(
         try {
           db.prepare(
             `INSERT INTO inbound_addresses
-             (id, user_id, address_local, address_email, is_active, created_at, rotated_at, confirmed_at, last_received_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-          ).run(id, targetUserId, addressLocal, addressEmail, activeBind, createdAt, null, null, null);
+             (id, user_id, address_local, address_email, is_active, status, created_at, rotated_at, confirmed_at, last_received_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ).run(id, targetUserId, addressLocal, addressEmail, activeBind, INBOUND_ADDRESS_STATUSES.ACTIVE, createdAt, null, null, null);
           return {
             id,
             user_id: targetUserId,
             address_local: addressLocal,
             address_email: addressEmail,
             is_active: true,
+            status: INBOUND_ADDRESS_STATUSES.ACTIVE,
             created_at: createdAt,
             rotated_at: null,
             confirmed_at: null,
@@ -565,7 +609,7 @@ async function rotateInboundAddress(
     db
       .prepare(
         `UPDATE inbound_addresses
-         SET is_active = ?, rotated_at = ?
+         SET is_active = ?, status = 'rotated', rotated_at = ?
          WHERE user_id = ? AND is_active = ?`
       )
       .run(activeFalse, rotatedAt, userId, activeTrue)
@@ -578,12 +622,13 @@ async function rotateInboundAddress(
     if (preferredExisting) {
       await awaitMaybe(
         db
-          .prepare('UPDATE inbound_addresses SET is_active = ?, rotated_at = NULL WHERE id = ?')
+          .prepare("UPDATE inbound_addresses SET is_active = ?, status = 'active', rotated_at = NULL WHERE id = ?")
           .run(activeTrue, preferredExisting.id)
       );
       return {
         ...preferredExisting,
         is_active: true,
+        status: INBOUND_ADDRESS_STATUSES.ACTIVE,
         rotated_at: null
       };
     }
@@ -597,6 +642,7 @@ async function rotateInboundAddress(
 }
 
 module.exports = {
+  INBOUND_ADDRESS_STATUSES,
   normalizeEmail,
   parseEmailTokens,
   extractInboundRecipient,
@@ -609,6 +655,8 @@ module.exports = {
   buildInboundMessageSha256,
   generateInboundAddressLocal,
   normalizeInboundAddressLocal,
+  normalizeInboundAddressStatus,
+  isInboundAddressActive,
   getUserInboxUsername,
   getActiveInboundAddress,
   getInboundAddressByLocal,

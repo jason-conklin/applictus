@@ -340,11 +340,11 @@ async function assertPgSchema(db) {
       `SELECT table_name
        FROM information_schema.tables
        WHERE table_schema='public'
-         AND table_name IN ('inbound_addresses', 'inbound_messages', 'user_parse_hints')`
+         AND table_name IN ('inbound_addresses', 'inbound_messages', 'user_parse_hints', 'inbound_webhook_events')`
     )
     .all();
   const inboundPresent = new Set((inboundTables || []).map((row) => row.table_name));
-  const inboundMissing = ['inbound_addresses', 'inbound_messages', 'user_parse_hints'].filter(
+  const inboundMissing = ['inbound_addresses', 'inbound_messages', 'user_parse_hints', 'inbound_webhook_events'].filter(
     (name) => !inboundPresent.has(name)
   );
 
@@ -355,6 +355,7 @@ async function assertPgSchema(db) {
       'Run migrations (or ensure startup migrations run). The migration that adds these is:',
       '  server/migrations/025_inbound_forwarding_postgres.sql',
       '  server/migrations/030_user_parse_hints_postgres.sql',
+      '  server/migrations/041_inbound_abuse_controls_postgres.sql',
       'Set SKIP_SCHEMA_CHECK=1 to bypass this check (not recommended).'
     ].join('\n');
 
@@ -371,14 +372,14 @@ async function assertPgSchema(db) {
   const inboundAddressColumns = await db
     .prepare(
       `SELECT column_name
-       FROM information_schema.columns
-       WHERE table_schema='public'
-         AND table_name='inbound_addresses'
-         AND column_name IN ('confirmed_at', 'last_received_at')`
+         FROM information_schema.columns
+         WHERE table_schema='public'
+           AND table_name='inbound_addresses'
+         AND column_name IN ('confirmed_at', 'last_received_at', 'status')`
     )
     .all();
   const inboundAddressPresent = new Set((inboundAddressColumns || []).map((row) => row.column_name));
-  const inboundAddressMissing = ['confirmed_at', 'last_received_at'].filter(
+  const inboundAddressMissing = ['confirmed_at', 'last_received_at', 'status'].filter(
     (name) => !inboundAddressPresent.has(name)
   );
 
@@ -388,6 +389,7 @@ async function assertPgSchema(db) {
       `  inbound_addresses.${inboundAddressMissing.join(', inbound_addresses.')}`,
       'Run migrations (or ensure startup migrations run). The migration that adds these is:',
       '  server/migrations/026_inbound_forwarding_status_postgres.sql',
+      '  server/migrations/041_inbound_abuse_controls_postgres.sql',
       'Set SKIP_SCHEMA_CHECK=1 to bypass this check (not recommended).'
     ].join('\n');
 

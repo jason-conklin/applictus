@@ -2543,6 +2543,22 @@
                 <div class="kpi-label">New users this month</div>
                 <div class="kpi-value" id="admin-kpi-new-users">—</div>
               </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Unknown recipients this month</div>
+                <div class="kpi-value" id="admin-kpi-inbound-unknown">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Processing cap drops</div>
+                <div class="kpi-value" id="admin-kpi-inbound-over-cap">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Disabled-address drops</div>
+                <div class="kpi-value" id="admin-kpi-inbound-disabled">—</div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-label">Disabled / rotated addresses</div>
+                <div class="kpi-value" id="admin-kpi-inbound-disabled-total">—</div>
+              </div>
             </div>
             <div class="analytics-chart-card">
               <div class="analytics-chart-header">
@@ -2579,6 +2595,18 @@
                 <svg id="analytics-chart" role="img" aria-label="Admin analytics trend chart"></svg>
                 <div class="muted small chart-hint" id="analytics-chart-hint">Loading trend…</div>
               </div>
+            </div>
+            <div class="analytics-users-card">
+              <div class="analytics-users-header">
+                <div>
+                  <div class="chart-title">Noisy inbound recipients</div>
+                  <div class="muted small">Top recipient addresses by webhook traffic this month.</div>
+                </div>
+                <div class="muted small" id="admin-noisy-recipients-count">—</div>
+              </div>
+              <ul class="admin-users-list" id="admin-noisy-recipients-list">
+                <li class="muted small">Loading recipients…</li>
+              </ul>
             </div>
             <div class="analytics-users-card">
               <div class="analytics-users-header">

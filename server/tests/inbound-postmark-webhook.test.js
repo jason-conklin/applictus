@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
 
-const { getOrCreateInboundAddress } = require('../src/inbound');
+const { getOrCreateInboundAddress, rotateInboundAddress } = require('../src/inbound');
 
 function requireFreshServer() {
   delete require.cache[require.resolve('../src/index')];
@@ -123,6 +123,12 @@ test('postmark webhook persists pending inbound message and dedupes duplicates',
     db.prepare('SELECT COUNT(*) AS count FROM inbound_messages WHERE user_id = ?').get(userId)
   );
   assert.equal(Number(inboundCount.count), 1);
+  const webhookEventCount = await awaitMaybe(
+    db
+      .prepare("SELECT COUNT(*) AS count FROM inbound_webhook_events WHERE user_id = ? AND reason = 'accepted'")
+      .get(userId)
+  );
+  assert.equal(Number(webhookEventCount.count), 1);
 
   const pendingRow = await awaitMaybe(
     db
@@ -139,7 +145,7 @@ test('postmark webhook persists pending inbound message and dedupes duplicates',
   assert.equal(pendingRow.derived_event_id, null);
 });
 
-test('postmark webhook returns 202 for unmapped recipient and 401 for invalid secret', async (t) => {
+test('postmark webhook returns success for unmapped recipient and 401 for invalid secret', async (t) => {
   const { baseUrl, stop } = await startServerWithEnv({
     NODE_ENV: 'test',
     JOBTRACK_DB_PATH: ':memory:',
@@ -184,9 +190,93 @@ test('postmark webhook returns 202 for unmapped recipient and 401 for invalid se
     body: JSON.stringify(payload)
   });
   const unmappedBody = await unmappedWithQueryAuth.json();
-  assert.equal(unmappedWithQueryAuth.status, 202);
+  assert.equal(unmappedWithQueryAuth.status, 200);
   assert.equal(unmappedBody.ok, true);
   assert.equal(unmappedBody.ignored, true);
+  assert.equal(unmappedBody.reason, 'unknown_recipient');
+});
+
+test('postmark webhook drops disabled inbound address before storage', async (t) => {
+  const { baseUrl, db, stop } = await startServerWithEnv({
+    NODE_ENV: 'test',
+    JOBTRACK_DB_PATH: ':memory:',
+    JOBTRACK_LOG_LEVEL: 'error',
+    POSTMARK_INBOUND_SECRET: 'test-inbound-secret',
+    INBOUND_DOMAIN: 'mail.applictus.com'
+  });
+  t.after(stop);
+  if (!baseUrl || !db) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  const userId = crypto.randomUUID();
+  await createUser(db, { id: userId, email: `disabled-inbound-${Date.now()}@example.com` });
+  const inboundAddress = await getOrCreateInboundAddress(db, userId, {
+    inboundDomain: 'mail.applictus.com'
+  });
+  await awaitMaybe(
+    db
+      .prepare("UPDATE inbound_addresses SET is_active = 0, status = 'disabled' WHERE id = ?")
+      .run(inboundAddress.id)
+  );
+
+  const res = await fetch(`${baseUrl}/api/inbound/postmark?secret=test-inbound-secret`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(buildPayload(inboundAddress.address_email))
+  });
+  const body = await res.json();
+  assert.equal(res.status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.ignored, true);
+  assert.equal(body.reason, 'inbox_address_disabled');
+
+  const inboundCount = await awaitMaybe(
+    db.prepare('SELECT COUNT(*) AS count FROM inbound_messages WHERE user_id = ?').get(userId)
+  );
+  assert.equal(Number(inboundCount.count), 0);
+});
+
+test('postmark webhook drops rotated old inbound address before storage', async (t) => {
+  const { baseUrl, db, stop } = await startServerWithEnv({
+    NODE_ENV: 'test',
+    JOBTRACK_DB_PATH: ':memory:',
+    JOBTRACK_LOG_LEVEL: 'error',
+    POSTMARK_INBOUND_SECRET: 'test-inbound-secret',
+    INBOUND_DOMAIN: 'mail.applictus.com'
+  });
+  t.after(stop);
+  if (!baseUrl || !db) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  const userId = crypto.randomUUID();
+  await createUser(db, { id: userId, email: `rotated-inbound-${Date.now()}@example.com` });
+  const oldAddress = await getOrCreateInboundAddress(db, userId, {
+    inboundDomain: 'mail.applictus.com'
+  });
+  const newAddress = await rotateInboundAddress(db, userId, {
+    inboundDomain: 'mail.applictus.com'
+  });
+  assert.notEqual(newAddress.address_email, oldAddress.address_email);
+
+  const res = await fetch(`${baseUrl}/api/inbound/postmark?secret=test-inbound-secret`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(buildPayload(oldAddress.address_email))
+  });
+  const body = await res.json();
+  assert.equal(res.status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.ignored, true);
+  assert.equal(body.reason, 'inbox_address_disabled');
+
+  const inboundCount = await awaitMaybe(
+    db.prepare('SELECT COUNT(*) AS count FROM inbound_messages WHERE user_id = ?').get(userId)
+  );
+  assert.equal(Number(inboundCount.count), 0);
 });
 
 test('postmark webhook returns 503 when POSTMARK_INBOUND_SECRET is missing', async (t) => {
@@ -217,7 +307,7 @@ test('postmark webhook returns 503 when POSTMARK_INBOUND_SECRET is missing', asy
   assert.equal(body.message, 'POSTMARK_INBOUND_SECRET not configured');
 });
 
-test('postmark webhook enforces per-user raw inbound cap before processing', async (t) => {
+test('postmark webhook enforces per-user processing cap before storage', async (t) => {
   const { baseUrl, db, stop } = await startServerWithEnv({
     NODE_ENV: 'test',
     JOBTRACK_DB_PATH: ':memory:',
@@ -269,7 +359,7 @@ test('postmark webhook enforces per-user raw inbound cap before processing', asy
   assert.equal(overCapRes.status, 200);
   assert.equal(overCapBody.ok, true);
   assert.equal(overCapBody.ignored, true);
-  assert.equal(overCapBody.reason, 'RAW_INBOUND_CAP_REACHED');
+  assert.equal(overCapBody.reason, 'processing_cap_reached');
 
   const userRow = await awaitMaybe(
     db
@@ -287,4 +377,69 @@ test('postmark webhook enforces per-user raw inbound cap before processing', asy
   assert.equal(Number(userRow.inbound_email_dropped_count_current_month), 1);
   assert.equal(Number(userRow.inbound_email_dropped_over_cap_count_current_month), 1);
   assert.equal(Number(userRow.tracked_email_count_current_month), 0);
+  const inboundCount = await awaitMaybe(
+    db.prepare('SELECT COUNT(*) AS count FROM inbound_messages WHERE user_id = ?').get(userId)
+  );
+  assert.equal(Number(inboundCount.count), 2);
+});
+
+test('rotating inbound address preserves existing applications and history', async (t) => {
+  const { db, stop } = await startServerWithEnv({
+    NODE_ENV: 'test',
+    JOBTRACK_DB_PATH: ':memory:',
+    JOBTRACK_LOG_LEVEL: 'error',
+    INBOUND_DOMAIN: 'mail.applictus.com'
+  });
+  t.after(stop);
+  if (!db) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  const userId = crypto.randomUUID();
+  await createUser(db, { id: userId, email: `rotate-preserve-${Date.now()}@example.com` });
+  const oldAddress = await getOrCreateInboundAddress(db, userId, {
+    inboundDomain: 'mail.applictus.com'
+  });
+  const appId = crypto.randomUUID();
+  const eventId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  await awaitMaybe(
+    db
+      .prepare(
+        `INSERT INTO job_applications
+         (id, user_id, company, role, status, status_updated_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(appId, userId, 'Example Company', 'Product Manager', 'applied', now, now, now)
+  );
+  await awaitMaybe(
+    db
+      .prepare(
+        `INSERT INTO email_events
+         (id, user_id, application_id, provider, message_id, subject_snippet, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(eventId, userId, appId, 'postmark', `event-${Date.now()}@example.com`, 'Application received', now)
+  );
+
+  const newAddress = await rotateInboundAddress(db, userId, {
+    inboundDomain: 'mail.applictus.com'
+  });
+  assert.notEqual(newAddress.address_email, oldAddress.address_email);
+
+  const oldRow = await awaitMaybe(
+    db.prepare('SELECT is_active, status FROM inbound_addresses WHERE id = ?').get(oldAddress.id)
+  );
+  assert.equal(Number(oldRow.is_active), 0);
+  assert.equal(oldRow.status, 'rotated');
+
+  const appCount = await awaitMaybe(
+    db.prepare('SELECT COUNT(*) AS count FROM job_applications WHERE user_id = ?').get(userId)
+  );
+  const eventCount = await awaitMaybe(
+    db.prepare('SELECT COUNT(*) AS count FROM email_events WHERE user_id = ? AND application_id = ?').get(userId, appId)
+  );
+  assert.equal(Number(appCount.count), 1);
+  assert.equal(Number(eventCount.count), 1);
 });

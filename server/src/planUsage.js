@@ -1140,7 +1140,13 @@ function applyInboundOutcomeUsageSync(db, {
   const normalizedDropReason = String(dropReason || '').trim().toLowerCase();
   const incrementDroppedIrrelevant = dropped && normalizedDropReason === 'irrelevant' ? 1 : 0;
   const incrementDroppedOverCap =
-    dropped && (normalizedDropReason === 'raw_inbound_cap' || normalizedDropReason === 'raw_inbound_cap_reached')
+    dropped &&
+    (
+      normalizedDropReason === 'raw_inbound_cap' ||
+      normalizedDropReason === 'raw_inbound_cap_reached' ||
+      normalizedDropReason === 'processing_cap' ||
+      normalizedDropReason === 'processing_cap_reached'
+    )
       ? 1
       : 0;
   if (!incrementRelevant && !incrementDropped && !incrementDroppedIrrelevant && !incrementDroppedOverCap) {
@@ -1200,7 +1206,13 @@ async function applyInboundOutcomeUsageAsync(db, {
   const normalizedDropReason = String(dropReason || '').trim().toLowerCase();
   const incrementDroppedIrrelevant = dropped && normalizedDropReason === 'irrelevant' ? 1 : 0;
   const incrementDroppedOverCap =
-    dropped && (normalizedDropReason === 'raw_inbound_cap' || normalizedDropReason === 'raw_inbound_cap_reached')
+    dropped &&
+    (
+      normalizedDropReason === 'raw_inbound_cap' ||
+      normalizedDropReason === 'raw_inbound_cap_reached' ||
+      normalizedDropReason === 'processing_cap' ||
+      normalizedDropReason === 'processing_cap_reached'
+    )
       ? 1
       : 0;
   if (!incrementRelevant && !incrementDropped && !incrementDroppedIrrelevant && !incrementDroppedOverCap) {
