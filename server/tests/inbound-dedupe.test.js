@@ -319,7 +319,8 @@ test('monster + workable confirmation hop merges into one applied application', 
   assert.equal(applications.length, 1);
   assert.equal(applications[0].company_name, 'Valstro');
   assert.equal(applications[0].job_title, 'Junior DevEx Engineer');
-  assert.equal(String(applications[0].current_status || applications[0].status || '').toLowerCase(), 'applied');
+  assert.equal(applications[0].current_status, 'APPLIED');
+  assert.equal(applications[0].status, 'APPLIED');
 
   const eventCounts = db
     .prepare(

@@ -296,3 +296,62 @@ test('applications search filters by company and role with case-insensitive part
   const clearSearchRestoresAll = await request('/api/applications?limit=25&offset=0');
   assert.equal(clearSearchRestoresAll.total, 3);
 });
+
+test('application status filters and dashboard counts include legacy lowercase statuses', async (t) => {
+  const server = await startServer(0, { log: false, host: '127.0.0.1' });
+  const address = server.address();
+  const baseUrl =
+    address && typeof address === 'object' ? `http://localhost:${address.port}` : 'http://localhost';
+  t.after(async () => {
+    await stopServer();
+  });
+  const request = await createClient(baseUrl);
+
+  const email = `status-case-${crypto.randomUUID()}@example.com`;
+  await request('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({
+      email,
+      password: 'Password12345!'
+    })
+  });
+
+  const user = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  assert.ok(user?.id);
+
+  const appId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO job_applications
+     (id, user_id, company, role, status, status_updated_at, created_at, updated_at,
+      archived, company_name, job_title, current_status, last_activity_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    appId,
+    user.id,
+    'Legacy Lowercase Co',
+    'Support Analyst',
+    'applied',
+    now,
+    now,
+    now,
+    0,
+    'Legacy Lowercase Co',
+    'Support Analyst',
+    'applied',
+    now
+  );
+
+  const filteredUpper = await request('/api/applications?status=APPLIED&limit=25&offset=0');
+  assert.equal(filteredUpper.total, 1);
+  assert.equal(filteredUpper.applications[0].id, appId);
+
+  const filteredLower = await request('/api/applications?status=applied&limit=25&offset=0');
+  assert.equal(filteredLower.total, 1);
+  assert.equal(filteredLower.applications[0].id, appId);
+
+  const pipeline = await request('/api/applications/pipeline?per_status_limit=5');
+  const appliedColumn = pipeline.columns.find((column) => column.status === 'APPLIED');
+  assert.ok(appliedColumn);
+  assert.equal(appliedColumn.count, 1);
+});

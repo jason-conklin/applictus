@@ -197,6 +197,13 @@ const INBOUND_SUBJECT_MAX = 80;
 const INBOUND_SYNC_LOCK_TTL_MS = 2 * 60 * 1000;
 const POSTMARK_OUTBOUND_API_URL = 'https://api.postmarkapp.com/email';
 const VALID_STATUSES = new Set(Object.values(ApplicationStatus));
+function normalizeApplicationStatusValue(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '_');
+  return VALID_STATUSES.has(normalized) ? normalized : null;
+}
 const CSRF_HEADER = 'x-csrf-token';
 const INBOUND_SECRET_HEADER = 'x-applictus-inbound-secret';
 const CSRF_TTL_MS = 2 * 60 * 60 * 1000;
@@ -612,13 +619,7 @@ function extractDomainFromAddress(value) {
 }
 
 function normalizeHintStatus(value) {
-  const status = String(value || '')
-    .trim()
-    .toLowerCase();
-  if (!status) {
-    return null;
-  }
-  return VALID_STATUSES.has(status) ? status : null;
+  return normalizeApplicationStatusValue(value);
 }
 
 function extractProviderIdFromInboundDebug(debugJson) {
@@ -2489,7 +2490,7 @@ function clampNumber(value, min, max) {
 function parseListQuery(query) {
   const limit = clampNumber(Number(query.limit) || 25, 1, 100);
   const offset = Math.max(Number(query.offset) || 0, 0);
-  const status = query.status && VALID_STATUSES.has(query.status) ? query.status : null;
+  const status = normalizeApplicationStatusValue(query.status);
   const search = query.search ? String(query.search).trim() : null;
   const company = query.company ? String(query.company).trim() : null;
   const role = query.role ? String(query.role).trim() : null;
@@ -2559,7 +2560,7 @@ function buildApplicationFilters({
     params.push(db && db.isAsync ? archived : archived ? 1 : 0);
   }
   if (status) {
-    clauses.push('current_status = ?');
+    clauses.push('UPPER(COALESCE(current_status, status)) = ?');
     params.push(status);
   }
   if (search) {
@@ -6260,14 +6261,17 @@ app.get('/api/applications/:id', requireAuth, async (req, res) => {
 app.post('/api/applications', requireAuth, (req, res) => {
   const companyName = String(req.body.company_name || req.body.company || '').trim();
   const jobTitle = String(req.body.job_title || req.body.role || '').trim();
-  const status = req.body.current_status || req.body.status || ApplicationStatus.UNKNOWN;
+  const rawStatus = req.body.current_status || req.body.status || '';
+  const status = rawStatus
+    ? normalizeApplicationStatusValue(rawStatus)
+    : ApplicationStatus.UNKNOWN;
   const jobLocation = req.body.job_location ? String(req.body.job_location).trim() : null;
   const source = req.body.source ? String(req.body.source).trim() : null;
 
   if (!companyName || !jobTitle) {
     return res.status(400).json({ error: 'COMPANY_AND_ROLE_REQUIRED' });
   }
-  if (!VALID_STATUSES.has(status)) {
+  if (!status) {
     return res.status(400).json({ error: 'INVALID_STATUS' });
   }
 
@@ -6480,11 +6484,13 @@ app.patch('/api/applications/:id', requireAuth, async (req, res) => {
     }
 
     if (req.body.current_status || req.body.status) {
-      const nextStatus = String(req.body.current_status || req.body.status).trim().toLowerCase();
-      if (!VALID_STATUSES.has(nextStatus)) {
+      const nextStatus = normalizeApplicationStatusValue(req.body.current_status || req.body.status);
+      if (!nextStatus) {
         return res.status(400).json({ error: 'INVALID_STATUS' });
       }
-      const prevStatus = String(application.current_status || application.status || '').trim().toLowerCase();
+      const prevStatus =
+        normalizeApplicationStatusValue(application.current_status || application.status) ||
+        ApplicationStatus.UNKNOWN;
       if (nextStatus !== prevStatus) {
         statusOverride = {
           nextStatus,

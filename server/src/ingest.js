@@ -17,6 +17,7 @@ const {
 } = require('../../shared/matching');
 const { runStatusInferenceForApplication } = require('./statusInferenceRunner');
 const { STATUS_PRIORITY } = require('../../shared/statusInference');
+const { ApplicationStatus } = require('../../shared/types');
 const { logInfo, logDebug } = require('./logger');
 const { runLlmExtraction, getConfig: getLlmConfig } = require('./llmClient');
 const { shouldInvokeLlm } = require('./llmGate');
@@ -2554,11 +2555,13 @@ function mapParsedStatusToDetectedType(status) {
 
 function normalizeDerivedStatusValue(status) {
   const value = String(status || '').trim().toLowerCase();
-  if (value === 'applied') return 'applied';
-  if (value === 'interview_requested') return 'interview_requested';
-  if (value === 'offer_received') return 'offer_received';
-  if (value === 'rejected') return 'rejected';
-  if (value === 'ghosted') return 'ghosted';
+  if (value === 'applied') return ApplicationStatus.APPLIED;
+  if (value === 'under_review') return ApplicationStatus.UNDER_REVIEW;
+  if (value === 'interview_requested') return ApplicationStatus.INTERVIEW_REQUESTED;
+  if (value === 'interview_completed') return ApplicationStatus.INTERVIEW_COMPLETED;
+  if (value === 'offer_received') return ApplicationStatus.OFFER_RECEIVED;
+  if (value === 'rejected') return ApplicationStatus.REJECTED;
+  if (value === 'ghosted') return ApplicationStatus.GHOSTED;
   return null;
 }
 
