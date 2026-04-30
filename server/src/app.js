@@ -7077,6 +7077,10 @@ app.get('/api/email/sync-debug', requireAuth, (req, res) => {
 });
 
 if (!isProd()) {
+  app.get('/animation', (req, res) => {
+    return res.sendFile(path.join(__dirname, '..', '..', 'public', 'animation.html'));
+  });
+
   app.get(['/app', '/app/*', '/privacy', '/terms', '/contact', '/about'], (req, res) => {
     return res.sendFile(path.join(__dirname, '..', '..', 'public', 'app', 'index.html'));
   });

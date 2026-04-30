@@ -7,6 +7,7 @@ const publicDir = path.join(rootDir, 'public');
 
 const files = [
   { src: 'home.html', dest: 'index.html' },
+  { src: 'animation.html', dest: 'animation.html' },
   { src: 'index.html', dest: path.join('app', 'index.html') },
   { src: 'app.js', dest: 'app.js' },
   { src: 'home.js', dest: 'home.js' },

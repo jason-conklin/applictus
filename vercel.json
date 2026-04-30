@@ -2,6 +2,7 @@
   "version": 2,
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/[...path].js" },
+    { "src": "/animation", "dest": "/animation.html" },
     { "src": "/app", "dest": "/app/index.html" },
     { "src": "/privacy", "dest": "/app/index.html" },
     { "src": "/terms", "dest": "/app/index.html" },
