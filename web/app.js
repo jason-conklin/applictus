@@ -7567,11 +7567,139 @@ const GMAIL_FILTER_SETUP_SCREENSHOTS = {
 };
 
 const FORWARDING_SETUP_WALKTHROUGH_URL = 'https://youtu.be/T3BOqdSZAxw?si=aUx5YciaWhKL4UNL';
+let setupWalkthroughVideoModal = null;
+let setupWalkthroughVideoFrame = null;
+let setupWalkthroughVideoCloseButton = null;
+let setupWalkthroughVideoTrigger = null;
+let setupWalkthroughVideoKeyHandler = null;
 
 function waitForMs(durationMs) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, Math.max(0, Number(durationMs) || 0));
   });
+}
+
+function getSetupWalkthroughVideoEmbedUrl(videoUrl, { autoplay = false } = {}) {
+  if (!videoUrl) {
+    return '';
+  }
+  try {
+    const url = new URL(videoUrl, window.location.href);
+    const host = url.hostname.toLowerCase().replace(/^www\./, '');
+    let videoId = '';
+    if (host === 'youtu.be') {
+      videoId = url.pathname.split('/').filter(Boolean)[0] || '';
+    } else if (host.endsWith('youtube.com')) {
+      if (url.pathname.startsWith('/embed/')) {
+        videoId = url.pathname.split('/').filter(Boolean)[1] || '';
+      } else {
+        videoId = url.searchParams.get('v') || '';
+      }
+    }
+    if (!videoId) {
+      return '';
+    }
+    const embedUrl = new URL(`https://www.youtube.com/embed/${videoId}`);
+    const shareId = url.searchParams.get('si');
+    if (shareId) {
+      embedUrl.searchParams.set('si', shareId);
+    }
+    embedUrl.searchParams.set('rel', '0');
+    embedUrl.searchParams.set('modestbranding', '1');
+    if (autoplay) {
+      embedUrl.searchParams.set('autoplay', '1');
+    }
+    return embedUrl.toString();
+  } catch {
+    return '';
+  }
+}
+
+function closeSetupWalkthroughVideoModal() {
+  if (!setupWalkthroughVideoModal) {
+    return;
+  }
+  setupWalkthroughVideoModal.classList.remove('is-open');
+  setupWalkthroughVideoModal.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('setup-video-modal-open');
+  setupWalkthroughVideoFrame?.replaceChildren();
+  if (setupWalkthroughVideoKeyHandler) {
+    document.removeEventListener('keydown', setupWalkthroughVideoKeyHandler, true);
+    setupWalkthroughVideoKeyHandler = null;
+  }
+  if (setupWalkthroughVideoTrigger && document.contains(setupWalkthroughVideoTrigger)) {
+    setupWalkthroughVideoTrigger.focus();
+  }
+  setupWalkthroughVideoTrigger = null;
+}
+
+function ensureSetupWalkthroughVideoModal() {
+  if (setupWalkthroughVideoModal) {
+    return;
+  }
+  setupWalkthroughVideoModal = document.createElement('div');
+  setupWalkthroughVideoModal.className = 'setup-video-modal';
+  setupWalkthroughVideoModal.setAttribute('aria-hidden', 'true');
+  setupWalkthroughVideoModal.innerHTML = `
+    <button class="setup-video-modal__backdrop" type="button" data-setup-video-close aria-label="Close setup walkthrough"></button>
+    <div class="setup-video-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="setup-video-modal-title">
+      <button class="setup-video-modal__close" type="button" data-setup-video-close aria-label="Close setup walkthrough">
+        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+          <path d="M6 6l12 12"></path>
+          <path d="M18 6 6 18"></path>
+        </svg>
+      </button>
+      <div class="setup-video-modal__frame" data-setup-video-frame></div>
+      <div class="setup-video-modal__meta">
+        <p class="setup-video-modal__title" id="setup-video-modal-title">Watch setup walkthrough</p>
+        <p class="setup-video-modal__copy">Connect Gmail forwarding once, then Applictus keeps your timeline updated.</p>
+      </div>
+    </div>
+  `;
+  setupWalkthroughVideoFrame = setupWalkthroughVideoModal.querySelector('[data-setup-video-frame]');
+  setupWalkthroughVideoCloseButton = setupWalkthroughVideoModal.querySelector('.setup-video-modal__close');
+  setupWalkthroughVideoModal.querySelectorAll('[data-setup-video-close]').forEach((control) => {
+    control.addEventListener('click', closeSetupWalkthroughVideoModal);
+  });
+  document.body.append(setupWalkthroughVideoModal);
+}
+
+function openSetupWalkthroughVideoModal(trigger, videoUrl = FORWARDING_SETUP_WALKTHROUGH_URL) {
+  const embedUrl = getSetupWalkthroughVideoEmbedUrl(videoUrl, { autoplay: true });
+  if (!embedUrl) {
+    return false;
+  }
+  ensureSetupWalkthroughVideoModal();
+  if (!setupWalkthroughVideoModal || !setupWalkthroughVideoFrame) {
+    return false;
+  }
+  setupWalkthroughVideoTrigger = trigger || null;
+  setupWalkthroughVideoFrame.replaceChildren();
+  const iframe = document.createElement('iframe');
+  iframe.src = embedUrl;
+  iframe.title = 'Applictus setup walkthrough video';
+  iframe.loading = 'lazy';
+  iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+  iframe.allowFullscreen = true;
+  setupWalkthroughVideoFrame.append(iframe);
+  setupWalkthroughVideoModal.classList.add('is-open');
+  setupWalkthroughVideoModal.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('setup-video-modal-open');
+  if (setupWalkthroughVideoKeyHandler) {
+    document.removeEventListener('keydown', setupWalkthroughVideoKeyHandler, true);
+  }
+  setupWalkthroughVideoKeyHandler = (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      closeSetupWalkthroughVideoModal();
+    }
+  };
+  document.addEventListener('keydown', setupWalkthroughVideoKeyHandler, true);
+  window.requestAnimationFrame(() => {
+    setupWalkthroughVideoCloseButton?.focus();
+  });
+  return true;
 }
 
 function createForwardingCollapsible({ title, open = false } = {}) {
@@ -7665,6 +7793,14 @@ function renderInboundSetupHeaderAddressPanel() {
     walkthroughLink.href = FORWARDING_SETUP_WALKTHROUGH_URL;
     walkthroughLink.target = '_blank';
     walkthroughLink.rel = 'noopener noreferrer';
+    walkthroughLink.addEventListener('click', (event) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+      if (openSetupWalkthroughVideoModal(walkthroughLink, FORWARDING_SETUP_WALKTHROUGH_URL)) {
+        event.preventDefault();
+      }
+    });
     const walkthroughIcon = document.createElement('span');
     walkthroughIcon.className = 'inbound-setup-header-walkthrough-icon';
     walkthroughIcon.setAttribute('aria-hidden', 'true');
