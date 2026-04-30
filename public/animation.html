@@ -117,7 +117,7 @@
     .particle:nth-child(8) { left: 52%; top: 78%; animation-delay: 0.8s; }
 
     .brand-lockup {
-      --icon-size: clamp(128px, 8vw, 164px);
+      --icon-size: clamp(142px, 8.9vw, 182px);
       --intro-offset: clamp(220px, 17vw, 340px);
       position: relative;
       z-index: 2;
@@ -125,7 +125,7 @@
       grid-template-columns: var(--icon-size) minmax(0, auto);
       align-items: center;
       justify-content: center;
-      gap: clamp(28px, 3vw, 54px);
+      gap: clamp(24px, 2.4vw, 42px);
       width: min(1120px, calc(100vw - 112px));
       min-height: min(420px, calc(100vh - 120px));
     }
@@ -185,6 +185,8 @@
       display: grid;
       align-content: center;
       justify-items: start;
+      width: max-content;
+      max-width: 100%;
       min-width: 0;
       transform: translateY(5px);
     }
@@ -193,7 +195,7 @@
       margin: -0.02em 0 -0.08em;
       padding: 0.02em 0.02em 0.14em 0;
       color: var(--white);
-      font-size: clamp(84px, 7.4vw, 142px);
+      font-size: clamp(80px, 6.95vw, 134px);
       font-weight: 800;
       line-height: 1.02;
       letter-spacing: 0;
@@ -208,8 +210,9 @@
     }
 
     .divider {
-      width: min(540px, 100%);
+      width: calc(100% + 12px);
       height: 1px;
+      margin-left: -6px;
       margin-top: clamp(20px, 1.6vw, 28px);
       overflow: hidden;
       background: rgba(205, 222, 247, 0.2);
@@ -234,7 +237,7 @@
       gap: clamp(12px, 1.3vw, 20px);
       margin-top: clamp(14px, 1.2vw, 20px);
       color: var(--muted);
-      font-size: clamp(13px, 1vw, 19px);
+      font-size: clamp(15px, 1.12vw, 22px);
       font-weight: 760;
       letter-spacing: 0.28em;
       line-height: 1.35;
