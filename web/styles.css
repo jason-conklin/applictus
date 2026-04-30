@@ -10047,6 +10047,8 @@ body.home-page .home-nav {
   width: min(1240px, 90vw);
   margin-inline: auto;
   margin-top: 14px;
+  opacity: 0;
+  transform: translateY(-18px);
   background: rgba(247, 252, 255, 0.8);
   border-color: rgba(21, 60, 118, 0.16);
   box-shadow: 0 12px 30px rgba(10, 44, 96, 0.16);
@@ -10239,7 +10241,7 @@ body.home-page .hero-banner__intro {
   overflow: visible;
   opacity: 1;
   transform: translateY(0) scale(1);
-  clip-path: inset(0 0 0 0);
+  clip-path: none;
 }
 
 body.home-page .hero-banner__intro::before,
@@ -10712,13 +10714,13 @@ body.home-page .reveal {
 
 body.home-page.animate-ready:not(.home-loaded) .home-nav {
   opacity: 0;
-  transform: translateY(-10px);
+  transform: translateY(-18px);
 }
 
 body.home-page.animate-ready.home-loaded .home-nav {
   opacity: 1;
   transform: translateY(0);
-  transition: opacity 640ms ease 80ms, transform 640ms cubic-bezier(0.2, 0.8, 0.2, 1) 80ms;
+  transition: opacity 720ms ease 1450ms, transform 720ms cubic-bezier(0.2, 0.8, 0.2, 1) 1450ms;
 }
 
 body.home-page.animate-ready:not(.home-loaded) .hero-animate-logo {
@@ -10729,7 +10731,7 @@ body.home-page.animate-ready:not(.home-loaded) .hero-animate-logo {
 body.home-page.animate-ready:not(.home-loaded) .hero-brand-icon {
   opacity: 0;
   filter: blur(10px);
-  transform: translateX(var(--hero-brand-intro-offset)) scale(1.4);
+  transform: translateX(var(--hero-brand-intro-offset)) scale(1.2);
 }
 
 body.home-page.animate-ready:not(.home-loaded) .hero-brand-icon::before,
@@ -10992,18 +10994,18 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms__note {
 @keyframes landingHeroBrandIcon {
   0% {
     opacity: 0;
-    filter: blur(12px);
-    transform: translateX(var(--hero-brand-intro-offset)) scale(1.46);
+    filter: blur(10px);
+    transform: translateX(var(--hero-brand-intro-offset)) scale(1.2);
   }
   25% {
     opacity: 1;
     filter: blur(0);
-    transform: translateX(var(--hero-brand-intro-offset)) scale(1.54);
+    transform: translateX(var(--hero-brand-intro-offset)) scale(1.28);
   }
   45% {
     opacity: 1;
     filter: blur(0);
-    transform: translateX(var(--hero-brand-intro-offset)) scale(1.56);
+    transform: translateX(var(--hero-brand-intro-offset)) scale(1.32);
   }
   100% {
     opacity: 1;
