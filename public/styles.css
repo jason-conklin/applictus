@@ -13461,43 +13461,38 @@ body.home-page .security-trust-item .home-check {
   }
 
   body.home-page .product-preview__stats {
-    display: flex;
-    gap: 7px;
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    scroll-snap-type: x proximity;
-    padding-bottom: 2px;
-    scrollbar-width: none;
-  }
-
-  body.home-page .product-preview__stats::-webkit-scrollbar {
-    display: none;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+    overflow: visible;
+    padding-bottom: 0;
   }
 
   body.home-page .product-preview__stat {
-    flex: 0 0 88px;
-    min-width: 88px;
-    min-height: 56px;
-    padding: 6px 8px;
-    border-radius: 11px;
-    scroll-snap-align: start;
+    min-width: 0;
+    min-height: 48px;
+    padding: 5px 4px;
+    border-radius: 9px;
   }
 
   body.home-page .product-preview__stat p {
-    font-size: 0.52rem;
+    font-size: 0.42rem;
+    letter-spacing: 0.025em;
     line-height: 1.1;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   body.home-page .product-preview__stat strong,
   body.home-page .product-preview__stat--secondary strong {
-    margin-top: 3px;
-    font-size: 0.95rem;
+    margin-top: 2px;
+    font-size: 0.82rem;
   }
 
   body.home-page .product-preview__delta {
-    min-height: 12px;
-    padding: 0 4px;
-    font-size: 0.46rem;
+    min-height: 10px;
+    padding: 0 3px;
+    font-size: 0.38rem;
   }
 
   body.home-page .product-preview__table-wrap {
@@ -13879,34 +13874,28 @@ body.home-page .security-trust-item .home-check {
   }
 
   body.home-page .product-preview__stats {
-    display: flex;
-    grid-template-columns: none;
-    gap: 7px;
-    overflow-x: auto;
-    padding-bottom: 2px;
-    scrollbar-width: none;
-  }
-
-  body.home-page .product-preview__stats::-webkit-scrollbar {
-    display: none;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+    overflow: visible;
+    padding-bottom: 0;
   }
 
   body.home-page .product-preview__stat {
-    flex: 0 0 88px;
-    min-width: 88px;
-    min-height: 56px;
-    padding: 6px 8px;
+    min-width: 0;
+    min-height: 48px;
+    padding: 5px 4px;
   }
 
   body.home-page .product-preview__stat strong,
   body.home-page .product-preview__stat--secondary strong {
-    font-size: 0.95rem;
+    font-size: 0.82rem;
   }
 
   body.home-page .product-preview__delta {
-    min-height: 12px;
-    padding: 0 4px;
-    font-size: 0.46rem;
+    min-height: 10px;
+    padding: 0 3px;
+    font-size: 0.38rem;
   }
 
   body.home-page .product-preview__table .appl-statusPill {
