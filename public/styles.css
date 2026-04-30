@@ -13811,7 +13811,7 @@ body.home-page .security-trust-item .home-check {
   }
 
   body.home-page .product-preview__stat--total {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
 
   body.home-page .product-preview__stat--offers,
@@ -13885,6 +13885,7 @@ body.home-page .security-trust-item .home-check {
     min-width: 0;
     min-height: 48px;
     padding: 5px 4px;
+    grid-column: auto;
   }
 
   body.home-page .product-preview__stat strong,

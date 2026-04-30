@@ -7566,7 +7566,7 @@ const GMAIL_FILTER_SETUP_SCREENSHOTS = {
   step3: '/applictus-filter-setup-3.png'
 };
 
-const FORWARDING_SETUP_WALKTHROUGH_URL = 'https://support.google.com/mail/answer/10957?hl=en';
+const FORWARDING_SETUP_WALKTHROUGH_URL = 'https://youtu.be/T3BOqdSZAxw?si=aUx5YciaWhKL4UNL';
 
 function waitForMs(durationMs) {
   return new Promise((resolve) => {
