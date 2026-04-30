@@ -881,6 +881,13 @@ function bootHomepage() {
   const reducedTransparency = prefersReducedTransparency();
   const hasBackdropFilter = supportsBackdropFilter();
   const reducedEffects = reducedMotion || reducedTransparency || !hasBackdropFilter;
+  const clearIntroFallback = () => {
+    if (!window.__applictusLandingIntroFallback) {
+      return;
+    }
+    window.clearTimeout(window.__applictusLandingIntroFallback);
+    window.__applictusLandingIntroFallback = null;
+  };
 
   document.body.classList.add('home-page', 'animated-bg-mode', 'animated-bg-auth');
   document.body.classList.add('animate-ready', 'reveal-ready');
@@ -899,12 +906,20 @@ function bootHomepage() {
   setupScrollReveal(reducedMotion);
 
   if (reducedMotion) {
-    document.body.classList.add('home-loaded');
+    document.body.classList.remove('landing-intro-preload', 'landing-intro-running');
+    document.body.classList.add('home-loaded', 'landing-intro-complete');
+    clearIntroFallback();
     return;
   }
 
   window.requestAnimationFrame(() => {
-    document.body.classList.add('home-loaded');
+    document.body.classList.remove('landing-intro-preload');
+    document.body.classList.add('landing-intro-running', 'home-loaded');
+    window.setTimeout(() => {
+      document.body.classList.remove('landing-intro-running');
+      document.body.classList.add('landing-intro-complete');
+      clearIntroFallback();
+    }, 4300);
   });
 }
 
