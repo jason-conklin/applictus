@@ -562,6 +562,7 @@ const nav = document.getElementById('nav');
 const topbar = document.getElementById('topbar');
 const profileMenu = document.getElementById('profile-menu');
 const profileMenuPanel = document.getElementById('profile-menu-panel');
+const profileMenuInboxSetup = document.getElementById('profile-menu-inbox-setup');
 const accountAvatar = document.getElementById('account-avatar');
 const avatarInitials = document.getElementById('avatar-initials');
 
@@ -1547,6 +1548,21 @@ function resolveForwardingReadiness(
   return 'not_started';
 }
 
+function updateProfileMenuInboxSetupVisibility() {
+  if (!profileMenuInboxSetup) {
+    return;
+  }
+  const hideInboxSetup =
+    (isInternalGmailMode() && Boolean(emailState.connected)) ||
+    resolveForwardingReadiness() === 'forwarding_active';
+  profileMenuInboxSetup.classList.toggle('hidden', hideInboxSetup);
+  profileMenuInboxSetup.setAttribute('aria-hidden', hideInboxSetup ? 'true' : 'false');
+  profileMenuInboxSetup.tabIndex = hideInboxSetup ? -1 : 0;
+  if (hideInboxSetup && profileMenuInboxSetup.contains(document.activeElement)) {
+    accountAvatar?.focus();
+  }
+}
+
 function isInboundInboxReachableForSetup() {
   const readiness = resolveForwardingReadiness();
   return Boolean(
@@ -2187,6 +2203,7 @@ function updateDashboardPrimarySyncUI() {
 function updateInboundStatusPresentation() {
   if (isInternalGmailMode()) {
     const connected = Boolean(emailState.connected);
+    updateProfileMenuInboxSetupVisibility();
     const connectedEmail = emailState.email || sessionUser?.email || null;
     const statusText = connected ? 'Connected ✓' : 'Not connected';
     setPillState(inboundStatusPill, statusText, connected ? 'connected' : 'idle');
@@ -2261,6 +2278,7 @@ function updateInboundStatusPresentation() {
   }
   const setupState = inboundState.setupState || 'not_started';
   const readiness = resolveForwardingReadiness();
+  updateProfileMenuInboxSetupVisibility();
   let pillText = 'Not connected';
   let pillState = 'idle';
   let dashboardText = 'Not connected';
@@ -5096,6 +5114,9 @@ function refreshDashboardEmptyStateIfNeeded() {
 
 function setProfileMenuOpen(nextOpen) {
   profileMenuOpen = Boolean(nextOpen);
+  if (profileMenuOpen) {
+    updateProfileMenuInboxSetupVisibility();
+  }
   if (profileMenuPanel) {
     profileMenuPanel.classList.toggle('hidden', !profileMenuOpen);
   }
@@ -12225,6 +12246,10 @@ profileMenuPanel?.addEventListener('click', async (event) => {
   event.preventDefault();
   const action = actionTarget.dataset.menuAction;
   if (action === 'inbox') {
+    if (profileMenuInboxSetup?.classList.contains('hidden')) {
+      closeProfileMenu();
+      return;
+    }
     closeProfileMenu();
     openInboundSetupModal({ startStep: 0 });
     return;

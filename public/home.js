@@ -494,6 +494,152 @@ function setupHowStepperConnector() {
   }
 }
 
+function getSetupVideoEmbedUrl(videoUrl, { autoplay = false } = {}) {
+  if (!videoUrl) {
+    return '';
+  }
+  try {
+    const url = new URL(videoUrl, window.location.href);
+    const host = url.hostname.toLowerCase().replace(/^www\./, '');
+    let videoId = '';
+    if (host === 'youtu.be') {
+      videoId = url.pathname.split('/').filter(Boolean)[0] || '';
+    } else if (host.endsWith('youtube.com')) {
+      if (url.pathname.startsWith('/embed/')) {
+        videoId = url.pathname.split('/').filter(Boolean)[1] || '';
+      } else {
+        videoId = url.searchParams.get('v') || '';
+      }
+    }
+    if (!videoId) {
+      return '';
+    }
+    const embedUrl = new URL(`https://www.youtube.com/embed/${videoId}`);
+    const shareId = url.searchParams.get('si');
+    if (shareId) {
+      embedUrl.searchParams.set('si', shareId);
+    }
+    embedUrl.searchParams.set('rel', '0');
+    embedUrl.searchParams.set('modestbranding', '1');
+    if (autoplay) {
+      embedUrl.searchParams.set('autoplay', '1');
+    }
+    return embedUrl.toString();
+  } catch {
+    return '';
+  }
+}
+
+function setupSetupWalkthroughVideo() {
+  const triggers = Array.from(document.querySelectorAll('[data-setup-video-open]'));
+  if (!triggers.length) {
+    return;
+  }
+
+  let modalEl = null;
+  let frameEl = null;
+  let closeButton = null;
+  let activeTrigger = null;
+  let keyHandler = null;
+
+  const closeModal = () => {
+    if (!modalEl) {
+      return;
+    }
+    modalEl.classList.remove('is-open');
+    modalEl.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('setup-video-modal-open');
+    if (frameEl) {
+      frameEl.replaceChildren();
+    }
+    if (keyHandler) {
+      document.removeEventListener('keydown', keyHandler);
+      keyHandler = null;
+    }
+    if (activeTrigger && document.contains(activeTrigger)) {
+      activeTrigger.focus();
+    }
+    activeTrigger = null;
+  };
+
+  const ensureModal = () => {
+    if (modalEl) {
+      return;
+    }
+    modalEl = document.createElement('div');
+    modalEl.className = 'setup-video-modal';
+    modalEl.setAttribute('aria-hidden', 'true');
+    modalEl.innerHTML = `
+      <button class="setup-video-modal__backdrop" type="button" data-setup-video-close aria-label="Close setup walkthrough"></button>
+      <div class="setup-video-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="setup-video-modal-title">
+        <button class="setup-video-modal__close" type="button" data-setup-video-close aria-label="Close setup walkthrough">
+          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+            <path d="M6 6l12 12"></path>
+            <path d="M18 6 6 18"></path>
+          </svg>
+        </button>
+        <div class="setup-video-modal__frame" data-setup-video-frame></div>
+        <div class="setup-video-modal__meta">
+          <p class="setup-video-modal__title" id="setup-video-modal-title">Watch setup walkthrough</p>
+          <p class="setup-video-modal__copy">Connect Gmail forwarding once, then Applictus keeps your timeline updated.</p>
+        </div>
+      </div>
+    `;
+    frameEl = modalEl.querySelector('[data-setup-video-frame]');
+    closeButton = modalEl.querySelector('.setup-video-modal__close');
+    modalEl.querySelectorAll('[data-setup-video-close]').forEach((control) => {
+      control.addEventListener('click', closeModal);
+    });
+    document.body.append(modalEl);
+  };
+
+  const openModal = (trigger, embedUrl) => {
+    ensureModal();
+    if (!modalEl || !frameEl) {
+      return;
+    }
+    activeTrigger = trigger;
+    frameEl.replaceChildren();
+    const iframe = document.createElement('iframe');
+    iframe.src = embedUrl;
+    iframe.title = 'Applictus setup walkthrough video';
+    iframe.loading = 'lazy';
+    iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+    iframe.allowFullscreen = true;
+    frameEl.append(iframe);
+    modalEl.classList.add('is-open');
+    modalEl.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('setup-video-modal-open');
+    if (keyHandler) {
+      document.removeEventListener('keydown', keyHandler);
+    }
+    keyHandler = (event) => {
+      if (event.key === 'Escape') {
+        closeModal();
+      }
+    };
+    document.addEventListener('keydown', keyHandler);
+    window.requestAnimationFrame(() => {
+      closeButton?.focus();
+    });
+  };
+
+  triggers.forEach((trigger) => {
+    trigger.addEventListener('click', (event) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+      const videoUrl = trigger.dataset.videoUrl || trigger.getAttribute('href') || '';
+      const embedUrl = getSetupVideoEmbedUrl(videoUrl, { autoplay: true });
+      if (!embedUrl) {
+        return;
+      }
+      event.preventDefault();
+      openModal(trigger, embedUrl);
+    });
+  });
+}
+
 function setupProductPreview(reducedMotion) {
   const preview = document.querySelector('[data-product-preview]');
   if (!preview) {
@@ -901,6 +1047,7 @@ function bootHomepage() {
   setupHeroBanner(reducedEffects);
   setupHeroPlatformMarqueeInteraction({ reducedMotion });
   setupHowStepperConnector();
+  setupSetupWalkthroughVideo();
   setupProductPreview(reducedMotion);
   setupScrollCtas(reducedMotion);
   setupScrollReveal(reducedMotion);

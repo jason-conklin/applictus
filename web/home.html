@@ -10,7 +10,7 @@
     <title>Applictus | Application Status Tracker</title>
     <link rel="icon" href="/Applictus_logo.png" type="image/png" />
     <script src="/landing-intro-preload.js?v=1"></script>
-    <link rel="stylesheet" href="/styles.css?v=52" />
+    <link rel="stylesheet" href="/styles.css?v=53" />
     <noscript>
       <style>
         body.home-page .home-nav {
@@ -288,72 +288,45 @@
                     </div>
                   </div>
                   <div class="info-section__right">
-                    <div class="how-stepper-meta">
+                    <div class="how-stepper-meta setup-video-header">
                       <p class="how-stepper-meta__label">One-time setup</p>
-                      <p class="how-stepper-meta__copy">Three quick steps and Applictus starts tracking automatically.</p>
+                      <p class="how-stepper-meta__copy">Watch the setup walkthrough and see how Applictus connects to your inbox.</p>
                     </div>
-                    <div class="how-stepper" aria-label="Applictus setup workflow">
-                      <ol class="info-stepper">
-                        <li class="info-step info-step--active">
-                          <span class="info-step__node-col"><span class="info-step__node">1</span></span>
-                          <article class="info-step__card tile how-step-card">
-                            <div class="how-step-card__head">
-                              <span class="how-step-card__icon" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                  <path d="M12 22v-5" />
-                                  <path d="M9 8V2" />
-                                  <path d="M15 8V2" />
-                                  <path d="M18 8a6 6 0 0 1-12 0" />
-                                  <path d="M6 15h12" />
-                                  <path d="M6 11h12" />
-                                </svg>
-                              </span>
-                              <div class="how-step-card__titleWrap">
-                                <h3>Get your personal Applictus inbox</h3>
-                                <p>Create your unique tracking address (e.g. <code>jason@mail.applictus.com</code>) in seconds.</p>
-                              </div>
-                            </div>
-                          </article>
-                        </li>
-                        <li class="info-step">
-                          <span class="info-step__node-col"><span class="info-step__node">2</span></span>
-                          <article class="info-step__card tile how-step-card">
-                            <div class="how-step-card__head">
-                              <span class="how-step-card__icon" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                  <circle cx="11" cy="11" r="8" />
-                                  <path d="m21 21-4.3-4.3" />
-                                </svg>
-                              </span>
-                              <div class="how-step-card__titleWrap">
-                                <h3>Add it to your email once</h3>
-                                <p>Add your Applictus inbox to forwarding or a filter one time.</p>
-                              </div>
-                            </div>
-                          </article>
-                        </li>
-                        <li class="info-step">
-                          <span class="info-step__node-col"><span class="info-step__node">3</span></span>
-                          <article class="info-step__card tile how-step-card">
-                            <div class="how-step-card__head">
-                              <span class="how-step-card__icon" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                  <path d="M3 6h6" />
-                                  <path d="M3 12h6" />
-                                  <path d="M3 18h6" />
-                                  <path d="m13 6 2 2 4-4" />
-                                  <path d="m13 12 2 2 4-4" />
-                                  <path d="m13 18 2 2 4-4" />
-                                </svg>
-                              </span>
-                              <div class="how-step-card__titleWrap">
-                                <h3>Everything updates automatically</h3>
-                                <p>Confirmations, interviews, and rejections flow into one live timeline automatically.</p>
-                              </div>
-                            </div>
-                          </article>
-                        </li>
-                      </ol>
+                    <div class="setup-video-card">
+                      <a
+                        class="setup-video-preview"
+                        href="https://youtu.be/qog9ez8bQms?si=8nxjnqOlevw1xnBd"
+                        target="_blank"
+                        rel="noopener"
+                        data-setup-video-open
+                        data-video-url="https://youtu.be/qog9ez8bQms?si=8nxjnqOlevw1xnBd"
+                        aria-label="Watch setup walkthrough"
+                      >
+                        <span class="setup-video-preview__badge">2-minute walkthrough</span>
+                        <span class="setup-video-preview__scene" aria-hidden="true">
+                          <span class="setup-video-preview__brand">
+                            <img src="/Applictus_logo.png" alt="" />
+                            <span>Applictus</span>
+                          </span>
+                          <span class="setup-video-preview__flow">
+                            <span>Gmail</span>
+                            <svg viewBox="0 0 80 18" focusable="false" aria-hidden="true">
+                              <path d="M2 9h68" />
+                              <path d="m62 3 8 6-8 6" />
+                            </svg>
+                            <span>Applictus inbox</span>
+                          </span>
+                          <span class="setup-video-preview__play">
+                            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                              <path d="M9 7.5v9l7-4.5-7-4.5Z" />
+                            </svg>
+                          </span>
+                        </span>
+                      </a>
+                      <div class="setup-video-copy">
+                        <h3>Watch setup walkthrough</h3>
+                        <p>Connect Gmail forwarding once, then Applictus keeps your timeline updated.</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -422,6 +395,6 @@
         </div>
       </footer>
     </div>
-    <script type="module" src="/home.js?v=9"></script>
+    <script type="module" src="/home.js?v=10"></script>
   </body>
 </html>
