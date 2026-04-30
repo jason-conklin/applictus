@@ -13423,6 +13423,212 @@ body.home-page .security-trust-item .home-check {
   }
 }
 
+@media (max-width: 768px) {
+  body.home-page .info-section--what .info-section__right {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  body.home-page .product-preview {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    gap: 11px;
+    padding: 12px;
+    border-radius: 18px;
+  }
+
+  body.home-page .product-preview__kicker {
+    font-size: 0.64rem;
+  }
+
+  body.home-page .product-preview__sync {
+    gap: 6px;
+  }
+
+  body.home-page .product-preview__sync-head {
+    grid-template-columns: 8px minmax(0, 1fr);
+    column-gap: 7px;
+  }
+
+  body.home-page .product-preview__sync-text {
+    min-width: 0;
+    font-size: 0.68rem;
+    line-height: 1.35;
+  }
+
+  body.home-page .product-preview__stats {
+    display: flex;
+    gap: 7px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: x proximity;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  body.home-page .product-preview__stats::-webkit-scrollbar {
+    display: none;
+  }
+
+  body.home-page .product-preview__stat {
+    flex: 0 0 88px;
+    min-width: 88px;
+    min-height: 56px;
+    padding: 6px 8px;
+    border-radius: 11px;
+    scroll-snap-align: start;
+  }
+
+  body.home-page .product-preview__stat p {
+    font-size: 0.52rem;
+    line-height: 1.1;
+  }
+
+  body.home-page .product-preview__stat strong,
+  body.home-page .product-preview__stat--secondary strong {
+    margin-top: 3px;
+    font-size: 0.95rem;
+  }
+
+  body.home-page .product-preview__delta {
+    min-height: 12px;
+    padding: 0 4px;
+    font-size: 0.46rem;
+  }
+
+  body.home-page .product-preview__table-wrap {
+    max-width: 100%;
+    overflow: hidden;
+    border-radius: 14px;
+  }
+
+  body.home-page .product-preview__table-meta {
+    justify-content: flex-start;
+    min-height: auto;
+    padding: 8px 10px;
+  }
+
+  body.home-page .product-preview__table-scale {
+    white-space: normal;
+    font-size: 0.58rem;
+    line-height: 1.25;
+  }
+
+  body.home-page .product-preview__table {
+    display: block;
+    width: 100%;
+    table-layout: auto;
+  }
+
+  body.home-page .product-preview__table thead {
+    display: none;
+  }
+
+  body.home-page .product-preview__table tbody {
+    display: grid;
+    gap: 8px;
+    padding: 8px;
+    background: #f7fbff;
+  }
+
+  body.home-page .product-preview__table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid rgba(23, 66, 123, 0.1);
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.94),
+      0 8px 16px rgba(10, 39, 82, 0.06);
+  }
+
+  body.home-page .product-preview__table td,
+  body.home-page .product-preview__table td:first-child,
+  body.home-page .product-preview__table td:nth-child(2),
+  body.home-page .product-preview__table td:nth-child(3) {
+    display: block;
+    width: auto;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    overflow-wrap: anywhere;
+  }
+
+  body.home-page .product-preview__table td:first-child {
+    color: #143f6a;
+    font-size: 0.86rem;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  body.home-page .product-preview__table td:nth-child(2) {
+    margin-top: 1px;
+    color: #48698f;
+    font-size: 0.78rem;
+    line-height: 1.3;
+  }
+
+  body.home-page .product-preview__table td:nth-child(3) {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 6px;
+  }
+
+  body.home-page .product-preview__row--priority {
+    border-color: rgba(96, 165, 250, 0.28);
+    box-shadow:
+      inset 3px 0 0 rgba(96, 165, 250, 0.72),
+      inset 0 1px 0 rgba(255, 255, 255, 0.94),
+      0 8px 16px rgba(10, 39, 82, 0.08);
+  }
+
+  body.home-page .product-preview__row--priority td,
+  body.home-page .product-preview.is-updated .product-preview__row--priority td {
+    background: transparent;
+  }
+
+  body.home-page .product-preview__row--priority td:first-child {
+    padding-left: 0;
+  }
+
+  body.home-page .product-preview__row--priority td:first-child::before {
+    content: none;
+  }
+
+  body.home-page .product-preview__table .appl-statusPill {
+    max-width: 100%;
+    min-height: 24px;
+    padding: 3px 7px;
+    gap: 4px;
+    font-size: 0.64rem;
+    line-height: 1.15;
+    white-space: normal;
+  }
+
+  body.home-page .product-preview__table .appl-statusPill .dot {
+    width: 6px;
+    height: 6px;
+    flex: 0 0 auto;
+  }
+
+  body.home-page .product-preview__row-update {
+    margin-right: 0;
+    min-height: 20px;
+    padding: 1px 6px;
+    font-size: 0.5rem;
+  }
+}
+
 @media (max-width: 740px) {
   body.home-page .surface-card {
     border-radius: 20px;
@@ -13670,6 +13876,60 @@ body.home-page .security-trust-item .home-check {
     min-height: 14px;
     padding: 1px 5px;
     font-size: 0.51rem;
+  }
+
+  body.home-page .product-preview__stats {
+    display: flex;
+    grid-template-columns: none;
+    gap: 7px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  body.home-page .product-preview__stats::-webkit-scrollbar {
+    display: none;
+  }
+
+  body.home-page .product-preview__stat {
+    flex: 0 0 88px;
+    min-width: 88px;
+    min-height: 56px;
+    padding: 6px 8px;
+  }
+
+  body.home-page .product-preview__stat strong,
+  body.home-page .product-preview__stat--secondary strong {
+    font-size: 0.95rem;
+  }
+
+  body.home-page .product-preview__delta {
+    min-height: 12px;
+    padding: 0 4px;
+    font-size: 0.46rem;
+  }
+
+  body.home-page .product-preview__table .appl-statusPill {
+    max-width: 100%;
+    min-height: 24px;
+    padding: 3px 7px;
+    gap: 4px;
+    font-size: 0.64rem;
+    line-height: 1.15;
+    white-space: normal;
+  }
+
+  body.home-page .product-preview__table th,
+  body.home-page .product-preview__table td,
+  body.home-page .product-preview__row--priority td:first-child {
+    padding: 0;
+  }
+
+  body.home-page .product-preview__row-update {
+    margin-right: 0;
+    min-height: 20px;
+    padding: 1px 6px;
+    font-size: 0.5rem;
   }
 
   body.home-page .info-section__left h2::after {
