@@ -151,7 +151,7 @@ function setupHomeIntroPlayback(reducedEffects) {
 function setupHeroBanner(reducedEffects) {
   const banner = document.querySelector('.hero-banner');
   const tiltEl = document.querySelector('.hero-banner__tilt');
-  const bannerImg = document.querySelector('.hero-banner__img');
+  const bannerImg = document.querySelector('.hero-banner__img, .hero-brand-logo');
   if (bannerImg) {
     bannerImg.addEventListener('dragstart', (event) => event.preventDefault());
   }
