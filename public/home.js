@@ -745,7 +745,7 @@ function setupProductPreview(reducedMotion) {
         },
         {
           company: 'Pereless Systems',
-          role: 'Front End Web Application Developer',
+          role: 'Back End Web Application Developer',
           statusKey: 'under_review',
           statusLabel: 'Under review'
         }
