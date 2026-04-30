@@ -10080,7 +10080,9 @@ body.home-page .home-cap {
   position: absolute;
   top: calc(0px - var(--home-cap-lift));
   left: 50%;
-  transform: translateX(-50%) translateZ(0);
+  opacity: 0;
+  transform: translate3d(-50%, -28px, 0) scaleY(0.96);
+  transform-origin: top center;
   width: var(--home-cap-width);
   height: calc(var(--home-cap-height) + var(--home-cap-lift));
   border-radius: 0 0 70% 70% / 0 0 58% 58%;
@@ -10095,6 +10097,7 @@ body.home-page .home-cap {
   overflow: hidden;
   isolation: isolate;
   z-index: 0;
+  will-change: opacity, transform;
 }
 
 body.home-page .home-cap::before {
@@ -10694,6 +10697,7 @@ body.home-page.reveal-ready [data-reveal].is-visible {
 }
 
 body.home-page .home-nav,
+body.home-page .home-cap,
 body.home-page .hero-animate-logo,
 body.home-page .hero-brand-icon,
 body.home-page .hero-brand-wordmark,
@@ -10720,7 +10724,13 @@ body.home-page.animate-ready:not(.home-loaded) .home-nav {
 body.home-page.animate-ready.home-loaded .home-nav {
   opacity: 1;
   transform: translateY(0);
-  transition: opacity 720ms ease 1450ms, transform 720ms cubic-bezier(0.2, 0.8, 0.2, 1) 1450ms;
+  transition: opacity 720ms ease 1550ms, transform 720ms cubic-bezier(0.2, 0.8, 0.2, 1) 1550ms;
+}
+
+body.home-page.animate-ready.home-loaded .home-cap {
+  opacity: 1;
+  transform: translate3d(-50%, 0, 0) scaleY(1);
+  transition: opacity 860ms ease 1280ms, transform 860ms cubic-bezier(0.16, 1, 0.3, 1) 1280ms;
 }
 
 body.home-page.animate-ready:not(.home-loaded) .hero-animate-logo {
@@ -13160,6 +13170,13 @@ body.home-page .security-trust-item .home-check {
 
   body.home-page .home-cap::after {
     animation: none;
+  }
+
+  body.home-page .home-cap {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: translate3d(-50%, 0, 0) scaleY(1) !important;
+    transition: none !important;
   }
 
   body.home-page .hero-banner__float {
