@@ -600,7 +600,7 @@ const inboundOldAddressWarning = document.getElementById('inbound-old-address-wa
 const inboundOpenSetup = document.getElementById('inbound-open-setup');
 const inboundRotateAddress = document.getElementById('inbound-rotate-address');
 const inboundCopyAddress = document.getElementById('inbound-copy-address');
-const inboundProcessNow = document.getElementById('inbound-process-now');
+const inboundViewFilters = document.getElementById('inbound-view-filters');
 const inboundWhyToggle = document.getElementById('inbound-why-toggle');
 const inboundWhyPanel = document.getElementById('inbound-why-panel');
 const inboundHelpVerifySetup = document.getElementById('inbound-help-verify-setup');
@@ -2210,9 +2210,9 @@ function updateInboundStatusPresentation() {
       inboundCopyAddress.disabled = !connectedEmail;
       inboundCopyAddress.textContent = 'Copy';
     }
-    if (inboundProcessNow) {
-      inboundProcessNow.classList.add('hidden');
-      inboundProcessNow.disabled = !connected;
+    if (inboundViewFilters) {
+      inboundViewFilters.classList.add('hidden');
+      inboundViewFilters.disabled = !connected;
     }
     if (inboundRotateAddress) {
       inboundRotateAddress.classList.add('hidden');
@@ -2331,10 +2331,10 @@ function updateInboundStatusPresentation() {
     inboundCopyAddress.disabled = !inboundState.addressEmail;
     inboundCopyAddress.textContent = 'Copy';
   }
-  if (inboundProcessNow) {
-    const showProcessNow = readiness === 'forwarding_active' || readiness === 'awaiting_first_email';
-    inboundProcessNow.classList.toggle('hidden', !showProcessNow);
-    inboundProcessNow.disabled = !showProcessNow;
+  if (inboundViewFilters) {
+    const showForwardingFilters = readiness === 'forwarding_active' || readiness === 'awaiting_first_email';
+    inboundViewFilters.classList.toggle('hidden', !showForwardingFilters);
+    inboundViewFilters.disabled = !showForwardingFilters;
   }
   if (inboundRotateAddress) {
     const showRotateAddress = Boolean(inboundState.addressEmail) && hasCustomInboxUsername();
@@ -13022,9 +13022,7 @@ inboundHelpVerifySetup?.addEventListener('click', () => {
   void verifyInboundSetupFromAccountHelp();
 });
 
-inboundProcessNow?.addEventListener('click', async () => {
-  await runManualInboundProcessNow();
-});
+inboundViewFilters?.addEventListener('click', openGmailFilterHelpModal);
 
 inboundRotateAddress?.addEventListener('click', async () => {
   await rotateInboundAddressFlow();
