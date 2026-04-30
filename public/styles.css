@@ -10211,17 +10211,8 @@ body.home-page .hero-value__focus {
 }
 
 body.home-page .hero-value::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: -13px;
-  width: 6px;
-  height: 6px;
-  transform: translateX(-50%);
-  border-radius: 999px;
-  background: rgba(36, 82, 157, 0.22);
-  box-shadow: -160px 0 0 rgba(36, 82, 157, 0.16), 160px 0 0 rgba(36, 82, 157, 0.16);
-  pointer-events: none;
+  content: none;
+  display: none;
 }
 
 body.home-page .hero-value::after {
@@ -10421,6 +10412,7 @@ body.home-page .hero-brand-subtitle {
   align-items: center;
   gap: clamp(12px, 1.5vw, 24px);
   margin: clamp(14px, 1.3vw, 20px) 0 0;
+  overflow: visible;
   color: rgba(19, 33, 58, 0.82);
   font-size: clamp(1rem, 1.54vw, 1.46rem);
   font-weight: 760;
@@ -10429,7 +10421,17 @@ body.home-page .hero-brand-subtitle {
   text-transform: uppercase;
   white-space: nowrap;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.48);
-  will-change: opacity, transform, filter;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+  filter: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  mix-blend-mode: normal;
+  backface-visibility: hidden;
+  transform-style: flat;
+  will-change: opacity, transform;
 }
 
 body.home-page .hero-brand-accent--application {
@@ -10738,8 +10740,7 @@ html.js body.home-page.landing-intro-preload .hero-brand-divider::before {
 
 html.js body.home-page.landing-intro-preload .hero-brand-subtitle {
   opacity: 0;
-  filter: blur(3px);
-  transform: translateY(12px);
+  transform: translate3d(0, 12px, 0);
 }
 
 html.js body.home-page.landing-intro-preload .hero-value__title,
@@ -10857,8 +10858,7 @@ body.home-page.animate-ready:not(.home-loaded) .hero-brand-divider::before {
 
 body.home-page.animate-ready:not(.home-loaded) .hero-brand-subtitle {
   opacity: 0;
-  filter: blur(3px);
-  transform: translateY(12px);
+  transform: translate3d(0, 12px, 0);
 }
 
 body.home-page.animate-ready.home-loaded .hero-animate-logo {
@@ -11176,13 +11176,11 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms__note {
 @keyframes landingHeroSubtitleReveal {
   0% {
     opacity: 0;
-    filter: blur(3px);
-    transform: translateY(12px);
+    transform: translate3d(0, 12px, 0);
   }
   100% {
     opacity: 1;
-    filter: blur(0);
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
