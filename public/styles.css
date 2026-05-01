@@ -5214,6 +5214,13 @@ details summary {
   stroke-linecap: round;
 }
 
+.setup-video-modal__close path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
 .setup-video-modal__frame {
   aspect-ratio: 16 / 9;
   background: #061226;

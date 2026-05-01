@@ -7645,8 +7645,8 @@ function ensureSetupWalkthroughVideoModal() {
     <div class="setup-video-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="setup-video-modal-title">
       <button class="setup-video-modal__close" type="button" data-setup-video-close aria-label="Close setup walkthrough">
         <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-          <path d="M6 6l12 12"></path>
-          <path d="M18 6 6 18"></path>
+          <path d="M6 6 18 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path>
+          <path d="M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path>
         </svg>
       </button>
       <div class="setup-video-modal__frame" data-setup-video-frame></div>
