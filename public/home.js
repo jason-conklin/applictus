@@ -676,10 +676,18 @@ function setupProductPreview(reducedMotion) {
       deltas: { interviews: '+1' },
       rows: [
         {
-          company: 'CBRE',
-          role: 'Data Center Change Management Coordinator',
+          company: 'Commonpoint',
+          role: 'IT Support Specialist',
+          statusKey: 'offer_received',
+          statusLabel: 'Offer',
+          lastActivity: 'Today'
+        },
+        {
+          company: 'Fulcrum Vets, LLC',
+          role: 'Remote Accounts Receivable Specialist',
           statusKey: 'interview_requested',
           statusLabel: 'Interview requested',
+          lastActivity: 'Yesterday',
           isPriority: true,
           isNew: true
         },
@@ -687,25 +695,22 @@ function setupProductPreview(reducedMotion) {
           company: 'Valley National Bank',
           role: 'Sr. Analyst, Business Management',
           statusKey: 'applied',
-          statusLabel: 'Applied'
+          statusLabel: 'Applied',
+          lastActivity: '2d ago'
         },
         {
-          company: 'Commonpoint',
-          role: 'IT Support Specialist',
-          statusKey: 'offer_received',
-          statusLabel: 'Offer'
-        },
-        {
-          company: 'Pereless Systems',
-          role: 'Product Support Specialist',
+          company: 'Arch',
+          role: 'Data Quality Analyst',
           statusKey: 'rejected',
-          statusLabel: 'Rejected'
+          statusLabel: 'Rejected',
+          lastActivity: '3d ago'
         },
         {
           company: 'Greenhouse Labs',
           role: 'Front End Web Application Developer',
           statusKey: 'under_review',
-          statusLabel: 'Under review'
+          statusLabel: 'Under review',
+          lastActivity: '4d ago'
         }
       ]
     },
@@ -717,8 +722,9 @@ function setupProductPreview(reducedMotion) {
         {
           company: 'Commonpoint',
           role: 'IT Support Specialist',
-          statusKey: 'applied',
-          statusLabel: 'Applied',
+          statusKey: 'offer_received',
+          statusLabel: 'Offer',
+          lastActivity: 'Today',
           isNew: true
         },
         {
@@ -726,25 +732,29 @@ function setupProductPreview(reducedMotion) {
           role: 'Remote Accounts Receivable Specialist',
           statusKey: 'interview_requested',
           statusLabel: 'Interview requested',
+          lastActivity: 'Yesterday',
           isPriority: true
         },
         {
           company: 'Valley National Bank',
           role: 'Sr. Analyst, Business Management',
           statusKey: 'applied',
-          statusLabel: 'Applied'
+          statusLabel: 'Applied',
+          lastActivity: '2d ago'
         },
         {
-          company: 'Commonpoint',
-          role: 'IT Support Specialist',
-          statusKey: 'offer_received',
-          statusLabel: 'Offer'
+          company: 'Arch',
+          role: 'Data Quality Analyst',
+          statusKey: 'rejected',
+          statusLabel: 'Rejected',
+          lastActivity: '3d ago'
         },
         {
-          company: 'Pereless Systems',
-          role: 'Back End Web Application Developer',
+          company: 'Greenhouse Labs',
+          role: 'Front End Web Application Developer',
           statusKey: 'under_review',
-          statusLabel: 'Under review'
+          statusLabel: 'Under review',
+          lastActivity: '4d ago'
         }
       ]
     },
@@ -758,6 +768,7 @@ function setupProductPreview(reducedMotion) {
           role: 'IT Support Specialist',
           statusKey: 'offer_received',
           statusLabel: 'Offer',
+          lastActivity: 'Today',
           isNew: true
         },
         {
@@ -765,25 +776,29 @@ function setupProductPreview(reducedMotion) {
           role: 'Remote Accounts Receivable Specialist',
           statusKey: 'interview_requested',
           statusLabel: 'Interview requested',
+          lastActivity: 'Yesterday',
           isPriority: true
         },
         {
           company: 'Valley National Bank',
           role: 'Sr. Analyst, Business Management',
           statusKey: 'applied',
-          statusLabel: 'Applied'
+          statusLabel: 'Applied',
+          lastActivity: '2d ago'
         },
         {
           company: 'Arch',
           role: 'Data Quality Analyst',
           statusKey: 'rejected',
-          statusLabel: 'Rejected'
+          statusLabel: 'Rejected',
+          lastActivity: '3d ago'
         },
         {
           company: 'Greenhouse Labs',
           role: 'Front End Web Application Developer',
           statusKey: 'under_review',
-          statusLabel: 'Under review'
+          statusLabel: 'Under review',
+          lastActivity: '4d ago'
         }
       ]
     }
@@ -871,6 +886,7 @@ function setupProductPreview(reducedMotion) {
             <td>${escapeHtml(row.company)}</td>
             <td>${escapeHtml(row.role)}</td>
             <td>${newChip}<span class="appl-statusPill ${statusClass}"><span class="dot" aria-hidden="true"></span>${escapeHtml(row.statusLabel)}</span></td>
+            <td class="product-preview__date">${escapeHtml(row.lastActivity || '')}</td>
           </tr>
         `;
       })
