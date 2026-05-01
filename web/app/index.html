@@ -10,7 +10,7 @@
     <meta name="app-api-base-url" content="" />
     <title>Applictus</title>
     <link rel="icon" href="/Applictus_logo.png" type="image/png" />
-    <link rel="stylesheet" href="/styles.css?v=37" />
+    <link rel="stylesheet" href="/styles.css?v=39" />
     <style>
       body:not(.app-ready) #app {
         opacity: 0;
@@ -3036,6 +3036,13 @@
                       </div>
                     </div>
                   </label>
+                  <div class="mobile-status-pills" id="mobile-status-pills" aria-label="Filter applications by status">
+                    <button type="button" class="mobile-status-pill is-active" data-mobile-status-filter="" aria-pressed="true">All</button>
+                    <button type="button" class="mobile-status-pill" data-mobile-status-filter="applied" aria-pressed="false">Applied</button>
+                    <button type="button" class="mobile-status-pill" data-mobile-status-filter="interview_requested" aria-pressed="false">Interviews</button>
+                    <button type="button" class="mobile-status-pill" data-mobile-status-filter="offer_received" aria-pressed="false">Offers</button>
+                    <button type="button" class="mobile-status-pill" data-mobile-status-filter="rejected" aria-pressed="false">Rejected</button>
+                  </div>
                 </div>
                 <button class="icon-btn-circle add-app-btn" id="add-toggle" type="button" aria-label="Add application" title="Add application">
                   <span class="add-app-btn__icon" aria-hidden="true">
@@ -3881,6 +3888,6 @@
       </div>
     </div>
 
-    <script type="module" src="/app.js?v=45"></script>
+    <script type="module" src="/app.js?v=47"></script>
   </body>
 </html>

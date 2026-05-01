@@ -572,16 +572,13 @@ function setupSetupWalkthroughVideo() {
     modalEl.innerHTML = `
       <button class="setup-video-modal__backdrop" type="button" data-setup-video-close aria-label="Close setup walkthrough"></button>
       <div class="setup-video-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="setup-video-modal-title">
-        <button class="setup-video-modal__close" type="button" data-setup-video-close aria-label="Close setup walkthrough">
-          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-            <path d="M6 6l12 12"></path>
-            <path d="M18 6 6 18"></path>
-          </svg>
-        </button>
         <div class="setup-video-modal__frame" data-setup-video-frame></div>
         <div class="setup-video-modal__meta">
-          <p class="setup-video-modal__title" id="setup-video-modal-title">Watch setup walkthrough</p>
-          <p class="setup-video-modal__copy">Connect Gmail forwarding once, then Applictus keeps your timeline updated.</p>
+          <div class="setup-video-modal__text">
+            <p class="setup-video-modal__title" id="setup-video-modal-title">Watch setup walkthrough</p>
+            <p class="setup-video-modal__copy">Connect Gmail forwarding once, then Applictus keeps your timeline updated.</p>
+          </div>
+          <button class="setup-video-modal__close" type="button" data-setup-video-close>Close</button>
         </div>
       </div>
     `;

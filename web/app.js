@@ -688,6 +688,7 @@ const dashboardLoadingShell = document.getElementById('dashboard-loading-shell')
 const dashboardOnboardingInboxAddress = document.getElementById('dashboard-onboarding-inbox-address');
 const dashboardOnboardingInboxLink = document.querySelector('#dashboard-onboarding .dashboard-onboarding-inbox-link');
 const dashboardFiltersInline = document.getElementById('filters-inline');
+const mobileStatusPills = document.getElementById('mobile-status-pills');
 const archivedTable = document.getElementById('archived-table');
 const archivedCount = document.getElementById('archived-count');
 const unsortedTable = document.getElementById('unsorted-table');
@@ -4350,7 +4351,20 @@ function syncStatusFilterMenuUi() {
       statusMenuHighlightIndex = index;
     }
   });
+  syncMobileStatusPills(selectedOption.value);
   updateDashboardKpiFilterState();
+}
+
+function syncMobileStatusPills(activeValue) {
+  if (!mobileStatusPills) {
+    return;
+  }
+  const normalizedValue = getStatusFilterOptionFromValue(activeValue).value;
+  mobileStatusPills.querySelectorAll('.mobile-status-pill[data-mobile-status-filter]').forEach((button) => {
+    const isActive = (button.dataset.mobileStatusFilter || '') === normalizedValue;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
 }
 
 function getKpiFilterOption(card) {
@@ -7643,16 +7657,13 @@ function ensureSetupWalkthroughVideoModal() {
   setupWalkthroughVideoModal.innerHTML = `
     <button class="setup-video-modal__backdrop" type="button" data-setup-video-close aria-label="Close setup walkthrough"></button>
     <div class="setup-video-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="setup-video-modal-title">
-      <button class="setup-video-modal__close" type="button" data-setup-video-close aria-label="Close setup walkthrough">
-        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-          <path d="M6 6 18 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path>
-          <path d="M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path>
-        </svg>
-      </button>
       <div class="setup-video-modal__frame" data-setup-video-frame></div>
       <div class="setup-video-modal__meta">
-        <p class="setup-video-modal__title" id="setup-video-modal-title">Watch setup walkthrough</p>
-        <p class="setup-video-modal__copy">Connect Gmail forwarding once, then Applictus keeps your timeline updated.</p>
+        <div class="setup-video-modal__text">
+          <p class="setup-video-modal__title" id="setup-video-modal-title">Watch setup walkthrough</p>
+          <p class="setup-video-modal__copy">Connect Gmail forwarding once, then Applictus keeps your timeline updated.</p>
+        </div>
+        <button class="setup-video-modal__close" type="button" data-setup-video-close>Close</button>
       </div>
     </div>
   `;
@@ -12654,6 +12665,16 @@ filterStatusMenu?.addEventListener('keydown', (event) => {
   if (event.key === 'Tab') {
     closeStatusMenu();
   }
+});
+
+mobileStatusPills?.addEventListener('click', (event) => {
+  const button = event.target.closest('.mobile-status-pill[data-mobile-status-filter]');
+  if (!button) {
+    return;
+  }
+  event.preventDefault();
+  applyStatusFilterValue(button.dataset.mobileStatusFilter || '');
+  closeStatusMenu();
 });
 
 filterStatusMenu?.addEventListener('mousemove', (event) => {
