@@ -7467,6 +7467,39 @@ details summary {
     inset 0 1px 0 rgba(255, 255, 255, 0.86);
 }
 
+.forwarding-address-change-modal {
+  gap: 14px;
+}
+
+.forwarding-address-change-current {
+  display: grid;
+  gap: 6px;
+  padding: 11px 12px;
+  border-radius: 13px;
+  border: 1px solid rgba(37, 72, 128, 0.14);
+  background: rgba(248, 251, 255, 0.72);
+}
+
+.forwarding-address-change-current span {
+  color: #5b7294;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.forwarding-address-change-current code {
+  color: #173b69;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 12.5px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.account-inbox-username-prompt--modal {
+  margin-top: 0;
+}
+
 .account-inbox-username-prompt > .account-inbox-label {
   display: flex;
   align-items: center;

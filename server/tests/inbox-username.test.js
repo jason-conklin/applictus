@@ -232,7 +232,7 @@ test('username signup rejects collisions with existing inbound address aliases',
   assert.equal(blockedSignup.body.error, 'INBOX_USERNAME_TAKEN');
 });
 
-test('existing user fallback random address keeps legacy alias and blocks username changes after first set', async (t) => {
+test('existing user can change custom forwarding username and previous addresses are rotated', async (t) => {
   const { baseUrl, db, stop } = await startServerWithEnv({
     NODE_ENV: 'test',
     JOBTRACK_DB_PATH: ':memory:',
@@ -271,7 +271,7 @@ test('existing user fallback random address keeps legacy alias and blocks userna
 
   const rows = db
     .prepare(
-      `SELECT address_email, is_active
+      `SELECT address_email, is_active, status
        FROM inbound_addresses
        WHERE user_id = ?
        ORDER BY created_at ASC`
@@ -282,26 +282,38 @@ test('existing user fallback random address keeps legacy alias and blocks userna
   const newRow = rows.find((row) => row.address_email === 'clean-alias@mail.applictus.com');
   assert.ok(oldRow);
   assert.ok(newRow);
-  assert.equal(Number(oldRow.is_active), 1);
+  assert.equal(Number(oldRow.is_active), 0);
+  assert.equal(oldRow.status, 'rotated');
   assert.equal(Number(newRow.is_active), 1);
+  assert.equal(newRow.status, 'active');
 
-  const attemptedChange = await request('/api/account/inbox-username', {
+  const changedUsername = await request('/api/account/inbox-username', {
     method: 'POST',
     body: JSON.stringify({ inbox_username: 'second-alias' })
   });
-  assert.equal(attemptedChange.status, 409);
-  assert.equal(attemptedChange.body.error, 'INBOX_USERNAME_IMMUTABLE');
+  assert.equal(changedUsername.status, 200);
+  assert.equal(changedUsername.body.user.inbox_username, 'second-alias');
+  assert.equal(changedUsername.body.inbound_status.address_email, 'second-alias@mail.applictus.com');
 
   const afterRows = db
     .prepare(
-      `SELECT address_email, is_active
+      `SELECT address_email, is_active, status
        FROM inbound_addresses
        WHERE user_id = ?
        ORDER BY created_at ASC`
     )
     .all(userId);
-  assert.equal(afterRows.length, rows.length);
+  assert.equal(afterRows.length, rows.length + 1);
   const originalAlias = afterRows.find((row) => row.address_email === oldAddress);
+  const cleanAlias = afterRows.find((row) => row.address_email === 'clean-alias@mail.applictus.com');
+  const secondAlias = afterRows.find((row) => row.address_email === 'second-alias@mail.applictus.com');
   assert.ok(originalAlias);
-  assert.equal(Number(originalAlias.is_active), 1);
+  assert.ok(cleanAlias);
+  assert.ok(secondAlias);
+  assert.equal(Number(originalAlias.is_active), 0);
+  assert.equal(originalAlias.status, 'rotated');
+  assert.equal(Number(cleanAlias.is_active), 0);
+  assert.equal(cleanAlias.status, 'rotated');
+  assert.equal(Number(secondAlias.is_active), 1);
+  assert.equal(secondAlias.status, 'active');
 });

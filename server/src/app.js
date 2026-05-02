@@ -3925,11 +3925,7 @@ app.post('/api/account/inbox-username', requireAuth, async (req, res) => {
     }
 
     const currentUsername = normalizeInboxUsername(user.inbox_username);
-    if (currentUsername && currentUsername !== desiredUsername) {
-      return res.status(409).json({ error: 'INBOX_USERNAME_IMMUTABLE' });
-    }
-
-    if (!currentUsername) {
+    if (currentUsername !== desiredUsername) {
       const availability = await checkInboxUsernameAvailability(desiredUsername, {
         excludeUserId: req.user.id
       });
@@ -3939,14 +3935,20 @@ app.post('/api/account/inbox-username', requireAuth, async (req, res) => {
           suggestions: Array.isArray(availability.suggestions) ? availability.suggestions : []
         });
       }
-      await updateUser(req.user.id, { inbox_username: desiredUsername });
     }
 
     const inboundDomain = String(process.env.INBOUND_DOMAIN || '')
       .trim()
       .toLowerCase()
       .replace(/^@+/, '');
-    await getOrCreateInboundAddress(db, req.user.id, { inboundDomain });
+    await rotateInboundAddress(db, req.user.id, {
+      inboundDomain,
+      preferredLocal: desiredUsername,
+      allowFallbackRandom: false
+    });
+    if (currentUsername !== desiredUsername) {
+      await updateUser(req.user.id, { inbox_username: desiredUsername });
+    }
 
     const updatedUser = await getUserById(req.user.id);
     const inboundStatus = await buildInboundAddressStatus(req.user.id, { ensureAddress: true });
@@ -3962,6 +3964,12 @@ app.post('/api/account/inbox-username', requireAuth, async (req, res) => {
     }
     if (isUniqueConstraintError(err) && /inbox_username/i.test(String(err?.message || ''))) {
       return res.status(409).json({ error: 'INBOX_USERNAME_TAKEN' });
+    }
+    if (err?.code === 'INBOUND_ADDRESS_LOCAL_CONFLICT') {
+      return res.status(409).json({ error: 'INBOX_USERNAME_TAKEN' });
+    }
+    if (err?.code === 'INBOUND_DOMAIN_REQUIRED') {
+      return res.status(503).json({ error: 'INBOUND_NOT_CONFIGURED' });
     }
     logError('account.inbox_username.failed', {
       userId: req.user?.id || null,

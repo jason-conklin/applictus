@@ -1650,6 +1650,12 @@ function formatAccountUsernameInvalidMessage(code) {
   if (code === 'INBOX_USERNAME_RESERVED' || code === 'INBOX_USERNAME_TAKEN') {
     return 'Already taken';
   }
+  if (code === 'INBOUND_NOT_CONFIGURED') {
+    return 'Forwarding addresses are not configured yet.';
+  }
+  if (code === 'INBOX_USERNAME_UPDATE_FAILED') {
+    return 'Unable to save this address. Please try again.';
+  }
   return ACCOUNT_INBOX_INVALID_TEXT;
 }
 
@@ -9152,20 +9158,276 @@ async function rotateInboundAddressFlow() {
   if (!confirmed) {
     return;
   }
-  if (inboundRotateAddress) {
-    inboundRotateAddress.disabled = true;
+  openForwardingAddressChangeModal();
+}
+
+function openForwardingAddressChangeModal() {
+  if (!sessionUser) {
+    showNotice('Sign in again before changing your forwarding address.', 'Change forwarding address');
+    return;
   }
-  try {
-    const data = await api('/api/inbound/address/rotate', { method: 'POST' });
-    applyInboundStatusPayload(data || {});
-    showToast('Forwarding address changed. Update your Gmail forwarding rule.', { tone: 'success' });
-  } catch (err) {
-    showNotice(err.message || 'Unable to change forwarding address.', 'Change forwarding address');
-  } finally {
-    if (inboundRotateAddress) {
-      inboundRotateAddress.disabled = false;
+  const currentUsername = normalizeInboxUsernameInput(sessionUser.inbox_username || '');
+  const currentAddress = inboundState.addressEmail || buildInboxAddressPreview(currentUsername);
+  const body = document.createElement('div');
+  body.className = 'stack forwarding-address-change-modal';
+
+  const intro = document.createElement('p');
+  intro.textContent = 'Choose the new Applictus inbox address you want Gmail to forward job emails to.';
+
+  const currentBox = document.createElement('div');
+  currentBox.className = 'forwarding-address-change-current';
+  const currentLabel = document.createElement('span');
+  currentLabel.textContent = 'Current forwarding address';
+  const currentCode = document.createElement('code');
+  currentCode.textContent = currentAddress || 'Not available';
+  currentBox.append(currentLabel, currentCode);
+
+  const prompt = document.createElement('div');
+  prompt.className = 'account-inbox-username-prompt account-inbox-username-prompt--modal';
+
+  const label = document.createElement('div');
+  label.className = 'muted small account-inbox-label';
+  label.textContent = 'Choose a new Applictus inbox address';
+
+  const row = document.createElement('div');
+  row.className = 'account-inbox-username-row';
+  const composer = document.createElement('div');
+  composer.className = 'account-inbox-username-composer';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = currentUsername ? `${currentUsername}-jobs` : 'jasonconklin';
+  input.autocapitalize = 'off';
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  const domain = document.createElement('span');
+  domain.className = 'account-inbox-username-domain';
+  domain.textContent = `@${INBOUND_DOMAIN_FALLBACK}`;
+  composer.append(input, domain);
+  row.append(composer);
+
+  const feedbackRow = document.createElement('div');
+  feedbackRow.className = 'account-inbox-username-feedback-row';
+  const preview = document.createElement('div');
+  preview.className = 'account-inbox-username-preview';
+  const previewCode = document.createElement('code');
+  previewCode.textContent = `<username>@${INBOUND_DOMAIN_FALLBACK}`;
+  preview.append(previewCode);
+  const status = document.createElement('div');
+  status.className = 'account-inbox-username-status';
+  status.dataset.state = 'idle';
+  status.textContent = 'Enter a new username';
+  feedbackRow.append(preview, status);
+
+  const hint = document.createElement('div');
+  hint.className = 'muted small account-inbox-username-hint';
+  hint.textContent = 'After saving, update Gmail forwarding and filters to use the new address.';
+
+  const rules = document.createElement('div');
+  rules.className = 'muted small account-inbox-username-rules';
+  rules.textContent = 'Use 3-30 lowercase letters, numbers, or hyphens.';
+
+  const suggestionsLabel = document.createElement('div');
+  suggestionsLabel.className = 'muted small account-inbox-username-suggestions-label';
+  suggestionsLabel.textContent = 'Suggestions';
+
+  const suggestions = document.createElement('div');
+  suggestions.className = 'account-inbox-username-suggestions';
+
+  prompt.append(label, row, feedbackRow, hint, rules, suggestionsLabel, suggestions);
+  body.append(intro, currentBox, prompt);
+
+  const footer = buildModalFooter({ confirmText: 'Save forwarding address', cancelText: 'Cancel' });
+  const saveButton = footer.querySelector('[data-role="confirm"]');
+  if (saveButton) {
+    saveButton.disabled = true;
+  }
+
+  const editorState = {
+    debounceTimer: null,
+    requestToken: 0,
+    checkedUsername: '',
+    checkedResult: null,
+    saving: false
+  };
+
+  const clearDebounce = () => {
+    if (editorState.debounceTimer) {
+      window.clearTimeout(editorState.debounceTimer);
+      editorState.debounceTimer = null;
     }
-  }
+  };
+  const setSaveEnabled = (enabled) => {
+    if (saveButton) {
+      saveButton.disabled = !enabled || editorState.saving;
+    }
+  };
+  const setStatus = (state, message) => {
+    status.dataset.state = state || 'idle';
+    status.textContent = message || '';
+  };
+  const setPreview = (username) => {
+    const normalized = normalizeInboxUsernameInput(username);
+    previewCode.textContent = normalized ? `${normalized}@${INBOUND_DOMAIN_FALLBACK}` : `<username>@${INBOUND_DOMAIN_FALLBACK}`;
+  };
+  const renderSuggestions = (normalized, { preferAlternatives = true } = {}) => {
+    const seed = normalized || currentUsername || deriveDefaultInboxUsernameSeed();
+    const values = buildAccountUsernameSuggestions(seed, { preferAlternatives }).filter((value) => value !== currentUsername);
+    renderInboxSuggestionButtons(suggestions, values, (value) => {
+      input.value = value;
+      updateEditorUi({ checkAvailability: true });
+      input.focus();
+    });
+  };
+  const updateEditorUi = ({ checkAvailability = true } = {}) => {
+    const normalized = normalizeInboxUsernameInput(input.value);
+    if (input.value !== normalized) {
+      input.value = normalized;
+    }
+    setPreview(normalized);
+    renderSuggestions(normalized, { preferAlternatives: true });
+    const validation = validateInboxUsernameInput(normalized, { allowEmpty: false });
+    if (!normalized) {
+      setStatus('idle', 'Enter a new username');
+      setSaveEnabled(false);
+      clearDebounce();
+      return;
+    }
+    if (!validation.ok) {
+      setStatus('invalid', formatAccountUsernameInvalidMessage(validation.code));
+      setSaveEnabled(false);
+      clearDebounce();
+      return;
+    }
+    if (normalized === currentUsername) {
+      setStatus('saved', 'Current address');
+      setSaveEnabled(false);
+      clearDebounce();
+      return;
+    }
+    if (editorState.checkedUsername === normalized && editorState.checkedResult) {
+      const availability = editorState.checkedResult;
+      if (!availability.valid) {
+        setStatus('invalid', formatAccountUsernameInvalidMessage(availability.error));
+        setSaveEnabled(false);
+        return;
+      }
+      if (!availability.available) {
+        setStatus('taken', 'Already taken');
+        renderSuggestions(normalized, { preferAlternatives: true });
+        setSaveEnabled(false);
+        return;
+      }
+      setStatus('available', 'Available');
+      setSaveEnabled(true);
+      return;
+    }
+    if (!checkAvailability) {
+      setStatus('idle', 'Enter a new username');
+      setSaveEnabled(false);
+      return;
+    }
+    clearDebounce();
+    const expectedToken = ++editorState.requestToken;
+    setStatus('checking', 'Checking availability...');
+    setSaveEnabled(false);
+    editorState.debounceTimer = window.setTimeout(async () => {
+      const availability = await checkInboxUsernameAvailability(normalized, {
+        currentToken: editorState.requestToken,
+        expectedToken
+      }).catch(() => null);
+      if (expectedToken !== editorState.requestToken) {
+        return;
+      }
+      if (!availability) {
+        setStatus('idle', 'Unable to verify availability right now.');
+        setSaveEnabled(false);
+        return;
+      }
+      editorState.checkedUsername = normalized;
+      editorState.checkedResult = availability;
+      updateEditorUi({ checkAvailability: false });
+    }, 220);
+  };
+  const saveNewAddress = async () => {
+    if (editorState.saving) {
+      return;
+    }
+    const normalized = normalizeInboxUsernameInput(input.value);
+    const validation = validateInboxUsernameInput(normalized, { allowEmpty: false });
+    if (!validation.ok || normalized === currentUsername) {
+      updateEditorUi({ checkAvailability: true });
+      return;
+    }
+    let availability = editorState.checkedUsername === normalized ? editorState.checkedResult : null;
+    if (!availability?.available) {
+      setStatus('checking', 'Checking availability...');
+      availability = await checkInboxUsernameAvailability(normalized).catch(() => null);
+      editorState.checkedUsername = normalized;
+      editorState.checkedResult = availability;
+    }
+    if (!availability) {
+      setStatus('idle', 'Unable to verify availability right now.');
+      setSaveEnabled(false);
+      return;
+    }
+    if (!availability?.valid) {
+      setStatus('invalid', formatAccountUsernameInvalidMessage(availability?.error));
+      setSaveEnabled(false);
+      return;
+    }
+    if (!availability.available) {
+      setStatus('taken', 'Already taken');
+      renderSuggestions(normalized, { preferAlternatives: true });
+      setSaveEnabled(false);
+      return;
+    }
+    editorState.saving = true;
+    input.disabled = true;
+    setSaveEnabled(false);
+    setStatus('checking', 'Saving new address...');
+    try {
+      const payload = await api('/api/account/inbox-username', {
+        method: 'POST',
+        body: JSON.stringify({ inbox_username: normalized })
+      });
+      if (payload?.user) {
+        sessionUser = payload.user;
+        accountUsernameState.lastSavedValue = normalizeInboxUsernameInput(payload.user.inbox_username || normalized);
+        accountUsernameState.savedFlashUntil = 0;
+        renderAccountPanel(sessionUser);
+        syncAccountAvatarIdentity(sessionUser);
+      }
+      if (payload?.inbound_status) {
+        applyInboundStatusPayload(payload.inbound_status);
+      } else {
+        await refreshInboundStatus({ ensureAddress: true });
+      }
+      closeModal('saved');
+      showToast('Forwarding address changed. Update your Gmail forwarding rule.', { tone: 'success' });
+    } catch (err) {
+      editorState.saving = false;
+      input.disabled = false;
+      const code = err?.code || err?.message;
+      setStatus('invalid', formatAccountUsernameInvalidMessage(code));
+      setSaveEnabled(false);
+    }
+  };
+
+  input.addEventListener('input', () => updateEditorUi({ checkAvailability: true }));
+  saveButton?.addEventListener('click', saveNewAddress);
+
+  openModal({
+    title: 'Choose a new forwarding address',
+    description: 'Save the new address, then update Gmail so future job emails forward there.',
+    body,
+    footer,
+    allowBackdropClose: true,
+    initialFocus: input,
+    variantClass: 'modal--forwarding-address-change',
+    onClose: clearDebounce
+  });
+  renderSuggestions('', { preferAlternatives: true });
+  updateEditorUi({ checkAvailability: false });
 }
 
 async function saveAccountInboxUsername() {
