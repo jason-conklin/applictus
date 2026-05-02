@@ -7767,16 +7767,14 @@ details summary {
   appearance: none;
   -webkit-appearance: none;
   flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   display: inline-grid;
   place-items: center;
   border-radius: 999px;
-  border: 1px solid rgba(158, 113, 18, 0.28);
-  background: rgba(255, 255, 255, 0.72);
-  color: rgba(97, 67, 10, 0.86);
-  font-size: 13px;
-  font-weight: 800;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(99, 73, 19, 0.72);
   line-height: 1;
   cursor: pointer;
   transition:
@@ -7786,10 +7784,19 @@ details summary {
     transform 140ms ease;
 }
 
+.inbound-old-address-warning__dismiss svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  fill: none;
+}
+
 .inbound-old-address-warning__dismiss:hover {
-  background: rgba(255, 255, 255, 0.94);
-  border-color: rgba(126, 82, 8, 0.38);
-  color: rgba(73, 47, 4, 0.95);
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(126, 82, 8, 0.16);
+  color: rgba(73, 47, 4, 0.9);
   transform: translateY(-1px);
 }
 
