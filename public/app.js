@@ -12796,6 +12796,12 @@ dashboardView?.addEventListener('click', async (event) => {
     openInboundSetupModal({ startStep: 0 });
     return;
   }
+  if (action === 'watch-setup-video') {
+    if (!openSetupWalkthroughVideoModal(actionTarget, FORWARDING_SETUP_WALKTHROUGH_URL)) {
+      window.open(FORWARDING_SETUP_WALKTHROUGH_URL, '_blank', 'noopener,noreferrer');
+    }
+    return;
+  }
   if (action === 'open-account-inbox') {
     window.location.hash = '#account';
     return;

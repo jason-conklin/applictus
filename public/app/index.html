@@ -10,7 +10,7 @@
     <meta name="app-api-base-url" content="" />
     <title>Applictus</title>
     <link rel="icon" href="/Applictus_logo.png" type="image/png" />
-    <link rel="stylesheet" href="/styles.css?v=40" />
+    <link rel="stylesheet" href="/styles.css?v=41" />
     <style>
       body:not(.app-ready) #app {
         opacity: 0;
@@ -2745,31 +2745,41 @@
             </div>
             <div class="dashboard-onboarding hidden" id="dashboard-onboarding">
               <div class="dashboard-onboarding__content">
-                <div class="dashboard-onboarding__eyebrow">Welcome</div>
+                <div class="dashboard-onboarding__eyebrow">WELCOME</div>
                 <h3 class="dashboard-onboarding__title">Start tracking your applications in minutes</h3>
                 <p class="dashboard-onboarding__text">
-                  Connect your inbox once — Applictus automatically tracks confirmations, interviews, and rejections for you.
+                  Connect your inbox once and Applictus automatically organizes confirmations, interviews, offers, and rejections.
                 </p>
-                <ul class="dashboard-onboarding__reassurance" aria-label="Setup reassurance">
-                  <li>One-time setup</li>
-                  <li>No inbox access</li>
-                  <li>Runs automatically</li>
-                </ul>
                 <div class="dashboard-onboarding__actions">
                   <button class="btn btn--primary btn--md dashboard-onboarding__cta-primary" type="button" data-action="sync-inbox">
                     Connect inbox
                   </button>
                   <button class="btn btn--ghost btn--sm" type="button" data-action="onboarding-later">Do this later</button>
                 </div>
-                <p class="dashboard-onboarding__microcopy muted small">
-                  Takes ~2 minutes • No inbox access required • Works with Gmail automatically
-                </p>
-                <p class="dashboard-onboarding__trust-statement muted small">
-                  Applictus never reads your inbox — it only processes emails you choose to forward.
-                </p>
-                <button class="link-button dashboard-onboarding__walkthrough-link" type="button" data-action="manage-inbox">
-                  Watch how setup works
+                <button
+                  class="dashboard-onboarding-video"
+                  type="button"
+                  data-action="watch-setup-video"
+                  aria-label="Watch the setup walkthrough"
+                >
+                  <span class="dashboard-onboarding-video__thumb" aria-hidden="true">
+                    <span class="dashboard-onboarding-video__badge">Setup video</span>
+                    <span class="dashboard-onboarding-video__duration">2 min</span>
+                    <span class="dashboard-onboarding-video__play">
+                      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M9 7.5v9l7-4.5-7-4.5z" />
+                      </svg>
+                    </span>
+                  </span>
+                  <span class="dashboard-onboarding-video__copy">
+                    <span class="dashboard-onboarding-video__label">Setup video</span>
+                    <span class="dashboard-onboarding-video__title">Watch the setup walkthrough</span>
+                    <span class="dashboard-onboarding-video__subtitle">See the full Gmail setup in about 2 minutes.</span>
+                  </span>
                 </button>
+                <p class="dashboard-onboarding__trust-statement muted small">
+                  Applictus only processes emails you choose to forward.
+                </p>
               </div>
               <div class="dashboard-onboarding__steps" aria-label="Onboarding steps">
                 <div class="dashboard-onboarding__steps-heading muted small">Setup progress</div>
@@ -3916,6 +3926,6 @@
       </div>
     </div>
 
-    <script type="module" src="/app.js?v=48"></script>
+    <script type="module" src="/app.js?v=49"></script>
   </body>
 </html>
