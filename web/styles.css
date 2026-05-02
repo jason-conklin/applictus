@@ -15248,6 +15248,35 @@ body.app-page-bg .topbar .nav-link.active {
   min-width: 0;
 }
 
+#dashboard-view .dashboard-stepper__body--button {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+#dashboard-view .dashboard-stepper__step.is-next .dashboard-stepper__body--button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(26, 83, 174, 0.42);
+  background: linear-gradient(180deg, rgba(247, 251, 255, 0.98), rgba(229, 241, 255, 0.94));
+  box-shadow:
+    0 9px 18px rgba(24, 72, 151, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+#dashboard-view .dashboard-stepper__body--button:focus-visible {
+  outline: 3px solid rgba(66, 133, 244, 0.24);
+  outline-offset: 3px;
+}
+
 #dashboard-view .dashboard-stepper__meta {
   display: flex;
   align-items: center;
