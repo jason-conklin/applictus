@@ -12166,9 +12166,7 @@ body.home-page .setup-video-preview {
   text-decoration: none;
   color: inherit;
   isolation: isolate;
-  background:
-    radial-gradient(circle at 50% 44%, rgba(80, 138, 232, 0.24), rgba(80, 138, 232, 0) 44%),
-    linear-gradient(135deg, #f8fbff 0%, #eaf3ff 47%, #f7fbff 100%);
+  background: linear-gradient(135deg, #f8fbff 0%, #eaf3ff 47%, #f7fbff 100%);
   box-shadow:
     0 16px 34px rgba(26, 70, 130, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.92),
@@ -12180,20 +12178,18 @@ body.home-page .setup-video-preview::before {
   content: '';
   position: absolute;
   inset: 0;
-  z-index: -1;
+  z-index: 1;
   background:
-    linear-gradient(rgba(42, 91, 165, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(42, 91, 165, 0.07) 1px, transparent 1px);
-  background-size: 34px 34px;
-  -webkit-mask-image: radial-gradient(circle at center, #000 0%, transparent 74%);
-  mask-image: radial-gradient(circle at center, #000 0%, transparent 74%);
-  opacity: 0.62;
+    radial-gradient(circle at 50% 50%, rgba(10, 38, 83, 0), rgba(10, 38, 83, 0.18) 74%),
+    linear-gradient(180deg, rgba(7, 31, 72, 0.02), rgba(7, 31, 72, 0.2));
+  pointer-events: none;
 }
 
 body.home-page .setup-video-preview::after {
   content: '';
   position: absolute;
   inset: auto 8% 0;
+  z-index: 1;
   height: 28%;
   border-radius: 50% 50% 0 0;
   background: radial-gradient(ellipse at center, rgba(42, 91, 165, 0.13), rgba(42, 91, 165, 0));
@@ -12239,6 +12235,15 @@ body.home-page .setup-video-preview__scene {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+body.home-page .setup-video-preview__image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 body.home-page .setup-video-preview__brand {
@@ -15024,29 +15029,33 @@ body.app-page-bg .topbar .nav-link.active {
   overflow: hidden;
   border-radius: 14px;
   border: 1px solid rgba(73, 126, 211, 0.22);
-  background:
-    radial-gradient(circle at 28% 26%, rgba(112, 168, 255, 0.52), rgba(112, 168, 255, 0) 32%),
-    radial-gradient(circle at 74% 74%, rgba(42, 191, 136, 0.25), rgba(42, 191, 136, 0) 35%),
-    linear-gradient(135deg, #e9f3ff 0%, #d8e9ff 48%, #f8fbff 100%);
+  background: linear-gradient(135deg, #e9f3ff 0%, #d8e9ff 48%, #f8fbff 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
 }
 
 #dashboard-view .dashboard-onboarding-video__thumb::before {
   content: '';
   position: absolute;
-  inset: 22% 12% 20%;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  background:
-    linear-gradient(90deg, rgba(22, 75, 146, 0.18) 0 28%, transparent 28% 100%),
-    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.66) 0 8px, rgba(255, 255, 255, 0.18) 8px 16px);
-  opacity: 0.72;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(5, 24, 56, 0.04), rgba(5, 24, 56, 0.18));
+  pointer-events: none;
+}
+
+#dashboard-view .dashboard-onboarding-video__image {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 #dashboard-view .dashboard-onboarding-video__badge,
 #dashboard-view .dashboard-onboarding-video__duration {
   position: absolute;
-  z-index: 1;
+  z-index: 3;
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
@@ -15076,7 +15085,7 @@ body.app-page-bg .topbar .nav-link.active {
 
 #dashboard-view .dashboard-onboarding-video__play {
   position: absolute;
-  z-index: 2;
+  z-index: 4;
   top: 50%;
   left: 50%;
   display: inline-grid;
