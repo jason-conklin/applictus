@@ -7751,6 +7751,53 @@ details summary {
   margin-top: 10px;
 }
 
+#inbound-old-address-warning:not(.hidden) {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inbound-old-address-warning__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.inbound-old-address-warning__dismiss {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(158, 113, 18, 0.28);
+  background: rgba(255, 255, 255, 0.72);
+  color: rgba(97, 67, 10, 0.86);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.inbound-old-address-warning__dismiss:hover {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(126, 82, 8, 0.38);
+  color: rgba(73, 47, 4, 0.95);
+  transform: translateY(-1px);
+}
+
+.inbound-old-address-warning__dismiss:focus-visible {
+  outline: 3px solid rgba(234, 179, 8, 0.24);
+  outline-offset: 2px;
+}
+
 .account-inbox-actions {
   margin-top: 14px;
   padding-top: 14px;

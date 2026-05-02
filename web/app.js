@@ -598,6 +598,8 @@ const inboundAddressLabel = document.getElementById('inbound-address-label');
 const inboundAddressEmail = document.getElementById('inbound-address-email');
 const inboundMetaLine = document.getElementById('inbound-meta-line');
 const inboundOldAddressWarning = document.getElementById('inbound-old-address-warning');
+const inboundOldAddressWarningText = document.getElementById('inbound-old-address-warning-text');
+const inboundOldAddressWarningDismiss = document.getElementById('inbound-old-address-warning-dismiss');
 const inboundOpenSetup = document.getElementById('inbound-open-setup');
 const inboundRotateAddress = document.getElementById('inbound-rotate-address');
 const inboundCopyAddress = document.getElementById('inbound-copy-address');
@@ -857,6 +859,7 @@ let csrfToken = null;
 const PAGE_SIZE = 50;
 const SYNC_DETAILS_KEY = 'applictus:syncDetailsOpen';
 const LAST_SYNC_SUMMARY_KEY = 'applictus:lastSyncSummary';
+const DISMISSED_OLD_ADDRESS_WARNING_KEY = 'applictus:dismissedOldForwardingWarnings';
 const SESSION_NEW_APPLIED_KEY = 'applictus_new_applied';
 const SESSION_NEW_OFFERS_KEY = 'applictus_new_offers';
 const SESSION_NEW_INTERVIEWS_KEY = 'applictus_new_interviews';
@@ -945,6 +948,50 @@ function formatSyncDateRange(startValue, endValue) {
 function getLastSyncSummaryStorageKey() {
   const identity = sessionUser?.id || sessionUser?.email || 'anonymous';
   return `${LAST_SYNC_SUMMARY_KEY}:${identity}`;
+}
+
+function getDismissedOldAddressWarningStorageKey() {
+  const identity = sessionUser?.id || sessionUser?.email || 'anonymous';
+  return `${DISMISSED_OLD_ADDRESS_WARNING_KEY}:${identity}`;
+}
+
+function getOldAddressWarningKey(meta = inboundState.inactiveAddressWarningMeta || {}) {
+  const address = String(meta?.address_email || '').trim().toLowerCase();
+  const receivedAt = String(meta?.last_received_at || '').trim();
+  const subject = String(meta?.subject || '').trim();
+  if (!address && !receivedAt && !subject) {
+    return '';
+  }
+  return [address, receivedAt, subject].join('|');
+}
+
+function readDismissedOldAddressWarningKeys() {
+  try {
+    const raw = localStorage.getItem(getDismissedOldAddressWarningStorageKey());
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function isOldAddressWarningDismissed(meta = inboundState.inactiveAddressWarningMeta || {}) {
+  const warningKey = getOldAddressWarningKey(meta);
+  return Boolean(warningKey && readDismissedOldAddressWarningKeys().includes(warningKey));
+}
+
+function dismissOldAddressWarning(meta = inboundState.inactiveAddressWarningMeta || {}) {
+  const warningKey = getOldAddressWarningKey(meta);
+  if (!warningKey) {
+    return;
+  }
+  const dismissedKeys = readDismissedOldAddressWarningKeys().filter((item) => item !== warningKey);
+  dismissedKeys.unshift(warningKey);
+  try {
+    localStorage.setItem(getDismissedOldAddressWarningStorageKey(), JSON.stringify(dismissedKeys.slice(0, 20)));
+  } catch (err) {
+    // Ignore storage failures; the current render can still hide the warning.
+  }
 }
 
 function readStoredLastSyncSummary() {
@@ -2408,10 +2455,10 @@ function updateInboundStatusPresentation() {
   }
   renderAccountHelpProgressForwarding(readiness);
   if (inboundOldAddressWarning) {
-    const showWarning = Boolean(inboundState.inactiveAddressWarning);
+    const warningMeta = inboundState.inactiveAddressWarningMeta || {};
+    const showWarning = Boolean(inboundState.inactiveAddressWarning) && !isOldAddressWarningDismissed(warningMeta);
     inboundOldAddressWarning.classList.toggle('hidden', !showWarning);
     if (showWarning) {
-      const warningMeta = inboundState.inactiveAddressWarningMeta || {};
       const warningParts = ['We detected mail arriving at an old forwarding address.'];
       if (warningMeta.address_email) {
         warningParts.push(`Address: ${warningMeta.address_email}.`);
@@ -2424,7 +2471,11 @@ function updateInboundStatusPresentation() {
         warningParts.push(`Subject: “${warningMeta.subject}”.`);
       }
       warningParts.push('Update your forwarding settings to your current address.');
-      inboundOldAddressWarning.textContent = warningParts.join(' ');
+      if (inboundOldAddressWarningText) {
+        inboundOldAddressWarningText.textContent = warningParts.join(' ');
+      } else {
+        inboundOldAddressWarning.textContent = warningParts.join(' ');
+      }
     }
   }
   renderForwardingSummary();
@@ -13476,6 +13527,11 @@ inboundViewFilters?.addEventListener('click', openGmailFilterHelpModal);
 
 inboundRotateAddress?.addEventListener('click', async () => {
   await rotateInboundAddressFlow();
+});
+
+inboundOldAddressWarningDismiss?.addEventListener('click', () => {
+  dismissOldAddressWarning(inboundState.inactiveAddressWarningMeta || {});
+  inboundOldAddressWarning?.classList.add('hidden');
 });
 
 inboundWhyToggle?.addEventListener('click', () => {

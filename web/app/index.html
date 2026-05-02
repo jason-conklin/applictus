@@ -10,7 +10,7 @@
     <meta name="app-api-base-url" content="" />
     <title>Applictus</title>
     <link rel="icon" href="/Applictus_logo.png" type="image/png" />
-    <link rel="stylesheet" href="/styles.css?v=45" />
+    <link rel="stylesheet" href="/styles.css?v=46" />
     <style>
       body:not(.app-ready) #app {
         opacity: 0;
@@ -2283,7 +2283,17 @@
           </div>
           <div class="muted small account-inbox-meta" id="inbound-meta-line">Not connected yet.</div>
           <div class="callout callout-warning hidden" id="inbound-old-address-warning">
-            We detected mail arriving at an old forwarding address. Update your forwarding settings.
+            <span class="inbound-old-address-warning__text" id="inbound-old-address-warning-text">
+              We detected mail arriving at an old forwarding address. Update your forwarding settings.
+            </span>
+            <button
+              class="inbound-old-address-warning__dismiss"
+              type="button"
+              id="inbound-old-address-warning-dismiss"
+              aria-label="Dismiss old forwarding address warning"
+            >
+              <span aria-hidden="true">X</span>
+            </button>
           </div>
           <div class="account-inbox-actions">
             <button class="btn btn--primary btn--md" type="button" id="inbound-open-setup">Complete setup</button>
@@ -3910,6 +3920,6 @@
       </div>
     </div>
 
-    <script type="module" src="/app.js?v=49"></script>
+    <script type="module" src="/app.js?v=50"></script>
   </body>
 </html>
