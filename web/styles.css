@@ -11783,7 +11783,7 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms__note {
 
   body.home-page .home-billboard {
     --home-cap-width: 180vw;
-    --home-cap-height: clamp(126px, 18vh, 170px);
+    --home-cap-height: clamp(148px, 20vh, 196px);
     --home-cap-lift: clamp(110px, 20vw, 170px);
     --home-nav-overlap: clamp(106px, 18vh, 138px);
     width: 100vw;
@@ -11937,7 +11937,7 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms__note {
 
   body.home-page .home-billboard {
     --home-cap-width: 210vw;
-    --home-cap-height: clamp(112px, 15vh, 146px);
+    --home-cap-height: clamp(142px, 18vh, 180px);
     --home-cap-lift: clamp(90px, 14vh, 130px);
     --home-nav-overlap: 0px;
     margin-top: 0;
@@ -11961,35 +11961,40 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms__note {
   }
 
   body.home-page .hero-brand-lockup {
-    --hero-logo-size: clamp(88px, 24vw, 118px);
-    --hero-brand-intro-offset: 0px;
-    grid-template-columns: 1fr;
-    justify-items: center;
-    gap: 12px;
+    --hero-logo-size: clamp(62px, 18vw, 96px);
+    --hero-brand-intro-offset: clamp(106px, 30vw, 150px);
+    grid-template-columns: var(--hero-logo-size) max-content;
+    align-items: center;
+    justify-items: initial;
+    gap: clamp(8px, 2.6vw, 16px);
+    width: max-content;
+    max-width: calc(100vw - 20px);
   }
 
   body.home-page .hero-brand-copy {
-    justify-items: center;
-    transform: none;
+    justify-items: start;
+    width: max-content;
+    max-width: min(68vw, 310px);
+    transform: translateY(0.04em);
   }
 
   body.home-page .hero-brand-wordmark {
-    font-size: clamp(3rem, 14.6vw, 4.9rem);
-    text-align: center;
+    font-size: clamp(2.35rem, 11.5vw, 4.1rem);
+    text-align: left;
   }
 
   body.home-page .hero-brand-divider {
-    width: calc(100% + 8px);
-    margin-left: -4px;
+    width: calc(100% + 6px);
+    margin-left: -3px;
   }
 
   body.home-page .hero-brand-subtitle {
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 5px 11px;
-    font-size: clamp(0.69rem, 3.05vw, 0.86rem);
-    letter-spacing: 0.13em;
-    white-space: normal;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: clamp(6px, 1.8vw, 12px);
+    font-size: clamp(0.5rem, 2.15vw, 0.76rem);
+    letter-spacing: 0.105em;
+    white-space: nowrap;
   }
 
   body.home-page .hero-value {
@@ -12105,16 +12110,23 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms__note {
   }
 
   body.home-page .hero-brand-lockup {
-    --hero-logo-size: clamp(78px, 23vw, 102px);
-    gap: 10px;
+    --hero-logo-size: clamp(58px, 18vw, 78px);
+    --hero-brand-intro-offset: clamp(92px, 30vw, 126px);
+    gap: clamp(7px, 2.2vw, 11px);
+  }
+
+  body.home-page .hero-brand-copy {
+    max-width: min(70vw, 260px);
   }
 
   body.home-page .hero-brand-wordmark {
-    font-size: clamp(2.62rem, 13.8vw, 4.1rem);
+    font-size: clamp(2.1rem, 11.2vw, 3.05rem);
   }
 
   body.home-page .hero-brand-subtitle {
-    font-size: clamp(0.64rem, 2.92vw, 0.78rem);
+    gap: clamp(5px, 1.9vw, 9px);
+    font-size: clamp(0.48rem, 2.03vw, 0.64rem);
+    letter-spacing: 0.095em;
   }
 
   body.home-page .hero-value__title {
