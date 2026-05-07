@@ -11550,13 +11550,7 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms__note {
     opacity: 1;
     clip-path: inset(42% 0 100% 0);
     filter: blur(1.3px);
-    transform: translate3d(4px, -10px, 0) scaleY(0.68);
-  }
-  74% {
-    opacity: 1;
-    clip-path: inset(0 0 0 0);
-    filter: blur(0);
-    transform: translate3d(0, 1px, 0) scaleY(1.012);
+    transform: translate3d(0, -8px, 0) scaleY(0.72);
   }
   100% {
     opacity: 1;
