@@ -10652,8 +10652,7 @@ body.home-page .hero-brand-logo-stage {
 }
 
 body.home-page .hero-brand-logo,
-body.home-page .hero-brand-logo-blue,
-body.home-page .hero-brand-logo-blue img {
+body.home-page .hero-brand-logo-blue {
   position: absolute;
   inset: 0;
   display: block;
@@ -10694,19 +10693,18 @@ body.home-page .hero-brand-logo--frame3 {
 
 body.home-page .hero-brand-logo-blue {
   z-index: 5;
-  overflow: hidden;
 }
 
 body.home-page .hero-brand-logo-blue--diagonal {
-  clip-path: polygon(48% 0%, 72% 0%, 100% 80%, 82% 82%, 53% 18%);
+  transform-origin: 62% 8%;
 }
 
 body.home-page .hero-brand-logo-blue--crossbar {
-  clip-path: polygon(37% 55%, 86% 55%, 87% 72%, 36% 72%);
+  transform-origin: 38% 62%;
 }
 
 body.home-page .hero-brand-logo-blue--leg {
-  clip-path: polygon(70% 38%, 100% 82%, 91% 100%, 62% 100%, 57% 73%);
+  transform-origin: 78% 54%;
 }
 
 body.home-page .hero-brand-copy {
@@ -11546,33 +11544,40 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms__note {
 @keyframes landingLogoBlueDiagonal {
   0%, 54% {
     opacity: 0;
-    clip-path: polygon(56% 6%, 68% 6%, 76% 30%, 65% 30%);
-    transform: translate3d(16px, -20px, 0) scale(0.98);
+    clip-path: inset(0 0 100% 0);
+    transform: translate3d(8px, -20px, 0) scaleY(0.92);
   }
   64% {
     opacity: 1;
-    clip-path: polygon(53% 2%, 70% 2%, 86% 50%, 71% 50%);
+    clip-path: inset(0 0 42% 0);
+    transform: translate3d(3px, -8px, 0) scaleY(0.97);
   }
-  80%, 100% {
+  80% {
     opacity: 1;
-    clip-path: polygon(48% 0%, 72% 0%, 100% 80%, 82% 82%, 53% 18%);
-    transform: translate3d(0, 0, 0) scale(1);
+    clip-path: inset(0 0 0 0);
+    transform: translate3d(0, 1px, 0) scaleY(1.015);
+  }
+  88%, 100% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    transform: translate3d(0, 0, 0) scaleY(1);
   }
 }
 
 @keyframes landingLogoBlueCrossbar {
   0%, 60% {
     opacity: 0;
-    clip-path: polygon(39% 56%, 48% 56%, 49% 70%, 38% 70%);
-    transform: translate3d(-10px, 1px, 0) scaleX(0.82);
+    clip-path: inset(0 100% 0 0);
+    transform: translate3d(-18px, 0, 0) scaleX(0.18);
   }
   73% {
     opacity: 1;
-    clip-path: polygon(37% 55%, 66% 55%, 67% 72%, 36% 72%);
+    clip-path: inset(0 34% 0 0);
+    transform: translate3d(-6px, 0, 0) scaleX(0.72);
   }
   86%, 100% {
     opacity: 1;
-    clip-path: polygon(37% 55%, 86% 55%, 87% 72%, 36% 72%);
+    clip-path: inset(0 0 0 0);
     transform: translate3d(0, 0, 0) scaleX(1);
   }
 }
@@ -11580,17 +11585,23 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms__note {
 @keyframes landingLogoBlueLeg {
   0%, 66% {
     opacity: 0;
-    clip-path: polygon(72% 42%, 86% 64%, 81% 78%, 66% 78%, 61% 70%);
-    transform: translate3d(10px, 14px, 0) scale(0.96);
+    clip-path: inset(40% 0 100% 0);
+    transform: translate3d(6px, -12px, 0) scaleY(0.65);
   }
   80% {
     opacity: 1;
-    clip-path: polygon(70% 38%, 95% 74%, 88% 92%, 64% 92%, 58% 72%);
+    clip-path: inset(38% 0 24% 0);
+    transform: translate3d(2px, -4px, 0) scaleY(0.92);
   }
-  90%, 100% {
+  92% {
     opacity: 1;
-    clip-path: polygon(70% 38%, 100% 82%, 91% 100%, 62% 100%, 57% 73%);
-    transform: translate3d(0, 0, 0) scale(1);
+    clip-path: inset(0 0 0 0);
+    transform: translate3d(0, 1px, 0) scaleY(1.015);
+  }
+  100% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    transform: translate3d(0, 0, 0) scaleY(1);
   }
 }
 
