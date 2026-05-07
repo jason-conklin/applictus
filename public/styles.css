@@ -10673,9 +10673,14 @@ body.home-page .hero-brand-logo-blue {
   will-change: opacity, transform, clip-path;
 }
 
+body.home-page .hero-brand-logo--frame {
+  transform-origin: 50% 100%;
+}
+
 body.home-page .hero-brand-logo--complete {
   opacity: 1;
   z-index: 8;
+  transform-origin: center;
   will-change: opacity, transform, filter;
 }
 
@@ -11220,47 +11225,47 @@ body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-icon:
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo--frame1 {
-  animation: landingLogoFrameRed 1420ms cubic-bezier(0.18, 0.86, 0.24, 1) 320ms both;
+  animation: landingLogoRevealUp 220ms cubic-bezier(0.22, 1, 0.36, 1) 300ms both;
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo--frame2 {
-  animation: landingLogoFrameYellow 1420ms cubic-bezier(0.18, 0.86, 0.24, 1) 320ms both;
+  animation: landingLogoRevealUp 210ms cubic-bezier(0.22, 1, 0.36, 1) 505ms both;
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo--frame3 {
-  animation: landingLogoFrameGreen 1420ms cubic-bezier(0.18, 0.86, 0.24, 1) 320ms both;
+  animation: landingLogoRevealUp 220ms cubic-bezier(0.22, 1, 0.36, 1) 700ms both;
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo-blue--diagonal {
-  animation: landingLogoBlueDiagonal 1420ms cubic-bezier(0.18, 0.86, 0.24, 1) 320ms both;
+  animation: landingLogoRevealDown 500ms cubic-bezier(0.22, 1, 0.36, 1) 900ms both;
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo-blue--crossbar {
-  animation: landingLogoBlueCrossbar 1420ms cubic-bezier(0.18, 0.86, 0.24, 1) 320ms both;
+  animation: landingLogoRevealRight 460ms cubic-bezier(0.22, 1, 0.36, 1) 940ms both;
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo-blue--leg {
-  animation: landingLogoBlueLeg 1420ms cubic-bezier(0.18, 0.86, 0.24, 1) 320ms both;
+  animation: landingLogoRevealLeg 410ms cubic-bezier(0.22, 1, 0.36, 1) 1410ms both;
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo--complete {
-  animation: landingLogoCompleteLock 1420ms cubic-bezier(0.18, 0.86, 0.24, 1) 320ms both;
+  animation: landingLogoCompleteLock 150ms cubic-bezier(0.22, 1, 0.36, 1) 1800ms both;
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-wordmark {
-  animation: landingHeroWordmarkReveal 980ms cubic-bezier(0.18, 0.86, 0.24, 1) 1760ms both;
+  animation: landingHeroWordmarkReveal 980ms cubic-bezier(0.18, 0.86, 0.24, 1) 1980ms both;
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-divider {
-  animation: landingHeroDividerFade 760ms ease 2260ms both;
+  animation: landingHeroDividerFade 760ms ease 2420ms both;
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-divider::before {
-  animation: landingHeroDividerSweep 780ms cubic-bezier(0.18, 0.86, 0.24, 1) 2260ms both;
+  animation: landingHeroDividerSweep 780ms cubic-bezier(0.18, 0.86, 0.24, 1) 2420ms both;
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-subtitle {
-  animation: landingHeroSubtitleReveal 700ms cubic-bezier(0.18, 0.86, 0.24, 1) 2420ms both;
+  animation: landingHeroSubtitleReveal 700ms cubic-bezier(0.18, 0.86, 0.24, 1) 2560ms both;
 }
 
 body.home-page.animate-ready:not(.home-loaded) .hero-animate-headline {
@@ -11286,9 +11291,9 @@ body.home-page.animate-ready.home-loaded .hero-value__title {
   filter: blur(0);
   transform: translateY(0);
   transition:
-    opacity 700ms ease 1940ms,
-    transform 700ms cubic-bezier(0.18, 0.86, 0.24, 1) 1940ms,
-    filter 700ms ease 1940ms;
+    opacity 700ms ease 2180ms,
+    transform 700ms cubic-bezier(0.18, 0.86, 0.24, 1) 2180ms,
+    filter 700ms ease 2180ms;
 }
 
 body.home-page.animate-ready.home-loaded .hero-value__subtitle {
@@ -11296,9 +11301,9 @@ body.home-page.animate-ready.home-loaded .hero-value__subtitle {
   filter: blur(0);
   transform: translateY(0);
   transition:
-    opacity 700ms ease 2240ms,
-    transform 700ms cubic-bezier(0.18, 0.86, 0.24, 1) 2240ms,
-    filter 700ms ease 2240ms;
+    opacity 700ms ease 2440ms,
+    transform 700ms cubic-bezier(0.18, 0.86, 0.24, 1) 2440ms,
+    filter 700ms ease 2440ms;
 }
 
 body.home-page.animate-ready:not(.home-loaded) .hero-animate-cta [data-cta-btn] {
@@ -11313,11 +11318,11 @@ body.home-page.animate-ready.home-loaded .hero-animate-cta [data-cta-btn] {
 }
 
 body.home-page.animate-ready.home-loaded .hero-animate-cta [data-cta-btn='primary'] {
-  transition-delay: 2580ms;
+  transition-delay: 2780ms;
 }
 
 body.home-page.animate-ready.home-loaded .hero-animate-cta [data-cta-btn='secondary'] {
-  transition-delay: 2700ms;
+  transition-delay: 2900ms;
 }
 
 body.home-page.animate-ready:not(.home-loaded) .home-hero-trust {
@@ -11328,7 +11333,7 @@ body.home-page.animate-ready:not(.home-loaded) .home-hero-trust {
 body.home-page.animate-ready.home-loaded .home-hero-trust {
   opacity: 1;
   transform: translateY(0);
-  transition: opacity 560ms ease 2920ms, transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1) 2920ms;
+  transition: opacity 560ms ease 3120ms, transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1) 3120ms;
 }
 
 body.home-page.animate-ready:not(.home-loaded) .home-hero-platforms {
@@ -11489,124 +11494,92 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms__note {
   }
 }
 
-@keyframes landingLogoFrameRed {
-  0%, 6% {
-    opacity: 0;
-    filter: blur(4px);
-    transform: translate3d(-2px, 12px, 0) scale(0.96);
-  }
-  17% {
+@keyframes landingLogoRevealUp {
+  0% {
     opacity: 1;
+    clip-path: inset(100% 0 0 0);
+    filter: blur(1.8px);
+    transform: translate3d(0, 10px, 0) scaleY(0.96);
+  }
+  68% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
     filter: blur(0);
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate3d(0, -1px, 0) scaleY(1.012);
   }
   100% {
     opacity: 1;
+    clip-path: inset(0 0 0 0);
     filter: blur(0);
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-
-@keyframes landingLogoFrameYellow {
-  0%, 20% {
-    opacity: 0;
-    clip-path: inset(42% 0 0 0);
-    transform: translate3d(0, 6px, 0) scale(0.992);
-  }
-  29% {
-    opacity: 1;
-    clip-path: inset(30% 0 0 0);
-  }
-  39%, 100% {
-    opacity: 1;
-    clip-path: inset(0 0 0 0);
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-
-@keyframes landingLogoFrameGreen {
-  0%, 38% {
-    opacity: 0;
-    clip-path: inset(0 0 66% 0);
-    transform: translate3d(0, -8px, 0) scale(0.992);
-  }
-  48% {
-    opacity: 1;
-    clip-path: inset(0 0 38% 0);
-  }
-  58%, 100% {
-    opacity: 1;
-    clip-path: inset(0 0 0 0);
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-
-@keyframes landingLogoBlueDiagonal {
-  0%, 54% {
-    opacity: 0;
-    clip-path: inset(0 0 100% 0);
-    transform: translate3d(8px, -20px, 0) scaleY(0.92);
-  }
-  64% {
-    opacity: 1;
-    clip-path: inset(0 0 42% 0);
-    transform: translate3d(3px, -8px, 0) scaleY(0.97);
-  }
-  80% {
-    opacity: 1;
-    clip-path: inset(0 0 0 0);
-    transform: translate3d(0, 1px, 0) scaleY(1.015);
-  }
-  88%, 100% {
-    opacity: 1;
-    clip-path: inset(0 0 0 0);
     transform: translate3d(0, 0, 0) scaleY(1);
   }
 }
 
-@keyframes landingLogoBlueCrossbar {
-  0%, 60% {
-    opacity: 0;
-    clip-path: inset(0 100% 0 0);
-    transform: translate3d(-18px, 0, 0) scaleX(0.18);
-  }
-  73% {
+@keyframes landingLogoRevealDown {
+  0% {
     opacity: 1;
-    clip-path: inset(0 34% 0 0);
-    transform: translate3d(-6px, 0, 0) scaleX(0.72);
+    clip-path: inset(0 0 100% 0);
+    filter: blur(1.4px);
+    transform: translate3d(5px, -12px, 0) scaleY(0.92);
   }
-  86%, 100% {
+  72% {
     opacity: 1;
     clip-path: inset(0 0 0 0);
-    transform: translate3d(0, 0, 0) scaleX(1);
-  }
-}
-
-@keyframes landingLogoBlueLeg {
-  0%, 66% {
-    opacity: 0;
-    clip-path: inset(40% 0 100% 0);
-    transform: translate3d(6px, -12px, 0) scaleY(0.65);
-  }
-  80% {
-    opacity: 1;
-    clip-path: inset(38% 0 24% 0);
-    transform: translate3d(2px, -4px, 0) scaleY(0.92);
-  }
-  92% {
-    opacity: 1;
-    clip-path: inset(0 0 0 0);
-    transform: translate3d(0, 1px, 0) scaleY(1.015);
+    filter: blur(0);
+    transform: translate3d(0, 1px, 0) scaleY(1.012);
   }
   100% {
     opacity: 1;
     clip-path: inset(0 0 0 0);
+    filter: blur(0);
+    transform: translate3d(0, 0, 0) scaleY(1);
+  }
+}
+
+@keyframes landingLogoRevealRight {
+  0% {
+    opacity: 1;
+    clip-path: inset(0 100% 0 0);
+    filter: blur(1.2px);
+    transform: translate3d(-12px, 0, 0) scaleX(0.35);
+  }
+  74% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    filter: blur(0);
+    transform: translate3d(1px, 0, 0) scaleX(1.012);
+  }
+  100% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    filter: blur(0);
+    transform: translate3d(0, 0, 0) scaleX(1);
+  }
+}
+
+@keyframes landingLogoRevealLeg {
+  0% {
+    opacity: 1;
+    clip-path: inset(42% 0 100% 0);
+    filter: blur(1.3px);
+    transform: translate3d(4px, -10px, 0) scaleY(0.68);
+  }
+  74% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    filter: blur(0);
+    transform: translate3d(0, 1px, 0) scaleY(1.012);
+  }
+  100% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    filter: blur(0);
     transform: translate3d(0, 0, 0) scaleY(1);
   }
 }
 
 @keyframes landingLogoCompleteLock {
-  0%, 84% {
+  0% {
     opacity: 0;
     filter: saturate(1.04);
     transform: scale(1.018);
@@ -14602,6 +14575,8 @@ body.home-page .security-trust-item .home-check {
   body.home-page .hero-brand-icon,
   body.home-page .hero-brand-icon::before,
   body.home-page .hero-brand-icon::after,
+  body.home-page .hero-brand-logo,
+  body.home-page .hero-brand-logo-blue,
   body.home-page .hero-brand-wordmark,
   body.home-page .hero-brand-divider,
   body.home-page .hero-brand-divider::before,
@@ -14617,6 +14592,15 @@ body.home-page .security-trust-item .home-check {
     transform: none !important;
     clip-path: inset(0 0 0 0) !important;
     transition: none !important;
+  }
+
+  body.home-page .hero-brand-logo--frame,
+  body.home-page .hero-brand-logo-blue {
+    opacity: 0 !important;
+  }
+
+  body.home-page .hero-brand-logo--complete {
+    opacity: 1 !important;
   }
 
   body.home-page .home-hero-platforms__track {
