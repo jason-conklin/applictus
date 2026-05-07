@@ -11245,7 +11245,7 @@ body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo-
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo-blue--leg {
-  animation: landingLogoRevealLeg 1050ms cubic-bezier(0.22, 1, 0.36, 1) 1040ms both;
+  animation: landingLogoRevealLeg 1050ms cubic-bezier(0.22, 1, 0.36, 1) 1680ms both;
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo--complete {
