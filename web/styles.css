@@ -11511,8 +11511,14 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms__note {
 
 @keyframes landingLogoRevealYellow {
   0% {
+    opacity: 0;
+    clip-path: inset(61.5% 0 38.5% 0);
+    filter: blur(1.4px);
+    transform: translate3d(0, 0, 0) scaleY(1);
+  }
+  6% {
     opacity: 1;
-    clip-path: inset(61% 0 38.5% 0);
+    clip-path: inset(61.5% 0 38.5% 0);
     filter: blur(1.4px);
     transform: translate3d(0, 0, 0) scaleY(1);
   }
