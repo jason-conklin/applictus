@@ -11520,13 +11520,7 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms__note {
     opacity: 1;
     clip-path: inset(0 0 100% 0);
     filter: blur(1.4px);
-    transform: translate3d(5px, -12px, 0) scaleY(0.92);
-  }
-  72% {
-    opacity: 1;
-    clip-path: inset(0 0 0 0);
-    filter: blur(0);
-    transform: translate3d(0, 1px, 0) scaleY(1.012);
+    transform: translate3d(0, -8px, 0) scaleY(0.96);
   }
   100% {
     opacity: 1;
@@ -11541,13 +11535,7 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms__note {
     opacity: 1;
     clip-path: inset(0 100% 0 0);
     filter: blur(1.2px);
-    transform: translate3d(-12px, 0, 0) scaleX(0.35);
-  }
-  74% {
-    opacity: 1;
-    clip-path: inset(0 0 0 0);
-    filter: blur(0);
-    transform: translate3d(1px, 0, 0) scaleX(1.012);
+    transform: translate3d(-8px, 0, 0) scaleX(0.45);
   }
   100% {
     opacity: 1;
