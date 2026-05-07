@@ -10634,7 +10634,7 @@ body.home-page .hero-brand-icon::after {
   pointer-events: none;
 }
 
-body.home-page .hero-brand-logo {
+body.home-page .hero-brand-logo-stage {
   position: relative;
   z-index: 1;
   display: block;
@@ -10649,6 +10649,64 @@ body.home-page .hero-brand-logo {
   -webkit-touch-callout: none;
   -webkit-user-drag: none;
   pointer-events: none;
+}
+
+body.home-page .hero-brand-logo,
+body.home-page .hero-brand-logo-blue,
+body.home-page .hero-brand-logo-blue img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+}
+
+body.home-page .hero-brand-logo--frame,
+body.home-page .hero-brand-logo-blue {
+  opacity: 0;
+  transform: translate3d(0, 0, 0);
+  will-change: opacity, transform, clip-path;
+}
+
+body.home-page .hero-brand-logo--complete {
+  opacity: 1;
+  z-index: 8;
+  will-change: opacity, transform, filter;
+}
+
+body.home-page .hero-brand-logo--frame1 {
+  z-index: 1;
+}
+
+body.home-page .hero-brand-logo--frame2 {
+  z-index: 2;
+}
+
+body.home-page .hero-brand-logo--frame3 {
+  z-index: 3;
+}
+
+body.home-page .hero-brand-logo-blue {
+  z-index: 5;
+  overflow: hidden;
+}
+
+body.home-page .hero-brand-logo-blue--diagonal {
+  clip-path: polygon(48% 0%, 72% 0%, 100% 80%, 82% 82%, 53% 18%);
+}
+
+body.home-page .hero-brand-logo-blue--crossbar {
+  clip-path: polygon(37% 55%, 86% 55%, 87% 72%, 36% 72%);
+}
+
+body.home-page .hero-brand-logo-blue--leg {
+  clip-path: polygon(70% 38%, 100% 82%, 91% 100%, 62% 100%, 57% 73%);
 }
 
 body.home-page .hero-brand-copy {
@@ -11152,31 +11210,59 @@ body.home-page.animate-ready.home-loaded .hero-animate-logo {
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-icon {
-  animation: landingHeroBrandIcon 1880ms cubic-bezier(0.16, 1, 0.3, 1) 360ms both;
+  animation: landingHeroBrandIcon 1640ms cubic-bezier(0.16, 1, 0.3, 1) 260ms both;
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-icon::before {
-  animation: landingHeroIconAura 1880ms ease 360ms both;
+  animation: landingHeroIconAura 1640ms ease 260ms both;
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-icon::after {
-  animation: landingHeroReflection 1880ms ease 360ms both;
+  animation: landingHeroReflection 1640ms ease 260ms both;
+}
+
+body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo--frame1 {
+  animation: landingLogoFrameRed 1420ms cubic-bezier(0.18, 0.86, 0.24, 1) 320ms both;
+}
+
+body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo--frame2 {
+  animation: landingLogoFrameYellow 1420ms cubic-bezier(0.18, 0.86, 0.24, 1) 320ms both;
+}
+
+body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo--frame3 {
+  animation: landingLogoFrameGreen 1420ms cubic-bezier(0.18, 0.86, 0.24, 1) 320ms both;
+}
+
+body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo-blue--diagonal {
+  animation: landingLogoBlueDiagonal 1420ms cubic-bezier(0.18, 0.86, 0.24, 1) 320ms both;
+}
+
+body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo-blue--crossbar {
+  animation: landingLogoBlueCrossbar 1420ms cubic-bezier(0.18, 0.86, 0.24, 1) 320ms both;
+}
+
+body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo-blue--leg {
+  animation: landingLogoBlueLeg 1420ms cubic-bezier(0.18, 0.86, 0.24, 1) 320ms both;
+}
+
+body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo--complete {
+  animation: landingLogoCompleteLock 1420ms cubic-bezier(0.18, 0.86, 0.24, 1) 320ms both;
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-wordmark {
-  animation: landingHeroWordmarkReveal 1120ms cubic-bezier(0.18, 0.86, 0.24, 1) 1450ms both;
+  animation: landingHeroWordmarkReveal 980ms cubic-bezier(0.18, 0.86, 0.24, 1) 1760ms both;
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-divider {
-  animation: landingHeroDividerFade 900ms ease 2060ms both;
+  animation: landingHeroDividerFade 760ms ease 2260ms both;
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-divider::before {
-  animation: landingHeroDividerSweep 940ms cubic-bezier(0.18, 0.86, 0.24, 1) 2060ms both;
+  animation: landingHeroDividerSweep 780ms cubic-bezier(0.18, 0.86, 0.24, 1) 2260ms both;
 }
 
 body.home-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-subtitle {
-  animation: landingHeroSubtitleReveal 780ms cubic-bezier(0.18, 0.86, 0.24, 1) 2250ms both;
+  animation: landingHeroSubtitleReveal 700ms cubic-bezier(0.18, 0.86, 0.24, 1) 2420ms both;
 }
 
 body.home-page.animate-ready:not(.home-loaded) .hero-animate-headline {
@@ -11202,9 +11288,9 @@ body.home-page.animate-ready.home-loaded .hero-value__title {
   filter: blur(0);
   transform: translateY(0);
   transition:
-    opacity 700ms ease 1600ms,
-    transform 700ms cubic-bezier(0.18, 0.86, 0.24, 1) 1600ms,
-    filter 700ms ease 1600ms;
+    opacity 700ms ease 1940ms,
+    transform 700ms cubic-bezier(0.18, 0.86, 0.24, 1) 1940ms,
+    filter 700ms ease 1940ms;
 }
 
 body.home-page.animate-ready.home-loaded .hero-value__subtitle {
@@ -11212,9 +11298,9 @@ body.home-page.animate-ready.home-loaded .hero-value__subtitle {
   filter: blur(0);
   transform: translateY(0);
   transition:
-    opacity 700ms ease 2000ms,
-    transform 700ms cubic-bezier(0.18, 0.86, 0.24, 1) 2000ms,
-    filter 700ms ease 2000ms;
+    opacity 700ms ease 2240ms,
+    transform 700ms cubic-bezier(0.18, 0.86, 0.24, 1) 2240ms,
+    filter 700ms ease 2240ms;
 }
 
 body.home-page.animate-ready:not(.home-loaded) .hero-animate-cta [data-cta-btn] {
@@ -11229,11 +11315,11 @@ body.home-page.animate-ready.home-loaded .hero-animate-cta [data-cta-btn] {
 }
 
 body.home-page.animate-ready.home-loaded .hero-animate-cta [data-cta-btn='primary'] {
-  transition-delay: 2400ms;
+  transition-delay: 2580ms;
 }
 
 body.home-page.animate-ready.home-loaded .hero-animate-cta [data-cta-btn='secondary'] {
-  transition-delay: 2520ms;
+  transition-delay: 2700ms;
 }
 
 body.home-page.animate-ready:not(.home-loaded) .home-hero-trust {
@@ -11244,7 +11330,7 @@ body.home-page.animate-ready:not(.home-loaded) .home-hero-trust {
 body.home-page.animate-ready.home-loaded .home-hero-trust {
   opacity: 1;
   transform: translateY(0);
-  transition: opacity 560ms ease 2800ms, transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1) 2800ms;
+  transition: opacity 560ms ease 2920ms, transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1) 2920ms;
 }
 
 body.home-page.animate-ready:not(.home-loaded) .home-hero-platforms {
@@ -11380,23 +11466,149 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms__note {
 @keyframes landingHeroBrandIcon {
   0% {
     opacity: 0;
-    filter: blur(10px);
-    transform: translateX(var(--hero-brand-intro-offset)) scale(1.2);
+    filter: blur(9px);
+    transform: translateX(var(--hero-brand-intro-offset)) scale(0.94);
   }
-  25% {
+  10% {
     opacity: 1;
     filter: blur(0);
-    transform: translateX(var(--hero-brand-intro-offset)) scale(1.28);
+    transform: translateX(var(--hero-brand-intro-offset)) scale(0.99);
   }
-  45% {
+  68% {
     opacity: 1;
     filter: blur(0);
-    transform: translateX(var(--hero-brand-intro-offset)) scale(1.32);
+    transform: translateX(var(--hero-brand-intro-offset)) scale(1.045);
+  }
+  78% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateX(var(--hero-brand-intro-offset)) scale(1.02);
   }
   100% {
     opacity: 1;
     filter: blur(0);
     transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes landingLogoFrameRed {
+  0%, 6% {
+    opacity: 0;
+    filter: blur(4px);
+    transform: translate3d(-2px, 12px, 0) scale(0.96);
+  }
+  17% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes landingLogoFrameYellow {
+  0%, 20% {
+    opacity: 0;
+    clip-path: inset(42% 0 0 0);
+    transform: translate3d(0, 6px, 0) scale(0.992);
+  }
+  29% {
+    opacity: 1;
+    clip-path: inset(30% 0 0 0);
+  }
+  39%, 100% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes landingLogoFrameGreen {
+  0%, 38% {
+    opacity: 0;
+    clip-path: inset(0 0 66% 0);
+    transform: translate3d(0, -8px, 0) scale(0.992);
+  }
+  48% {
+    opacity: 1;
+    clip-path: inset(0 0 38% 0);
+  }
+  58%, 100% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes landingLogoBlueDiagonal {
+  0%, 54% {
+    opacity: 0;
+    clip-path: polygon(56% 6%, 68% 6%, 76% 30%, 65% 30%);
+    transform: translate3d(16px, -20px, 0) scale(0.98);
+  }
+  64% {
+    opacity: 1;
+    clip-path: polygon(53% 2%, 70% 2%, 86% 50%, 71% 50%);
+  }
+  80%, 100% {
+    opacity: 1;
+    clip-path: polygon(48% 0%, 72% 0%, 100% 80%, 82% 82%, 53% 18%);
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes landingLogoBlueCrossbar {
+  0%, 60% {
+    opacity: 0;
+    clip-path: polygon(39% 56%, 48% 56%, 49% 70%, 38% 70%);
+    transform: translate3d(-10px, 1px, 0) scaleX(0.82);
+  }
+  73% {
+    opacity: 1;
+    clip-path: polygon(37% 55%, 66% 55%, 67% 72%, 36% 72%);
+  }
+  86%, 100% {
+    opacity: 1;
+    clip-path: polygon(37% 55%, 86% 55%, 87% 72%, 36% 72%);
+    transform: translate3d(0, 0, 0) scaleX(1);
+  }
+}
+
+@keyframes landingLogoBlueLeg {
+  0%, 66% {
+    opacity: 0;
+    clip-path: polygon(72% 42%, 86% 64%, 81% 78%, 66% 78%, 61% 70%);
+    transform: translate3d(10px, 14px, 0) scale(0.96);
+  }
+  80% {
+    opacity: 1;
+    clip-path: polygon(70% 38%, 95% 74%, 88% 92%, 64% 92%, 58% 72%);
+  }
+  90%, 100% {
+    opacity: 1;
+    clip-path: polygon(70% 38%, 100% 82%, 91% 100%, 62% 100%, 57% 73%);
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes landingLogoCompleteLock {
+  0%, 84% {
+    opacity: 0;
+    filter: saturate(1.04);
+    transform: scale(1.018);
+  }
+  92% {
+    opacity: 1;
+    filter: saturate(1.04);
+    transform: scale(1.018);
+  }
+  100% {
+    opacity: 1;
+    filter: saturate(1);
+    transform: scale(1);
   }
 }
 
