@@ -90,6 +90,74 @@
       margin-inline: auto;
     }
 
+    body.animation-page .hero-banner.is-intro .hero-banner__intro {
+      animation: landingHeroBrandShell 1935ms cubic-bezier(0.16, 1, 0.3, 1) 160ms both;
+    }
+
+    body.animation-page .hero-banner.is-intro .hero-banner__intro::before {
+      animation: heroReveal 925ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+    }
+
+    body.animation-page .hero-banner.is-intro .hero-banner__intro::after {
+      animation: heroSweep 790ms cubic-bezier(0.2, 0.9, 0.2, 1) 265ms both;
+    }
+
+    body.animation-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-icon {
+      animation: landingHeroBrandIcon 3080ms cubic-bezier(0.16, 1, 0.3, 1) 230ms both;
+    }
+
+    body.animation-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-icon::before {
+      animation: landingHeroIconAura 3080ms ease 230ms both;
+    }
+
+    body.animation-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-icon::after {
+      animation: landingHeroReflection 3080ms ease 230ms both;
+    }
+
+    body.animation-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo--frame1 {
+      animation: landingLogoRevealUp 790ms cubic-bezier(0.22, 1, 0.36, 1) 280ms both;
+    }
+
+    body.animation-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo--frame2 {
+      animation: landingLogoRevealYellow 775ms cubic-bezier(0.22, 1, 0.36, 1) 600ms both;
+    }
+
+    body.animation-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo--frame3 {
+      animation: landingLogoRevealGreen 790ms cubic-bezier(0.22, 1, 0.36, 1) 1000ms both;
+    }
+
+    body.animation-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo-blue--diagonal {
+      animation: landingLogoRevealDown 1190ms cubic-bezier(0.22, 1, 0.36, 1) 1355ms both;
+    }
+
+    body.animation-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo-blue--crossbar {
+      animation: landingLogoRevealRight 1100ms cubic-bezier(0.22, 1, 0.36, 1) 1445ms both;
+    }
+
+    body.animation-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo-blue--leg {
+      animation: landingLogoRevealLeg 925ms cubic-bezier(0.22, 1, 0.36, 1) 1480ms both;
+    }
+
+    body.animation-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-logo--complete {
+      animation: landingLogoCompleteLock 160ms cubic-bezier(0.22, 1, 0.36, 1) 2570ms both;
+    }
+
+    body.animation-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-wordmark {
+      animation: landingHeroWordmarkReveal 860ms cubic-bezier(0.18, 0.86, 0.24, 1) 2660ms both;
+    }
+
+    body.animation-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-divider {
+      animation: landingHeroDividerFade 670ms ease 2940ms both;
+    }
+
+    body.animation-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-divider::before {
+      animation: landingHeroDividerSweep 685ms cubic-bezier(0.18, 0.86, 0.24, 1) 2940ms both;
+    }
+
+    body.animation-page.animate-ready.home-loaded .hero-banner.is-intro .hero-brand-subtitle {
+      animation: landingHeroSubtitleReveal 615ms cubic-bezier(0.18, 0.86, 0.24, 1) 3060ms both;
+    }
+
     @media (max-width: 680px) {
       .animation-stage {
         padding: 22px;
