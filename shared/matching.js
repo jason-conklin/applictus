@@ -1494,6 +1494,9 @@ function normalizeRoleCandidate(value, companyName) {
     text = text.replace(new RegExp(`\\s+(?:at|with|for)\\s+${escaped}.*$`, 'i'), '');
     text = text.replace(new RegExp(`\\s+-\\s+${escaped}.*$`, 'i'), '');
   }
+  if (/\b(?:engineer|developer|analyst|manager|specialist|designer|scientist|associate|coordinator|architect|administrator|consultant|technician|officer|lead|director|representative)\b/i.test(text)) {
+    text = text.replace(/\s+at\s+[A-Z][A-Za-z0-9&.' -]{2,80}$/i, '');
+  }
   text = text.replace(/\s+in\s+[A-Za-z.' -]{2,60},\s*[A-Z]{2}(?:\s*\([^)]*\))?\s*$/i, '');
   text = text.replace(/\s+(?:position|role|opportunity|job)\b$/i, '');
   text = text.replace(

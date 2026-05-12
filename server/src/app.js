@@ -6047,6 +6047,18 @@ app.get('/api/applications', requireAuth, async (req, res) => {
         ? rawApplications.rows
         : [];
 
+    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
+      // eslint-disable-next-line no-console
+      console.debug('[api] /api/applications result', {
+        userId: req.user.id,
+        total,
+        returned: applications.length,
+        archived: typeof listQuery.archived === 'boolean' ? listQuery.archived : false,
+        status: listQuery.status || null,
+        search: listQuery.search || null
+      });
+    }
+
     return res.json({
       applications,
       total,

@@ -2399,6 +2399,85 @@ function normalizeIdentityToken(value) {
     .trim();
 }
 
+function confidencePercentToRatio(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return 0;
+  }
+  return numeric > 1 ? numeric / 100 : numeric;
+}
+
+function buildForwardingMatchConfidence({
+  derivedCompany,
+  derivedRole,
+  deterministic,
+  identity,
+  parseConfidence,
+  classification,
+  usedOriginalForParsing
+}) {
+  const classificationConfidence = Number.isFinite(classification?.confidenceScore)
+    ? classification.confidenceScore
+    : 0;
+  const classificationType = String(classification?.detectedType || '').toLowerCase();
+  const parsedCompanyRatio = confidencePercentToRatio(parseConfidence?.company);
+  const parsedRoleRatio = confidencePercentToRatio(parseConfidence?.role);
+  const hasStrongJobDecision =
+    classificationConfidence >= 0.85 ||
+    confidencePercentToRatio(parseConfidence?.status) >= 0.85 ||
+    Boolean(
+      classification?.isJobRelated &&
+        classificationType &&
+        classificationType !== 'other_job_related' &&
+        classificationType !== 'message_received'
+    );
+
+  let companyConfidence = Number.isFinite(identity?.companyConfidence) ? identity.companyConfidence : 0;
+  if (derivedCompany) {
+    companyConfidence = Math.max(
+      companyConfidence,
+      parsedCompanyRatio,
+      deterministic?.companyName ? 0.9 : 0,
+      hasStrongJobDecision ? 0.86 : 0
+    );
+  }
+
+  let roleConfidence = Number.isFinite(identity?.roleConfidence) ? identity.roleConfidence : null;
+  if (derivedRole) {
+    roleConfidence = Math.max(
+      Number.isFinite(roleConfidence) ? roleConfidence : 0,
+      parsedRoleRatio,
+      deterministic?.jobTitle ? 0.88 : 0,
+      hasStrongJobDecision ? 0.82 : 0
+    );
+  }
+
+  const domainConfidence = Math.max(
+    Number.isFinite(identity?.domainConfidence) ? identity.domainConfidence : 0,
+    derivedCompany && usedOriginalForParsing ? 0.6 : 0
+  );
+  const matchConfidence = Math.max(
+    Number.isFinite(identity?.matchConfidence) ? identity.matchConfidence : 0,
+    derivedCompany && hasStrongJobDecision ? 0.86 : 0,
+    derivedCompany && deterministic?.companyName ? 0.88 : 0
+  );
+
+  return {
+    companyConfidence,
+    roleConfidence,
+    domainConfidence,
+    matchConfidence,
+    promoted: Boolean(
+      derivedCompany &&
+        (
+          companyConfidence > (Number.isFinite(identity?.companyConfidence) ? identity.companyConfidence : 0) ||
+          domainConfidence > (Number.isFinite(identity?.domainConfidence) ? identity.domainConfidence : 0) ||
+          matchConfidence > (Number.isFinite(identity?.matchConfidence) ? identity.matchConfidence : 0)
+        )
+    )
+  };
+}
+
 function isLikelyLocationText(value) {
   return normalizeJobFields.isLikelyLocationRole(value);
 }
@@ -3623,9 +3702,23 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
         continue;
       }
 
-      const detectedType = String(
+      let detectedType = String(
         statusGuard.detectedType || parserDetectedType || classification.detectedType || 'other_job_related'
       ).toLowerCase();
+      if (detectedType === 'other_job_related' && derivedCompany && (derivedRole || externalReqId)) {
+        const lifecycleText = `${subject || ''}\n${snippet || ''}\n${bodyText || ''}`;
+        if (/\b(?:interview|schedule|scheduling|availability|phone screen|technical screen)\b/i.test(lifecycleText)) {
+          detectedType = 'interview_requested';
+        } else if (/\b(?:not be moving forward|after careful consideration|unfortunately|regret)\b/i.test(lifecycleText)) {
+          detectedType = 'rejection';
+        } else {
+          detectedType = 'confirmation';
+        }
+        debugMeta.classification = {
+          ...(debugMeta.classification || {}),
+          forwarded_lifecycle_fallback: detectedType
+        };
+      }
       const classifierDetectedType = String(classification.detectedType || '').toLowerCase();
       const statusDecisionOverride =
         Boolean(classifierDetectedType) && Boolean(detectedType) && classifierDetectedType !== detectedType;
@@ -3799,19 +3892,34 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
         ...identity,
         companyName: derivedCompany || identity.companyName || null,
         jobTitle: derivedRole || identity.jobTitle || null,
-        companyConfidence:
-          Number(parseConfidence.company || 0) >= PARSE_CONFIDENCE_THRESHOLDS.company
-            ? Number(parseConfidence.company || 0) / 100
-            : identity.companyConfidence,
-        roleConfidence:
-          Number(parseConfidence.role || 0) >= PARSE_CONFIDENCE_THRESHOLDS.role
-            ? Number(parseConfidence.role || 0) / 100
-            : identity.roleConfidence,
         explanation:
           parsedEmail?.notes?.length
             ? `${parsedEmail.providerId || providerHint} parser`
             : identity.explanation,
         applicationKey: derivedApplicationKey
+      };
+      const forwardingMatchConfidence = buildForwardingMatchConfidence({
+        derivedCompany,
+        derivedRole,
+        deterministic,
+        identity,
+        parseConfidence,
+        classification,
+        usedOriginalForParsing
+      });
+      matchIdentity.companyConfidence = forwardingMatchConfidence.companyConfidence;
+      matchIdentity.roleConfidence = forwardingMatchConfidence.roleConfidence;
+      matchIdentity.domainConfidence = forwardingMatchConfidence.domainConfidence;
+      matchIdentity.matchConfidence = forwardingMatchConfidence.matchConfidence;
+      matchIdentity.explanation = forwardingMatchConfidence.promoted
+        ? `${matchIdentity.explanation || 'Forwarded inbound identity.'} Forwarding parser promoted match confidence.`
+        : matchIdentity.explanation;
+      debugMeta.matching.identity_confidence = {
+        company: matchIdentity.companyConfidence || 0,
+        role: matchIdentity.roleConfidence || 0,
+        domain: matchIdentity.domainConfidence || 0,
+        match: matchIdentity.matchConfidence || 0,
+        promoted: forwardingMatchConfidence.promoted
       };
 
       const matchResult = await awaitMaybe(
@@ -3843,8 +3951,40 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
       const action = String(matchResult?.action || '');
       if (action === 'created_application') {
         created += 1;
+        logDebug('inbound.job_application_created', {
+          userId,
+          inboundMessageId: row.id,
+          eventId: eventPayload.id,
+          applicationId: matchResult?.applicationId || null,
+          provider: eventPayload.provider,
+          derivedStatus: detectedType,
+          company: derivedCompany || null,
+          role: derivedRole || null
+        });
       } else if (action === 'matched_existing') {
         updated += 1;
+        logDebug('inbound.job_application_linked', {
+          userId,
+          inboundMessageId: row.id,
+          eventId: eventPayload.id,
+          applicationId: matchResult?.applicationId || null,
+          provider: eventPayload.provider,
+          derivedStatus: detectedType,
+          company: derivedCompany || null,
+          role: derivedRole || null
+        });
+      } else {
+        logDebug('inbound.email_event_unassigned', {
+          userId,
+          inboundMessageId: row.id,
+          eventId: eventPayload.id,
+          reason: matchResult?.reason || null,
+          reasonDetail: matchResult?.reasonDetail || null,
+          provider: eventPayload.provider,
+          derivedStatus: detectedType,
+          company: derivedCompany || null,
+          role: derivedRole || null
+        });
       }
 
       let safeUpdateResult = {
@@ -3928,6 +4068,7 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
       debugMeta.matching = {
         application_key: derivedApplicationKey,
         application_key_inputs: appKeyPayload?.inputs || null,
+        identity_confidence: debugMeta.matching?.identity_confidence || null,
         matched_by: matchedBy,
         matched_application_id: matchResult?.applicationId || null,
         similarity: similarityDetail,

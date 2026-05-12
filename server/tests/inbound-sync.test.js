@@ -208,6 +208,81 @@ function buildForwardedIndeedPayload(toEmail, userEmail) {
   };
 }
 
+function buildForwardedGenericConfirmationPayload(toEmail, userEmail) {
+  const stamp = Date.now();
+  return {
+    From: `Jason Conklin <${userEmail}>`,
+    To: toEmail,
+    ToFull: [{ Email: toEmail }],
+    Subject: 'Fwd: Regarding your application for Application Developer at Scientific Search',
+    MessageID: `<forwarded-generic-confirmation-${stamp}@gmail.com>`,
+    Date: new Date().toISOString(),
+    TextBody: [
+      'FYI',
+      '',
+      '---------- Forwarded message ---------',
+      'From: Scientific Search <careers@scientificsearch.com>',
+      'Date: Thu, Mar 12, 2026 at 12:18 PM',
+      'Subject: Regarding your application for Application Developer at Scientific Search',
+      `To: ${userEmail}`,
+      '',
+      'We received your application for Application Developer at Scientific Search.',
+      'Our recruiting team will review your information and follow up if there is a match.'
+    ].join('\n'),
+    Headers: [{ Name: 'Message-ID', Value: `<forwarded-generic-confirmation-rfc-${stamp}@gmail.com>` }]
+  };
+}
+
+function buildForwardedGenericRejectionPayload(toEmail, userEmail) {
+  const stamp = Date.now();
+  return {
+    From: `Jason Conklin <${userEmail}>`,
+    To: toEmail,
+    ToFull: [{ Email: toEmail }],
+    Subject: 'Fwd: Update regarding your Java Developer application at Capgemini',
+    MessageID: `<forwarded-generic-rejection-${stamp}@gmail.com>`,
+    Date: new Date().toISOString(),
+    TextBody: [
+      'Forwarding this.',
+      '',
+      '---------- Forwarded message ---------',
+      'From: Capgemini Careers <careers@capgemini.com>',
+      'Date: Thu, Mar 12, 2026 at 1:18 PM',
+      'Subject: Update regarding your Java Developer application at Capgemini',
+      `To: ${userEmail}`,
+      '',
+      'Thank you for your interest in the Java Developer role at Capgemini.',
+      'After careful consideration, we will not be moving forward with your application.'
+    ].join('\n'),
+    Headers: [{ Name: 'Message-ID', Value: `<forwarded-generic-rejection-rfc-${stamp}@gmail.com>` }]
+  };
+}
+
+function buildForwardedGenericInterviewPayload(toEmail, userEmail) {
+  const stamp = Date.now();
+  return {
+    From: `Jason Conklin <${userEmail}>`,
+    To: toEmail,
+    ToFull: [{ Email: toEmail }],
+    Subject: 'Fwd: Interview for Full Stack Engineer at Mastech Digital',
+    MessageID: `<forwarded-generic-interview-${stamp}@gmail.com>`,
+    Date: new Date().toISOString(),
+    TextBody: [
+      'Forwarding for tracking.',
+      '',
+      '---------- Forwarded message ---------',
+      'From: Mastech Digital Recruiting <recruiting@mastechdigital.com>',
+      'Date: Thu, Mar 12, 2026 at 2:18 PM',
+      'Subject: Interview for Full Stack Engineer at Mastech Digital',
+      `To: ${userEmail}`,
+      '',
+      'We would like to schedule an interview for the Full Stack Engineer role at Mastech Digital.',
+      'Please choose a time that works for you.'
+    ].join('\n'),
+    Headers: [{ Name: 'Message-ID', Value: `<forwarded-generic-interview-rfc-${stamp}@gmail.com>` }]
+  };
+}
+
 function buildUserReplyPayload(toEmail, userEmail) {
   const stamp = Date.now();
   return {
@@ -749,4 +824,102 @@ test('inbound sync unwraps manually forwarded Indeed confirmations', async (t) =
   const debug = JSON.parse(String(row.derived_debug_json || '{}'));
   assert.equal(debug?.forwarding_wrapper?.detected, true);
   assert.equal(debug?.forwarding_wrapper?.original_from_email, 'indeedapply@indeed.com');
+});
+
+test('inbound sync creates dashboard applications for generic manually forwarded job updates', async (t) => {
+  const { baseUrl, db, stop } = await startServerWithEnv({
+    NODE_ENV: 'test',
+    JOBTRACK_DB_PATH: ':memory:',
+    JOBTRACK_LOG_LEVEL: 'error',
+    INBOUND_DOMAIN: 'mail.applictus.com',
+    POSTMARK_INBOUND_SECRET: 'test-inbound-secret'
+  });
+  t.after(stop);
+  if (!baseUrl || !db) {
+    t.skip('better-sqlite3 native module unavailable in this environment');
+    return;
+  }
+
+  const request = await createClient(baseUrl);
+  const userEmail = `forwarded-generic-${crypto.randomUUID()}@example.com`;
+  const signup = await request('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({
+      email: userEmail,
+      password: 'StrongPassword123!'
+    })
+  });
+  assert.equal(signup.status, 200);
+  const user = db.prepare('SELECT id FROM users WHERE email = ?').get(userEmail);
+  assert.ok(user?.id);
+
+  const addressRes = await request('/api/inbound/address');
+  assert.equal(addressRes.status, 200);
+  const toEmail = addressRes.body.address_email;
+
+  const payloads = [
+    buildForwardedGenericConfirmationPayload(toEmail, userEmail),
+    buildForwardedGenericRejectionPayload(toEmail, userEmail),
+    buildForwardedGenericInterviewPayload(toEmail, userEmail)
+  ];
+  for (const payload of payloads) {
+    const inbound = await postInbound(baseUrl, payload);
+    assert.equal(inbound.status, 200);
+  }
+
+  const syncRes = await request('/api/inbound/sync', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+  assert.equal(syncRes.status, 200);
+  assert.equal(syncRes.body.status, 'ok');
+  assert.equal(syncRes.body.errors, 0);
+  assert.equal(syncRes.body.ignored, 0);
+  assert.equal(syncRes.body.processed, 3);
+  assert.ok(syncRes.body.created + syncRes.body.updated >= 2);
+
+  const inboundRows = await db
+    .prepare(
+      `SELECT processing_status, processing_error, derived_event_id, derived_application_id,
+              derived_company, derived_role, derived_debug_json
+       FROM inbound_messages
+       WHERE user_id = ?
+       ORDER BY created_at ASC`
+    )
+    .all(user.id);
+  assert.equal(inboundRows.length, 3);
+  for (const row of inboundRows) {
+    assert.equal(String(row.processing_status), 'processed');
+    assert.ok(row.derived_event_id);
+    const debug = JSON.parse(String(row.derived_debug_json || '{}'));
+    assert.equal(
+      row.processing_error,
+      null,
+      `${row.derived_company || 'unknown'} / ${row.derived_role || 'unknown'} ${JSON.stringify(debug.matching || {})}`
+    );
+    assert.ok(
+      row.derived_application_id,
+      `${row.derived_company || 'unknown'} / ${row.derived_role || 'unknown'} ${JSON.stringify(debug.matching || {})}`
+    );
+    assert.equal(debug?.forwarding_wrapper?.detected, true);
+    assert.equal(debug?.forwarding_wrapper?.used_original_for_parsing, true);
+    assert.ok(debug?.matching?.identity_confidence);
+  }
+
+  const dashboard = await request('/api/applications?limit=25&offset=0');
+  assert.equal(dashboard.status, 200);
+  assert.ok(dashboard.body.total >= 3);
+  const byCompany = new Map(dashboard.body.applications.map((app) => [app.company_name, app]));
+  assert.equal(byCompany.get('Scientific Search')?.job_title, 'Application Developer');
+  assert.equal(byCompany.get('Capgemini')?.job_title, 'Java Developer');
+  assert.equal(byCompany.get('Mastech Digital')?.job_title, 'Full Stack Engineer');
+
+  const events = await db
+    .prepare(
+      `SELECT COUNT(*) AS count
+       FROM email_events
+       WHERE user_id = ? AND provider = 'inbound_forward' AND application_id IS NOT NULL`
+    )
+    .get(user.id);
+  assert.equal(Number(events.count || 0), 3);
 });
