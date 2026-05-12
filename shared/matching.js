@@ -431,7 +431,7 @@ const ROLE_PATTERNS = [
   },
   {
     name: 'thank_you_applying_for_role',
-    regex: /thank you for applying(?:\s+to\s+[^,.\n]+)?\s+for\s+([^.\n]+)/i,
+    regex: /thank you for applying(?:\s+to\s+[^,.\n]+)?\s+for\s+(?:the\s+)?(.+?)(?:\s+(?:position|role|job|opening)\b|[.\n]|$)/i,
     confidence: 0.92
   },
   {
@@ -457,6 +457,11 @@ const ROLE_PATTERNS = [
   {
     name: 'application_for_role_at_company',
     regex: /application for\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})\s+at\s+[A-Z][A-Za-z0-9&.'\- ]{2,80}\b/i,
+    confidence: 0.9
+  },
+  {
+    name: 'regarding_application_for_role',
+    regex: /regarding your application for\s+(?:the\s+)?([A-Z][A-Za-z0-9/&.'\- ]{2,90})(?:\s+at\s+[A-Z][A-Za-z0-9&.'\- ]{2,80})?\b/i,
     confidence: 0.9
   },
   {
@@ -503,6 +508,11 @@ const ROLE_PATTERNS = [
     name: 'applied_for_role',
     regex: /applied for the\s+([^.\n]+?)\s+role/i,
     confidence: 0.9
+  },
+  {
+    name: 'applied_to_role_at_company',
+    regex: /applied to\s+(?:the\s+)?([A-Z][A-Za-z0-9/&.'\- ]{2,90})\s+at\s+[A-Z][A-Za-z0-9&.'\- ]{2,80}\b/i,
+    confidence: 0.88
   },
   {
     name: 'moving_forward_with_role',
@@ -1697,6 +1707,84 @@ function extractRoleFromSenderName(senderName, companyName) {
   return candidate;
 }
 
+function buildBodyLineRoleCandidate(line, companyName) {
+  const raw = normalize(line);
+  if (!raw) {
+    return null;
+  }
+  if (
+    /^(?:view job|view application|apply now|application submitted|next steps?|good luck|unsubscribe|privacy|from|to|date|subject)\b/i.test(raw)
+  ) {
+    return null;
+  }
+  if (looksLikeUrlFragment(raw) || isLikelyLinkedInLocation(raw)) {
+    return null;
+  }
+  if (!LINKEDIN_LOCATION_ROLE_HINTS.test(raw)) {
+    return null;
+  }
+  const candidate = normalizeRoleCandidate(raw, companyName);
+  if (!candidate || candidate.length < 3 || isGenericRole(candidate)) {
+    return null;
+  }
+  if (companyName && slugify(companyName) === slugify(candidate)) {
+    return null;
+  }
+  return candidate;
+}
+
+function extractBodyLineRoleHints(bodyText, companyName) {
+  const lines = String(bodyText || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => normalize(line))
+    .filter(Boolean)
+    .slice(0, 80);
+  const hints = [];
+
+  if (companyName) {
+    const companySlug = slugify(companyName);
+    const companyIdx = lines.findIndex((line) => slugify(line) === companySlug);
+    if (companyIdx >= 0) {
+      for (let i = companyIdx + 1; i < Math.min(lines.length, companyIdx + 5); i += 1) {
+        const candidate = buildBodyLineRoleCandidate(lines[i], companyName);
+        if (candidate) {
+          hints.push({
+            jobTitle: candidate,
+            jobTitleRaw: lines[i],
+            confidence: 0.88,
+            source: 'body',
+            explanation: 'Matched role line following company line in body.'
+          });
+          break;
+        }
+      }
+    }
+  }
+
+  const viewJobIdx = lines.findIndex((line) => /^view job\b/i.test(line));
+  if (viewJobIdx >= 0) {
+    for (let i = Math.max(0, viewJobIdx - 4); i < Math.min(lines.length, viewJobIdx + 5); i += 1) {
+      if (i === viewJobIdx) {
+        continue;
+      }
+      const candidate = buildBodyLineRoleCandidate(lines[i], companyName);
+      if (candidate) {
+        hints.push({
+          jobTitle: candidate,
+          jobTitleRaw: lines[i],
+          confidence: 0.84,
+          source: 'body',
+          explanation: 'Matched role line near View job link in body.'
+        });
+        break;
+      }
+    }
+  }
+
+  return hints;
+}
+
 function extractJobTitle({ subject, snippet, bodyText, senderName, sender, companyName }) {
   const workableBodyFiltered = isWorkableConfirmationSender(sender)
     ? stripWorkableApplicationDataSections(bodyText) || bodyText
@@ -1758,6 +1846,8 @@ function extractJobTitle({ subject, snippet, bodyText, senderName, sender, compa
       });
     }
   }
+
+  candidates.push(...extractBodyLineRoleHints(workableBodyFiltered, companyName));
 
   const resolvedSender = senderName || extractSenderName(sender);
   const senderCandidate = extractRoleFromSenderName(resolvedSender, companyName);

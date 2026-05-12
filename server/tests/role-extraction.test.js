@@ -189,6 +189,18 @@ test('extractJobTitle strips role-of prefix in workday-style body text', () => {
   assert.equal(result.jobTitle, 'Software Developer');
 });
 
+test('extractJobTitle strips trailing position-at-company clause', () => {
+  const result = extractJobTitle({
+    subject: 'Thank you for applying for the Junior DevEx Engineer position at Valstro.',
+    snippet: '',
+    bodyText: '',
+    sender: 'Workable <noreply@candidates.workablemail.com>',
+    companyName: 'Valstro'
+  });
+
+  assert.equal(result.jobTitle, 'Junior DevEx Engineer');
+});
+
 test('extractJobTitle prefers first ATS ID line role when multiple IDs are present', () => {
   const result = extractJobTitle({
     subject: 'Jobs Applied to on 04/02/2026',

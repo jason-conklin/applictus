@@ -8,12 +8,17 @@ function stripHtml(text) {
   return String(text || '')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<(?:br|hr)\s*\/?>/gi, '\n')
+    .replace(/<\/(?:p|div|section|article|header|footer|tr|td|th|li|h[1-6])>/gi, '\n')
+    .replace(/<(?:p|div|section|article|header|footer|tr|td|th|li|h[1-6])\b[^>]*>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&amp;/gi, '&')
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
-    .replace(/\s+/g, ' ')
+    .replace(/[ \t\f\v]+/g, ' ')
+    .replace(/[ \t\f\v]*\n[ \t\f\v]*/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
@@ -139,10 +144,7 @@ function readForwardedHeaders(lines = [], startIndex = -1) {
   };
 }
 
-function extractForwardedOriginalMessage({ subject, text, html, fromEmail } = {}) {
-  const wrapperSubject = String(subject || '').trim();
-  const wrapperFromEmail = normalizeEmail(fromEmail || '') || null;
-  const normalizedText = normalizeTextBody(text, html);
+function parseForwardedCandidate(normalizedText, wrapperSubject, wrapperFromEmail) {
   const lines = normalizedText
     ? normalizedText.replace(/\r\n/g, '\n').split('\n')
     : [];
@@ -168,8 +170,40 @@ function extractForwardedOriginalMessage({ subject, text, html, fromEmail } = {}
     originalFromEmail: fromParts.email || null,
     originalFromName: fromParts.name || null,
     originalDate: headers.date ? String(headers.date).trim() : null,
-    originalText: originalText || null
+    originalText: originalText || null,
+    headerCount,
+    markerDetected
   };
+}
+
+function scoreForwardedCandidate(candidate) {
+  if (!candidate) {
+    return -1;
+  }
+  let score = 0;
+  if (candidate.isForwarded) score += 100;
+  if (candidate.markerDetected) score += 20;
+  if (candidate.headerCount >= 2) score += 20;
+  if (candidate.originalFromEmail) score += 10;
+  if (candidate.originalSubject) score += 8;
+  if (candidate.originalText) score += Math.min(30, Math.floor(candidate.originalText.length / 80));
+  return score;
+}
+
+function extractForwardedOriginalMessage({ subject, text, html, fromEmail } = {}) {
+  const wrapperSubject = String(subject || '').trim();
+  const wrapperFromEmail = normalizeEmail(fromEmail || '') || null;
+  const textCandidate = parseForwardedCandidate(normalizeTextBody(text, ''), wrapperSubject, wrapperFromEmail);
+  const htmlCandidate = html
+    ? parseForwardedCandidate(stripHtml(html), wrapperSubject, wrapperFromEmail)
+    : null;
+  const bestCandidate =
+    scoreForwardedCandidate(htmlCandidate) > scoreForwardedCandidate(textCandidate)
+      ? htmlCandidate
+      : textCandidate;
+
+  const { headerCount, markerDetected, ...publicResult } = bestCandidate;
+  return publicResult;
 }
 
 module.exports = {

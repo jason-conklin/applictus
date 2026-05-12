@@ -1,7 +1,7 @@
 const { detectProvider } = require('./providers');
 const { validateJobFields } = require('./validateJobFields');
 const { buildApplicationKey } = require('./applicationKey');
-const { extractExternalReqId } = require('../../shared/matching');
+const { extractExternalReqId, extractJobTitle } = require('../../shared/matching');
 const { buildHintFingerprintFromEmail, findBestHint } = require('./hints');
 const { detectStatusSignal } = require('./parsers/common');
 
@@ -400,6 +400,33 @@ async function parseJobEmail(payload = {}) {
   if (subjectCompanySuffixMatch && bodyCompanyLogoMatch && bodyCompanyLogoMatch[1]) {
     companyCandidate = bodyCompanyLogoMatch[1].trim();
     notes.push('company_preferred:body_logo_line');
+  }
+
+  if (!roleCandidate) {
+    const sharedRole = extractJobTitle({
+      subject: input.subject,
+      snippet: input.text.slice(0, 240),
+      bodyText: input.text,
+      sender: input.fromEmail,
+      companyName: companyCandidate || null
+    });
+    if (sharedRole?.jobTitle) {
+      roleCandidate = sharedRole.jobTitle;
+      parsed.role = sharedRole.jobTitle;
+      parsed.candidates = parsed.candidates || {};
+      parsed.candidates.role = Array.isArray(parsed.candidates.role) ? parsed.candidates.role : [];
+      parsed.candidates.role.push(sharedRole.jobTitle);
+      parsed.confidence = parsed.confidence || {};
+      parsed.confidence.role = Math.max(
+        Number(parsed.confidence.role || 0),
+        Math.round(Number(sharedRole.confidence || 0) * 100)
+      );
+      parsed.confidence.key = Math.max(Number(parsed.confidence.key || 0), parsed.confidence.role >= 70 ? 82 : 0);
+      parsed.debug = parsed.debug && typeof parsed.debug === 'object' ? parsed.debug : {};
+      parsed.debug.role_source = parsed.debug.role_source || sharedRole.source || 'shared_role_fallback';
+      parsed.debug.role_fallback = sharedRole.explanation || 'Shared role extractor fallback.';
+      notes.push(`role_phrase:shared_${sharedRole.source || 'fallback'}`);
+    }
   }
 
   const statusSignal = detectStatusSignal({
