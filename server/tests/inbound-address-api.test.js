@@ -189,7 +189,7 @@ test('inbound address APIs create, confirm, rotate, and become active after inbo
 });
 
 test('inbound status exposes Gmail forwarding verification helper and readiness transition', async (t) => {
-  const { baseUrl, stop } = await startServerWithEnv({
+  const { baseUrl, db, stop } = await startServerWithEnv({
     NODE_ENV: 'test',
     JOBTRACK_DB_PATH: ':memory:',
     JOBTRACK_LOG_LEVEL: 'error',
@@ -197,7 +197,7 @@ test('inbound status exposes Gmail forwarding verification helper and readiness 
     POSTMARK_INBOUND_SECRET: 'test-inbound-secret'
   });
   t.after(stop);
-  if (!baseUrl) {
+  if (!baseUrl || !db) {
     t.skip('better-sqlite3 native module unavailable in this environment');
     return;
   }
@@ -241,6 +241,27 @@ test('inbound status exposes Gmail forwarding verification helper and readiness 
     String(pendingStatus.body.gmail_forwarding_verification.confirmation_url || ''),
     /mail-settings\.google\.com/i
   );
+  assert.ok(pendingStatus.body.forwarding_verification);
+  assert.equal(pendingStatus.body.forwarding_verification.has_verification_email, true);
+  assert.equal(pendingStatus.body.forwarding_verification.has_verification_link, true);
+  assert.equal(pendingStatus.body.forwarding_verification.is_forwarding_verified, false);
+  assert.equal(pendingStatus.body.forwarding_verification.forwarding_verified_at, null);
+  assert.match(
+    String(pendingStatus.body.forwarding_verification.verification_link || ''),
+    /mail-settings\.google\.com/i
+  );
+  assert.equal(pendingStatus.body.forwarding_verification.confirmation_code, '123456');
+  assert.ok(pendingStatus.body.forwarding_verification.verification_link_detected_at);
+
+  db.prepare('DELETE FROM inbound_messages WHERE user_id = ?').run(signup.body.user.id);
+  const persistedStatus = await request('/api/inbound/status');
+  assert.equal(persistedStatus.status, 200);
+  assert.equal(persistedStatus.body.forwarding_readiness, 'gmail_verification_pending');
+  assert.equal(persistedStatus.body.forwarding_verification.has_verification_link, true);
+  assert.match(
+    String(persistedStatus.body.forwarding_verification.verification_link || ''),
+    /mail-settings\.google\.com/i
+  );
 
   const normalInbound = await fetch(`${baseUrl}/api/inbound/postmark`, {
     method: 'POST',
@@ -256,6 +277,10 @@ test('inbound status exposes Gmail forwarding verification helper and readiness 
   assert.equal(activeStatus.status, 200);
   assert.equal(activeStatus.body.forwarding_readiness, 'forwarding_active');
   assert.equal(activeStatus.body.gmail_verification_pending, false);
+  assert.equal(activeStatus.body.forwarding_verification.has_verification_link, false);
+  assert.equal(activeStatus.body.forwarding_verification.verification_link, null);
+  assert.equal(activeStatus.body.forwarding_verification.is_forwarding_verified, true);
+  assert.ok(activeStatus.body.forwarding_verification.forwarding_verified_at);
 });
 
 test('inbound setup test email sends to user email and forwarded token completes setup', async (t) => {

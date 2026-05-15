@@ -8773,6 +8773,20 @@ button.inbound-diagnostics-row:hover {
   border-top: 1px solid rgba(25, 55, 103, 0.07);
 }
 
+.account-help-verification {
+  display: grid;
+  gap: 8px;
+}
+
+.account-help-verification.hidden {
+  display: none;
+}
+
+.account-help-verification .forwarding-verification-helper,
+.account-help-verification .forwarding-connected-note {
+  margin-top: 0;
+}
+
 .account-help-actions {
   display: flex;
   align-items: center;

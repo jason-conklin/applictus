@@ -226,7 +226,9 @@ const INBOUND_ADDRESS_SELECT_COLUMNS = [
   'setup_test_sent_at',
   'setup_test_received_at',
   'forwarding_active_at',
-  'last_gmail_confirmation_at'
+  'last_gmail_confirmation_at',
+  'gmail_verification_url',
+  'gmail_verification_code'
 ].join(', ');
 
 function isUniqueViolation(err) {
@@ -401,7 +403,9 @@ async function createInboundAddress(
         setup_test_sent_at: null,
         setup_test_received_at: null,
         forwarding_active_at: null,
-        last_gmail_confirmation_at: null
+        last_gmail_confirmation_at: null,
+        gmail_verification_url: null,
+        gmail_verification_code: null
       };
     } catch (err) {
       if (isUniqueViolation(err)) {
@@ -611,7 +615,9 @@ async function rotateInboundAddress(
             setup_test_sent_at: null,
             setup_test_received_at: null,
             forwarding_active_at: null,
-            last_gmail_confirmation_at: null
+            last_gmail_confirmation_at: null,
+            gmail_verification_url: null,
+            gmail_verification_code: null
           };
         } catch (err) {
           if (isUniqueViolation(err)) {

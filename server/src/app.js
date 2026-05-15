@@ -2055,6 +2055,33 @@ function inferInboundSetupState({ hasAddress, confirmedAt, forwardingActiveAt })
   return 'awaiting_confirmation';
 }
 
+function buildForwardingVerificationStatus({
+  latestGmailVerification = null,
+  storedVerificationUrl = null,
+  storedVerificationCode = null,
+  gmailConfirmationReceivedAt = null,
+  forwardingActiveAt = null
+} = {}) {
+  const isForwardingVerified = Boolean(forwardingActiveAt);
+  const verificationLink = String(
+    latestGmailVerification?.confirmation_url || storedVerificationUrl || ''
+  ).trim();
+  const confirmationCode = String(
+    latestGmailVerification?.confirmation_code || storedVerificationCode || ''
+  ).trim();
+  const detectedAt =
+    latestGmailVerification?.received_at || gmailConfirmationReceivedAt || null;
+  return {
+    has_verification_email: Boolean(detectedAt),
+    has_verification_link: Boolean(verificationLink && !isForwardingVerified),
+    verification_link: verificationLink && !isForwardingVerified ? verificationLink : null,
+    verification_link_detected_at: detectedAt,
+    confirmation_code: confirmationCode && !isForwardingVerified ? confirmationCode : null,
+    is_forwarding_verified: isForwardingVerified,
+    forwarding_verified_at: forwardingActiveAt || null
+  };
+}
+
 async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) {
   const inboundDomain = String(process.env.INBOUND_DOMAIN || '')
     .trim()
@@ -2110,6 +2137,7 @@ async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) 
       has_non_verification_inbound: false,
       gmail_verification_pending: false,
       gmail_forwarding_verification: null,
+      forwarding_verification: buildForwardingVerificationStatus(),
       message_count_7d: 0,
       inbound_pending_count: Number.isFinite(pendingCount) ? Math.max(0, pendingCount) : 0,
       inbound_signal_updated_at: signalRow?.updated_at || null,
@@ -2217,6 +2245,24 @@ async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) 
     hasNonVerificationInbound,
     hasGmailVerification: Boolean(latestGmailVerification || gmailConfirmationReceivedAt)
   });
+  const storedGmailVerification =
+    !latestGmailVerification &&
+    gmailConfirmationReceivedAt &&
+    (address.gmail_verification_url || address.gmail_verification_code)
+      ? {
+          received_at: gmailConfirmationReceivedAt,
+          subject: null,
+          confirmation_url: address.gmail_verification_url || null,
+          confirmation_code: address.gmail_verification_code || null
+        }
+      : null;
+  const forwardingVerification = buildForwardingVerificationStatus({
+    latestGmailVerification: latestGmailVerification || storedGmailVerification,
+    storedVerificationUrl: address.gmail_verification_url || null,
+    storedVerificationCode: address.gmail_verification_code || null,
+    gmailConfirmationReceivedAt,
+    forwardingActiveAt
+  });
   const fallbackPendingCount = signalRow ? null : await countPendingInboundQueue(userId);
   const pendingCount = signalRow ? Number(signalRow.pending_count || 0) : Number(fallbackPendingCount || 0);
   const signalLastInboundAt = signalRow?.last_inbound_at || lastReceivedAt || null;
@@ -2247,7 +2293,8 @@ async function buildInboundAddressStatus(userId, { ensureAddress = true } = {}) 
     setup_test_received_at: address.setup_test_received_at || null,
     has_non_verification_inbound: Boolean(hasNonVerificationInbound),
     gmail_verification_pending: forwardingReadiness === 'gmail_verification_pending',
-    gmail_forwarding_verification: latestGmailVerification,
+    gmail_forwarding_verification: latestGmailVerification || storedGmailVerification,
+    forwarding_verification: forwardingVerification,
     message_count_7d: Number(countRow?.count || 0),
     inbound_pending_count: Number.isFinite(pendingCount) ? Math.max(0, pendingCount) : 0,
     inbound_signal_updated_at: signalRow?.updated_at || null,
@@ -2841,7 +2888,8 @@ app.post('/api/inbound/postmark', async (req, res) => {
         .prepare(
           `SELECT id, user_id, address_email, is_active, status, rotated_at,
                   setup_test_token_hash, setup_test_sent_at, setup_test_received_at,
-                  forwarding_active_at, last_gmail_confirmation_at
+                  forwarding_active_at, last_gmail_confirmation_at,
+                  gmail_verification_url, gmail_verification_code
            FROM inbound_addresses
            WHERE lower(address_email) = ?
            ORDER BY is_active DESC, created_at DESC
@@ -2985,10 +3033,14 @@ app.post('/api/inbound/postmark', async (req, res) => {
       await dbRun(
         `UPDATE inbound_addresses
             SET last_received_at = ?,
-                last_gmail_confirmation_at = COALESCE(last_gmail_confirmation_at, ?)
+                last_gmail_confirmation_at = COALESCE(last_gmail_confirmation_at, ?),
+                gmail_verification_url = COALESCE(?, gmail_verification_url),
+                gmail_verification_code = COALESCE(?, gmail_verification_code)
           WHERE id = ?`,
         confirmationAt,
         confirmationAt,
+        gmailVerification.confirmation_url || null,
+        gmailVerification.confirmation_code || null,
         mappedAddress.id
       );
       await touchUserInboxSignal(mappedAddress.user_id, {

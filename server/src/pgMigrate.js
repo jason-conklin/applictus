@@ -383,7 +383,9 @@ async function assertPgSchema(db) {
            'setup_test_sent_at',
            'setup_test_received_at',
            'forwarding_active_at',
-           'last_gmail_confirmation_at'
+           'last_gmail_confirmation_at',
+           'gmail_verification_url',
+           'gmail_verification_code'
          )`
     )
     .all();
@@ -396,7 +398,9 @@ async function assertPgSchema(db) {
     'setup_test_sent_at',
     'setup_test_received_at',
     'forwarding_active_at',
-    'last_gmail_confirmation_at'
+    'last_gmail_confirmation_at',
+    'gmail_verification_url',
+    'gmail_verification_code'
   ].filter((name) => !inboundAddressPresent.has(name));
 
   if (inboundAddressMissing.length) {

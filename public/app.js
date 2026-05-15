@@ -593,6 +593,7 @@ const accountHelpProgressStep2State = document.getElementById('account-help-prog
 const accountHelpProgressStep3 = document.getElementById('account-help-progress-step-3');
 const accountHelpProgressStep3Label = document.getElementById('account-help-progress-step-3-label');
 const accountHelpProgressStep3State = document.getElementById('account-help-progress-step-3-state');
+const accountHelpVerification = document.getElementById('account-help-verification');
 const inboundStatusPill = document.getElementById('inbound-status-pill');
 const inboundAddressLabel = document.getElementById('inbound-address-label');
 const inboundAddressEmail = document.getElementById('inbound-address-email');
@@ -1145,6 +1146,7 @@ const inboundState = {
   hasNonVerificationInbound: false,
   gmailVerificationPending: false,
   gmailVerification: null,
+  forwardingVerification: null,
   confirmedAt: null,
   lastReceivedAt: null,
   lastReceivedSubject: null,
@@ -1189,6 +1191,10 @@ const inboundAutoSyncState = {
 const inboundHelpVerifyState = {
   inFlight: false
 };
+const forwardingSetupPollState = {
+  timer: null,
+  inFlight: false
+};
 const signupUsernameState = {
   debounceTimer: null,
   requestToken: 0
@@ -1207,6 +1213,7 @@ const ACCOUNT_INBOX_HELPER_TEXT = 'This will be your personal Applictus inbox fo
 const ACCOUNT_INBOX_INVALID_TEXT = 'Use 3–30 lowercase letters, numbers, or hyphens';
 const INBOUND_AUTO_SYNC_INTERVAL_MS = 9000;
 const INBOUND_AUTO_SYNC_DEBOUNCE_MS = 15000;
+const FORWARDING_SETUP_STATUS_POLL_MS = 5000;
 renderSyncSummary({ status: 'idle', rawDetails: '' });
 
 function isInternalGmailMode(user = sessionUser) {
@@ -1594,6 +1601,75 @@ function resolveForwardingReadiness(
     return 'awaiting_confirmation';
   }
   return 'not_started';
+}
+
+function normalizeForwardingVerificationState(data = {}) {
+  const shared = data.forwarding_verification || {};
+  const legacy = data.gmail_forwarding_verification || {};
+  const isForwardingVerified = Boolean(
+    shared.is_forwarding_verified ||
+      shared.isForwardingVerified ||
+      data.gmail_forwarding_active ||
+      data.setup_complete ||
+      data.forwarding_active_at
+  );
+  const verificationLink = String(
+    shared.verification_link ||
+      shared.verificationLink ||
+      legacy.confirmation_url ||
+      ''
+  ).trim();
+  const confirmationCode = String(
+    shared.confirmation_code ||
+      shared.confirmationCode ||
+      legacy.confirmation_code ||
+      ''
+  ).trim();
+  const detectedAt =
+    shared.verification_link_detected_at ||
+    shared.verificationLinkDetectedAt ||
+    legacy.received_at ||
+    data.gmail_confirmation_received_at ||
+    null;
+  const hasVerificationEmail = Boolean(
+    shared.has_verification_email ||
+      shared.hasVerificationEmail ||
+      detectedAt ||
+      /gmail forwarding confirmation/i.test(String(data.last_received_subject || ''))
+  );
+  return {
+    hasVerificationEmail,
+    hasVerificationLink: Boolean(verificationLink && !isForwardingVerified),
+    verificationLink: verificationLink && !isForwardingVerified ? verificationLink : null,
+    verificationLinkDetectedAt: detectedAt,
+    confirmationCode: confirmationCode && !isForwardingVerified ? confirmationCode : null,
+    isForwardingVerified,
+    forwardingVerifiedAt:
+      shared.forwarding_verified_at ||
+      shared.forwardingVerifiedAt ||
+      data.forwarding_active_at ||
+      null
+  };
+}
+
+function getForwardingVerificationState() {
+  const stored = inboundState.forwardingVerification || {};
+  const isForwardingVerified = Boolean(stored.isForwardingVerified || isForwardingActive());
+  const verificationLink = String(stored.verificationLink || '').trim();
+  const confirmationCode = String(stored.confirmationCode || '').trim();
+  return {
+    hasVerificationEmail: Boolean(
+      stored.hasVerificationEmail ||
+        stored.verificationLinkDetectedAt ||
+        /gmail forwarding confirmation/i.test(String(inboundState.lastReceivedSubject || ''))
+    ),
+    hasVerificationLink: Boolean(verificationLink && !isForwardingVerified),
+    verificationLink: verificationLink && !isForwardingVerified ? verificationLink : null,
+    verificationLinkDetectedAt: stored.verificationLinkDetectedAt || null,
+    confirmationCode: confirmationCode && !isForwardingVerified ? confirmationCode : null,
+    isForwardingVerified,
+    forwardingVerifiedAt: stored.forwardingVerifiedAt || inboundState.forwardingActiveAt || null
+  };
 }
 
 function updateProfileMenuInboxSetupVisibility() {
@@ -2029,6 +2105,7 @@ function formatInboundMetaText() {
     return parts.join(' • ') || 'Forwarding active. Waiting for new job-email updates.';
   }
   if (readiness === 'gmail_verification_pending') {
+    const verificationState = getForwardingVerificationState();
     const parts = [];
     if (lastSeen) {
       parts.push(`Address reachable • Last email received • ${lastSeen}`);
@@ -2036,7 +2113,7 @@ function formatInboundMetaText() {
       parts.push('Address reachable');
     }
     parts.push('Gmail verification pending');
-    if (inboundState.gmailVerification?.confirmationUrl) {
+    if (verificationState.hasVerificationLink) {
       parts.push('Open the confirmation link in Step 2');
     }
     return parts.join(' • ');
@@ -2254,6 +2331,17 @@ function updateDashboardPrimarySyncUI() {
   }
 }
 
+function renderAccountForwardingVerificationHelper() {
+  if (!accountHelpVerification) {
+    return;
+  }
+  accountHelpVerification.replaceChildren();
+  const appended = appendForwardingVerificationHelper(accountHelpVerification, {
+    requireVerificationLink: true
+  });
+  accountHelpVerification.classList.toggle('hidden', !appended);
+}
+
 function updateInboundStatusPresentation() {
   if (isInternalGmailMode()) {
     const connected = Boolean(emailState.connected);
@@ -2310,6 +2398,10 @@ function updateInboundStatusPresentation() {
       accountHelpNote.textContent = connected
         ? 'Run Scan inbox to pull updates and keep your timeline current.'
         : 'Connect Gmail, then run your first sync to start tracking.';
+    }
+    if (accountHelpVerification) {
+      accountHelpVerification.replaceChildren();
+      accountHelpVerification.classList.add('hidden');
     }
     if (inboundHelpOpenSetup) {
       inboundHelpOpenSetup.textContent = connected ? 'Reconnect Gmail' : 'Connect Gmail';
@@ -2444,6 +2536,7 @@ function updateInboundStatusPresentation() {
   if (accountHelpNote) {
     accountHelpNote.textContent = helpNoteText;
   }
+  renderAccountForwardingVerificationHelper();
   if (accountHelpLastEmail) {
     const lastSeen = formatSyncDateTime(inboundState.lastReceivedAt);
     if (!lastSeen) {
@@ -5264,6 +5357,7 @@ function setView(view) {
   } else {
     clearInboundAutoSyncPolling();
   }
+  syncForwardingSetupStatusPolling();
   if (view === 'account') {
     updateAdminAnalyticsVisibility();
   }
@@ -7241,12 +7335,13 @@ function applyInboundStatusPayload(data = {}) {
     setupComplete: inboundState.setupComplete,
     gmailForwardingActive: inboundState.gmailForwardingActive
   });
-  inboundState.gmailVerification = data.gmail_forwarding_verification
+  inboundState.forwardingVerification = normalizeForwardingVerificationState(data);
+  inboundState.gmailVerification = inboundState.forwardingVerification?.hasVerificationEmail
     ? {
-        receivedAt: data.gmail_forwarding_verification.received_at || null,
-        subject: data.gmail_forwarding_verification.subject || null,
-        confirmationUrl: data.gmail_forwarding_verification.confirmation_url || null,
-        confirmationCode: data.gmail_forwarding_verification.confirmation_code || null
+        receivedAt: inboundState.forwardingVerification.verificationLinkDetectedAt || null,
+        subject: data.gmail_forwarding_verification?.subject || null,
+        confirmationUrl: inboundState.forwardingVerification.verificationLink || null,
+        confirmationCode: inboundState.forwardingVerification.confirmationCode || null
       }
     : null;
   inboundState.addressReachable = Boolean(data.address_reachable || data.last_received_at);
@@ -7269,11 +7364,13 @@ function applyInboundStatusPayload(data = {}) {
   updateInboundStatusPresentation();
   updateSyncHelperText();
   updateInboundDiagnosticsVisibility();
+  window.dispatchEvent(new CustomEvent('applictus:inbound-status-updated'));
 }
 
 async function refreshInboundStatus({ ensureAddress = true } = {}) {
   if (isInternalGmailMode()) {
     clearInboundAutoSyncPolling();
+    clearForwardingSetupStatusPolling();
     updateInboundStatusPresentation();
     updateSyncHelperText();
     return;
@@ -7292,6 +7389,7 @@ async function refreshInboundStatus({ ensureAddress = true } = {}) {
     inboundState.hasNonVerificationInbound = false;
     inboundState.gmailVerificationPending = false;
     inboundState.gmailVerification = null;
+    inboundState.forwardingVerification = null;
     inboundState.confirmedAt = null;
     inboundState.lastReceivedAt = null;
     inboundState.lastReceivedSubject = null;
@@ -7311,6 +7409,7 @@ async function refreshInboundStatus({ ensureAddress = true } = {}) {
     updateSyncHelperText();
   }
   syncInboundAutoPolling();
+  syncForwardingSetupStatusPolling();
 }
 
 function updateInboundDiagnosticsVisibility() {
@@ -7452,6 +7551,66 @@ function syncInboundAutoPolling() {
   inboundAutoSyncState.timer = window.setInterval(() => {
     void pollInboundStatusForAutoSync();
   }, INBOUND_AUTO_SYNC_INTERVAL_MS);
+}
+
+function clearForwardingSetupStatusPolling() {
+  if (forwardingSetupPollState.timer) {
+    window.clearInterval(forwardingSetupPollState.timer);
+    forwardingSetupPollState.timer = null;
+  }
+}
+
+function isInboundSetupModalVisible() {
+  return Boolean(document.querySelector('.forwarding-setup-body'));
+}
+
+function shouldPollForwardingSetupStatus() {
+  if (!sessionUser || isInternalGmailMode() || document.hidden) {
+    return false;
+  }
+  if (isForwardingActive()) {
+    return false;
+  }
+  if (!hasForwardingAddress() && inboundState.setupState === 'not_started') {
+    return false;
+  }
+  const routeKey = getCurrentRouteKey();
+  return routeKey === 'account' || isInboundSetupModalVisible();
+}
+
+async function pollForwardingSetupStatus() {
+  if (!shouldPollForwardingSetupStatus()) {
+    clearForwardingSetupStatusPolling();
+    return;
+  }
+  if (forwardingSetupPollState.inFlight) {
+    return;
+  }
+  forwardingSetupPollState.inFlight = true;
+  try {
+    await refreshInboundStatus({ ensureAddress: false });
+  } catch (err) {
+    if (DEBUG_APP) {
+      // eslint-disable-next-line no-console
+      console.debug('[forwarding-setup] status poll failed', err);
+    }
+  } finally {
+    forwardingSetupPollState.inFlight = false;
+    syncForwardingSetupStatusPolling();
+  }
+}
+
+function syncForwardingSetupStatusPolling() {
+  if (!shouldPollForwardingSetupStatus()) {
+    clearForwardingSetupStatusPolling();
+    return;
+  }
+  if (forwardingSetupPollState.timer) {
+    return;
+  }
+  forwardingSetupPollState.timer = window.setInterval(() => {
+    void pollForwardingSetupStatus();
+  }, FORWARDING_SETUP_STATUS_POLL_MS);
 }
 
 const FORWARDING_FILTER_PROVIDER_TERMS = [
@@ -8270,15 +8429,16 @@ function buildForwardingTutorialStepCard({ stepNumber, title, description, media
   return card;
 }
 
-function appendForwardingVerificationHelper(target) {
+function appendForwardingVerificationHelper(target, { requireVerificationLink = false } = {}) {
   if (!target) {
     return false;
   }
-  const verificationData = inboundState.gmailVerification || null;
-  const hasVerificationEmail =
-    Boolean(verificationData?.receivedAt) ||
-    /gmail forwarding confirmation/i.test(String(inboundState.lastReceivedSubject || ''));
-  if (!hasVerificationEmail) {
+  const verificationState = getForwardingVerificationState();
+  if (
+    verificationState.isForwardingVerified ||
+    !verificationState.hasVerificationEmail ||
+    (requireVerificationLink && !verificationState.hasVerificationLink)
+  ) {
     return false;
   }
   const helper = document.createElement('div');
@@ -8291,27 +8451,29 @@ function appendForwardingVerificationHelper(target) {
 
   const helperTitle = document.createElement('div');
   helperTitle.className = 'muted small';
-  helperTitle.textContent = 'Finish Gmail verification from the message Gmail sent to your Applictus address.';
+  helperTitle.textContent = verificationState.hasVerificationLink
+    ? 'Gmail sent a verification email. Open the link to finish forwarding setup.'
+    : 'Finish Gmail verification from the message Gmail sent to your Applictus address.';
   helper.appendChild(helperTitle);
 
   const helperActions = document.createElement('div');
   helperActions.className = 'forwarding-step-actions';
-  if (verificationData?.confirmationUrl) {
+  if (verificationState.verificationLink) {
     const openVerification = document.createElement('a');
     openVerification.className = 'btn btn--secondary btn--sm';
-    openVerification.href = verificationData.confirmationUrl;
+    openVerification.href = verificationState.verificationLink;
     openVerification.target = '_blank';
     openVerification.rel = 'noopener noreferrer';
     openVerification.textContent = 'Open verification link';
     helperActions.appendChild(openVerification);
   }
-  if (verificationData?.confirmationCode) {
+  if (verificationState.confirmationCode) {
     const copyCode = document.createElement('button');
     copyCode.type = 'button';
     copyCode.className = 'btn btn--ghost btn--sm';
     copyCode.textContent = 'Copy confirmation code';
     copyCode.addEventListener('click', () => {
-      void copyTextToClipboard(verificationData.confirmationCode, 'Copied confirmation code');
+      void copyTextToClipboard(verificationState.confirmationCode, 'Copied confirmation code');
     });
     helperActions.appendChild(copyCode);
   }
@@ -8959,6 +9121,15 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
     }
   };
 
+  const handleInboundStatusUpdated = () => {
+    if (setupContext.closed) {
+      return;
+    }
+    setupContext.verified = isForwardingActive();
+    safeRender();
+  };
+  window.addEventListener('applictus:inbound-status-updated', handleInboundStatusUpdated);
+
   setupContext.runVerificationCheck = async () => {
     if (setupContext.verifying || setupContext.closed) {
       return;
@@ -9155,6 +9326,7 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
     variantClass: 'modal--inbound-setup',
     onClose: () => {
       setupContext.closed = true;
+      window.removeEventListener('applictus:inbound-status-updated', handleInboundStatusUpdated);
       if (Array.isArray(setupContext.cleanupFns)) {
         setupContext.cleanupFns.forEach((cleanup) => {
           try {
@@ -9165,9 +9337,14 @@ function openInboundSetupModal({ startStep = 0 } = {}) {
         });
         setupContext.cleanupFns = [];
       }
+      syncForwardingSetupStatusPolling();
     }
   });
   render();
+  syncForwardingSetupStatusPolling();
+  if (shouldPollForwardingSetupStatus()) {
+    void pollForwardingSetupStatus();
+  }
 }
 
 async function rotateInboundAddressFlow() {
@@ -12677,6 +12854,8 @@ async function performLogout() {
   emailState.email = null;
   emailState.lastSyncedAt = null;
   emailState.lastSyncStats = null;
+  clearInboundAutoSyncPolling();
+  clearForwardingSetupStatusPolling();
   inboundState.diagnosticsAdmin = false;
   updateInboundDiagnosticsVisibility();
   closeProfileMenu();
@@ -12796,11 +12975,18 @@ document.addEventListener('keydown', (event) => {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     clearInboundAutoSyncPolling();
+    clearForwardingSetupStatusPolling();
     return;
   }
   if (routeIsDashboard() && sessionUser) {
     syncInboundAutoPolling();
     void pollInboundStatusForAutoSync();
+  }
+  if (sessionUser) {
+    syncForwardingSetupStatusPolling();
+    if (shouldPollForwardingSetupStatus()) {
+      void pollForwardingSetupStatus();
+    }
   }
 });
 
