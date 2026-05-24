@@ -489,6 +489,126 @@ function getPostmarkOutboundConfig() {
   };
 }
 
+async function sendPostmarkOutboundEmail({ to, subject, textBody, htmlBody, tag, metadata = {}, replyTo = null }) {
+  const config = getPostmarkOutboundConfig();
+  if (!config.configured) {
+    const err = new Error('Outbound email is not configured');
+    err.code = 'OUTBOUND_EMAIL_NOT_CONFIGURED';
+    err.missing = config.missing;
+    throw err;
+  }
+
+  const payload = {
+    From: config.from,
+    To: String(to || '').trim(),
+    Subject: String(subject || '').trim(),
+    TextBody: String(textBody || ''),
+    HtmlBody: String(htmlBody || ''),
+    Tag: tag || undefined,
+    Metadata: metadata || {}
+  };
+  if (replyTo && isLikelyEmail(replyTo)) {
+    payload.ReplyTo = String(replyTo).trim();
+  }
+  if (config.messageStream) {
+    payload.MessageStream = config.messageStream;
+  }
+
+  let response;
+  let rawBody = '';
+  try {
+    response = await fetch(config.apiUrl, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Postmark-Server-Token': config.token
+      },
+      body: JSON.stringify(payload)
+    });
+    rawBody = await response.text().catch(() => '');
+  } catch (fetchErr) {
+    const err = new Error('Unable to send outbound email');
+    err.code = 'OUTBOUND_EMAIL_SEND_FAILED';
+    err.detail = fetchErr?.message ? String(fetchErr.message).slice(0, 220) : String(fetchErr);
+    throw err;
+  }
+
+  let body = {};
+  try {
+    body = rawBody ? JSON.parse(rawBody) : {};
+  } catch (_) {
+    body = {};
+  }
+
+  if (!response.ok) {
+    const err = new Error(body.Message || body.message || 'Unable to send outbound email');
+    err.code = 'OUTBOUND_EMAIL_SEND_FAILED';
+    err.status = response.status;
+    err.detail = rawBody ? rawBody.slice(0, 500) : null;
+    throw err;
+  }
+
+  return body;
+}
+
+async function sendContactNotificationEmail({ id, createdAt, userId, name, email, subject = null, message }) {
+  const destination = normalizeEmail(
+    process.env.CONTACT_NOTIFICATION_EMAIL || process.env.SUPPORT_NOTIFICATION_EMAIL || 'jasonconklin.dev@gmail.com'
+  );
+  if (!destination || !isLikelyEmail(destination)) {
+    const err = new Error('Contact notification recipient is not configured');
+    err.code = 'CONTACT_NOTIFICATION_RECIPIENT_INVALID';
+    throw err;
+  }
+
+  const normalizedSubject = normalizeContactField(subject) || 'New Applictus contact message';
+  const displaySubject = normalizedSubject.slice(0, 140);
+  const submittedAt = createdAt || nowIso();
+  const safeUserId = userId || 'Not signed in';
+  const textBody = [
+    'New Applictus contact form submission',
+    '',
+    `Message ID: ${id}`,
+    `Submitted: ${submittedAt}`,
+    `User ID: ${safeUserId}`,
+    `Name: ${name}`,
+    `Email: ${email}`,
+    `Subject: ${displaySubject}`,
+    '',
+    'Message:',
+    message
+  ].join('\n');
+  const htmlBody = [
+    '<h2>New Applictus contact form submission</h2>',
+    '<dl>',
+    `<dt>Message ID</dt><dd>${escapeHtmlText(id)}</dd>`,
+    `<dt>Submitted</dt><dd>${escapeHtmlText(submittedAt)}</dd>`,
+    `<dt>User ID</dt><dd>${escapeHtmlText(safeUserId)}</dd>`,
+    `<dt>Name</dt><dd>${escapeHtmlText(name)}</dd>`,
+    `<dt>Email</dt><dd>${escapeHtmlText(email)}</dd>`,
+    `<dt>Subject</dt><dd>${escapeHtmlText(displaySubject)}</dd>`,
+    '</dl>',
+    '<h3>Message</h3>',
+    `<p>${escapeHtmlText(message).replace(/\n/g, '<br>')}</p>`
+  ].join('');
+
+  return sendPostmarkOutboundEmail({
+    to: destination,
+    subject: `Applictus contact: ${displaySubject}`,
+    textBody,
+    htmlBody,
+    tag: 'contact-form',
+    replyTo: email,
+    metadata: {
+      purpose: 'contact_form',
+      contact_message_id: id,
+      user_id: userId || '',
+      submitter_email: normalizeEmail(email) || ''
+    }
+  });
+}
+
 function generateInboundSetupToken() {
   return crypto.randomBytes(18).toString('hex');
 }
@@ -824,6 +944,26 @@ function normalizeContactMessage(text) {
 
 function isLikelyEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
+}
+
+function maskEmailForLog(email) {
+  const normalized = normalizeEmail(email);
+  if (!normalized || !normalized.includes('@')) {
+    return null;
+  }
+  const [local, domain] = normalized.split('@');
+  const safeLocal =
+    local.length <= 2 ? `${local.slice(0, 1)}***` : `${local.slice(0, 2)}***${local.slice(-1)}`;
+  return `${safeLocal}@${domain}`;
+}
+
+function escapeHtmlText(text) {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 async function getUserByEmail(email) {
@@ -1637,6 +1777,26 @@ async function getUserByStripeSubscriptionId(subscriptionId) {
     'SELECT * FROM users WHERE stripe_subscription_id = ? LIMIT 1',
     [String(subscriptionId)],
     'get'
+  );
+}
+
+function getCheckoutSessionCustomerEmail(session = {}) {
+  return normalizeEmail(
+    session?.customer_details?.email ||
+      session?.customer_email ||
+      session?.metadata?.user_email ||
+      session?.metadata?.email ||
+      ''
+  );
+}
+
+function getPaymentIntentCustomerEmail(paymentIntent = {}) {
+  return normalizeEmail(
+    paymentIntent?.receipt_email ||
+      paymentIntent?.customer_details?.email ||
+      paymentIntent?.metadata?.user_email ||
+      paymentIntent?.metadata?.email ||
+      ''
   );
 }
 
@@ -4401,18 +4561,24 @@ app.post('/api/billing/webhook', async (req, res) => {
 
       const metadataUserId =
         metadata.user_id || metadata.userId || session.client_reference_id || null;
+      const customerEmail = getCheckoutSessionCustomerEmail(session);
 
       let user = metadataUserId ? await getUserById(String(metadataUserId)) : null;
       if (!user && session.customer) {
         user = await getUserByStripeCustomerId(String(session.customer));
+      }
+      if (!user && customerEmail) {
+        user = await getUserByEmail(customerEmail);
       }
 
       if (!user) {
         logWarn('billing.webhook.user_not_found', {
           eventType,
           eventId,
+          sessionId: session.id || null,
           metadataUserId: metadataUserId || null,
-          customer: session.customer || null
+          customer: session.customer || null,
+          customerEmail: maskEmailForLog(customerEmail)
         });
         return res.json({ received: true, ignored: true });
       }
@@ -4452,6 +4618,14 @@ app.post('/api/billing/webhook', async (req, res) => {
           eventId,
           eventIso
         });
+        logInfo('billing.webhook.checkout_applied', {
+          eventId,
+          sessionId: session.id || null,
+          paymentIntent: session.payment_intent || null,
+          customer: session.customer || null,
+          planKey,
+          userId: user.id
+        });
         return res.json({ received: true, applied: true });
       }
 
@@ -4461,6 +4635,15 @@ app.post('/api/billing/webhook', async (req, res) => {
           stripeCustomerId: session.customer || user.stripe_customer_id || null,
           eventId,
           eventIso,
+          expiresAt
+        });
+        logInfo('billing.webhook.checkout_applied', {
+          eventId,
+          sessionId: session.id || null,
+          paymentIntent: session.payment_intent || null,
+          customer: session.customer || null,
+          planKey,
+          userId: user.id,
           expiresAt
         });
         return res.json({ received: true, applied: true });
@@ -4473,6 +4656,65 @@ app.post('/api/billing/webhook', async (req, res) => {
         mode: session.mode || null
       });
       return res.json({ received: true, ignored: true });
+    }
+
+    if (eventType === 'payment_intent.succeeded') {
+      const paymentIntent = event?.data?.object || {};
+      const metadata =
+        paymentIntent?.metadata && typeof paymentIntent.metadata === 'object' ? paymentIntent.metadata : {};
+      const rawPlan =
+        metadata.plan_key ||
+        metadata.internal_plan_key ||
+        metadata.billing_option ||
+        metadata.plan ||
+        metadata.planKey ||
+        null;
+      const planKey = resolveBillingPlanLabel(normalizeBillingOption(rawPlan));
+      if (planKey !== BILLING_OPTIONS.JOB_SEARCH_PLAN) {
+        return res.json({ received: true, ignored: true });
+      }
+
+      const metadataUserId = metadata.user_id || metadata.userId || null;
+      const customerEmail = getPaymentIntentCustomerEmail(paymentIntent);
+      let user = metadataUserId ? await getUserById(String(metadataUserId)) : null;
+      if (!user && paymentIntent.customer) {
+        user = await getUserByStripeCustomerId(String(paymentIntent.customer));
+      }
+      if (!user && customerEmail) {
+        user = await getUserByEmail(customerEmail);
+      }
+
+      if (!user) {
+        logWarn('billing.webhook.user_not_found', {
+          eventType,
+          eventId,
+          paymentIntent: paymentIntent.id || null,
+          metadataUserId: metadataUserId || null,
+          customer: paymentIntent.customer || null,
+          customerEmail: maskEmailForLog(customerEmail)
+        });
+        return res.json({ received: true, ignored: true });
+      }
+      if (isStaleStripeEventForUser(user, event)) {
+        return res.json({ received: true, duplicate: true });
+      }
+
+      const expiresAt = computeJobSearchPlanExpiration({ now: eventIso, days: 90 });
+      await markJobSearchPlanActive(user.id, {
+        stripeCustomerId: paymentIntent.customer || user.stripe_customer_id || null,
+        eventId,
+        eventIso,
+        expiresAt
+      });
+      logInfo('billing.webhook.payment_intent_applied', {
+        eventId,
+        paymentIntent: paymentIntent.id || null,
+        customer: paymentIntent.customer || null,
+        planKey,
+        userId: user.id,
+        expiresAt
+      });
+      return res.json({ received: true, applied: true });
     }
 
     if (eventType === 'customer.subscription.deleted') {
@@ -5194,6 +5436,7 @@ app.post('/api/contact', contactIpLimiter, async (req, res) => {
   try {
     const name = normalizeContactField(req.body?.name);
     const email = normalizeContactField(req.body?.email);
+    const subject = normalizeContactField(req.body?.subject);
     const message = normalizeContactMessage(req.body?.message);
 
     if (!name) {
@@ -5232,13 +5475,52 @@ app.post('/api/contact', contactIpLimiter, async (req, res) => {
       await runRes;
     }
 
-    return res.json({ ok: true });
-  } catch (err) {
-    if (process.env.JOBTRACK_LOG_LEVEL === 'debug') {
-      logError('contact submit failed', {
-        error: err && err.message ? err.message : String(err)
+    try {
+      await sendContactNotificationEmail({
+        id,
+        createdAt,
+        userId,
+        name,
+        email,
+        subject,
+        message
       });
+      logInfo('contact.notification.sent', {
+        contactMessageId: id,
+        userId,
+        submitterEmail: maskEmailForLog(email),
+        destination: maskEmailForLog(
+          process.env.CONTACT_NOTIFICATION_EMAIL ||
+            process.env.SUPPORT_NOTIFICATION_EMAIL ||
+            'jasonconklin.dev@gmail.com'
+        )
+      });
+    } catch (notifyErr) {
+      logError('contact.notification.failed', {
+        contactMessageId: id,
+        userId,
+        submitterEmail: maskEmailForLog(email),
+        code: notifyErr?.code || null,
+        status: notifyErr?.status || null,
+        missing: Array.isArray(notifyErr?.missing) ? notifyErr.missing : undefined,
+        detail: notifyErr?.message ? String(notifyErr.message).slice(0, 220) : String(notifyErr)
+      });
+      if (
+        notifyErr?.code === 'OUTBOUND_EMAIL_NOT_CONFIGURED' ||
+        notifyErr?.code === 'CONTACT_NOTIFICATION_RECIPIENT_INVALID'
+      ) {
+        return res.status(503).json({ error: 'CONTACT_NOTIFICATION_NOT_CONFIGURED' });
+      }
+      return res.status(502).json({ error: 'CONTACT_NOTIFICATION_FAILED' });
     }
+
+    return res.json({ ok: true, contact_message_id: id });
+  } catch (err) {
+    logError('contact.submit.failed', {
+      userId: req.user?.id || null,
+      code: err?.code || null,
+      detail: err && err.message ? String(err.message).slice(0, 220) : String(err)
+    });
     return res.status(500).json({ error: 'CONTACT_SUBMIT_FAILED' });
   }
 });

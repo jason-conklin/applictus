@@ -39,11 +39,31 @@ test('contact endpoint validates and stores messages', async (t) => {
   const { baseUrl, db, stop } = await startServerWithEnv({
     NODE_ENV: 'test',
     JOBTRACK_DB_PATH: ':memory:',
-    JOBTRACK_LOG_LEVEL: 'error'
+    JOBTRACK_LOG_LEVEL: 'error',
+    POSTMARK_SERVER_TOKEN: 'test-outbound-token',
+    POSTMARK_FROM_EMAIL: 'Applictus <no-reply@applictus.test>',
+    POSTMARK_OUTBOUND_MESSAGE_STREAM: 'outbound'
   });
   t.after(stop);
 
   const { csrfToken, cookie } = await getCsrf(baseUrl);
+  const originalFetch = global.fetch;
+  const postmarkRequests = [];
+  global.fetch = async (url, options = {}) => {
+    if (String(url) === 'https://api.postmarkapp.com/email') {
+      const payload = JSON.parse(String(options.body || '{}'));
+      postmarkRequests.push({ url: String(url), headers: options.headers || {}, body: payload });
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ MessageID: `pm-${postmarkRequests.length}` })
+      };
+    }
+    return originalFetch(url, options);
+  };
+  t.after(() => {
+    global.fetch = originalFetch;
+  });
 
   const valid = {
     name: 'Jason Test',
@@ -55,7 +75,8 @@ test('contact endpoint validates and stores messages', async (t) => {
     headers: {
       'Content-Type': 'application/json',
       'X-CSRF-Token': csrfToken,
-      Cookie: cookie
+      Cookie: cookie,
+      'X-Forwarded-For': '203.0.113.50'
     },
     body: JSON.stringify(valid)
   });
@@ -69,13 +90,22 @@ test('contact endpoint validates and stores messages', async (t) => {
   assert.equal(stored.email, valid.email);
   assert.equal(stored.message, 'Hello Applictus support!');
   assert.ok(stored.created_at);
+  assert.equal(postmarkRequests.length, 1);
+  assert.equal(postmarkRequests[0].body.To, 'jasonconklin.dev@gmail.com');
+  assert.equal(postmarkRequests[0].body.From, 'Applictus <no-reply@applictus.test>');
+  assert.equal(postmarkRequests[0].body.ReplyTo, valid.email);
+  assert.equal(postmarkRequests[0].body.MessageStream, 'outbound');
+  assert.match(String(postmarkRequests[0].body.Subject || ''), /Applictus contact/i);
+  assert.match(String(postmarkRequests[0].body.TextBody || ''), /Jason Test/);
+  assert.match(String(postmarkRequests[0].body.TextBody || ''), /Hello Applictus support!/);
 
   const invalid = await fetch(`${baseUrl}/api/contact`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-CSRF-Token': csrfToken,
-      Cookie: cookie
+      Cookie: cookie,
+      'X-Forwarded-For': '203.0.113.50'
     },
     body: JSON.stringify({ name: 'A', email: 'not-an-email', message: 'Hi' })
   });
@@ -90,11 +120,28 @@ test('contact endpoint is rate limited', async (t) => {
     JOBTRACK_DB_PATH: ':memory:',
     JOBTRACK_LOG_LEVEL: 'error',
     JOBTRACK_RATE_LIMIT_MAX: '3',
-    JOBTRACK_RATE_LIMIT_WINDOW_MS: '600000'
+    JOBTRACK_RATE_LIMIT_WINDOW_MS: '600000',
+    POSTMARK_SERVER_TOKEN: 'test-outbound-token',
+    POSTMARK_FROM_EMAIL: 'Applictus <no-reply@applictus.test>',
+    POSTMARK_OUTBOUND_MESSAGE_STREAM: 'outbound'
   });
   t.after(stop);
 
   const { csrfToken, cookie } = await getCsrf(baseUrl);
+  const originalFetch = global.fetch;
+  global.fetch = async (url, options = {}) => {
+    if (String(url) === 'https://api.postmarkapp.com/email') {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ MessageID: crypto.randomUUID() })
+      };
+    }
+    return originalFetch(url, options);
+  };
+  t.after(() => {
+    global.fetch = originalFetch;
+  });
   let lastStatus = null;
 
   for (let i = 0; i < 4; i += 1) {
@@ -120,3 +167,53 @@ test('contact endpoint is rate limited', async (t) => {
   assert.equal(lastStatus, 429);
 });
 
+test('contact endpoint reports notification failures without silent success', async (t) => {
+  const { baseUrl, db, stop } = await startServerWithEnv({
+    NODE_ENV: 'test',
+    JOBTRACK_DB_PATH: ':memory:',
+    JOBTRACK_LOG_LEVEL: 'error',
+    POSTMARK_SERVER_TOKEN: 'test-outbound-token',
+    POSTMARK_FROM_EMAIL: 'Applictus <no-reply@applictus.test>',
+    POSTMARK_OUTBOUND_MESSAGE_STREAM: 'outbound'
+  });
+  t.after(stop);
+
+  const { csrfToken, cookie } = await getCsrf(baseUrl);
+  const originalFetch = global.fetch;
+  global.fetch = async (url, options = {}) => {
+    if (String(url) === 'https://api.postmarkapp.com/email') {
+      return {
+        ok: false,
+        status: 500,
+        text: async () => JSON.stringify({ Message: 'Postmark failed' })
+      };
+    }
+    return originalFetch(url, options);
+  };
+  t.after(() => {
+    global.fetch = originalFetch;
+  });
+
+  const email = `contact-failure-${crypto.randomUUID()}@example.com`;
+  const response = await fetch(`${baseUrl}/api/contact`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken,
+      Cookie: cookie,
+      'X-Forwarded-For': '203.0.113.51'
+    },
+    body: JSON.stringify({
+      name: 'Failure Path',
+      email,
+      message: 'This should not be reported as sent.'
+    })
+  });
+  assert.equal(response.status, 502);
+  const body = await response.json().catch(() => ({}));
+  assert.equal(body.error, 'CONTACT_NOTIFICATION_FAILED');
+
+  const stored = db.prepare('SELECT * FROM contact_messages WHERE email = ?').get(email);
+  assert.ok(stored);
+  assert.equal(stored.name, 'Failure Path');
+});

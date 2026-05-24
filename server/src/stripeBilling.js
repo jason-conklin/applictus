@@ -75,6 +75,9 @@ function buildCheckoutSessionParams({
     params.set('metadata[user_id]', String(userId));
     params.set('metadata[userId]', String(userId));
   }
+  if (userEmail) {
+    params.set('metadata[user_email]', String(userEmail));
+  }
   if (planKey) {
     params.set('metadata[plan_key]', String(planKey));
     params.set('metadata[internal_plan_key]', String(planKey));
@@ -92,6 +95,9 @@ function buildCheckoutSessionParams({
       params.set('subscription_data[metadata][user_id]', String(userId));
       params.set('subscription_data[metadata][userId]', String(userId));
     }
+    if (userEmail) {
+      params.set('subscription_data[metadata][user_email]', String(userEmail));
+    }
     if (planKey) {
       params.set('subscription_data[metadata][plan_key]', String(planKey));
     }
@@ -101,6 +107,9 @@ function buildCheckoutSessionParams({
     if (userId) {
       params.set('payment_intent_data[metadata][user_id]', String(userId));
       params.set('payment_intent_data[metadata][userId]', String(userId));
+    }
+    if (userEmail) {
+      params.set('payment_intent_data[metadata][user_email]', String(userEmail));
     }
     if (planKey) {
       params.set('payment_intent_data[metadata][plan_key]', String(planKey));

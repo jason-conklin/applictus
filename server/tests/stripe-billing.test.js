@@ -191,7 +191,11 @@ test('createCheckoutSession creates monthly subscription checkout payload', asyn
   const params = new URLSearchParams(captured);
   assert.equal(params.get('mode'), 'subscription');
   assert.equal(params.get('line_items[0][price]'), 'price_pro_monthly_test');
+  assert.equal(params.get('metadata[user_id]'), 'user-monthly');
+  assert.equal(params.get('metadata[user_email]'), 'monthly@example.com');
   assert.equal(params.get('metadata[plan_key]'), 'pro_monthly');
+  assert.equal(params.get('subscription_data[metadata][user_id]'), 'user-monthly');
+  assert.equal(params.get('subscription_data[metadata][user_email]'), 'monthly@example.com');
   assert.equal(params.get('subscription_data[metadata][plan_key]'), 'pro_monthly');
   assert.equal(result.id, 'cs_test_monthly');
   assert.match(result.url, /^https:\/\/checkout\.stripe\.com\//);
@@ -222,7 +226,11 @@ test('createCheckoutSession creates one-time job search checkout payload', async
   const params = new URLSearchParams(captured);
   assert.equal(params.get('mode'), 'payment');
   assert.equal(params.get('line_items[0][price]'), 'price_job_search_test');
+  assert.equal(params.get('metadata[user_id]'), 'user-jobsearch');
+  assert.equal(params.get('metadata[user_email]'), 'jobsearch@example.com');
   assert.equal(params.get('metadata[plan_key]'), 'job_search_plan');
+  assert.equal(params.get('payment_intent_data[metadata][user_id]'), 'user-jobsearch');
+  assert.equal(params.get('payment_intent_data[metadata][user_email]'), 'jobsearch@example.com');
   assert.equal(params.get('payment_intent_data[metadata][plan_key]'), 'job_search_plan');
   assert.equal(result.id, 'cs_test_jobsearch');
   assert.match(result.url, /^https:\/\/checkout\.stripe\.com\//);
@@ -558,6 +566,68 @@ test('billing webhook lifecycle updates plans and stays idempotent', async (t) =
     assert.ok(actualExpiry >= minExpected);
   });
 
+  await t.test('checkout.session.completed can match first purchase by customer email fallback', async () => {
+    const email = `stripe-email-fallback-${crypto.randomUUID()}@example.com`;
+    const userId = insertUser({ email });
+    const event = {
+      id: `evt_onetime_email_fallback_${crypto.randomUUID()}`,
+      type: 'checkout.session.completed',
+      created: nowSec + 5,
+      data: {
+        object: {
+          id: 'cs_email_fallback_1',
+          mode: 'payment',
+          customer: 'cus_email_fallback_1',
+          customer_details: { email },
+          metadata: {
+            plan_key: 'job_search_plan'
+          }
+        }
+      }
+    };
+    const result = await postWebhook(baseUrl, event, event.created);
+    assert.equal(result.status, 200);
+    assert.equal(Boolean(result.body.applied), true);
+    const user = getUser(userId);
+    assert.equal(String(user.plan_tier || '').toLowerCase(), 'pro');
+    assert.equal(String(user.billing_plan || '').toLowerCase(), 'job_search_plan');
+    assert.equal(String(user.billing_type || '').toLowerCase(), 'one_time');
+    assert.equal(user.stripe_customer_id, 'cus_email_fallback_1');
+  });
+
+  await t.test('payment_intent.succeeded fallback activates one-time job search plan', async () => {
+    const userId = insertUser({ email: `stripe-pi-${crypto.randomUUID()}@example.com` });
+    const event = {
+      id: `evt_payment_intent_${crypto.randomUUID()}`,
+      type: 'payment_intent.succeeded',
+      created: nowSec + 6,
+      data: {
+        object: {
+          id: 'pi_job_search_1',
+          customer: 'cus_pi_1',
+          metadata: {
+            user_id: userId,
+            user_email: `stripe-pi-${crypto.randomUUID()}@example.com`,
+            plan_key: 'job_search_plan'
+          }
+        }
+      }
+    };
+    const result = await postWebhook(baseUrl, event, event.created);
+    assert.equal(result.status, 200);
+    assert.equal(Boolean(result.body.applied), true);
+    const user = getUser(userId);
+    assert.equal(String(user.plan_tier || '').toLowerCase(), 'pro');
+    assert.equal(String(user.billing_plan || '').toLowerCase(), 'job_search_plan');
+    assert.equal(String(user.billing_type || '').toLowerCase(), 'one_time');
+    assert.equal(user.stripe_customer_id, 'cus_pi_1');
+    assert.equal(user.stripe_subscription_id, null);
+
+    const replay = await postWebhook(baseUrl, event, event.created);
+    assert.equal(replay.status, 200);
+    assert.equal(Boolean(replay.body.duplicate), true);
+  });
+
   await t.test('customer.subscription.deleted does not remove active one-time job search access', async () => {
     const userId = insertUser({
       email: `stripe-onetime-keep-${crypto.randomUUID()}@example.com`,
@@ -573,7 +643,7 @@ test('billing webhook lifecycle updates plans and stays idempotent', async (t) =
     const event = {
       id: `evt_sub_deleted_onetime_${crypto.randomUUID()}`,
       type: 'customer.subscription.deleted',
-      created: nowSec + 5,
+      created: nowSec + 7,
       data: {
         object: {
           id: 'sub_legacy_keep',

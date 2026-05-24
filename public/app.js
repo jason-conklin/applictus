@@ -4297,6 +4297,8 @@ function contactErrorMessage(code) {
     RATE_LIMITED: 'Too many messages. Please try again in a bit.',
     CSRF_REQUIRED: 'Please refresh and try again.',
     CSRF_INVALID: 'Please refresh and try again.',
+    CONTACT_NOTIFICATION_NOT_CONFIGURED: 'Support notifications are not configured. Please try again later.',
+    CONTACT_NOTIFICATION_FAILED: 'Unable to send your message right now. Please try again later.',
     CONTACT_SUBMIT_FAILED: 'Unable to send your message right now.'
   };
   return messages[code] || 'Unable to send your message. Please try again.';
