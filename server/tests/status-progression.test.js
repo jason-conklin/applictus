@@ -1137,3 +1137,136 @@ test('rejection-only email creates application as REJECTED', async () => {
   assert.equal(app.current_status, ApplicationStatus.REJECTED);
   db.close();
 });
+
+test('Lever next-step assessment email updates existing applied application to INTERVIEW_REQUESTED', async () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+
+  const sender = 'Veeva Systems <no-reply@hire.lever.co>';
+  const subject = 'Jason Conklin - Next Steps for your Consultant Development Program Application';
+  const body = [
+    'For the next step in your interview process, you will take the Rembrandt Personality Assessment.',
+    'You will have 3 business days to complete the assessment.',
+    'The assessment takes about 25 minutes to complete and must be completed in one sitting.',
+    'When ready to begin, click on the following link to take the assessment.'
+  ].join('\n');
+  const appId = insertApplication(db, {
+    userId,
+    company: 'Veeva Systems',
+    role: 'Consultant Development Program',
+    status: ApplicationStatus.APPLIED
+  });
+
+  const classification = classifyEmail({ subject, sender, snippet: body, body });
+  assert.equal(classification.detectedType, 'interview_requested');
+  assert.equal(classification.actionNeeded, true);
+
+  const identity = extractThreadIdentity({ subject, sender, snippet: body, bodyText: body });
+  assert.equal(identity.companyName, 'Veeva Systems');
+  assert.equal(identity.jobTitle, 'Consultant Development Program');
+
+  const eventId = insertEmailEvent(db, {
+    userId,
+    messageId: 'msg-veeva-assessment-1',
+    sender,
+    subject,
+    detectedType: classification.detectedType,
+    confidenceScore: classification.confidenceScore,
+    classificationConfidence: classification.confidenceScore,
+    snippet: body
+  });
+
+  const match = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: eventId,
+      sender,
+      subject,
+      snippet: body,
+      detected_type: classification.detectedType,
+      confidence_score: classification.confidenceScore,
+      classification_confidence: classification.confidenceScore,
+      role_title: identity.jobTitle,
+      role_confidence: identity.roleConfidence,
+      role_source: 'identity',
+      created_at: new Date().toISOString()
+    },
+    identity
+  });
+  assert.equal(match.action, 'matched_existing');
+  assert.equal(match.applicationId, appId);
+
+  const inference = runStatusInferenceForApplication(db, userId, appId);
+  assert.equal(inference.applied, true);
+  const updated = db.prepare('SELECT current_status FROM job_applications WHERE id = ?').get(appId);
+  assert.equal(updated.current_status, ApplicationStatus.INTERVIEW_REQUESTED);
+  db.close();
+});
+
+test('Lever next-step assessment email does not downgrade existing rejected application', async () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+
+  const sender = 'Veeva Systems <no-reply@hire.lever.co>';
+  const subject = 'Jason Conklin - Next Steps for your Consultant Development Program Application';
+  const body = [
+    'For the next step in your interview process, you will take the Rembrandt Personality Assessment.',
+    'You will have 3 business days to complete the assessment.',
+    'When ready to begin, click on the following link to take the assessment.'
+  ].join('\n');
+  const appId = insertApplication(db, {
+    userId,
+    company: 'Veeva Systems',
+    role: 'Consultant Development Program',
+    status: ApplicationStatus.REJECTED
+  });
+
+  const classification = classifyEmail({ subject, sender, snippet: body, body });
+  assert.equal(classification.detectedType, 'interview_requested');
+
+  const identity = extractThreadIdentity({ subject, sender, snippet: body, bodyText: body });
+  assert.equal(identity.companyName, 'Veeva Systems');
+  assert.equal(identity.jobTitle, 'Consultant Development Program');
+
+  const eventId = insertEmailEvent(db, {
+    userId,
+    messageId: 'msg-veeva-assessment-2',
+    sender,
+    subject,
+    detectedType: classification.detectedType,
+    confidenceScore: classification.confidenceScore,
+    classificationConfidence: classification.confidenceScore,
+    snippet: body
+  });
+
+  const match = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: eventId,
+      sender,
+      subject,
+      snippet: body,
+      detected_type: classification.detectedType,
+      confidence_score: classification.confidenceScore,
+      classification_confidence: classification.confidenceScore,
+      role_title: identity.jobTitle,
+      role_confidence: identity.roleConfidence,
+      role_source: 'identity',
+      created_at: new Date().toISOString()
+    },
+    identity
+  });
+  assert.equal(match.action, 'matched_existing');
+  assert.equal(match.applicationId, appId);
+
+  const inference = runStatusInferenceForApplication(db, userId, appId);
+  assert.equal(inference.applied, false);
+  assert.equal(inference.blocked, 'terminal');
+  const updated = db.prepare('SELECT current_status FROM job_applications WHERE id = ?').get(appId);
+  assert.equal(updated.current_status, ApplicationStatus.REJECTED);
+  db.close();
+});

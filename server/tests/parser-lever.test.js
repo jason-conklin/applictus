@@ -54,3 +54,28 @@ test('lever parser detects interview request with role context', async () => {
   assert.equal(parsed.status, 'interview_requested');
   assert.ok(parsed.confidence.status >= 80);
 });
+
+test('lever parser extracts company and role from next-step assessment email', async () => {
+  const parsed = await parseJobEmail({
+    fromEmail: 'Veeva Systems <no-reply@hire.lever.co>',
+    subject: 'Jason Conklin - Next Steps for your Consultant Development Program Application',
+    text: [
+      'For the next step in your interview process, you will take the Rembrandt Personality Assessment.',
+      'You will have 3 business days to complete the assessment.',
+      'The assessment takes about 25 minutes to complete and must be completed in one sitting.',
+      'When ready to begin, click on the following link to take the assessment.'
+    ].join('\n')
+  });
+
+  assert.equal(parsed.providerId, 'lever');
+  assert.equal(parsed.company, 'Veeva Systems');
+  assert.equal(parsed.role, 'Consultant Development Program');
+  assert.equal(parsed.status, 'interview_requested');
+  assert.equal(parsed.actionNeeded, true);
+  assert.ok(parsed.confidence.company >= 90);
+  assert.ok(parsed.confidence.role >= 90);
+  assert.ok(parsed.confidence.status >= 90);
+  assert.equal(parsed.parserDebug?.company_source, 'sender_display');
+  assert.equal(parsed.parserDebug?.role_source, 'subject_next_steps_application');
+  assert.equal(parsed.parserDebug?.status_signal?.decision_reason, 'assessment_interview_stage_signals');
+});

@@ -461,6 +461,74 @@ test('classifyEmail detects written assessment invitation as interview requested
   assert.equal(result.reason, 'interview_stage_assessment');
 });
 
+test('classifyEmail detects ATS next-step assessment emails as interview requested', () => {
+  const subject = 'Jason Conklin - Next Steps for your Consultant Development Program Application';
+  const body = [
+    'For the next step in your interview process, you will take the Rembrandt Personality Assessment.',
+    'You will have 3 business days to complete the assessment.',
+    'The assessment takes about 25 minutes to complete and must be completed in one sitting.',
+    'When ready to begin, click on the following link to take the assessment.',
+    'It may take up to 1 week after you submit the assessment to receive an update from our team.'
+  ].join('\n');
+
+  const relevance = isRelevantApplicationEmail({
+    subject,
+    body,
+    sender: 'Veeva Systems <no-reply@hire.lever.co>'
+  });
+  assert.equal(relevance.isRelevant, true);
+  assert.ok(relevance.matchedKeywords.includes('next_steps_for_application'));
+  assert.ok(
+    relevance.matchedKeywords.includes('next_step_interview_process') ||
+      relevance.matchedKeywords.includes('typed_assessment') ||
+      relevance.matchedKeywords.includes('assessment_action')
+  );
+
+  const result = classifyEmail({
+    subject,
+    body,
+    sender: 'Veeva Systems <no-reply@hire.lever.co>'
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'interview_requested');
+  assert.equal(result.reason, 'interview_stage_assessment');
+  assert.equal(result.actionNeeded, true);
+  assert.equal(result.actionReason, 'assessment_required_next_step');
+  assert.ok(result.confidenceScore >= 0.9);
+  assert.ok(result.debug.interviewMatches.includes('next_step_interview_process'));
+  assert.ok(result.debug.interviewMatches.includes('rembrandt_personality_assessment'));
+  assert.ok(result.debug.interviewMatches.includes('business_days_to_complete'));
+});
+
+test('classifyEmail ignores generic assessment emails without job context', () => {
+  const result = classifyEmail({
+    subject: 'Your personality assessment is ready',
+    sender: 'support@learning-platform.example',
+    body: [
+      'Complete the assessment to review your leadership profile.',
+      'The assessment takes about 25 minutes to complete and must be completed in one sitting.'
+    ].join('\n')
+  });
+  assert.equal(result.isJobRelated, false);
+  assert.notEqual(result.detectedType, 'interview_requested');
+});
+
+test('classifyEmail detects ATS application-process assessment emails as action-needed interviews', () => {
+  const result = classifyEmail({
+    subject: 'Next step in your application process',
+    sender: 'Talent Team <notifications@greenhouse.io>',
+    body: [
+      'You are a candidate for the Product Analyst role.',
+      'The next step in your application process is an online assessment.',
+      'Please complete the assessment by the deadline to complete this stage.'
+    ].join('\n')
+  });
+  assert.equal(result.isJobRelated, true);
+  assert.equal(result.detectedType, 'interview_requested');
+  assert.equal(result.actionNeeded, true);
+  assert.ok(result.confidenceScore >= 0.9);
+});
+
 test('classifyEmail keeps generic ATS process-stage language as confirmation without interview upgrade', () => {
   const subject = 'Thank you for applying at Acme Corp - 99123 Product Analyst';
   const body = [

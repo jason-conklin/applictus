@@ -168,6 +168,9 @@ const PROVIDERS = [
         /application confirmation/i.test(body) ||
         /thanks for applying to/i.test(body) ||
         /application update/i.test(subj) ||
+        /next steps? for your\b.{0,120}\bapplication/i.test(subj) ||
+        /next step in (?:your|the) (?:interview|application) process/i.test(body) ||
+        /\b(?:take|complete)\s+(?:the\s+)?assessment\b/i.test(body) ||
         /not moving forward|regret to inform|after careful consideration/i.test(`${subj}\n${body}`) ||
         /interview|phone screen|schedule/i.test(`${subj}\n${body}`);
       if (domainMatch && phraseMatch) {

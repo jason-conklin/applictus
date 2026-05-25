@@ -100,10 +100,18 @@ const RELEVANCE_KEEP_SIGNALS = [
   { pattern: /\breply from your account\b/i, label: 'reply_from_account' },
   { pattern: /\b(?:we(?:'|’)re|we are)\s+pleased to invite you to\b/i, label: 'pleased_to_invite' },
   { pattern: /\bnext step in our hiring process\b/i, label: 'next_step_hiring_process' },
+  { pattern: /\bnext step in (?:your|the) interview process\b/i, label: 'next_step_interview_process' },
+  { pattern: /\bnext step in (?:your|the) application process\b/i, label: 'next_step_application_process' },
+  { pattern: /\bnext steps? for your\b.{0,120}\bapplication\b/i, label: 'next_steps_for_application' },
   { pattern: /\binitial interview\b/i, label: 'initial_interview' },
   { pattern: /\bscreening test\b/i, label: 'screening_test' },
   { pattern: /\battached questions?\b/i, label: 'attached_questions' },
+  { pattern: /\b(?:personality|technical|coding|online|behavioral|pre[- ]interview)\s+assessment\b/i, label: 'typed_assessment' },
+  { pattern: /\brembrandt personality assessment\b/i, label: 'rembrandt_personality_assessment' },
   { pattern: /\bsubmit your responses?\b/i, label: 'submit_responses' },
+  { pattern: /\b(?:take|complete|submit)\s+(?:the\s+)?assessment\b/i, label: 'assessment_action' },
+  { pattern: /\bmust be completed\b/i, label: 'must_be_completed' },
+  { pattern: /\b(?:business\s+)?days?\s+to\s+complete\b/i, label: 'deadline_to_complete' },
   { pattern: /\bprogression to the next stage\b/i, label: 'progression_next_stage' },
   { pattern: /\bjob description\b/i, label: 'job_description' },
   {
@@ -187,19 +195,32 @@ const INTERVIEW_DIRECT_CTA_PATTERNS = [
 const INTERVIEW_STAGE_INVITE_PATTERNS = [
   { pattern: /\b(?:we(?:'|’)re|we are)\s+pleased to invite you to\b/i, label: 'pleased_to_invite' },
   { pattern: /\binvite you to the next step in our hiring process\b/i, label: 'invite_next_step_hiring_process' },
-  { pattern: /\bnext step in our hiring process\b/i, label: 'next_step_hiring_process' }
+  { pattern: /\bnext step in our hiring process\b/i, label: 'next_step_hiring_process' },
+  { pattern: /\bnext step in (?:your|the) interview process\b/i, label: 'next_step_interview_process' },
+  { pattern: /\bnext step in (?:your|the) application process\b/i, label: 'next_step_application_process' },
+  { pattern: /\bnext steps? for your\b.{0,120}\bapplication\b/i, label: 'next_steps_for_application' }
 ];
 
 const INTERVIEW_STAGE_ASSESSMENT_PATTERNS = [
   { pattern: /\binitial interview\b/i, label: 'initial_interview' },
   { pattern: /\bscreening test\b/i, label: 'screening_test' },
   { pattern: /\battached questions?\b/i, label: 'attached_questions' },
+  { pattern: /\b(?:personality|technical|coding|online|behavioral|pre[- ]interview)\s+assessment\b/i, label: 'typed_assessment' },
+  { pattern: /\brembrandt personality assessment\b/i, label: 'rembrandt_personality_assessment' },
+  { pattern: /\b(?:work sample|case study|take[- ]home assignment)\b/i, label: 'work_sample_assessment' },
   { pattern: /\bassessment\b/i, label: 'assessment' },
   { pattern: /\bjob description\b/i, label: 'job_description' }
 ];
 
 const INTERVIEW_STAGE_ACTION_PATTERNS = [
   { pattern: /\bsubmit your responses?\b/i, label: 'submit_responses' },
+  { pattern: /\b(?:take|complete|submit)\s+(?:the\s+)?assessment\b/i, label: 'assessment_action' },
+  { pattern: /\bmust be completed\b/i, label: 'must_be_completed' },
+  { pattern: /\bcompleted in one sitting\b/i, label: 'completed_one_sitting' },
+  { pattern: /\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+business\s+days?\s+to\s+complete\b/i, label: 'business_days_to_complete' },
+  { pattern: /\bdeadline to complete\b/i, label: 'deadline_to_complete' },
+  { pattern: /\bwhen ready to begin\b/i, label: 'ready_to_begin' },
+  { pattern: /\bclick\b.{0,80}\blink\b.{0,80}\b(?:take|complete|begin)\b.{0,40}\bassessment\b/i, label: 'assessment_link_cta' },
   { pattern: /\breview and respond\b/i, label: 'review_and_respond' },
   { pattern: /\bat your earliest convenience\b/i, label: 'earliest_convenience' },
   { pattern: /\bprogression to the next stage\b/i, label: 'progression_to_next_stage' },
@@ -881,6 +902,13 @@ function isLinkedInDomainSender(sender) {
   return /(?:^|\.)linkedin\.com$/.test(domain);
 }
 
+function isAtsDomainSender(sender) {
+  const domain = extractSenderDomain(sender);
+  return /(?:^|\.)(?:lever\.co|greenhouse\.io|greenhouse-mail\.io|workday\.com|myworkday\.com|smartrecruiters\.com|smartrecruitersmail\.com|icims\.com|workablemail\.com|workable\.com|taleo\.net|taleo\.com|ashbyhq\.com)$/.test(
+    domain
+  );
+}
+
 function hasStrongJobLifecycleEvidence(text) {
   const sourceText = String(text || '');
   if (!sourceText) {
@@ -1031,6 +1059,24 @@ function isRelevantApplicationEmail({ subject, snippet, sender, body } = {}) {
   const matchedKeywords = collectSignalMatches(RELEVANCE_KEEP_SIGNALS, textSource);
   const rejectedKeywords = collectSignalMatches(RELEVANCE_IGNORE_SIGNALS, textSource);
   const marketingKeywords = collectSignalMatches(RELEVANCE_MARKETING_SIGNALS, textSource);
+  const assessmentOnlyRelevanceLabels = new Set([
+    'typed_assessment',
+    'rembrandt_personality_assessment',
+    'assessment_action',
+    'must_be_completed',
+    'deadline_to_complete'
+  ]);
+  const hasOnlyAssessmentSignals =
+    matchedKeywords.length > 0 &&
+    matchedKeywords.every((label) => assessmentOnlyRelevanceLabels.has(String(label || '')));
+  if (hasOnlyAssessmentSignals && !hasJobContext(textSource) && !isAtsDomainSender(sender)) {
+    return {
+      isRelevant: false,
+      reason: 'not_relevant',
+      matchedKeywords,
+      rejectedKeywords: ['assessment_without_job_context']
+    };
+  }
   const listingLineCount = countJobListingLikeLines(textSource);
   const listingCtaCount =
     countMatches(/\b(?:apply now|view job|save job)\b/i, textSource) +
@@ -1056,7 +1102,7 @@ function isRelevantApplicationEmail({ subject, snippet, sender, body } = {}) {
     matchedKeywords.length > 0 &&
     matchedKeywords.every((label) => String(label || '') === 'interview_context');
   const hasInterviewActionContext =
-    /\b(?:schedule|availability|select (?:a|your) time|book (?:a )?time|invite you to|next step in our hiring process|initial interview|screening test|submit your responses?)\b/i.test(
+    /\b(?:schedule|availability|select (?:a|your) time|book (?:a )?time|invite you to|next step in (?:our hiring|your interview|the interview|your application|the application) process|next steps? for your\b.{0,120}\bapplication|initial interview|screening test|submit your responses?|take (?:the )?assessment|complete (?:the )?assessment|must be completed|business days? to complete|when ready to begin|click\b.{0,80}\blink)\b/i.test(
       textSource
     );
   if (hasOnlyInterviewContextSignal && !hasInterviewActionContext) {
@@ -1479,13 +1525,23 @@ function detectAssessmentInterviewStage({ subject, snippet, sender, body }) {
     return null;
   }
 
+  const strongAssessmentLabels = new Set([
+    'initial_interview',
+    'screening_test',
+    'attached_questions',
+    'typed_assessment',
+    'rembrandt_personality_assessment',
+    'work_sample_assessment'
+  ]);
   const hasStrongInvite = inviteHits.length > 0;
   const hasStrongAssessment =
-    assessmentHits.some((label) => ['initial_interview', 'screening_test', 'attached_questions'].includes(label)) ||
+    assessmentHits.some((label) => strongAssessmentLabels.has(label)) ||
     /\bserve as your initial interview\b/i.test(textSource);
   const hasAssessmentContext = hasStrongAssessment || assessmentHits.length >= 2;
   const hasActionPrompt =
-    actionHits.length > 0 || /\bsubmit (?:your )?(?:answers?|responses?)\b/i.test(textSource);
+    actionHits.length > 0 ||
+    /\bsubmit (?:your )?(?:answers?|responses?)\b/i.test(textSource) ||
+    /\b(?:take|complete|submit)\s+(?:the\s+)?assessment\b/i.test(textSource);
   const hasJobSignal = hasJobContext(textSource);
   const processOnlyWithoutInvite = processOnlyHits.length > 0 && !hasStrongInvite;
   const vagueOnlySignal = vagueHits.length > 0 && !hasStrongInvite && !hasActionPrompt;
@@ -1504,14 +1560,18 @@ function detectAssessmentInterviewStage({ subject, snippet, sender, body }) {
     detectedType: 'interview_requested',
     confidenceScore: Math.min(0.96, 0.9 + confidenceBoost),
     explanation:
-      'Detected interview-stage assessment invite (next-step invitation with screening/initial interview instructions).',
+      'Detected assessment required as a next step in the interview process.',
     reason: 'interview_stage_assessment',
+    actionNeeded: true,
+    actionReason: 'assessment_required_next_step',
     debug: {
       interviewMatches: combinedInterviewHits,
       rejectedKeywords: Array.from(new Set([...vagueHits, ...listingPenaltySignals])),
       negativeMatches: processOnlyHits,
       finalDecision: 'interview_requested',
-      decisionReason: 'assessment_interview_stage_signals'
+      decisionReason: 'assessment_interview_stage_signals',
+      actionNeeded: true,
+      actionReason: 'assessment_required_next_step'
     }
   };
 }
@@ -1720,6 +1780,19 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
       isJobRelated: false,
       explanation: 'Newsletter/digest content suppressed.',
       reason: 'newsletter_digest'
+    };
+  }
+
+  const relevanceScreen = isRelevantApplicationEmail({ subject, snippet, sender, body });
+  if (
+    !relevanceScreen.isRelevant &&
+    Array.isArray(relevanceScreen.rejectedKeywords) &&
+    relevanceScreen.rejectedKeywords.includes('assessment_without_job_context')
+  ) {
+    return {
+      isJobRelated: false,
+      explanation: 'Assessment email lacked job, hiring, application, or ATS context.',
+      reason: 'assessment_without_job_context'
     };
   }
 

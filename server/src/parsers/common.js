@@ -56,19 +56,32 @@ const INTERVIEW_ACTION_PATTERNS = [
 const INTERVIEW_STAGE_INVITE_PATTERNS = [
   { pattern: /\b(?:we(?:'|’)re|we are)\s+pleased to invite you to\b/i, label: 'pleased_to_invite' },
   { pattern: /\binvite you to the next step in our hiring process\b/i, label: 'invite_next_step_hiring_process' },
-  { pattern: /\bnext step in our hiring process\b/i, label: 'next_step_hiring_process' }
+  { pattern: /\bnext step in our hiring process\b/i, label: 'next_step_hiring_process' },
+  { pattern: /\bnext step in (?:your|the) interview process\b/i, label: 'next_step_interview_process' },
+  { pattern: /\bnext step in (?:your|the) application process\b/i, label: 'next_step_application_process' },
+  { pattern: /\bnext steps? for your\b.{0,120}\bapplication\b/i, label: 'next_steps_for_application' }
 ];
 
 const INTERVIEW_STAGE_ASSESSMENT_PATTERNS = [
   { pattern: /\binitial interview\b/i, label: 'initial_interview' },
   { pattern: /\bscreening test\b/i, label: 'screening_test' },
   { pattern: /\battached questions?\b/i, label: 'attached_questions' },
+  { pattern: /\b(?:personality|technical|coding|online|behavioral|pre[- ]interview)\s+assessment\b/i, label: 'typed_assessment' },
+  { pattern: /\brembrandt personality assessment\b/i, label: 'rembrandt_personality_assessment' },
+  { pattern: /\b(?:work sample|case study|take[- ]home assignment)\b/i, label: 'work_sample_assessment' },
   { pattern: /\bassessment\b/i, label: 'assessment' },
   { pattern: /\bjob description\b/i, label: 'job_description' }
 ];
 
 const INTERVIEW_STAGE_ACTION_PATTERNS = [
   { pattern: /\bsubmit your responses?\b/i, label: 'submit_responses' },
+  { pattern: /\b(?:take|complete|submit)\s+(?:the\s+)?assessment\b/i, label: 'assessment_action' },
+  { pattern: /\bmust be completed\b/i, label: 'must_be_completed' },
+  { pattern: /\bcompleted in one sitting\b/i, label: 'completed_one_sitting' },
+  { pattern: /\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+business\s+days?\s+to\s+complete\b/i, label: 'business_days_to_complete' },
+  { pattern: /\bdeadline to complete\b/i, label: 'deadline_to_complete' },
+  { pattern: /\bwhen ready to begin\b/i, label: 'ready_to_begin' },
+  { pattern: /\bclick\b.{0,80}\blink\b.{0,80}\b(?:take|complete|begin)\b.{0,40}\bassessment\b/i, label: 'assessment_link_cta' },
   { pattern: /\breview and respond\b/i, label: 'review_and_respond' },
   { pattern: /\bat your earliest convenience\b/i, label: 'earliest_convenience' },
   { pattern: /\bprogression to the next stage\b/i, label: 'progression_to_next_stage' },
@@ -323,13 +336,22 @@ function detectStatusSignal({
     ])
   );
 
+  const strongAssessmentLabels = new Set([
+    'initial_interview',
+    'screening_test',
+    'attached_questions',
+    'typed_assessment',
+    'rembrandt_personality_assessment',
+    'work_sample_assessment'
+  ]);
   const hasInterviewStageInvite = interviewStageInviteHits.length > 0;
   const hasInterviewStageAssessment =
-    interviewStageAssessmentHits.some((hit) =>
-      ['initial_interview', 'screening_test', 'attached_questions'].includes(hit.label)
-    ) || /\bserve as your initial interview\b/i.test(corpus);
+    interviewStageAssessmentHits.some((hit) => strongAssessmentLabels.has(hit.label)) ||
+    /\bserve as your initial interview\b/i.test(corpus);
   const hasInterviewStageAction =
-    interviewStageActionHits.length > 0 || /\bsubmit (?:your )?(?:answers?|responses?)\b/i.test(corpus);
+    interviewStageActionHits.length > 0 ||
+    /\bsubmit (?:your )?(?:answers?|responses?)\b/i.test(corpus) ||
+    /\b(?:take|complete|submit)\s+(?:the\s+)?assessment\b/i.test(corpus);
   const hasContext = Boolean(
     (company && cleanLine(company)) ||
     (role && cleanLine(role)) ||
@@ -358,7 +380,9 @@ function detectStatusSignal({
         ...interviewVagueHits.map((hit) => hit.label)
       ],
       interviewSuppressionMatches: interviewProcessOnlyHits.map((hit) => hit.label),
-      decisionReason: 'assessment_interview_stage_signals'
+      decisionReason: 'assessment_interview_stage_signals',
+      actionNeeded: true,
+      actionReason: 'assessment_required_next_step'
     };
   }
 

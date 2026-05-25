@@ -400,6 +400,11 @@ const SENDER_COMPANY_PATTERNS = [
 
 const ROLE_PATTERNS = [
   {
+    name: 'next_steps_for_your_role_application',
+    regex: /\bnext steps? for your\s+(.+?)\s+application\b/i,
+    confidence: 0.94
+  },
+  {
     name: 'your_application_colon_role',
     regex: /your application:\s*(.+)$/i,
     confidence: 0.94
@@ -1949,6 +1954,9 @@ function extractCompanyRole(text) {
     if (rule.name === 'company_dash_role') {
       const leftRaw = normalize(match[1]);
       const rightRaw = normalize(match[2]);
+      if (/^next steps?\b/i.test(rightRaw)) {
+        continue;
+      }
       if (
         rightRaw &&
         looksCompanyLikeEntity(rightRaw) &&
@@ -2000,6 +2008,9 @@ function extractCompanyFromSubject(subject) {
     if (rule.name === 'subject_company_dash_role') {
       const leftRaw = normalize(match[1]);
       const rightRaw = normalize(match[2]);
+      if (/^next steps?\b/i.test(rightRaw)) {
+        continue;
+      }
       if (rightRaw && looksCompanyLikeEntity(rightRaw) && leftRaw && looksRoleLikeEntity(leftRaw)) {
         const swappedCompany = cleanCompanyCandidate(rightRaw);
         if (swappedCompany) {

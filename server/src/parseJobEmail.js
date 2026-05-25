@@ -29,14 +29,41 @@ const PARSER_MAP = {
   taleo: taleoParser
 };
 
+function extractEmailAddress(value) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return '';
+  }
+  const bracketMatch = text.match(/<([^<>@\s]+@[^<>\s]+)>/);
+  if (bracketMatch && bracketMatch[1]) {
+    return bracketMatch[1].trim().toLowerCase();
+  }
+  const emailMatch = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return emailMatch ? emailMatch[0].trim().toLowerCase() : text.toLowerCase();
+}
+
+function extractDisplayName(value) {
+  const text = String(value || '').trim();
+  if (!text || !text.includes('<')) {
+    return '';
+  }
+  return text
+    .replace(/<[^<>]+>/g, '')
+    .replace(/^["']+|["']+$/g, '')
+    .trim();
+}
+
 function toProviderInput(payload = {}) {
-  const fromEmail = String(payload.fromEmail || payload.sender || '').toLowerCase();
+  const rawSender = String(payload.sender || payload.fromEmail || '');
+  const fromEmail = extractEmailAddress(payload.fromEmail || payload.sender || '');
   const fromDomain = payload.fromDomain
     ? String(payload.fromDomain).toLowerCase()
     : fromEmail.includes('@')
       ? fromEmail.split('@')[1]
       : '';
   return {
+    sender: rawSender,
+    fromName: String(payload.fromName || payload.fromDisplayName || extractDisplayName(rawSender) || '').trim(),
     fromEmail,
     fromDomain,
     subject: String(payload.subject || ''),
@@ -407,7 +434,7 @@ async function parseJobEmail(payload = {}) {
       subject: input.subject,
       snippet: input.text.slice(0, 240),
       bodyText: input.text,
-      sender: input.fromEmail,
+      sender: input.sender || input.fromEmail,
       companyName: companyCandidate || null
     });
     if (sharedRole?.jobTitle) {
@@ -452,7 +479,9 @@ async function parseJobEmail(payload = {}) {
     selected_status: statusSignal?.status || null,
     selected_source: statusSignal?.source || null,
     selected_match: statusSignal?.matched || null,
-    decision_reason: statusSignal?.decisionReason || null
+    decision_reason: statusSignal?.decisionReason || null,
+    action_needed: Boolean(statusSignal?.actionNeeded),
+    action_reason: statusSignal?.actionReason || null
   };
 
   // Status priority and safety overrides
@@ -546,6 +575,8 @@ async function parseJobEmail(payload = {}) {
     company: validation.company,
     role: validation.role,
     status: parsed?.status,
+    actionNeeded: Boolean(statusSignal?.actionNeeded),
+    actionReason: statusSignal?.actionReason || null,
     application_key: appKeyPayload?.key,
     application_key_payload: appKeyPayload || null,
     confidence,

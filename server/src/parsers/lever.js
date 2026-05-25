@@ -13,7 +13,33 @@ function isIgnoredLine(line) {
   return IGNORED_LINE_PATTERNS.some((pattern) => pattern.test(cleanLine(line)));
 }
 
-function parse({ subject, text }) {
+function senderDisplayName({ fromName, sender, fromEmail } = {}) {
+  const explicit = cleanLine(fromName);
+  if (explicit) {
+    return explicit;
+  }
+  const rawSender = cleanLine(sender);
+  if (rawSender && rawSender.includes('<')) {
+    return rawSender.replace(/<[^<>]+>/g, '').replace(/^["']+|["']+$/g, '').trim();
+  }
+  const rawEmail = cleanLine(fromEmail);
+  if (rawEmail && rawEmail.includes('<')) {
+    return rawEmail.replace(/<[^<>]+>/g, '').replace(/^["']+|["']+$/g, '').trim();
+  }
+  return '';
+}
+
+function isGenericLeverDisplayName(value) {
+  const text = cleanLine(value).toLowerCase();
+  if (!text) {
+    return true;
+  }
+  return /^(?:lever|no[- ]?reply|noreply|do not reply|hiring team|recruiting team|talent team|careers|jobs|notifications?)$/.test(
+    text
+  );
+}
+
+function parse({ subject, text, fromName, sender, fromEmail }) {
   const notes = [];
   const candidates = { company: [], role: [] };
   const ignoredSections = [];
@@ -27,8 +53,22 @@ function parse({ subject, text }) {
   let roleRaw = null;
   let roleSource = null;
 
+  const displayCompany = senderDisplayName({ fromName, sender, fromEmail });
+  if (displayCompany && !isGenericLeverDisplayName(displayCompany)) {
+    companyRaw = displayCompany;
+    companySource = 'sender_display';
+    candidates.company.push(companyRaw);
+  }
+
+  const nextStepsRoleSubjectMatch = subjectText.match(/\bnext steps? for your\s+(.+?)\s+application\b/i);
+  if (nextStepsRoleSubjectMatch && nextStepsRoleSubjectMatch[1]) {
+    roleRaw = nextStepsRoleSubjectMatch[1].trim();
+    roleSource = 'subject_next_steps_application';
+    candidates.role.push(roleRaw);
+  }
+
   const subjectCompanyMatch = subjectText.match(/thanks for applying to\s+(.+)$/i);
-  if (subjectCompanyMatch && subjectCompanyMatch[1]) {
+  if (!companyRaw && subjectCompanyMatch && subjectCompanyMatch[1]) {
     companyRaw = subjectCompanyMatch[1].trim();
     companySource = 'subject';
     candidates.company.push(companyRaw);
@@ -42,15 +82,15 @@ function parse({ subject, text }) {
   }
 
   const roleAtMatch = body.match(/application (?:for|to)\s+(.+?)\s+at\s+([A-Z][A-Za-z0-9&.' -]{1,80})/i);
-  if (roleAtMatch && roleAtMatch[1]) {
+  if (!roleRaw && roleAtMatch && roleAtMatch[1]) {
     roleRaw = roleAtMatch[1].trim();
     roleSource = 'application_at_sentence';
     candidates.role.push(roleRaw);
-    if (!companyRaw && roleAtMatch[2]) {
-      companyRaw = roleAtMatch[2].trim();
-      companySource = 'application_at_sentence';
-      candidates.company.push(companyRaw);
-    }
+  }
+  if (!companyRaw && roleAtMatch && roleAtMatch[2]) {
+    companyRaw = roleAtMatch[2].trim();
+    companySource = 'application_at_sentence';
+    candidates.company.push(companyRaw);
   }
 
   if (!roleRaw) {
@@ -117,8 +157,8 @@ function parse({ subject, text }) {
     role,
     status,
     confidence: {
-      company: company ? (companySource === 'subject' ? 92 : 84) : 0,
-      role: role ? (roleSource === 'application_at_sentence' ? 92 : 80) : 0,
+      company: company ? (companySource === 'subject' || companySource === 'sender_display' ? 92 : 84) : 0,
+      role: role ? (roleSource === 'application_at_sentence' || roleSource === 'subject_next_steps_application' ? 92 : 80) : 0,
       status: Number(statusSignal.confidence || 0),
       key: company && role ? 90 : 0
     },

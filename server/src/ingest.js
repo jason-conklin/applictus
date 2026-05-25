@@ -155,7 +155,9 @@ function buildClassificationLogDetails(classification) {
     rejected_keywords: rejectedKeywords,
     final_status: mapDetectedTypeToDerivedStatus(classification?.detectedType),
     detected_type: classification?.detectedType || null,
-    classification_reason: classification?.reason || null
+    classification_reason: classification?.reason || null,
+    action_needed: Boolean(classification?.actionNeeded || debug.actionNeeded),
+    action_reason: classification?.actionReason || debug.actionReason || null
   };
 }
 
@@ -1548,7 +1550,9 @@ async function syncGmailMessages({
         matched_keywords: classificationDetails.matched_keywords,
         rejected_keywords: classificationDetails.rejected_keywords,
         final_status: classificationDetails.final_status,
-        detected_type: classificationDetails.detected_type
+        detected_type: classificationDetails.detected_type,
+        action_needed: classificationDetails.action_needed,
+        action_reason: classificationDetails.action_reason
       });
       if (indeedConfirmationTrace) {
         logDebug('ingest.indeed_confirmation_trace', {
@@ -1559,7 +1563,9 @@ async function syncGmailMessages({
           matched_keywords: classificationDetails.matched_keywords,
           rejected_keywords: classificationDetails.rejected_keywords,
           final_status: classificationDetails.final_status,
-          detected_type: classificationDetails.detected_type
+          detected_type: classificationDetails.detected_type,
+          action_needed: classificationDetails.action_needed,
+          action_reason: classificationDetails.action_reason
         });
       }
       if (
@@ -3183,6 +3189,14 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
         forwardedWrapper.isForwarded && forwardedWrapper.originalFromEmail
           ? String(forwardedWrapper.originalFromEmail).trim()
           : wrapperSender;
+      const senderDisplayName =
+        forwardedWrapper.isForwarded && forwardedWrapper.originalFromName
+          ? String(forwardedWrapper.originalFromName).trim()
+          : String(rawPayload?.FromFull?.Name || '').trim();
+      const senderForParsing =
+        senderDisplayName && sender
+          ? `${senderDisplayName} <${sender}>`
+          : sender;
       const subject =
         forwardedWrapper.isForwarded && forwardedWrapper.originalSubject
           ? String(forwardedWrapper.originalSubject).trim()
@@ -3366,7 +3380,7 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
       const relevanceDecision = isRelevantApplicationEmail({
         subject,
         snippet,
-        sender,
+        sender: senderForParsing,
         body: bodyText
       });
       debugMeta.relevance = {
@@ -3422,6 +3436,8 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
 
       const parsedEmail = await parseJobEmail({
         fromEmail: sender,
+        sender: senderForParsing,
+        fromName: senderDisplayName,
         fromDomain: senderDomain,
         subject,
         text: bodyText,
@@ -3494,7 +3510,7 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
       const classification = classifyEmail({
         subject,
         snippet,
-        sender,
+        sender: senderForParsing,
         body: bodyText,
         headers,
         authenticatedUserEmail: userEmail,
@@ -3509,7 +3525,9 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
         matched_keywords: classificationDetails.matched_keywords,
         rejected_keywords: classificationDetails.rejected_keywords,
         final_status: classificationDetails.final_status,
-        detected_type: classificationDetails.detected_type
+        detected_type: classificationDetails.detected_type,
+        action_needed: classificationDetails.action_needed,
+        action_reason: classificationDetails.action_reason
       };
       logDebug('inbound.classification_decision', {
         userId,
@@ -3519,7 +3537,9 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
         matched_keywords: classificationDetails.matched_keywords,
         rejected_keywords: classificationDetails.rejected_keywords,
         final_status: classificationDetails.final_status,
-        detected_type: classificationDetails.detected_type
+        detected_type: classificationDetails.detected_type,
+        action_needed: classificationDetails.action_needed,
+        action_reason: classificationDetails.action_reason
       });
 
       if (!classification?.isJobRelated && !parserHasHighSignal) {
@@ -3562,7 +3582,7 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
 
       const identity = extractThreadIdentity({
         subject,
-        sender,
+        sender: senderForParsing,
         snippet,
         bodyText
       });
@@ -3570,7 +3590,7 @@ async function syncInboundForwardedMessages({ db, userId, limit = 100 }) {
         subject,
         snippet,
         bodyText,
-        sender,
+        sender: senderForParsing,
         companyName: identity.companyName || null
       });
       const deterministic = extractDeterministicForwardedIdentity({ subject, bodyText });
