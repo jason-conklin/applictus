@@ -409,7 +409,9 @@ function BlogCard(article) {
               </div>
               <h2><a href="/blog/${article.slug}">${escapeHtml(article.h1)}</a></h2>
               <p>${escapeHtml(article.description)}</p>
-              <a class="blog-card-link" href="/blog/${article.slug}">Read article</a>
+              <div class="blog-card-footer">
+                <a class="blog-card-link" href="/blog/${article.slug}">Read article</a>
+              </div>
             </article>`;
 }
 
@@ -480,9 +482,21 @@ ${footer()}
 function renderHub() {
   const content = `
         <section class="blog-hero page-wrap">
-          <p class="blog-eyebrow">Applictus Blog</p>
-          <h1>Applictus Blog</h1>
-          <p>Job search tips, application tracking guides, interview advice, and productivity resources for modern job seekers.</p>
+          <div class="blog-hero-content">
+            <div class="blog-hero-brand">
+              <span class="blog-hero-logo" aria-hidden="true">
+                <img src="/Applictus_logo.png" alt="" />
+              </span>
+              <p class="blog-eyebrow">Applictus Blog</p>
+            </div>
+            <h1>Applictus Blog</h1>
+            <p>Practical guides for tracking job applications, managing interview steps, organizing inbox workflows, and keeping every opportunity visible.</p>
+            <div class="blog-hero-topics" aria-label="Blog topics">
+              <span>Application tracking</span>
+              <span>Interview follow-ups</span>
+              <span>Gmail workflows</span>
+            </div>
+          </div>
         </section>
 
         <section class="blog-index page-wrap" aria-label="Applictus articles">
@@ -506,17 +520,21 @@ function renderArticle(article) {
   const content = `
         <article class="blog-article page-wrap">
           <header class="blog-article-header">
-            <nav class="blog-breadcrumb" aria-label="Breadcrumb">
-              <a href="/">Home</a>
-              <span aria-hidden="true">/</span>
-              <a href="/blog">Blog</a>
-            </nav>
-            <div class="blog-article-meta">
-              <span>${escapeHtml(article.category)}</span>
-              <span>${escapeHtml(article.readTime)}</span>
+            <div class="blog-article-kicker">
+              <nav class="blog-breadcrumb" aria-label="Breadcrumb">
+                <a href="/">Home</a>
+                <span aria-hidden="true">/</span>
+                <a href="/blog">Blog</a>
+              </nav>
+              <div class="blog-article-meta">
+                <span>${escapeHtml(article.category)}</span>
+                <span>${escapeHtml(article.readTime)}</span>
+              </div>
             </div>
-            <h1>${escapeHtml(article.h1)}</h1>
-            <p>${escapeHtml(article.intro)}</p>
+            <div class="blog-article-title">
+              <h1>${escapeHtml(article.h1)}</h1>
+              <p>${escapeHtml(article.intro)}</p>
+            </div>
           </header>
 
           <div class="blog-article-layout">

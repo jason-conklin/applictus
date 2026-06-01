@@ -37,8 +37,11 @@ test('blog hub and articles are static, linked, and SEO-ready', () => {
   assert.equal(publicHub, hub);
   assert.equal(publicStyles, styles);
   assert.match(hub, /<title>Applictus Blog \| Job Application Tracking Guides<\/title>/);
-  assert.match(hub, /Job search tips, application tracking guides, interview advice, and productivity resources/);
+  assert.match(hub, /Practical guides for tracking job applications, managing interview steps/);
+  assert.match(hub, /class="blog-hero-logo"/);
+  assert.match(hub, /class="blog-hero-topics"/);
   assert.match(hub, /class="blog-card-grid"/);
+  assert.match(hub, /class="blog-card-footer"/);
   assertBlogTopNavigation(hub);
 
   for (const [slug, title] of articles) {
@@ -53,6 +56,8 @@ test('blog hub and articles are static, linked, and SEO-ready', () => {
     assert.match(article, /<link rel="canonical" href="https:\/\/applictus\.com\/blog\//);
     assert.match(article, /<a href="\/">Home<\/a>/);
     assert.match(article, /<a href="\/blog">Blog<\/a>/);
+    assert.match(article, /class="blog-article-kicker"/);
+    assert.match(article, /class="blog-article-title"/);
     assert.match(article, /class="blog-related"/);
     assert.match(article, /class="blog-cta"/);
     assert.doesNotMatch(article, /\/dashboard|\/account|\/auth\//);
@@ -62,6 +67,9 @@ test('blog hub and articles are static, linked, and SEO-ready', () => {
     '.blog-hero',
     '.blog-card',
     '.blog-cta',
+    '.blog-hero-logo',
+    '.blog-hero-topics',
+    '.blog-article-kicker',
     '.blog-related',
     '.blog-article-layout'
   ]) {
