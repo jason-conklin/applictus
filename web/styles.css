@@ -371,23 +371,29 @@ body.blog-page .blog-article {
 }
 
 body.blog-page .blog-article-header {
-  display: grid;
-  gap: clamp(20px, 3vw, 28px);
-  padding-block: clamp(34px, 5vw, 58px);
+  display: block;
+  padding: clamp(40px, 4.8vw, 56px) clamp(48px, 5.2vw, 64px);
 }
 
-body.blog-page .blog-article-kicker {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px 18px;
+body.blog-page .blog-article-hero-inner {
+  display: grid;
+  gap: clamp(14px, 2vw, 18px);
+  max-width: 900px;
+  min-width: 0;
+}
+
+body.blog-page .blog-breadcrumb,
+body.blog-page .blog-article-meta,
+body.blog-page .blog-article-title {
+  justify-self: start;
 }
 
 body.blog-page .blog-article-title {
   display: grid;
-  gap: clamp(13px, 1.8vw, 18px);
+  gap: clamp(12px, 1.7vw, 16px);
   max-width: 900px;
+  min-width: 0;
+  margin-top: 2px;
 }
 
 body.blog-page .blog-breadcrumb {
@@ -410,6 +416,8 @@ body.blog-page .blog-article-header h1 {
   line-height: 1.05;
   text-wrap: balance;
   overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: manual;
 }
 
 body.blog-page .blog-article-title p {
@@ -578,8 +586,12 @@ body.blog-page .blog-footer {
     position: static;
   }
 
-  body.blog-page .blog-article-kicker {
-    justify-content: flex-start;
+  body.blog-page .blog-article-header {
+    padding: clamp(36px, 5vw, 46px) clamp(32px, 5vw, 44px);
+  }
+
+  body.blog-page .blog-article-hero-inner {
+    max-width: 100%;
   }
 
   body.blog-page .blog-cta-actions {
@@ -654,9 +666,8 @@ body.blog-page .blog-footer {
     line-height: 1.08;
   }
 
-  body.blog-page .blog-article-kicker {
-    display: grid;
-    justify-content: start;
+  body.blog-page .blog-article-header {
+    padding: 30px 24px;
   }
 
   body.blog-page .blog-cta {
@@ -682,9 +693,12 @@ body.blog-page .blog-footer {
     font-size: 0.82rem;
   }
 
-  body.blog-page .blog-hero,
-  body.blog-page .blog-article-header {
+  body.blog-page .blog-hero {
     padding-block: 28px;
+  }
+
+  body.blog-page .blog-article-header {
+    padding: 28px 20px;
   }
 
   body.blog-page .blog-hero-brand {

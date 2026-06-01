@@ -56,7 +56,7 @@ test('blog hub and articles are static, linked, and SEO-ready', () => {
     assert.match(article, /<link rel="canonical" href="https:\/\/applictus\.com\/blog\//);
     assert.match(article, /<a href="\/">Home<\/a>/);
     assert.match(article, /<a href="\/blog">Blog<\/a>/);
-    assert.match(article, /class="blog-article-kicker"/);
+    assert.match(article, /class="blog-article-hero-inner"/);
     assert.match(article, /class="blog-article-title"/);
     assert.match(article, /class="blog-related"/);
     assert.match(article, /class="blog-cta"/);
@@ -69,10 +69,16 @@ test('blog hub and articles are static, linked, and SEO-ready', () => {
     '.blog-cta',
     '.blog-hero-logo',
     '.blog-hero-topics',
-    '.blog-article-kicker',
+    '.blog-article-hero-inner',
     '.blog-related',
     '.blog-article-layout'
   ]) {
     assert.match(styles, new RegExp(selector.replace('.', '\\.')));
   }
+
+  assert.doesNotMatch(styles, /\.blog-article-kicker/);
+  assert.match(
+    styles,
+    /body\.blog-page \.blog-article-header\s*\{[\s\S]*padding: clamp\(40px, 4\.8vw, 56px\) clamp\(48px, 5\.2vw, 64px\);/
+  );
 });

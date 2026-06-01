@@ -520,7 +520,7 @@ function renderArticle(article) {
   const content = `
         <article class="blog-article page-wrap">
           <header class="blog-article-header">
-            <div class="blog-article-kicker">
+            <div class="blog-article-hero-inner">
               <nav class="blog-breadcrumb" aria-label="Breadcrumb">
                 <a href="/">Home</a>
                 <span aria-hidden="true">/</span>
@@ -530,10 +530,10 @@ function renderArticle(article) {
                 <span>${escapeHtml(article.category)}</span>
                 <span>${escapeHtml(article.readTime)}</span>
               </div>
-            </div>
-            <div class="blog-article-title">
-              <h1>${escapeHtml(article.h1)}</h1>
-              <p>${escapeHtml(article.intro)}</p>
+              <div class="blog-article-title">
+                <h1>${escapeHtml(article.h1)}</h1>
+                <p>${escapeHtml(article.intro)}</p>
+              </div>
             </div>
           </header>
 
