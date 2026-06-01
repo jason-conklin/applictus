@@ -109,6 +109,7 @@ const ALLOWED_ORIGINS = new Set(
 
 // Lightweight in-memory cache to dampen short-burst analytics reads.
 const ADMIN_CACHE_TTL_MS = 60_000;
+const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
 const adminAnalyticsCache = {
   summary: { data: null, ts: 0 },
   trends: new Map() // key: `${metric}:${range}` -> { data, ts }
@@ -172,9 +173,17 @@ app.use((req, res, next) => {
   );
   return next();
 });
+app.get('/sitemap.xml', (_req, res) => {
+  res.type('application/xml');
+  return res.sendFile(path.join(PUBLIC_DIR, 'sitemap.xml'));
+});
+app.get('/robots.txt', (_req, res) => {
+  res.type('text/plain');
+  return res.sendFile(path.join(PUBLIC_DIR, 'robots.txt'));
+});
 if (!isProd()) {
-  app.use('/public', express.static(path.join(__dirname, '..', '..', 'public')));
-  app.use(express.static(path.join(__dirname, '..', '..', 'public')));
+  app.use('/public', express.static(PUBLIC_DIR));
+  app.use(express.static(PUBLIC_DIR));
   app.use('/web', express.static(path.join(__dirname, '..', '..', 'web')));
 }
 
