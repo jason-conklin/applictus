@@ -4328,7 +4328,7 @@ function setPageMeta(view) {
     privacy: `${APP_TITLE} – Privacy Policy`,
     terms: `${APP_TITLE} – Terms of Service`,
     contact: `${APP_TITLE} – Contact`,
-    about: `${APP_TITLE} – About Applictus`
+    about: `${APP_TITLE} – About`
   };
 
   const descriptions = {
@@ -4340,7 +4340,8 @@ function setPageMeta(view) {
     privacy: 'Read the Applictus Privacy Policy.',
     terms: 'Read the Applictus Terms of Service.',
     contact: 'Contact the Applictus team.',
-    about: 'Learn more about Applictus.'
+    about:
+      'Learn about Applictus, the automatic job application tracker built to organize applications, interviews, offers, and rejections from job-related emails.'
   };
 
   document.title = titles[view] || APP_TITLE;

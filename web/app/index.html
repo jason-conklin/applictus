@@ -3658,18 +3658,74 @@
 		            <a class="btn btn--primary btn--sm" href="/app">Sign up</a>
 		          </div>
 		        </header>
-			        <div class="page-header about-header">
-			          <div class="about-hero">
-			            <div class="muted small about-updated">Last updated: Apr 2026</div>
-			            <h2>About Applictus</h2>
-			            <p class="about-subtitle">
-			              Applictus was built to make the job search less chaotic and easier to track.
-			            </p>
-			          </div>
-			        </div>
-			        <div class="card about">
-			          <section class="about-section">
-			            <h3>Who we are</h3>
+			        <div class="about-page">
+			          <section class="about-hero" aria-labelledby="about-title">
+			            <div class="about-hero-copy">
+			              <div class="about-eyebrow">About Applictus</div>
+			              <h2 id="about-title">Built to make job searching easier to manage.</h2>
+			              <p class="about-subtitle">
+			                Applictus helps job seekers automatically organize applications, interviews, offers, and rejections from job-related emails.
+			              </p>
+			            </div>
+			            <div class="about-hero-visual" aria-label="What Applictus organizes">
+			              <div class="about-logo-tile">
+			                <img src="/Applictus_logo.png" alt="" />
+			              </div>
+			              <div class="about-signal-card">
+			                <span>Applications</span>
+			                <strong>Organized</strong>
+			              </div>
+			              <div class="about-signal-card">
+			                <span>Interviews</span>
+			                <strong>Visible</strong>
+			              </div>
+			              <div class="about-signal-card">
+			                <span>Updates</span>
+			                <strong>Tracked</strong>
+			              </div>
+			            </div>
+			          </section>
+
+			          <section class="about-section about-mission">
+			            <div class="about-section-copy">
+			              <div class="about-section-label">Why we built it</div>
+			              <h3>Job searches should not be scattered across five different places.</h3>
+			              <p>
+			                Applications move through job boards, inboxes, company portals, recruiter messages, and notes. Applictus was built to bring those updates into one clear timeline without asking job seekers to maintain another spreadsheet.
+			              </p>
+			            </div>
+			            <div class="about-points-card" aria-label="Applictus focus areas">
+			              <ul class="about-points-list">
+			                <li>
+			                  <span aria-hidden="true"></span>
+			                  <div>
+			                    <strong>Less manual tracking</strong>
+			                    <small>Forward once, then let Applictus organize updates automatically.</small>
+			                  </div>
+			                </li>
+			                <li>
+			                  <span aria-hidden="true"></span>
+			                  <div>
+			                    <strong>Clearer application timelines</strong>
+			                    <small>See confirmations, interviews, offers, and rejections in context.</small>
+			                  </div>
+			                </li>
+			                <li>
+			                  <span aria-hidden="true"></span>
+			                  <div>
+			                    <strong>More control over your search</strong>
+			                    <small>Choose what gets forwarded and keep the workflow understandable.</small>
+			                  </div>
+			                </li>
+			              </ul>
+			            </div>
+			          </section>
+
+			          <section class="about-section about-team-section">
+			            <div class="about-section-heading">
+			              <div class="about-section-label">Team</div>
+			              <h3>Built by a small team focused on job-search clarity.</h3>
+			            </div>
 			            <div class="about-team">
 			              <article class="profile-card">
 			                <div class="profile-avatar">
@@ -3685,11 +3741,11 @@
 			                </div>
 			                <div class="profile-meta">
 			                  <a class="profile-name profile-name-link" href="https://jasonconklin.dev/" target="_blank" rel="noopener noreferrer">Jason Conklin</a>
-			                  <span class="profile-badge">Engineering + Product</span>
+			                  <span class="profile-badge">Founder, Product + Engineering</span>
 			                  <p class="profile-summary">
-			                    Leads product and engineering, with a focus on ingestion quality, UX clarity, and reliability.
+			                    Builds the product experience, email ingestion quality, and reliability systems behind Applictus.
 			                  </p>
-			                  <div class="muted small profile-education">B.S. Computer Science, NJIT</div>
+			                  <div class="profile-education">B.S. Computer Science, NJIT</div>
 			                </div>
 			              </article>
 			              <article class="profile-card">
@@ -3708,64 +3764,54 @@
 			                  <div class="profile-name">Shane Conklin</div>
 			                  <span class="profile-badge">Product + Operations</span>
 			                  <p class="profile-summary">
-			                    Leads product direction and operations to keep Applictus practical, focused, and easy to use.
+			                    Helps shape Applictus around real job-search workflows, support needs, and product priorities.
 			                  </p>
-			                  <div class="muted small profile-education">Business, Kean University</div>
+			                  <div class="profile-education">Business, Kean University</div>
 			                </div>
 			              </article>
 			            </div>
 			          </section>
-			
-			          <section class="about-section">
-			            <h3>Why we built it</h3>
-			            <p class="about-why-copy">
-			              We kept seeing the same pattern: job searches spread across inbox threads, spreadsheets, notes, and browser tabs, making it hard to understand real momentum. Applictus was created to simplify that experience, not add complexity, so people can spend less time managing process and more time pursuing opportunities.
-			            </p>
-			          </section>
-			
-			          <section class="about-section">
-			            <h3>How we approach Applictus</h3>
+
+			          <section class="about-section about-principles-section">
+			            <div class="about-section-heading">
+			              <div class="about-section-label">Principles</div>
+			              <h3>How we make product decisions.</h3>
+			            </div>
 			            <div class="about-principles-grid" role="list" aria-label="Applictus principles">
 			              <article class="about-principle-card" role="listitem">
-			                <h4>Clarity over complexity</h4>
-			                <p>We prioritize interfaces and decisions that make progress easier to read at a glance.</p>
+			                <h4>Clarity over clutter</h4>
+			                <p>Every screen should make your job search easier to understand.</p>
 			              </article>
 			              <article class="about-principle-card" role="listitem">
-			                <h4>Automation where it matters</h4>
-			                <p>We automate repetitive tracking work so users can focus on applications and conversations.</p>
+			                <h4>Automation with control</h4>
+			                <p>Applictus runs after setup while you decide what gets forwarded.</p>
 			              </article>
 			              <article class="about-principle-card" role="listitem">
-			                <h4>User control and flexibility</h4>
-			                <p>Users decide what flows in, how it is configured, and when to change their setup.</p>
+			                <h4>Built around real workflows</h4>
+			                <p>The product is shaped around how applications actually move through inboxes and hiring systems.</p>
 			              </article>
 			            </div>
 			          </section>
-			
-			          <section class="about-section about-section--trust">
-			            <h3>Privacy and control</h3>
-			            <p class="about-trust-intro">
-			              Trust starts with clear boundaries and user control, so Applictus is designed to stay transparent and flexible.
-			            </p>
-			            <div class="about-trust-grid" role="list" aria-label="Privacy and control principles">
-			              <article class="about-trust-card" role="listitem">
-			                <h4>You control what gets forwarded</h4>
-			                <p>Choose which emails are sent to your Applictus inbox and adjust those rules when needed.</p>
-			              </article>
-			              <article class="about-trust-card" role="listitem">
-			                <h4>You can disconnect anytime</h4>
-			                <p>Disconnect Gmail at any time while keeping your existing timeline accessible in Applictus.</p>
-			              </article>
-			              <article class="about-trust-card" role="listitem">
-			                <h4>Access stays session-protected</h4>
-			                <p>Your account remains tied to authenticated sessions and your selected sign-in method.</p>
-			              </article>
+
+			          <section class="about-trust-callout">
+			            <div>
+			              <div class="about-section-label">Trust and privacy</div>
+			              <h3>Clear boundaries by design.</h3>
 			            </div>
-			          </section>
-			
-			          <section class="about-section about-section--closing">
-			            <p class="about-closing">
-			              Applictus exists to make the job search feel more manageable, not more overwhelming.
+			            <p>
+			              Applictus is designed around clear boundaries: no full Gmail inbox access, user-controlled forwarding, and transparent tracking.
 			            </p>
+			          </section>
+
+			          <section class="about-cta-card">
+			            <div>
+			              <h3>Ready to simplify your job search?</h3>
+			              <p>Start building a cleaner application timeline from the updates already arriving in your inbox.</p>
+			            </div>
+			            <div class="about-cta-actions">
+			              <a class="btn btn--primary btn--md" href="/app">Start tracking your applications</a>
+			              <a class="btn btn--secondary btn--md" href="/blog">Read the blog</a>
+			            </div>
 			          </section>
 			        </div>
 		      </section>

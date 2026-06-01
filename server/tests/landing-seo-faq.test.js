@@ -27,6 +27,7 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
   const sourceHtml = readProjectFile('web/home.html');
   const publicHtml = readProjectFile('public/index.html');
   const appShellHtml = readProjectFile('web/index.html');
+  const webAppShellHtml = readProjectFile('web/app/index.html');
   const publicAppShellHtml = readProjectFile('public/app/index.html');
   const sourceCss = readProjectFile('web/styles.css');
   const publicCss = readProjectFile('public/styles.css');
@@ -36,6 +37,7 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
   assert.match(sourceHtml, /<title>Applictus \| Automatic Job Application Tracker<\/title>/);
   assertTopNavigation(sourceHtml);
   assertTopNavigation(appShellHtml);
+  assertTopNavigation(webAppShellHtml);
   assertTopNavigation(publicAppShellHtml);
   assert.match(sourceHtml, /<a class="app-footer-link" href="\/blog">BLOG<\/a>/);
   assert.match(sourceHtml, /<a class="app-footer-link" href="\/privacy">PRIVACY<\/a>/);
@@ -79,4 +81,21 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
   assert.match(sourceCss, /\.home-panel-faq/);
   assert.match(sourceCss, /\.home-faq-layout/);
   assert.match(sourceCss, /@keyframes homeFaqReveal/);
+
+  for (const shellHtml of [appShellHtml, webAppShellHtml, publicAppShellHtml]) {
+    assert.match(shellHtml, /<section class="view" id="about-view" hidden>/);
+    assert.match(shellHtml, /<div class="about-page">/);
+    assert.match(shellHtml, /Built to make job searching easier to manage\./);
+    assert.match(shellHtml, /<section class="about-section about-mission">/);
+    assert.match(shellHtml, /<section class="about-section about-team-section">/);
+    assert.match(shellHtml, /<section class="about-section about-principles-section">/);
+    assert.match(shellHtml, /<section class="about-trust-callout">/);
+    assert.match(shellHtml, /<section class="about-cta-card">/);
+    assert.doesNotMatch(shellHtml, /class="card about"/);
+  }
+
+  assert.match(sourceCss, /\.about-page/);
+  assert.match(sourceCss, /\.about-hero-visual/);
+  assert.match(sourceCss, /\.about-trust-callout/);
+  assert.match(sourceCss, /\.about-cta-card/);
 });
