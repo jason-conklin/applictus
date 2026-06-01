@@ -130,4 +130,12 @@ test('blog hub and articles are static, linked, and SEO-ready', () => {
     styles,
     /body\.blog-page \.blog-article-header\s*\{[\s\S]*padding: clamp\(40px, 4\.8vw, 56px\) clamp\(48px, 5\.2vw, 64px\);/
   );
+  assert.match(
+    styles,
+    /body\.blog-page \.blog-article-hero-inner\s*\{[\s\S]*grid-template-columns: 1fr;/
+  );
+  assert.match(
+    styles,
+    /body\.blog-page \.blog-article-hero-image img\s*\{[\s\S]*object-fit: contain;/
+  );
 });
