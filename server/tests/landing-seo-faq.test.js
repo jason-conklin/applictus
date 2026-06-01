@@ -40,6 +40,7 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
   assertTopNavigation(webAppShellHtml);
   assertTopNavigation(publicAppShellHtml);
   assert.match(sourceHtml, /<a class="app-footer-link" href="\/blog">BLOG<\/a>/);
+  assert.match(sourceHtml, /<a class="app-footer-link" href="\/free-job-application-tracker">FREE TRACKER<\/a>/);
   assert.match(sourceHtml, /<a class="app-footer-link" href="\/privacy">PRIVACY<\/a>/);
   assert.match(sourceHtml, /<a class="app-footer-link" href="\/terms">TERMS<\/a>/);
 
@@ -77,12 +78,14 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
   ]) {
     assert.match(sourceHtml, new RegExp(question.replace(/[?]/g, '\\?')));
   }
+  assert.match(sourceHtml, /href="\/free-job-application-tracker">free plan for job application tracking<\/a>/);
 
   assert.match(sourceCss, /\.home-panel-faq/);
   assert.match(sourceCss, /\.home-faq-layout/);
   assert.match(sourceCss, /@keyframes homeFaqReveal/);
 
   for (const shellHtml of [appShellHtml, webAppShellHtml, publicAppShellHtml]) {
+    assert.match(shellHtml, /<a class="app-footer-link" href="\/free-job-application-tracker">FREE TRACKER<\/a>/);
     assert.match(shellHtml, /<section class="view" id="about-view" hidden>/);
     assert.match(shellHtml, /<div class="about-page">/);
     assert.match(shellHtml, /Built to make job searching easier to manage\./);

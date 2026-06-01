@@ -190,6 +190,9 @@ app.get('/robots.txt', (_req, res) => {
   res.type('text/plain');
   return res.sendFile(path.join(PUBLIC_DIR, 'robots.txt'));
 });
+app.get(['/free-job-application-tracker', '/free-job-application-tracker/'], (_req, res) => {
+  return res.sendFile(path.join(PUBLIC_DIR, 'free-job-application-tracker', 'index.html'));
+});
 app.get(['/blog', '/blog/'], (_req, res) => {
   return res.sendFile(path.join(PUBLIC_DIR, 'blog', 'index.html'));
 });

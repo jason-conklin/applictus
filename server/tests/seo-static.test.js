@@ -14,6 +14,7 @@ const publicUrls = [
   'https://applictus.com/privacy',
   'https://applictus.com/terms',
   'https://applictus.com/blog',
+  'https://applictus.com/free-job-application-tracker',
   'https://applictus.com/blog/job-application-tracker',
   'https://applictus.com/blog/track-job-applications-from-email',
   'https://applictus.com/blog/job-application-spreadsheet-alternative',
@@ -24,7 +25,7 @@ const publicUrls = [
 ];
 
 const blogPaths = publicUrls
-  .filter((url) => url.includes('/blog'))
+  .filter((url) => url.includes('/blog') || url.includes('/free-job-application-tracker'))
   .map((url) => new URL(url).pathname);
 
 function assertBlogTopNavigation(html) {

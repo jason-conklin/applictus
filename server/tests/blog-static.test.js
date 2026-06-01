@@ -50,6 +50,16 @@ const articles = [
   ]
 ];
 
+const resources = [
+  [
+    'free-job-application-tracker',
+    '/free-job-application-tracker',
+    'Free Job Application Tracker | Applictus',
+    '/applictus-blog-image1.png',
+    'Free job application tracker dashboard organizing applications, interviews, offers, and rejections'
+  ]
+];
+
 function readProjectFile(relativePath) {
   return fs.readFileSync(path.join(rootDir, relativePath), 'utf8');
 }
@@ -77,6 +87,8 @@ test('blog hub and articles are static, linked, and SEO-ready', () => {
   assert.match(hub, /class="blog-hero-topics"/);
   assert.match(hub, /class="blog-card-grid"/);
   assert.match(hub, /class="blog-card-footer"/);
+  assert.match(hub, /href="\/free-job-application-tracker"/);
+  assert.match(hub, /Free Job Application Tracker/);
   assertBlogTopNavigation(hub);
 
   for (const [slug, title, imageSrc, imageAlt] of articles) {
@@ -109,6 +121,44 @@ test('blog hub and articles are static, linked, and SEO-ready', () => {
     assert.doesNotMatch(article, /\/dashboard|\/account|\/auth\//);
   }
 
+  for (const [slug, href, title, imageSrc, imageAlt] of resources) {
+    assert.ok(fs.existsSync(path.join(rootDir, 'public', imageSrc.replace(/^\//, ''))));
+    assert.match(hub, new RegExp(`href="${href.replace(/\//g, '\\/')}"`));
+    assert.match(
+      hub,
+      new RegExp(`<img src="${imageSrc.replace(/\//g, '\\/')}" alt="${imageAlt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}" loading="lazy" width="960" height="540"`)
+    );
+    const sourcePath = `web/${slug}/index.html`;
+    const publicPath = `public/${slug}/index.html`;
+    const page = readProjectFile(sourcePath);
+    assert.equal(readProjectFile(publicPath), page);
+    assertBlogTopNavigation(page);
+    assert.match(page, new RegExp(`<title>${title.replace(/[|]/g, '\\|')}<\\/title>`));
+    assert.match(
+      page,
+      /<meta name="description" content="Track job applications, interviews, offers, and rejections for free with Applictus\. Organize your job search automatically from job-related emails\."/
+    );
+    assert.match(page, /<link rel="canonical" href="https:\/\/applictus\.com\/free-job-application-tracker"/);
+    assert.match(page, /<h1>Free Job Application Tracker<\/h1>/);
+    assert.match(page, /Why job seekers need a tracker/);
+    assert.match(page, /What a free job application tracker should include/);
+    assert.match(page, /Spreadsheet vs automated tracking/);
+    assert.match(page, /What Applictus offers on the free plan/);
+    assert.match(page, /Tracking applications, interviews, offers, and rejections/);
+    assert.match(page, /Getting started in minutes/);
+    assert.match(page, /Is Applictus free\?/);
+    assert.match(page, /What is the best free job application tracker\?/);
+    assert.match(page, /Can I track interviews for free\?/);
+    assert.match(page, /Is a spreadsheet enough for job tracking\?/);
+    assert.match(page, /How many applications can I track with Applictus\?/);
+    assert.match(page, /href="\/app">Sign up free<\/a>/);
+    assert.match(page, /href="\/blog">Resources<\/a>/);
+    assert.match(page, /href="\/blog\/job-application-tracker"/);
+    assert.match(page, /class="blog-resource-faq"/);
+    assert.match(page, /class="blog-cta"/);
+    assert.doesNotMatch(page, /\/dashboard|\/account|\/auth\//);
+  }
+
   for (const selector of [
     '.blog-hero',
     '.blog-card',
@@ -120,7 +170,9 @@ test('blog hub and articles are static, linked, and SEO-ready', () => {
     '.blog-article-hero-inner',
     '.blog-article-hero-image',
     '.blog-related',
-    '.blog-article-layout'
+    '.blog-article-layout',
+    '.blog-resource-faq',
+    '.blog-resource-actions'
   ]) {
     assert.match(styles, new RegExp(selector.replace('.', '\\.')));
   }

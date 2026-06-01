@@ -603,6 +603,58 @@ body.blog-page .blog-related-card small {
   font-weight: 700;
 }
 
+body.blog-page .blog-resource-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+body.blog-page .blog-resource-faq {
+  display: grid;
+  gap: 16px;
+  margin-top: 2px;
+  padding-top: 4px;
+}
+
+body.blog-page .blog-resource-faq h2 {
+  margin: 0;
+}
+
+body.blog-page .blog-resource-faq-list {
+  display: grid;
+  gap: 10px;
+}
+
+body.blog-page .blog-resource-faq-item {
+  border: 1px solid rgba(31, 86, 166, 0.13);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  overflow: hidden;
+}
+
+body.blog-page .blog-resource-faq-item[open] {
+  border-color: rgba(34, 99, 192, 0.28);
+  background: rgba(239, 247, 255, 0.82);
+}
+
+body.blog-page .blog-resource-faq-item summary {
+  cursor: pointer;
+  padding: 15px 16px;
+  color: #14345f;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+body.blog-page .blog-resource-faq-item p {
+  margin: 0;
+  padding: 0 16px 16px;
+  color: #496b94;
+  font-size: 0.98rem;
+  line-height: 1.62;
+}
+
 body.blog-page .blog-cta {
   width: min(1120px, calc(100% - 48px));
   margin-inline: auto;
@@ -14901,6 +14953,17 @@ body.home-page .home-faq-answer p {
   max-width: 68ch;
   font-size: 0.96rem;
   line-height: 1.62;
+}
+
+body.home-page .home-faq-answer a {
+  color: #155fb3;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+body.home-page .home-faq-answer a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 @supports selector(details::details-content) {

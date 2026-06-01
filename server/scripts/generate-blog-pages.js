@@ -2,8 +2,10 @@ const fs = require('fs');
 const path = require('path');
 
 const rootDir = path.join(__dirname, '..', '..');
-const webBlogDir = path.join(rootDir, 'web', 'blog');
-const publicBlogDir = path.join(rootDir, 'public', 'blog');
+const webDir = path.join(rootDir, 'web');
+const publicDir = path.join(rootDir, 'public');
+const webBlogDir = path.join(webDir, 'blog');
+const publicBlogDir = path.join(publicDir, 'blog');
 
 const SITE_URL = 'https://applictus.com';
 const CSS_VERSION = '86';
@@ -52,9 +54,9 @@ const articles = [
       }
     ],
     related: [
+      'free-job-application-tracker',
       'track-job-applications-from-email',
-      'how-to-track-job-applications',
-      'interview-tracker'
+      'how-to-track-job-applications'
     ]
   },
   {
@@ -99,9 +101,9 @@ const articles = [
       }
     ],
     related: [
+      'free-job-application-tracker',
       'how-to-use-gmail-filters-for-job-applications',
-      'job-application-tracker',
-      'job-application-spreadsheet-alternative'
+      'job-application-tracker'
     ]
   },
   {
@@ -147,9 +149,9 @@ const articles = [
       }
     ],
     related: [
+      'free-job-application-tracker',
       'best-job-application-trackers',
-      'job-application-tracker',
-      'track-job-applications-from-email'
+      'job-application-tracker'
     ]
   },
   {
@@ -194,9 +196,9 @@ const articles = [
       }
     ],
     related: [
+      'free-job-application-tracker',
       'how-to-track-job-applications',
-      'track-job-applications-from-email',
-      'how-to-use-gmail-filters-for-job-applications'
+      'track-job-applications-from-email'
     ]
   },
   {
@@ -242,9 +244,9 @@ const articles = [
       }
     ],
     related: [
+      'free-job-application-tracker',
       'job-application-tracker',
-      'interview-tracker',
-      'job-application-spreadsheet-alternative'
+      'interview-tracker'
     ]
   },
   {
@@ -291,9 +293,9 @@ const articles = [
       }
     ],
     related: [
+      'free-job-application-tracker',
       'job-application-spreadsheet-alternative',
-      'job-application-tracker',
-      'track-job-applications-from-email'
+      'job-application-tracker'
     ]
   },
   {
@@ -337,14 +339,131 @@ const articles = [
       }
     ],
     related: [
+      'free-job-application-tracker',
       'track-job-applications-from-email',
-      'interview-tracker',
       'how-to-track-job-applications'
     ]
   }
 ];
 
+const resourcePages = [
+  {
+    slug: 'free-job-application-tracker',
+    path: '/free-job-application-tracker',
+    category: 'Free resources',
+    readTime: '2 min read',
+    imageSrc: '/applictus-blog-image1.png',
+    imageAlt:
+      'Free job application tracker dashboard organizing applications, interviews, offers, and rejections',
+    title: 'Free Job Application Tracker | Applictus',
+    h1: 'Free Job Application Tracker',
+    description:
+      'Track job applications, interviews, offers, and rejections for free with Applictus. Organize your job search automatically from job-related emails.',
+    intro:
+      'Applictus helps job seekers start tracking applications at no cost with a free plan built around job-related email updates.',
+    topics: [
+      'Free job search tracker',
+      'Free interview tracker',
+      'Spreadsheet alternative'
+    ],
+    sections: [
+      {
+        heading: 'Why job seekers need a tracker',
+        paragraphs: [
+          'A job search can spread across LinkedIn, Indeed, company portals, recruiter emails, assessments, calendar links, and follow-up notes. Without a tracker, it is easy to forget where you applied or miss the next step.',
+          'A free job application tracker gives you a single place to see active opportunities, recent updates, and the applications that need attention.'
+        ]
+      },
+      {
+        heading: 'What a free job application tracker should include',
+        paragraphs: [
+          'A useful free application tracker should cover the basics without forcing you into a complex system. At minimum, it should track company names, roles, current status, latest activity, and interview or assessment updates.',
+          'It should also make the next action obvious, especially when a recruiter asks you to schedule an interview, complete an assessment, or respond to a hiring update.'
+        ],
+        bullets: [
+          'Application confirmations and submitted roles',
+          'Interview requests, assessments, offers, and rejections',
+          'A timeline of hiring updates',
+          'Clear status labels for each opportunity'
+        ]
+      },
+      {
+        heading: 'Spreadsheet vs automated tracking',
+        paragraphs: [
+          'A spreadsheet can work when you only have a few applications, but it depends on manual updates. Every confirmation, rejection, interview request, and follow-up has to be copied into the sheet.',
+          'Applictus is a job application spreadsheet alternative because it can organize forwarded job emails automatically. You control what gets forwarded, and Applictus turns those updates into a timeline.'
+        ]
+      },
+      {
+        heading: 'What Applictus offers on the free plan',
+        paragraphs: [
+          'The Applictus free plan lets you create an account, receive a personal Applictus forwarding address, and start tracking job-related updates with monthly free-plan limits.',
+          'It is designed for job seekers who want a free job search tracker before deciding whether they need higher tracking limits or premium features.'
+        ],
+        bullets: [
+          'A personal Applictus inbox address for forwarded job updates',
+          'Automatic tracking after setup',
+          'Application, interview, offer, and rejection organization',
+          'No Gmail inbox read permission required'
+        ]
+      },
+      {
+        heading: 'Tracking applications, interviews, offers, and rejections',
+        paragraphs: [
+          'Applictus looks for hiring-stage signals in forwarded job emails. Application confirmations can become applied records, assessment or interview requests can become interview-stage updates, and offer or rejection emails can update the status.',
+          'That makes Applictus useful as a free interview tracker as well as a broader free job application tracker.'
+        ]
+      },
+      {
+        heading: 'Getting started in minutes',
+        paragraphs: [
+          'Create an account, copy your Applictus forwarding address, then set up Gmail forwarding. You can also add Gmail filters so only job-related emails are forwarded.',
+          'After setup, Applictus runs automatically in the background and keeps your application timeline current as new job updates arrive.'
+        ]
+      }
+    ],
+    faq: [
+      {
+        question: 'Is Applictus free?',
+        answer:
+          'Yes. Applictus offers a free plan that lets job seekers start tracking applications, interviews, offers, and rejections at no cost.'
+      },
+      {
+        question: 'What is the best free job application tracker?',
+        answer:
+          'The best free job application tracker is one you can keep current. Applictus is built to reduce manual updates by organizing job-related emails into an application timeline.'
+      },
+      {
+        question: 'Can I track interviews for free?',
+        answer:
+          'Yes. Applictus can help track interview invitations, assessment requests, recruiter next steps, and hiring updates on the free plan, subject to free-plan usage limits.'
+      },
+      {
+        question: 'Is a spreadsheet enough for job tracking?',
+        answer:
+          'A spreadsheet can be enough for a small search, but it becomes harder to maintain when updates arrive across job boards, company portals, and email. Automated tracking keeps the timeline closer to what is actually happening.'
+      },
+      {
+        question: 'How many applications can I track with Applictus?',
+        answer:
+          'The free plan includes monthly tracking limits for lighter job searches. Your Account page shows your current limit and usage, and premium plans provide higher limits for heavier searches.'
+      }
+    ],
+    related: [
+      'job-application-tracker',
+      'job-application-spreadsheet-alternative',
+      'interview-tracker'
+    ]
+  }
+];
+
 const articlesBySlug = new Map(articles.map((article) => [article.slug, article]));
+const resourcesBySlug = new Map(resourcePages.map((resource) => [resource.slug, resource]));
+const contentBySlug = new Map([...articlesBySlug, ...resourcesBySlug]);
+
+function contentHref(item) {
+  return item.path || `/blog/${item.slug}`;
+}
 
 function escapeHtml(value) {
   return String(value)
@@ -378,6 +497,7 @@ function nav() {
 function footer() {
   const links = [
     ['Blog', '/blog'],
+    ['Free Tracker', '/free-job-application-tracker'],
     ['About', '/about'],
     ['Contact', '/contact'],
     ['Privacy', '/privacy'],
@@ -418,9 +538,10 @@ function CTASection() {
 }
 
 function BlogCard(article) {
+  const href = contentHref(article);
   return `
             <article class="blog-card">
-              <a class="blog-card-thumb" href="/blog/${article.slug}" aria-label="Read ${escapeHtml(article.h1)}">
+              <a class="blog-card-thumb" href="${href}" aria-label="Read ${escapeHtml(article.h1)}">
                 <img src="${escapeHtml(article.imageSrc)}" alt="${escapeHtml(article.imageAlt)}" loading="lazy" width="960" height="540" />
               </a>
               <div class="blog-card-content">
@@ -428,10 +549,10 @@ function BlogCard(article) {
                   <span>${escapeHtml(article.category)}</span>
                   <span>${escapeHtml(article.readTime)}</span>
                 </div>
-                <h2><a href="/blog/${article.slug}">${escapeHtml(article.h1)}</a></h2>
+                <h2><a href="${href}">${escapeHtml(article.h1)}</a></h2>
                 <p>${escapeHtml(article.description)}</p>
                 <div class="blog-card-footer">
-                  <a class="blog-card-link" href="/blog/${article.slug}">Read article</a>
+                  <a class="blog-card-link" href="${href}">${article.path ? 'Read resource' : 'Read article'}</a>
                 </div>
               </div>
             </article>`;
@@ -439,7 +560,7 @@ function BlogCard(article) {
 
 function RelatedArticles(currentArticle) {
   const related = currentArticle.related
-    .map((slug) => articlesBySlug.get(slug))
+    .map((slug) => contentBySlug.get(slug))
     .filter(Boolean);
   return `
           <aside class="blog-related" aria-labelledby="related-title">
@@ -449,7 +570,7 @@ function RelatedArticles(currentArticle) {
               ${related
                 .map(
                   (article) => `
-              <a class="blog-related-card" href="/blog/${article.slug}">
+              <a class="blog-related-card" href="${contentHref(article)}">
                 <span>${escapeHtml(article.category)}</span>
                 <strong>${escapeHtml(article.h1)}</strong>
                 <small>${escapeHtml(article.readTime)}</small>
@@ -523,7 +644,7 @@ function renderHub() {
 
         <section class="blog-index page-wrap" aria-label="Applictus articles">
           <div class="blog-card-grid">
-${articles.map(BlogCard).join('\n')}
+${[...resourcePages, ...articles].map(BlogCard).join('\n')}
           </div>
         </section>
 
@@ -582,8 +703,81 @@ ${CTASection()}`;
   });
 }
 
+function renderResourceFaq(resource) {
+  return `
+            <section class="blog-resource-faq" aria-labelledby="free-tracker-faq-title">
+              <h2 id="free-tracker-faq-title">Free tracker FAQ</h2>
+              <div class="blog-resource-faq-list">
+                ${resource.faq
+                  .map(
+                    (item) => `
+                <details class="blog-resource-faq-item">
+                  <summary>${escapeHtml(item.question)}</summary>
+                  <p>${escapeHtml(item.answer)}</p>
+                </details>`
+                  )
+                  .join('')}
+              </div>
+            </section>`;
+}
+
+function renderResourcePage(resource) {
+  const content = `
+        <article class="blog-article blog-resource-page page-wrap">
+          <header class="blog-article-header blog-resource-hero">
+            <div class="blog-article-hero-copy">
+              <nav class="blog-breadcrumb" aria-label="Breadcrumb">
+                <a href="/">Home</a>
+                <span aria-hidden="true">/</span>
+                <a href="/blog">Resources</a>
+              </nav>
+              <div class="blog-article-meta">
+                <span>${escapeHtml(resource.category)}</span>
+                <span>${escapeHtml(resource.readTime)}</span>
+              </div>
+              <div class="blog-article-title">
+                <h1>${escapeHtml(resource.h1)}</h1>
+                <p>${escapeHtml(resource.intro)}</p>
+              </div>
+              <div class="blog-hero-topics" aria-label="Free tracker topics">
+                ${resource.topics.map((topic) => `<span>${escapeHtml(topic)}</span>`).join('\n                ')}
+              </div>
+              <div class="blog-resource-actions">
+                <a class="btn btn-bevel btn-primary" href="/app">Sign up free</a>
+                <a class="btn btn-bevel btn-secondary" href="/blog">Browse resources</a>
+              </div>
+            </div>
+          </header>
+
+          <div class="blog-article-layout blog-resource-layout">
+            <div class="blog-article-body">
+${renderArticleBody(resource)}
+${renderResourceFaq(resource)}
+            </div>
+${RelatedArticles(resource)}
+          </div>
+        </article>
+
+${CTASection()}`;
+
+  return BlogPageLayout({
+    title: resource.title,
+    description: resource.description,
+    canonicalPath: resource.path,
+    content
+  });
+}
+
 function writeFileBoth(relativePath, html) {
   for (const baseDir of [webBlogDir, publicBlogDir]) {
+    const dest = path.join(baseDir, relativePath);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, html, 'utf8');
+  }
+}
+
+function writeRootFileBoth(relativePath, html) {
+  for (const baseDir of [webDir, publicDir]) {
     const dest = path.join(baseDir, relativePath);
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.writeFileSync(dest, html, 'utf8');
@@ -594,6 +788,11 @@ writeFileBoth('index.html', renderHub());
 for (const article of articles) {
   writeFileBoth(path.join(article.slug, 'index.html'), renderArticle(article));
 }
+for (const resource of resourcePages) {
+  writeRootFileBoth(path.join(resource.slug, 'index.html'), renderResourcePage(resource));
+}
 
 // eslint-disable-next-line no-console
-console.log(`[generate-blog-pages] wrote ${articles.length + 1} page(s) to web/blog and public/blog`);
+console.log(
+  `[generate-blog-pages] wrote ${articles.length + resourcePages.length + 1} page(s) to web and public`
+);
