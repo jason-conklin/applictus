@@ -13,6 +13,9 @@ const articles = [
     slug: 'job-application-tracker',
     category: 'Guide',
     readTime: '5 min read',
+    imageSrc: '/applictus-blog-image1.png',
+    imageAlt:
+      'Application tracking dashboard showing job statuses, interviews, offers, and rejections',
     title: 'Job Application Tracker | Applictus',
     h1: 'Job Application Tracker',
     description:
@@ -58,6 +61,8 @@ const articles = [
     slug: 'track-job-applications-from-email',
     category: 'Email tracking',
     readTime: '6 min read',
+    imageSrc: '/applictus-blog-image2.png',
+    imageAlt: 'Inbox-powered job application timeline organized from forwarded email updates',
     title: 'Track Job Applications From Email Automatically | Applictus',
     h1: 'Track Job Applications From Email Automatically',
     description:
@@ -103,6 +108,9 @@ const articles = [
     slug: 'job-application-spreadsheet-alternative',
     category: 'Productivity',
     readTime: '5 min read',
+    imageSrc: '/applictus-blog-image3.png',
+    imageAlt:
+      'Job application spreadsheet alternative with an organized automatic tracking timeline',
     title: 'Job Application Spreadsheet Alternative | Applictus',
     h1: 'Job Application Spreadsheet Alternative',
     description:
@@ -148,6 +156,8 @@ const articles = [
     slug: 'interview-tracker',
     category: 'Interview tracking',
     readTime: '5 min read',
+    imageSrc: '/applictus-blog-image4.png',
+    imageAlt: 'Interview tracker showing upcoming hiring steps and application status updates',
     title: 'Interview Tracker for Job Seekers | Applictus',
     h1: 'Interview Tracker for Job Seekers',
     description:
@@ -193,6 +203,8 @@ const articles = [
     slug: 'how-to-track-job-applications',
     category: 'How to',
     readTime: '7 min read',
+    imageSrc: '/applictus-blog-image5.png',
+    imageAlt: 'Organized job search workflow for tracking applications, follow-ups, and outcomes',
     title: 'How To Track Job Applications Effectively | Applictus',
     h1: 'How To Track Job Applications Effectively',
     description:
@@ -239,6 +251,9 @@ const articles = [
     slug: 'best-job-application-trackers',
     category: 'Comparison',
     readTime: '7 min read',
+    imageSrc: '/applictus-blog-image6.png',
+    imageAlt:
+      'Comparison of job application tracker tools for organizing a modern job search',
     title: 'Best Job Application Trackers for Job Seekers in 2026 | Applictus',
     h1: 'Best Job Application Trackers for Job Seekers in 2026',
     description:
@@ -285,6 +300,8 @@ const articles = [
     slug: 'how-to-use-gmail-filters-for-job-applications',
     category: 'Gmail setup',
     readTime: '6 min read',
+    imageSrc: '/applictus-blog-image7.png',
+    imageAlt: 'Gmail filters workflow for forwarding job application emails into Applictus',
     title: 'How To Use Gmail Filters For Job Applications | Applictus',
     h1: 'How To Use Gmail Filters For Job Applications',
     description:
@@ -403,14 +420,19 @@ function CTASection() {
 function BlogCard(article) {
   return `
             <article class="blog-card">
-              <div class="blog-card-meta">
-                <span>${escapeHtml(article.category)}</span>
-                <span>${escapeHtml(article.readTime)}</span>
-              </div>
-              <h2><a href="/blog/${article.slug}">${escapeHtml(article.h1)}</a></h2>
-              <p>${escapeHtml(article.description)}</p>
-              <div class="blog-card-footer">
-                <a class="blog-card-link" href="/blog/${article.slug}">Read article</a>
+              <a class="blog-card-thumb" href="/blog/${article.slug}" aria-label="Read ${escapeHtml(article.h1)}">
+                <img src="${escapeHtml(article.imageSrc)}" alt="${escapeHtml(article.imageAlt)}" loading="lazy" width="960" height="540" />
+              </a>
+              <div class="blog-card-content">
+                <div class="blog-card-meta">
+                  <span>${escapeHtml(article.category)}</span>
+                  <span>${escapeHtml(article.readTime)}</span>
+                </div>
+                <h2><a href="/blog/${article.slug}">${escapeHtml(article.h1)}</a></h2>
+                <p>${escapeHtml(article.description)}</p>
+                <div class="blog-card-footer">
+                  <a class="blog-card-link" href="/blog/${article.slug}">Read article</a>
+                </div>
               </div>
             </article>`;
 }
@@ -521,19 +543,24 @@ function renderArticle(article) {
         <article class="blog-article page-wrap">
           <header class="blog-article-header">
             <div class="blog-article-hero-inner">
-              <nav class="blog-breadcrumb" aria-label="Breadcrumb">
-                <a href="/">Home</a>
-                <span aria-hidden="true">/</span>
-                <a href="/blog">Blog</a>
-              </nav>
-              <div class="blog-article-meta">
-                <span>${escapeHtml(article.category)}</span>
-                <span>${escapeHtml(article.readTime)}</span>
+              <div class="blog-article-hero-copy">
+                <nav class="blog-breadcrumb" aria-label="Breadcrumb">
+                  <a href="/">Home</a>
+                  <span aria-hidden="true">/</span>
+                  <a href="/blog">Blog</a>
+                </nav>
+                <div class="blog-article-meta">
+                  <span>${escapeHtml(article.category)}</span>
+                  <span>${escapeHtml(article.readTime)}</span>
+                </div>
+                <div class="blog-article-title">
+                  <h1>${escapeHtml(article.h1)}</h1>
+                  <p>${escapeHtml(article.intro)}</p>
+                </div>
               </div>
-              <div class="blog-article-title">
-                <h1>${escapeHtml(article.h1)}</h1>
-                <p>${escapeHtml(article.intro)}</p>
-              </div>
+              <figure class="blog-article-hero-image">
+                <img src="${escapeHtml(article.imageSrc)}" alt="${escapeHtml(article.imageAlt)}" loading="eager" width="960" height="540" />
+              </figure>
             </div>
           </header>
 

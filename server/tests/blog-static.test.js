@@ -6,13 +6,48 @@ const path = require('path');
 const rootDir = path.join(__dirname, '..', '..');
 
 const articles = [
-  ['job-application-tracker', 'Job Application Tracker | Applictus'],
-  ['track-job-applications-from-email', 'Track Job Applications From Email Automatically | Applictus'],
-  ['job-application-spreadsheet-alternative', 'Job Application Spreadsheet Alternative | Applictus'],
-  ['interview-tracker', 'Interview Tracker for Job Seekers | Applictus'],
-  ['how-to-track-job-applications', 'How To Track Job Applications Effectively | Applictus'],
-  ['best-job-application-trackers', 'Best Job Application Trackers for Job Seekers in 2026 | Applictus'],
-  ['how-to-use-gmail-filters-for-job-applications', 'How To Use Gmail Filters For Job Applications | Applictus']
+  [
+    'job-application-tracker',
+    'Job Application Tracker | Applictus',
+    '/applictus-blog-image1.png',
+    'Application tracking dashboard showing job statuses, interviews, offers, and rejections'
+  ],
+  [
+    'track-job-applications-from-email',
+    'Track Job Applications From Email Automatically | Applictus',
+    '/applictus-blog-image2.png',
+    'Inbox-powered job application timeline organized from forwarded email updates'
+  ],
+  [
+    'job-application-spreadsheet-alternative',
+    'Job Application Spreadsheet Alternative | Applictus',
+    '/applictus-blog-image3.png',
+    'Job application spreadsheet alternative with an organized automatic tracking timeline'
+  ],
+  [
+    'interview-tracker',
+    'Interview Tracker for Job Seekers | Applictus',
+    '/applictus-blog-image4.png',
+    'Interview tracker showing upcoming hiring steps and application status updates'
+  ],
+  [
+    'how-to-track-job-applications',
+    'How To Track Job Applications Effectively | Applictus',
+    '/applictus-blog-image5.png',
+    'Organized job search workflow for tracking applications, follow-ups, and outcomes'
+  ],
+  [
+    'best-job-application-trackers',
+    'Best Job Application Trackers for Job Seekers in 2026 | Applictus',
+    '/applictus-blog-image6.png',
+    'Comparison of job application tracker tools for organizing a modern job search'
+  ],
+  [
+    'how-to-use-gmail-filters-for-job-applications',
+    'How To Use Gmail Filters For Job Applications | Applictus',
+    '/applictus-blog-image7.png',
+    'Gmail filters workflow for forwarding job application emails into Applictus'
+  ]
 ];
 
 function readProjectFile(relativePath) {
@@ -44,8 +79,13 @@ test('blog hub and articles are static, linked, and SEO-ready', () => {
   assert.match(hub, /class="blog-card-footer"/);
   assertBlogTopNavigation(hub);
 
-  for (const [slug, title] of articles) {
+  for (const [slug, title, imageSrc, imageAlt] of articles) {
+    assert.ok(fs.existsSync(path.join(rootDir, 'public', imageSrc.replace(/^\//, ''))));
     assert.match(hub, new RegExp(`href="/blog/${slug}"`));
+    assert.match(
+      hub,
+      new RegExp(`<img src="${imageSrc.replace(/\//g, '\\/')}" alt="${imageAlt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}" loading="lazy" width="960" height="540"`)
+    );
     const sourcePath = `web/blog/${slug}/index.html`;
     const publicPath = `public/blog/${slug}/index.html`;
     const article = readProjectFile(sourcePath);
@@ -57,6 +97,12 @@ test('blog hub and articles are static, linked, and SEO-ready', () => {
     assert.match(article, /<a href="\/">Home<\/a>/);
     assert.match(article, /<a href="\/blog">Blog<\/a>/);
     assert.match(article, /class="blog-article-hero-inner"/);
+    assert.match(article, /class="blog-article-hero-copy"/);
+    assert.match(article, /class="blog-article-hero-image"/);
+    assert.match(
+      article,
+      new RegExp(`<img src="${imageSrc.replace(/\//g, '\\/')}" alt="${imageAlt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}" loading="eager" width="960" height="540"`)
+    );
     assert.match(article, /class="blog-article-title"/);
     assert.match(article, /class="blog-related"/);
     assert.match(article, /class="blog-cta"/);
@@ -69,7 +115,10 @@ test('blog hub and articles are static, linked, and SEO-ready', () => {
     '.blog-cta',
     '.blog-hero-logo',
     '.blog-hero-topics',
+    '.blog-card-thumb',
+    '.blog-card-content',
     '.blog-article-hero-inner',
+    '.blog-article-hero-image',
     '.blog-related',
     '.blog-article-layout'
   ]) {
