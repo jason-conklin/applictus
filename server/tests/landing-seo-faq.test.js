@@ -86,16 +86,21 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
     assert.match(shellHtml, /<section class="view" id="about-view" hidden>/);
     assert.match(shellHtml, /<div class="about-page">/);
     assert.match(shellHtml, /Built to make job searching easier to manage\./);
+    assert.match(shellHtml, /Inbox-powered tracking/);
+    assert.match(shellHtml, /User-controlled forwarding/);
+    assert.match(shellHtml, /Built for modern job searches/);
     assert.match(shellHtml, /<section class="about-section about-mission">/);
     assert.match(shellHtml, /<section class="about-section about-team-section">/);
     assert.match(shellHtml, /<section class="about-section about-principles-section">/);
     assert.match(shellHtml, /<section class="about-trust-callout">/);
     assert.match(shellHtml, /<section class="about-cta-card">/);
     assert.doesNotMatch(shellHtml, /class="card about"/);
+    assert.doesNotMatch(shellHtml, /about-hero-visual|about-logo-tile|about-signal-card/);
   }
 
   assert.match(sourceCss, /\.about-page/);
-  assert.match(sourceCss, /\.about-hero-visual/);
+  assert.match(sourceCss, /\.about-hero-points/);
   assert.match(sourceCss, /\.about-trust-callout/);
   assert.match(sourceCss, /\.about-cta-card/);
+  assert.doesNotMatch(sourceCss, /about-hero-visual|about-logo-tile|about-signal-card/);
 });

@@ -2725,7 +2725,7 @@ p {
   width: min(1120px, 100%);
   margin-inline: auto;
   display: grid;
-  gap: clamp(20px, 3vw, 30px);
+  gap: clamp(16px, 2.2vw, 24px);
   padding-bottom: 10px;
 }
 
@@ -2745,16 +2745,14 @@ p {
 }
 
 .about-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.16fr) minmax(280px, 0.84fr);
-  gap: clamp(24px, 4vw, 48px);
-  align-items: center;
-  padding: clamp(42px, 6vw, 68px);
+  display: block;
+  padding: clamp(28px, 4vw, 42px);
 }
 
 .about-hero-copy {
   display: grid;
-  gap: 16px;
+  gap: 13px;
+  max-width: 880px;
   min-width: 0;
 }
 
@@ -2780,12 +2778,12 @@ p {
   padding: 7px 10px;
 }
 
-.about-hero h2 {
-  max-width: 760px;
+.about-hero h1 {
+  max-width: 780px;
   margin: 0;
   color: #102f59;
-  font-size: clamp(2.35rem, 5.2vw, 4.45rem);
-  line-height: 1.02;
+  font-size: clamp(2rem, 3.35vw, 3.05rem);
+  line-height: 1.08;
   letter-spacing: 0;
   text-wrap: balance;
 }
@@ -2799,15 +2797,26 @@ p {
   font-weight: 500;
 }
 
-.about-hero-visual {
-  display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
-  gap: 12px;
-  align-items: stretch;
+.about-hero-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 4px;
 }
 
-.about-logo-tile,
-.about-signal-card,
+.about-hero-points span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 1px solid rgba(31, 86, 166, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.66);
+  color: #315d93;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
 .about-points-card,
 .profile-card,
 .about-principle-card {
@@ -2820,41 +2829,6 @@ p {
     inset 0 1px 0 rgba(255, 255, 255, 0.86);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
-}
-
-.about-logo-tile {
-  grid-row: span 3;
-  min-height: 100%;
-  border-radius: 22px;
-  display: grid;
-  place-items: center;
-}
-
-.about-logo-tile img {
-  width: 58px;
-  height: 58px;
-  border-radius: 16px;
-  object-fit: cover;
-  box-shadow: 0 12px 24px rgba(29, 82, 165, 0.2);
-}
-
-.about-signal-card {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-  padding: 16px 18px;
-  border-radius: 18px;
-}
-
-.about-signal-card span {
-  color: #6480a7;
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.about-signal-card strong {
-  color: #183f72;
-  font-size: 1rem;
 }
 
 .about-section {
@@ -3102,7 +3076,6 @@ p {
 }
 
 @media (max-width: 920px) {
-  .about-hero,
   .about-mission,
   .about-trust-callout,
   .about-cta-card {
@@ -3110,11 +3083,7 @@ p {
   }
 
   .about-hero {
-    padding: clamp(34px, 7vw, 52px);
-  }
-
-  .about-hero-visual {
-    max-width: 520px;
+    padding: clamp(26px, 5vw, 38px);
   }
 
   .about-team,
@@ -3129,7 +3098,7 @@ p {
 
 @media (max-width: 640px) {
   .about-page {
-    gap: 18px;
+    gap: 16px;
   }
 
   .about-hero,
@@ -3139,24 +3108,25 @@ p {
   }
 
   .about-hero {
-    padding: 28px 20px;
+    padding: 24px 18px;
   }
 
-  .about-hero h2 {
-    font-size: clamp(2.05rem, 10vw, 3.05rem);
+  .about-hero h1 {
+    font-size: clamp(1.82rem, 8vw, 2.35rem);
   }
 
   .about-subtitle {
     font-size: 1rem;
   }
 
-  .about-hero-visual {
-    grid-template-columns: 1fr;
+  .about-hero-points {
+    gap: 7px;
   }
 
-  .about-logo-tile {
-    grid-row: auto;
-    min-height: 118px;
+  .about-hero-points span {
+    min-height: 32px;
+    padding: 7px 10px;
+    font-size: 0.8rem;
   }
 
   .about-mission {

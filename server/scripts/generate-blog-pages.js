@@ -12,7 +12,7 @@ const articles = [
   {
     slug: 'job-application-tracker',
     category: 'Guide',
-    readTime: '5 min read',
+    readTime: '2 min read',
     imageSrc: '/applictus-blog-image1.png',
     imageAlt:
       'Application tracking dashboard showing job statuses, interviews, offers, and rejections',
@@ -60,7 +60,7 @@ const articles = [
   {
     slug: 'track-job-applications-from-email',
     category: 'Email tracking',
-    readTime: '6 min read',
+    readTime: '3 min read',
     imageSrc: '/applictus-blog-image2.png',
     imageAlt: 'Inbox-powered job application timeline organized from forwarded email updates',
     title: 'Track Job Applications From Email Automatically | Applictus',
@@ -107,7 +107,7 @@ const articles = [
   {
     slug: 'job-application-spreadsheet-alternative',
     category: 'Productivity',
-    readTime: '5 min read',
+    readTime: '2 min read',
     imageSrc: '/applictus-blog-image3.png',
     imageAlt:
       'Job application spreadsheet alternative with an organized automatic tracking timeline',
@@ -155,7 +155,7 @@ const articles = [
   {
     slug: 'interview-tracker',
     category: 'Interview tracking',
-    readTime: '5 min read',
+    readTime: '2 min read',
     imageSrc: '/applictus-blog-image4.png',
     imageAlt: 'Interview tracker showing upcoming hiring steps and application status updates',
     title: 'Interview Tracker for Job Seekers | Applictus',
@@ -202,7 +202,7 @@ const articles = [
   {
     slug: 'how-to-track-job-applications',
     category: 'How to',
-    readTime: '7 min read',
+    readTime: '4 min read',
     imageSrc: '/applictus-blog-image5.png',
     imageAlt: 'Organized job search workflow for tracking applications, follow-ups, and outcomes',
     title: 'How To Track Job Applications Effectively | Applictus',
@@ -250,7 +250,7 @@ const articles = [
   {
     slug: 'best-job-application-trackers',
     category: 'Comparison',
-    readTime: '7 min read',
+    readTime: '4 min read',
     imageSrc: '/applictus-blog-image6.png',
     imageAlt:
       'Comparison of job application tracker tools for organizing a modern job search',
@@ -299,7 +299,7 @@ const articles = [
   {
     slug: 'how-to-use-gmail-filters-for-job-applications',
     category: 'Gmail setup',
-    readTime: '6 min read',
+    readTime: '3 min read',
     imageSrc: '/applictus-blog-image7.png',
     imageAlt: 'Gmail filters workflow for forwarding job application emails into Applictus',
     title: 'How To Use Gmail Filters For Job Applications | Applictus',
