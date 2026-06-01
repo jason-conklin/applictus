@@ -110,6 +110,15 @@ const ALLOWED_ORIGINS = new Set(
 // Lightweight in-memory cache to dampen short-burst analytics reads.
 const ADMIN_CACHE_TTL_MS = 60_000;
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
+const BLOG_SLUGS = new Set([
+  'job-application-tracker',
+  'track-job-applications-from-email',
+  'job-application-spreadsheet-alternative',
+  'interview-tracker',
+  'how-to-track-job-applications',
+  'best-job-application-trackers',
+  'how-to-use-gmail-filters-for-job-applications'
+]);
 const adminAnalyticsCache = {
   summary: { data: null, ts: 0 },
   trends: new Map() // key: `${metric}:${range}` -> { data, ts }
@@ -180,6 +189,16 @@ app.get('/sitemap.xml', (_req, res) => {
 app.get('/robots.txt', (_req, res) => {
   res.type('text/plain');
   return res.sendFile(path.join(PUBLIC_DIR, 'robots.txt'));
+});
+app.get(['/blog', '/blog/'], (_req, res) => {
+  return res.sendFile(path.join(PUBLIC_DIR, 'blog', 'index.html'));
+});
+app.get('/blog/:slug', (req, res, next) => {
+  const slug = String(req.params.slug || '').toLowerCase();
+  if (!BLOG_SLUGS.has(slug)) {
+    return next();
+  }
+  return res.sendFile(path.join(PUBLIC_DIR, 'blog', slug, 'index.html'));
 });
 if (!isProd()) {
   app.use('/public', express.static(PUBLIC_DIR));

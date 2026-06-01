@@ -27,6 +27,8 @@ const files = [
   { src: 'applictus_setup_sc6.png', dest: 'applictus_setup_sc6.png' }
 ];
 
+const directories = [{ src: 'blog', dest: 'blog' }];
+
 fs.mkdirSync(publicDir, { recursive: true });
 
 let copied = 0;
@@ -41,6 +43,17 @@ for (const file of files) {
   }
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.copyFileSync(src, dest);
+  copied += 1;
+}
+
+for (const directory of directories) {
+  const src = path.join(webDir, directory.src);
+  const dest = path.join(publicDir, directory.dest);
+  if (!fs.existsSync(src)) {
+    skipped += 1;
+    continue;
+  }
+  fs.cpSync(src, dest, { recursive: true });
   copied += 1;
 }
 

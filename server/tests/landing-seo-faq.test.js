@@ -9,15 +9,37 @@ function readProjectFile(relativePath) {
   return fs.readFileSync(path.join(rootDir, relativePath), 'utf8');
 }
 
+function assertTopNavigation(html) {
+  const navBlocks = [...html.matchAll(/<div class="home-nav-actions">([\s\S]*?)<\/div>/g)].map(
+    (match) => match[1]
+  );
+  assert.ok(navBlocks.length > 0);
+  for (const nav of navBlocks) {
+    assert.match(nav, /<a class="home-link" href="\/about">About<\/a>/);
+    assert.match(nav, /<a class="home-link" href="\/blog">Blog<\/a>/);
+    assert.match(nav, /<a class="btn btn--secondary btn--sm" href="\/app">Login<\/a>/);
+    assert.match(nav, /<a class="btn btn--primary btn--sm" href="\/app">Sign up<\/a>/);
+    assert.doesNotMatch(nav, /href="\/privacy"|href="\/terms"/);
+  }
+}
+
 test('landing page metadata and FAQ content are SEO-ready', () => {
   const sourceHtml = readProjectFile('web/home.html');
   const publicHtml = readProjectFile('public/index.html');
+  const appShellHtml = readProjectFile('web/index.html');
+  const publicAppShellHtml = readProjectFile('public/app/index.html');
   const sourceCss = readProjectFile('web/styles.css');
   const publicCss = readProjectFile('public/styles.css');
 
   assert.equal(publicHtml, sourceHtml);
   assert.equal(publicCss, sourceCss);
   assert.match(sourceHtml, /<title>Applictus \| Automatic Job Application Tracker<\/title>/);
+  assertTopNavigation(sourceHtml);
+  assertTopNavigation(appShellHtml);
+  assertTopNavigation(publicAppShellHtml);
+  assert.match(sourceHtml, /<a class="app-footer-link" href="\/blog">BLOG<\/a>/);
+  assert.match(sourceHtml, /<a class="app-footer-link" href="\/privacy">PRIVACY<\/a>/);
+  assert.match(sourceHtml, /<a class="app-footer-link" href="\/terms">TERMS<\/a>/);
 
   const metaDescription = sourceHtml.match(/<meta\s+name="description"\s+content="([^"]+)"/i)?.[1] || '';
   for (const keyword of [

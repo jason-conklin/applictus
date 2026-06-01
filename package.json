@@ -12,7 +12,8 @@
     "seed": "node server/scripts/seed.js",
     "inbound:smoke": "node server/scripts/postmark-inbound-smoke.js",
     "test": "node server/scripts/run-tests.js",
-    "copy:web": "node server/scripts/copy-web-to-public.js"
+    "copy:web": "node server/scripts/copy-web-to-public.js",
+    "blog:build": "node server/scripts/generate-blog-pages.js"
   },
   "engines": {
     "node": ">=20 <21"
