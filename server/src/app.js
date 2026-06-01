@@ -111,6 +111,7 @@ const ALLOWED_ORIGINS = new Set(
 const ADMIN_CACHE_TTL_MS = 60_000;
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
 const BLOG_SLUGS = new Set([
+  'best-free-job-application-trackers-2026',
   'job-application-tracker',
   'track-job-applications-from-email',
   'job-application-spreadsheet-alternative',
@@ -191,7 +192,7 @@ app.get('/robots.txt', (_req, res) => {
   return res.sendFile(path.join(PUBLIC_DIR, 'robots.txt'));
 });
 app.get(['/free-job-application-tracker', '/free-job-application-tracker/'], (_req, res) => {
-  return res.sendFile(path.join(PUBLIC_DIR, 'free-job-application-tracker', 'index.html'));
+  return res.redirect(301, '/blog/best-free-job-application-trackers-2026');
 });
 app.get(['/blog', '/blog/'], (_req, res) => {
   return res.sendFile(path.join(PUBLIC_DIR, 'blog', 'index.html'));

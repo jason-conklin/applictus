@@ -14,7 +14,7 @@ const publicUrls = [
   'https://applictus.com/privacy',
   'https://applictus.com/terms',
   'https://applictus.com/blog',
-  'https://applictus.com/free-job-application-tracker',
+  'https://applictus.com/blog/best-free-job-application-trackers-2026',
   'https://applictus.com/blog/job-application-tracker',
   'https://applictus.com/blog/track-job-applications-from-email',
   'https://applictus.com/blog/job-application-spreadsheet-alternative',
@@ -25,7 +25,7 @@ const publicUrls = [
 ];
 
 const blogPaths = publicUrls
-  .filter((url) => url.includes('/blog') || url.includes('/free-job-application-tracker'))
+  .filter((url) => url.includes('/blog'))
   .map((url) => new URL(url).pathname);
 
 function assertBlogTopNavigation(html) {
@@ -57,6 +57,7 @@ test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) =
   for (const excluded of ['/dashboard', '/account', '/auth/']) {
     assert.equal(sitemap.includes(excluded), false);
   }
+  assert.equal(sitemap.includes('https://applictus.com/free-job-application-tracker'), false);
 
   const robotsResponse = await fetch(`${baseUrl}/robots.txt`, { redirect: 'manual' });
   assert.equal(robotsResponse.status, 200);
@@ -80,4 +81,13 @@ test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) =
     assert.match(html, /<body class="home home-page blog-page/);
     assertBlogTopNavigation(html);
   }
+
+  const legacyFreeTrackerResponse = await fetch(`${baseUrl}/free-job-application-tracker`, {
+    redirect: 'manual'
+  });
+  assert.equal(legacyFreeTrackerResponse.status, 301);
+  assert.equal(
+    legacyFreeTrackerResponse.headers.get('location'),
+    '/blog/best-free-job-application-trackers-2026'
+  );
 });

@@ -12,6 +12,92 @@ const CSS_VERSION = '86';
 
 const articles = [
   {
+    slug: 'best-free-job-application-trackers-2026',
+    category: 'Comparison',
+    readTime: '7 min read',
+    imageSrc: '/applictus-blog-image8.png',
+    imageAlt:
+      'Comparison of free job application tracker options for organizing applications, interviews, offers, and rejections',
+    title: 'Best Free Job Application Trackers in 2026 | Applictus',
+    h1: 'Best Free Job Application Trackers in 2026',
+    description:
+      'Compare the best free job application trackers in 2026 and learn what features matter most when organizing applications, interviews, offers, and rejections.',
+    cardDescription:
+      'Compare the best free job application trackers and learn what features to look for when organizing your 2026 job search.',
+    intro:
+      'Free job application trackers can help you stay organized without adding another expensive tool to your search.',
+    sections: [
+      {
+        heading: 'Why job seekers need a tracker',
+        paragraphs: [
+          'A modern job search rarely happens in one place. Applications can start on LinkedIn, Indeed, company career sites, recruiter emails, referrals, and applicant tracking systems.',
+          'A tracker helps you see what you applied to, which roles need a follow-up, where interviews or assessments are pending, and which opportunities ended in offers or rejections.'
+        ]
+      },
+      {
+        heading: 'What makes a good free job application tracker',
+        paragraphs: [
+          'The best free job application tracker is not always the one with the most fields. It is the one that stays accurate while requiring the least effort to maintain.',
+          'At a minimum, a free tracker should help you organize applications, interviews, assessments, offers, rejections, reminders, and follow-ups without making the system feel like a second job.'
+        ],
+        bullets: [
+          'Simple status tracking for each application',
+          'Interview and assessment visibility',
+          'Follow-up reminders or clear next-action notes',
+          'Room for company, role, date, source, and latest update',
+          'A workflow you can keep using throughout a long search'
+        ]
+      },
+      {
+        heading: 'Spreadsheet trackers',
+        paragraphs: [
+          'Spreadsheets are the most common free job application tracker because they are flexible and familiar. You can create columns for company, role, date applied, status, salary range, recruiter, follow-up date, and notes.',
+          'The drawback is maintenance. Every confirmation, interview request, rejection, assessment, and offer has to be entered by hand. For a small search, that may be fine. For a high-volume search, spreadsheets often fall behind your inbox.'
+        ]
+      },
+      {
+        heading: 'Notion-based trackers',
+        paragraphs: [
+          'Notion-style trackers are useful if you want a more visual system. You can build tables, boards, templates, notes, and interview prep pages around each opportunity.',
+          'They work best for job seekers who already like managing projects in Notion. They are less ideal if your main problem is remembering to update the tracker after every hiring email.'
+        ]
+      },
+      {
+        heading: 'Dedicated application tracking tools',
+        paragraphs: [
+          'Dedicated trackers are built specifically for job searches. They usually provide status categories, application timelines, reminders, and a more focused workflow than a generic spreadsheet.',
+          'Applictus is one option in this category. It focuses on automatic, inbox-powered tracking: after setup, job-related emails can become application timeline updates without granting full Gmail inbox access.'
+        ]
+      },
+      {
+        heading: 'Features to look for in 2026',
+        paragraphs: [
+          'In 2026, the strongest free job search trackers should support more than a basic applied/not applied list. Hiring workflows often include assessments, recruiter screens, panel interviews, take-home assignments, offers, rejections, and long periods with no update.',
+          'Look for a tracker that makes those stages visible, keeps recent activity easy to scan, and helps you decide what to do next.'
+        ],
+        bullets: [
+          'Application timeline or activity history',
+          'Interview, assessment, offer, and rejection statuses',
+          'Follow-up and reminder support',
+          'Low-friction updates from email or quick entry',
+          'Privacy controls that match how much data you want to share'
+        ]
+      },
+      {
+        heading: 'Choosing the right tracker for your workflow',
+        paragraphs: [
+          'Choose a spreadsheet if you want total control and only need a lightweight list. Choose a Notion tracker if you want a customizable workspace for notes, prep, and planning.',
+          'Choose a dedicated tracker if you want less manual upkeep and a cleaner view of the hiring process. If your job search updates mostly arrive by email, an automatic tracker like Applictus can help keep applications, interviews, offers, and rejections organized with less copying and pasting.'
+        ]
+      }
+    ],
+    related: [
+      'best-job-application-trackers',
+      'job-application-spreadsheet-alternative',
+      'interview-tracker'
+    ]
+  },
+  {
     slug: 'job-application-tracker',
     category: 'Guide',
     readTime: '2 min read',
@@ -54,7 +140,7 @@ const articles = [
       }
     ],
     related: [
-      'free-job-application-tracker',
+      'best-free-job-application-trackers-2026',
       'track-job-applications-from-email',
       'how-to-track-job-applications'
     ]
@@ -101,7 +187,7 @@ const articles = [
       }
     ],
     related: [
-      'free-job-application-tracker',
+      'best-free-job-application-trackers-2026',
       'how-to-use-gmail-filters-for-job-applications',
       'job-application-tracker'
     ]
@@ -149,7 +235,7 @@ const articles = [
       }
     ],
     related: [
-      'free-job-application-tracker',
+      'best-free-job-application-trackers-2026',
       'best-job-application-trackers',
       'job-application-tracker'
     ]
@@ -196,7 +282,7 @@ const articles = [
       }
     ],
     related: [
-      'free-job-application-tracker',
+      'best-free-job-application-trackers-2026',
       'how-to-track-job-applications',
       'track-job-applications-from-email'
     ]
@@ -244,7 +330,7 @@ const articles = [
       }
     ],
     related: [
-      'free-job-application-tracker',
+      'best-free-job-application-trackers-2026',
       'job-application-tracker',
       'interview-tracker'
     ]
@@ -293,7 +379,7 @@ const articles = [
       }
     ],
     related: [
-      'free-job-application-tracker',
+      'best-free-job-application-trackers-2026',
       'job-application-spreadsheet-alternative',
       'job-application-tracker'
     ]
@@ -339,123 +425,14 @@ const articles = [
       }
     ],
     related: [
-      'free-job-application-tracker',
+      'best-free-job-application-trackers-2026',
       'track-job-applications-from-email',
       'how-to-track-job-applications'
     ]
   }
 ];
 
-const resourcePages = [
-  {
-    slug: 'free-job-application-tracker',
-    path: '/free-job-application-tracker',
-    category: 'Free resources',
-    readTime: '2 min read',
-    imageSrc: '/applictus-blog-image1.png',
-    imageAlt:
-      'Free job application tracker dashboard organizing applications, interviews, offers, and rejections',
-    title: 'Free Job Application Tracker | Applictus',
-    h1: 'Free Job Application Tracker',
-    description:
-      'Track job applications, interviews, offers, and rejections for free with Applictus. Organize your job search automatically from job-related emails.',
-    intro:
-      'Applictus helps job seekers start tracking applications at no cost with a free plan built around job-related email updates.',
-    topics: [
-      'Free job search tracker',
-      'Free interview tracker',
-      'Spreadsheet alternative'
-    ],
-    sections: [
-      {
-        heading: 'Why job seekers need a tracker',
-        paragraphs: [
-          'A job search can spread across LinkedIn, Indeed, company portals, recruiter emails, assessments, calendar links, and follow-up notes. Without a tracker, it is easy to forget where you applied or miss the next step.',
-          'A free job application tracker gives you a single place to see active opportunities, recent updates, and the applications that need attention.'
-        ]
-      },
-      {
-        heading: 'What a free job application tracker should include',
-        paragraphs: [
-          'A useful free application tracker should cover the basics without forcing you into a complex system. At minimum, it should track company names, roles, current status, latest activity, and interview or assessment updates.',
-          'It should also make the next action obvious, especially when a recruiter asks you to schedule an interview, complete an assessment, or respond to a hiring update.'
-        ],
-        bullets: [
-          'Application confirmations and submitted roles',
-          'Interview requests, assessments, offers, and rejections',
-          'A timeline of hiring updates',
-          'Clear status labels for each opportunity'
-        ]
-      },
-      {
-        heading: 'Spreadsheet vs automated tracking',
-        paragraphs: [
-          'A spreadsheet can work when you only have a few applications, but it depends on manual updates. Every confirmation, rejection, interview request, and follow-up has to be copied into the sheet.',
-          'Applictus is a job application spreadsheet alternative because it can organize forwarded job emails automatically. You control what gets forwarded, and Applictus turns those updates into a timeline.'
-        ]
-      },
-      {
-        heading: 'What Applictus offers on the free plan',
-        paragraphs: [
-          'The Applictus free plan lets you create an account, receive a personal Applictus forwarding address, and start tracking job-related updates with monthly free-plan limits.',
-          'It is designed for job seekers who want a free job search tracker before deciding whether they need higher tracking limits or premium features.'
-        ],
-        bullets: [
-          'A personal Applictus inbox address for forwarded job updates',
-          'Automatic tracking after setup',
-          'Application, interview, offer, and rejection organization',
-          'No Gmail inbox read permission required'
-        ]
-      },
-      {
-        heading: 'Tracking applications, interviews, offers, and rejections',
-        paragraphs: [
-          'Applictus looks for hiring-stage signals in forwarded job emails. Application confirmations can become applied records, assessment or interview requests can become interview-stage updates, and offer or rejection emails can update the status.',
-          'That makes Applictus useful as a free interview tracker as well as a broader free job application tracker.'
-        ]
-      },
-      {
-        heading: 'Getting started in minutes',
-        paragraphs: [
-          'Create an account, copy your Applictus forwarding address, then set up Gmail forwarding. You can also add Gmail filters so only job-related emails are forwarded.',
-          'After setup, Applictus runs automatically in the background and keeps your application timeline current as new job updates arrive.'
-        ]
-      }
-    ],
-    faq: [
-      {
-        question: 'Is Applictus free?',
-        answer:
-          'Yes. Applictus offers a free plan that lets job seekers start tracking applications, interviews, offers, and rejections at no cost.'
-      },
-      {
-        question: 'What is the best free job application tracker?',
-        answer:
-          'The best free job application tracker is one you can keep current. Applictus is built to reduce manual updates by organizing job-related emails into an application timeline.'
-      },
-      {
-        question: 'Can I track interviews for free?',
-        answer:
-          'Yes. Applictus can help track interview invitations, assessment requests, recruiter next steps, and hiring updates on the free plan, subject to free-plan usage limits.'
-      },
-      {
-        question: 'Is a spreadsheet enough for job tracking?',
-        answer:
-          'A spreadsheet can be enough for a small search, but it becomes harder to maintain when updates arrive across job boards, company portals, and email. Automated tracking keeps the timeline closer to what is actually happening.'
-      },
-      {
-        question: 'How many applications can I track with Applictus?',
-        answer:
-          'The free plan includes monthly tracking limits for lighter job searches. Your Account page shows your current limit and usage, and premium plans provide higher limits for heavier searches.'
-      }
-    ],
-    related: [
-      'job-application-tracker',
-      'job-application-spreadsheet-alternative',
-      'interview-tracker'
-    ]
-  }
-];
+const resourcePages = [];
 
 const articlesBySlug = new Map(articles.map((article) => [article.slug, article]));
 const resourcesBySlug = new Map(resourcePages.map((resource) => [resource.slug, resource]));
@@ -497,7 +474,7 @@ function nav() {
 function footer() {
   const links = [
     ['Blog', '/blog'],
-    ['Free Tracker', '/free-job-application-tracker'],
+    ['Free Trackers', '/blog/best-free-job-application-trackers-2026'],
     ['About', '/about'],
     ['Contact', '/contact'],
     ['Privacy', '/privacy'],
@@ -550,7 +527,7 @@ function BlogCard(article) {
                   <span>${escapeHtml(article.readTime)}</span>
                 </div>
                 <h2><a href="${href}">${escapeHtml(article.h1)}</a></h2>
-                <p>${escapeHtml(article.description)}</p>
+                <p>${escapeHtml(article.cardDescription || article.description)}</p>
                 <div class="blog-card-footer">
                   <a class="blog-card-link" href="${href}">${article.path ? 'Read resource' : 'Read article'}</a>
                 </div>
