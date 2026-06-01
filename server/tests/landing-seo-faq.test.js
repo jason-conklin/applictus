@@ -30,11 +30,16 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
   }
 
   const permissionsIndex = sourceHtml.indexOf('Secure sign-in with minimal permissions');
-  const faqIndex = sourceHtml.indexOf('Frequently Asked Questions');
+  const faqIndex = sourceHtml.indexOf('Frequently asked questions');
   const ctaIndex = sourceHtml.indexOf('Stop missing important job updates');
   assert.ok(permissionsIndex > -1);
   assert.ok(faqIndex > permissionsIndex);
   assert.ok(ctaIndex > faqIndex);
+  assert.match(sourceHtml, /<p class="home-faq-label">FAQ<\/p>/);
+  assert.match(
+    sourceHtml,
+    /Answers to common questions about setup, privacy, and automatic job application tracking\./
+  );
 
   const faqItemCount = (sourceHtml.match(/class="home-faq-item"/g) || []).length;
   assert.equal(faqItemCount, 6);
@@ -50,5 +55,6 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
   }
 
   assert.match(sourceCss, /\.home-panel-faq/);
+  assert.match(sourceCss, /\.home-faq-layout/);
   assert.match(sourceCss, /@keyframes homeFaqReveal/);
 });
