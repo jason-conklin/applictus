@@ -2777,7 +2777,7 @@ p {
   padding-bottom: 10px;
 }
 
-.about-hero,
+.about-banner,
 .about-trust-callout,
 .about-cta-card {
   position: relative;
@@ -2792,23 +2792,19 @@ p {
     inset 0 1px 0 rgba(255, 255, 255, 0.88);
 }
 
-.about-hero {
+.about-banner {
   display: block;
-  padding: clamp(28px, 4vw, 42px);
+  padding: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(242, 248, 255, 0.9)),
+    #f7fbff;
 }
 
-.about-hero-copy {
-  display: grid;
-  gap: 13px;
-  max-width: 880px;
-  min-width: 0;
-}
-
-.about-eyebrow,
 .about-section-label {
   width: fit-content;
-  border: 1px solid rgba(32, 96, 180, 0.17);
+  padding: 7px 10px;
   border-radius: 999px;
+  border: 1px solid rgba(32, 96, 180, 0.17);
   background: rgba(255, 255, 255, 0.76);
   color: #1f66b1;
   font-size: 0.72rem;
@@ -2818,51 +2814,13 @@ p {
   text-transform: uppercase;
 }
 
-.about-eyebrow {
-  padding: 8px 11px;
-}
-
-.about-section-label {
-  padding: 7px 10px;
-}
-
-.about-hero h1 {
-  max-width: 780px;
-  margin: 0;
-  color: #102f59;
-  font-size: clamp(2rem, 3.35vw, 3.05rem);
-  line-height: 1.08;
-  letter-spacing: 0;
-  text-wrap: balance;
-}
-
-.about-subtitle {
-  max-width: 700px;
-  margin: 0;
-  color: #42658f;
-  font-size: clamp(1.05rem, 1.7vw, 1.24rem);
-  line-height: 1.62;
-  font-weight: 500;
-}
-
-.about-hero-points {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 9px;
-  margin-top: 4px;
-}
-
-.about-hero-points span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 34px;
-  padding: 7px 11px;
-  border: 1px solid rgba(31, 86, 166, 0.14);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.66);
-  color: #315d93;
-  font-size: 0.84rem;
-  font-weight: 700;
+.about-banner-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1969 / 629;
+  object-fit: contain;
+  background: #f7fbff;
 }
 
 .about-points-card,
@@ -3072,11 +3030,18 @@ p {
   width: fit-content;
   padding: 6px 10px;
   border-radius: 999px;
+  border: 1px solid transparent;
   background: rgba(59, 103, 255, 0.12);
   color: var(--color-primary);
   font-size: 0.78rem;
   font-weight: 700;
   line-height: 1.1;
+}
+
+.profile-badge--founder {
+  border-color: rgba(195, 144, 44, 0.32);
+  background: rgba(248, 225, 169, 0.34);
+  color: #102f59;
 }
 
 .about-principles-grid {
@@ -3138,10 +3103,6 @@ p {
     grid-template-columns: 1fr;
   }
 
-  .about-hero {
-    padding: clamp(26px, 5vw, 38px);
-  }
-
   .about-team,
   .about-principles-grid {
     grid-template-columns: 1fr;
@@ -3157,32 +3118,14 @@ p {
     gap: 16px;
   }
 
-  .about-hero,
+  .about-banner,
   .about-trust-callout,
   .about-cta-card {
     border-radius: 22px;
   }
 
-  .about-hero {
-    padding: 24px 18px;
-  }
-
-  .about-hero h1 {
-    font-size: clamp(1.82rem, 8vw, 2.35rem);
-  }
-
-  .about-subtitle {
-    font-size: 1rem;
-  }
-
-  .about-hero-points {
-    gap: 7px;
-  }
-
-  .about-hero-points span {
-    min-height: 32px;
-    padding: 7px 10px;
-    font-size: 0.8rem;
+  .about-banner-image {
+    object-fit: contain;
   }
 
   .about-mission {

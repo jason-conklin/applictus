@@ -100,14 +100,21 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
     assertTrimmedFooterLinks(shellHtml);
     assert.match(shellHtml, /<section class="view" id="about-view" hidden>/);
     assert.match(shellHtml, /<div class="about-page">/);
-    assert.match(shellHtml, /Built to make job searching easier to manage\./);
-    assert.match(shellHtml, /Inbox-powered tracking/);
-    assert.match(shellHtml, /User-controlled forwarding/);
-    assert.match(shellHtml, /Built for modern job searches/);
+    assert.match(shellHtml, /<h1 class="sr-only">About Applictus<\/h1>/);
+    assert.match(shellHtml, /<section class="about-banner" aria-label="About Applictus">/);
+    assert.match(shellHtml, /class="about-banner-image"/);
+    assert.match(shellHtml, /src="\/about-page-banner\.png"/);
+    assert.match(
+      shellHtml,
+      /alt="Applictus workflow banner showing job emails flowing into an organized application dashboard"/
+    );
+    assert.match(shellHtml, /width="1969"/);
+    assert.match(shellHtml, /height="629"/);
+    assert.doesNotMatch(shellHtml, /about-hero-copy|about-eyebrow|about-subtitle|about-hero-points/);
     assert.match(shellHtml, /<section class="about-section about-mission">/);
     assert.match(shellHtml, /<section class="about-section about-team-section">/);
     assert.match(shellHtml, /<div class="profile-badges" aria-label="Jason Conklin roles">/);
-    assert.match(shellHtml, /<span class="profile-badge">Co-Founder<\/span>/);
+    assert.match(shellHtml, /<span class="profile-badge profile-badge--founder">Co-Founder<\/span>/);
     assert.match(shellHtml, /<span class="profile-badge">Product \+ Engineering<\/span>/);
     assert.match(shellHtml, /<div class="profile-badges" aria-label="Shane Conklin roles">/);
     assert.match(shellHtml, /<span class="profile-badge">Marketing \+ Strategy<\/span>/);
@@ -120,8 +127,11 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
   }
 
   assert.match(sourceCss, /\.about-page/);
-  assert.match(sourceCss, /\.about-hero-points/);
+  assert.match(sourceCss, /\.about-banner/);
+  assert.match(sourceCss, /\.about-banner-image/);
+  assert.doesNotMatch(sourceCss, /about-hero-copy|about-eyebrow|about-subtitle|about-hero-points/);
   assert.match(sourceCss, /\.profile-badges/);
+  assert.match(sourceCss, /\.profile-badge--founder/);
   assert.match(sourceCss, /\.about-trust-callout/);
   assert.match(sourceCss, /\.about-cta-card/);
   assert.doesNotMatch(sourceCss, /about-hero-visual|about-logo-tile|about-signal-card/);
