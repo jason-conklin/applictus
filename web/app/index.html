@@ -3400,99 +3400,137 @@
 	            <a class="btn btn--primary btn--sm" href="/app">Sign up</a>
 	          </div>
 	        </header>
-	        <div class="page-header">
-	          <h2>Privacy Policy</h2>
-	          <div class="muted small">Last updated: Feb 2026</div>
-	        </div>
-	        <div class="card legal">
-	          <p class="muted small">
-	            This policy explains how Applictus handles your information. It may evolve as the product grows.
-	          </p>
+	        <div class="privacy-page">
+	          <section class="privacy-hero" aria-labelledby="privacy-title">
+	            <div class="privacy-hero-copy">
+	              <span class="privacy-kicker">Privacy Policy</span>
+	              <h2 id="privacy-title">Privacy Policy</h2>
+	              <p class="privacy-updated">Last updated: June 2026</p>
+	              <p>
+	                Applictus is built around clear boundaries: user-controlled forwarding, secure sign-in, and transparent job application tracking.
+	              </p>
+	            </div>
+	            <div class="privacy-trust-grid" aria-label="Privacy highlights">
+	              <article class="privacy-trust-card">
+	                <strong>No full inbox access required</strong>
+	                <span>Standard tracking works from emails you choose to forward.</span>
+	              </article>
+	              <article class="privacy-trust-card">
+	                <strong>User-controlled forwarding</strong>
+	                <span>You control forwarding settings and Gmail filters.</span>
+	              </article>
+	              <article class="privacy-trust-card">
+	                <strong>Data stays tied to your account</strong>
+	                <span>Application records and timeline events are kept with your Applictus account.</span>
+	              </article>
+	            </div>
+	          </section>
 
-	          <h3>Overview</h3>
-	          <p>
-	            Applictus helps you track job applications by connecting Gmail and organizing job‑related updates. We
-	            access only what we need to deliver these features and keep your data confined to your account.
-	          </p>
+	          <div class="privacy-policy-grid">
+	            <section class="privacy-card privacy-card--wide">
+	              <h3>Overview</h3>
+	              <p>
+	                Applictus helps job seekers organize applications, interviews, offers, rejections, assessments, and hiring updates from job-related emails. The standard product workflow is forwarding-based, so Applictus only processes emails sent to your Applictus inbox address.
+	              </p>
+	            </section>
 
-	          <h3>Gmail Read‑Only Access</h3>
-	          <p>
-	            When you connect Gmail, Applictus uses <strong>read‑only</strong> access to analyze job‑related messages.
-	            We do not send email, delete email, or modify your mailbox.
-	          </p>
+	            <section class="privacy-card">
+	              <h3>How Applictus receives job emails</h3>
+	              <p>
+	                When you create an account, Applictus gives you a personal forwarding address. You can configure Gmail automatic forwarding and optional Gmail filters to decide which job-related emails are sent to Applictus.
+	              </p>
+	            </section>
 
-	          <h3>Data We Access</h3>
-	          <ul>
-	            <li><strong>Account information:</strong> email address, name (optional), and sign‑in method.</li>
-	            <li>
-	              <strong>Gmail metadata:</strong> sender, subject, snippet, timestamps, message and thread identifiers,
-	              and labels needed for deduping and status inference.
-	            </li>
-	            <li>
-	              <strong>Message content (limited):</strong> when required to detect job‑related signals and classify
-	              updates. Access remains read‑only.
-	            </li>
-	            <li>
-	              <strong>Derived application data:</strong> company, role/title, and inferred status signals that power
-	              your dashboard.
-	            </li>
-	            <li>
-	              <strong>OAuth tokens:</strong> used to access Gmail (stored encrypted when encryption is enabled).
-	            </li>
-	          </ul>
+	            <section class="privacy-card">
+	              <h3>Information we collect</h3>
+	              <ul>
+	                <li>Account email, name, and sign-in method.</li>
+	                <li>Forwarded job-related emails sent to your Applictus address.</li>
+	                <li>Email metadata such as sender, subject, timestamps, and message identifiers.</li>
+	                <li>Limited message content needed to classify job updates.</li>
+	                <li>Derived application data such as company, role, status, timeline events, confidence, and explanation metadata.</li>
+	              </ul>
+	            </section>
 
-	          <h3>How We Use Data</h3>
-	          <ul>
-	            <li>Detect job‑related emails and keep application statuses current.</li>
-	            <li>Prevent duplicates by tracking message identifiers.</li>
-	            <li>Provide context for inferred updates where available.</li>
-	            <li>Maintain reliability and security (dedupe, fraud prevention, debugging).</li>
-	          </ul>
+	            <section class="privacy-card">
+	              <h3>How we use information</h3>
+	              <ul>
+	                <li>Detect applications, interviews, offers, rejections, assessments, and hiring updates.</li>
+	                <li>Create and update your application timeline.</li>
+	                <li>Prevent duplicates and match related updates to the same application.</li>
+	                <li>Maintain reliability, security, support, and abuse prevention.</li>
+	              </ul>
+	            </section>
 
-	          <h3>What We Do Not Do</h3>
-	          <ul>
-	            <li>We do not sell your data.</li>
-	            <li>We do not show ads or use your data for ad targeting.</li>
-	            <li>We do not allow human review of your Gmail content unless you explicitly ask for support.</li>
-	          </ul>
+	            <section class="privacy-card">
+	              <h3>What we do not do</h3>
+	              <ul>
+	                <li>We do not sell user data.</li>
+	                <li>We do not use user data for advertising.</li>
+	                <li>We do not require full Gmail inbox access for standard tracking.</li>
+	                <li>We do not send, delete, or modify your emails.</li>
+	                <li>We do not access non-forwarded emails in the standard forwarding workflow.</li>
+	              </ul>
+	            </section>
 
-	          <h3>Google API Limited Use Disclosure</h3>
-	          <p>
-	            Applictus’s use and transfer of information received from Google APIs will adhere to the Google API
-	            Services User Data Policy, including the Limited Use requirements.
-	          </p>
+	            <section class="privacy-card">
+	              <h3>Google sign-in and limited permissions</h3>
+	              <p>
+	                Google OAuth is used for authentication. For standard accounts, Applictus uses basic sign-in information such as your email address and profile name. Standard forwarding-based tracking does not require Gmail inbox read permissions.
+	              </p>
+	              <p>
+	                A separate legacy, admin, or internal mode may use Gmail read-only access for testing or operational workflows. That mode is not the standard user workflow and is not required to use Applictus.
+	              </p>
+	              <p>
+	                Applictus's use and transfer of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements.
+	              </p>
+	            </section>
 
-	          <h3>Retention</h3>
-	          <p>
-	            We retain tracking data while your account is active. If you disconnect Gmail, Applictus stops reading
-	            your mailbox. Previously extracted tracking data remains in your account unless you request deletion.
-	          </p>
+	            <section class="privacy-card">
+	              <h3>Data retention</h3>
+	              <p>
+	                We retain account and tracking data while your account is active. Previously extracted application records remain available in your account unless you delete them or request deletion.
+	              </p>
+	            </section>
 
-	          <h3>Security</h3>
-	          <ul>
-	            <li>We use HTTPS in production.</li>
-	            <li>OAuth tokens are stored encrypted when encryption is enabled.</li>
-	            <li>Access is tied to your authenticated session.</li>
-	          </ul>
+	            <section class="privacy-card">
+	              <h3>Security</h3>
+	              <ul>
+	                <li>We use HTTPS in production.</li>
+	                <li>Access is tied to authenticated account sessions.</li>
+	                <li>Sensitive credentials are stored securely when encryption is enabled.</li>
+	                <li>We avoid logging full email bodies in production diagnostics.</li>
+	              </ul>
+	            </section>
 
-	          <h3>Third‑Party Services</h3>
-	          <ul>
-	            <li><strong>Google OAuth / Gmail:</strong> authentication and permitted read‑only mailbox access.</li>
-	            <li><strong>Hosting provider:</strong> runs the Applictus service.</li>
-	            <li><strong>Database provider:</strong> stores account and tracking data.</li>
-	          </ul>
+	            <section class="privacy-card">
+	              <h3>Third-party services</h3>
+	              <ul>
+	                <li><strong>Google OAuth:</strong> account authentication.</li>
+	                <li><strong>Email processing provider:</strong> receives forwarded messages sent to your Applictus address.</li>
+	                <li><strong>Hosting and database providers:</strong> run the service and store account and tracking data.</li>
+	                <li><strong>Payment provider:</strong> processes paid plan purchases when applicable.</li>
+	              </ul>
+	            </section>
 
-	          <h3>Your Controls</h3>
-	          <ul>
-	            <li>Disconnect Gmail from the Account page at any time.</li>
-	            <li>Log out to clear your session on this device.</li>
-	            <li>If account/data deletion is not available in‑app yet, contact us and we’ll help.</li>
-	          </ul>
+	            <section class="privacy-card">
+	              <h3>Your controls</h3>
+	              <ul>
+	                <li>Choose what gets forwarded to Applictus.</li>
+	                <li>Use Gmail filters to limit forwarding to job-related emails.</li>
+	                <li>Disable forwarding at any time in your email provider.</li>
+	                <li>Log out to clear your session on this device.</li>
+	                <li>Contact us if you need help with account or data deletion.</li>
+	              </ul>
+	            </section>
 
-	          <h3>Contact</h3>
-	          <p>
-	            Questions? Send a note through the Contact page.
-	          </p>
+	            <section class="privacy-card privacy-card--wide">
+	              <h3>Contact</h3>
+	              <p>
+	                Questions about this policy or your data? Send a note through the Contact page.
+	              </p>
+	            </section>
+	          </div>
 	        </div>
 	      </section>
 
@@ -3514,59 +3552,120 @@
 	            <a class="btn btn--primary btn--sm" href="/app">Sign up</a>
 	          </div>
 	        </header>
-	        <div class="page-header">
-	          <h2>Terms of Service</h2>
-	          <div class="muted small">Last updated: Feb 2026</div>
-	        </div>
-	        <div class="card legal">
-	          <h3>Overview</h3>
-	          <p>
-	            Applictus helps you track job applications by organizing job‑related updates in a dashboard. These terms
-	            explain how you may use the service and how we operate it.
-	          </p>
+	        <div class="privacy-page terms-page">
+	          <section class="privacy-hero terms-hero" aria-labelledby="terms-title">
+	            <div class="privacy-hero-copy terms-hero-copy">
+	              <span class="privacy-kicker terms-kicker">Terms of Service</span>
+	              <h2 id="terms-title">Terms of Service</h2>
+	              <p class="privacy-updated terms-updated">Last updated: June 2026</p>
+	              <p>
+	                These terms explain how Applictus works, what users are responsible for, and how we provide the service.
+	              </p>
+	            </div>
+	            <div class="privacy-trust-grid terms-trust-grid" aria-label="Terms highlights">
+	              <article class="privacy-trust-card terms-trust-card">
+	                <strong>User-controlled forwarding</strong>
+	                <span>You choose which job-related emails are sent to Applictus.</span>
+	              </article>
+	              <article class="privacy-trust-card terms-trust-card">
+	                <strong>Secure account access</strong>
+	                <span>Google sign-in is used for authentication, not full inbox access.</span>
+	              </article>
+	              <article class="privacy-trust-card terms-trust-card">
+	                <strong>Best-effort application tracking</strong>
+	                <span>Applictus organizes updates automatically, and you should review important details.</span>
+	              </article>
+	            </div>
+	          </section>
 
-	          <h3>Gmail Connection (Optional)</h3>
-	          <p>
-	            Connecting Gmail is optional. If you connect, Applictus uses <strong>read‑only</strong> access to detect
-	            job‑related messages and keep your application statuses current. You can disconnect Gmail at any time
-	            from the Account page.
-	          </p>
+	          <div class="privacy-policy-grid terms-policy-grid">
+	            <section class="privacy-card privacy-card--wide terms-card terms-card--wide">
+	              <h3>Overview</h3>
+	              <p>
+	                Applictus helps job seekers organize applications, interviews, offers, rejections, assessments, and hiring updates from job-related emails. By using Applictus, you agree to use the service responsibly and to review important hiring information yourself.
+	              </p>
+	            </section>
 
-	          <h3>How the Service Works</h3>
-	          <p>
-	            Applictus automatically groups and classifies job‑related updates. We provide best‑effort inferences based
-	            on the email data you authorize. You control final decisions and any edits to your records.
-	          </p>
+	            <section class="privacy-card terms-card">
+	              <h3>How Applictus Works</h3>
+	              <p>
+	                The standard Applictus workflow uses user-controlled email forwarding. You receive a personal Applictus inbox address, choose which job-related emails to forward, and may use Gmail filters to limit what is sent.
+	              </p>
+	              <p>
+	                Applictus processes forwarded job-related emails to organize applications, interviews, offers, rejections, assessments, and hiring updates. Google sign-in is used for authentication.
+	              </p>
+	              <p>
+	                A separate legacy, admin, or internal mode may support Gmail read-only access for testing or operational workflows. That mode is not the default user workflow and is not required to use Applictus.
+	              </p>
+	            </section>
 
-	          <h3>Account Responsibilities</h3>
-	          <ul>
-	            <li>Keep your account credentials secure and accurate.</li>
-	            <li>Use the service only with data you own or are authorized to access.</li>
-	            <li>Review and confirm important application details when needed.</li>
-	          </ul>
+	            <section class="privacy-card terms-card">
+	              <h3>Account Responsibilities</h3>
+	              <ul>
+	                <li>Keep your account credentials secure and accurate.</li>
+	                <li>Use Applictus only with emails and data you own or are authorized to use.</li>
+	                <li>Maintain your own email forwarding and filter settings.</li>
+	                <li>Review important application details, deadlines, interview instructions, and hiring decisions.</li>
+	              </ul>
+	            </section>
 
-	          <h3>Acceptable Use</h3>
-	          <ul>
-	            <li>No abuse, automated scraping, or attempts to bypass security controls.</li>
-	            <li>No interference with the service, including excessive load or spam.</li>
-	          </ul>
+	            <section class="privacy-card terms-card">
+	              <h3>Subscription Plans and Billing</h3>
+	              <ul>
+	                <li>Applictus may offer a free plan and paid plans with higher limits or additional features.</li>
+	                <li>Paid plan billing is handled through Stripe or another payment provider shown at checkout.</li>
+	                <li>You are responsible for managing or canceling subscriptions according to the rules of your selected plan.</li>
+	                <li>Refunds are handled according to applicable policies or support review.</li>
+	              </ul>
+	            </section>
 
-	          <h3>Termination</h3>
-	          <p>
-	            We may suspend or terminate access if we believe your use violates these terms or harms the service. You
-	            may stop using Applictus at any time.
-	          </p>
+	            <section class="privacy-card terms-card">
+	              <h3>Acceptable Use</h3>
+	              <ul>
+	                <li>Do not abuse, spam, scrape, reverse engineer, or attempt to bypass security controls.</li>
+	                <li>Do not interfere with the service or create excessive load.</li>
+	                <li>Do not forward content you do not have permission to process.</li>
+	              </ul>
+	            </section>
 
-	          <h3>Changes</h3>
-	          <p>
-	            We may update these terms from time to time. If changes are material, we’ll make a reasonable effort to
-	            notify you. The “Last updated” date reflects the latest version.
-	          </p>
+	            <section class="privacy-card terms-card">
+	              <h3>Application Tracking Accuracy</h3>
+	              <p>
+	                Applictus automatically classifies and organizes job-related emails. Classification is best-effort and may not always be perfect.
+	              </p>
+	              <p>
+	                You remain responsible for reviewing important emails, deadlines, interview details, offers, rejections, and hiring decisions. Applictus should not be your sole source of truth for employment opportunities.
+	              </p>
+	            </section>
 
-	          <h3>Contact</h3>
-	          <p>
-	            Questions? Send a note through the Contact page.
-	          </p>
+	            <section class="privacy-card terms-card">
+	              <h3>Service Availability</h3>
+	              <p>
+	                We work to keep Applictus reliable, but the service may be interrupted by maintenance, provider outages, internet issues, or changes in third-party email and hiring platforms.
+	              </p>
+	            </section>
+
+	            <section class="privacy-card terms-card">
+	              <h3>Termination</h3>
+	              <p>
+	                We may suspend or terminate access if we believe your use violates these terms, creates security risk, or harms the service. You may stop using Applictus at any time.
+	              </p>
+	            </section>
+
+	            <section class="privacy-card terms-card">
+	              <h3>Changes to These Terms</h3>
+	              <p>
+	                We may update these terms from time to time. If changes are material, we will make a reasonable effort to notify users. The Last updated date reflects the latest version.
+	              </p>
+	            </section>
+
+	            <section class="privacy-card privacy-card--wide terms-card terms-card--wide">
+	              <h3>Contact</h3>
+	              <p>
+	                Questions about these terms? Send a note through the Contact page.
+	              </p>
+	            </section>
+	          </div>
 	        </div>
 	      </section>
 

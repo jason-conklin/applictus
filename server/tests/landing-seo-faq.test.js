@@ -27,6 +27,10 @@ function extractFooterLinks(html) {
   return html.match(/<nav class="app-footer-links"[^>]*>([\s\S]*?)<\/nav>/)?.[1] || '';
 }
 
+function extractView(html, viewId) {
+  return html.match(new RegExp(`<section class="view" id="${viewId}" hidden>([\\s\\S]*?)<\\/section>\\s*<section class="view"`, 'i'))?.[1] || '';
+}
+
 function assertTrimmedFooterLinks(html) {
   const footer = extractFooterLinks(html);
   assert.match(footer, /<a class="app-footer-link" href="\/contact">CONTACT<\/a>/);
@@ -63,6 +67,77 @@ function assertPlatformCarousel(html) {
       new RegExp(`src="${src}" alt="" width="${width}" height="${height}" loading="lazy"`)
     );
   }
+}
+
+function assertPrivacyPolicy(html) {
+  const privacy = extractView(html, 'privacy-view');
+  assert.match(privacy, /<div class="privacy-page">/);
+  assert.match(privacy, /<section class="privacy-hero" aria-labelledby="privacy-title">/);
+  assert.match(privacy, /<h2 id="privacy-title">Privacy Policy<\/h2>/);
+  assert.match(privacy, /Last updated: June 2026/);
+  assert.match(privacy, /user-controlled forwarding, secure sign-in, and transparent job application tracking/);
+  assert.match(privacy, /No full inbox access required/);
+  assert.match(privacy, /User-controlled forwarding/);
+  assert.match(privacy, /Data stays tied to your account/);
+  for (const heading of [
+    'Overview',
+    'How Applictus receives job emails',
+    'Information we collect',
+    'How we use information',
+    'What we do not do',
+    'Google sign-in and limited permissions',
+    'Data retention',
+    'Security',
+    'Third-party services',
+    'Your controls',
+    'Contact'
+  ]) {
+    assert.match(privacy, new RegExp(`<h3>${heading}<\\/h3>`));
+  }
+  assert.match(privacy, /standard product workflow is forwarding-based/);
+  assert.match(privacy, /Forwarded job-related emails sent to your Applictus address/);
+  assert.match(privacy, /Derived application data such as company, role, status, timeline events, confidence, and explanation metadata/);
+  assert.match(privacy, /We do not require full Gmail inbox access for standard tracking/);
+  assert.match(privacy, /We do not access non-forwarded emails in the standard forwarding workflow/);
+  assert.match(privacy, /A separate legacy, admin, or internal mode may use Gmail read-only access/);
+  assert.match(privacy, /That mode is not the standard user workflow/);
+  assert.doesNotMatch(privacy, /Last updated: Feb 2026|Gmail Read.?Only Access|permitted read.?only mailbox access|disconnect Gmail|stops reading/);
+}
+
+function assertTermsOfService(html) {
+  const terms = extractView(html, 'terms-view');
+  assert.match(terms, /<div class="privacy-page terms-page">/);
+  assert.match(terms, /<section class="privacy-hero terms-hero" aria-labelledby="terms-title">/);
+  assert.match(terms, /<h2 id="terms-title">Terms of Service<\/h2>/);
+  assert.match(terms, /Last updated: June 2026/);
+  assert.match(terms, /These terms explain how Applictus works, what users are responsible for, and how we provide the service/);
+  assert.match(terms, /User-controlled forwarding/);
+  assert.match(terms, /Secure account access/);
+  assert.match(terms, /Best-effort application tracking/);
+  for (const heading of [
+    'Overview',
+    'How Applictus Works',
+    'Account Responsibilities',
+    'Subscription Plans and Billing',
+    'Acceptable Use',
+    'Application Tracking Accuracy',
+    'Service Availability',
+    'Termination',
+    'Changes to These Terms',
+    'Contact'
+  ]) {
+    assert.match(terms, new RegExp(`<h3>${heading}<\\/h3>`));
+  }
+  assert.match(terms, /standard Applictus workflow uses user-controlled email forwarding/);
+  assert.match(terms, /Applictus processes forwarded job-related emails to organize applications, interviews, offers, rejections, assessments, and hiring updates/);
+  assert.match(terms, /Google sign-in is used for authentication/);
+  assert.match(terms, /A separate legacy, admin, or internal mode may support Gmail read-only access/);
+  assert.match(terms, /That mode is not the default user workflow/);
+  assert.match(terms, /Applictus may offer a free plan and paid plans/);
+  assert.match(terms, /Paid plan billing is handled through Stripe/);
+  assert.match(terms, /Classification is best-effort and may not always be perfect/);
+  assert.match(terms, /Applictus should not be your sole source of truth for employment opportunities/);
+  assert.doesNotMatch(terms, /Last updated: Feb 2026|Gmail Connection \(Optional\)|Connecting Gmail is optional|uses <strong>read.?only<\/strong> access|disconnect Gmail/);
 }
 
 test('landing page metadata and FAQ content are SEO-ready', () => {
@@ -129,6 +204,8 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
 
   for (const shellHtml of [appShellHtml, webAppShellHtml, publicAppShellHtml]) {
     assertTrimmedFooterLinks(shellHtml);
+    assertPrivacyPolicy(shellHtml);
+    assertTermsOfService(shellHtml);
     assert.match(shellHtml, /<section class="view" id="about-view" hidden>/);
     assert.match(shellHtml, /<div class="about-page">/);
     assert.match(shellHtml, /<h1 class="sr-only">About Applictus<\/h1>/);
@@ -158,6 +235,10 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
   }
 
   assert.match(sourceCss, /\.about-page/);
+  assert.match(sourceCss, /\.privacy-page/);
+  assert.match(sourceCss, /\.privacy-hero/);
+  assert.match(sourceCss, /\.privacy-trust-card/);
+  assert.match(sourceCss, /\.privacy-card/);
   assert.match(sourceCss, /\.about-banner/);
   assert.match(sourceCss, /\.about-banner-image/);
   assert.doesNotMatch(sourceCss, /about-hero-copy|about-eyebrow|about-subtitle|about-hero-points/);
