@@ -397,7 +397,6 @@ body.blog-page .blog-card:hover .blog-card-link::after {
 }
 
 body.blog-page .blog-card-link:hover,
-body.blog-page .blog-breadcrumb a:hover,
 body.blog-page .blog-related-card:hover strong {
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -446,15 +445,73 @@ body.blog-page .blog-article-title {
 body.blog-page .blog-breadcrumb {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  max-width: 100%;
+  padding: 6px 8px;
+  overflow: hidden;
   color: #5a759a;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   font-weight: 700;
+  border: 1px solid rgba(31, 86, 166, 0.14);
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(238, 247, 255, 0.78)),
+    rgba(244, 249, 255, 0.86);
+  box-shadow:
+    0 12px 26px rgba(21, 69, 129, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84);
+}
+
+body.blog-page .blog-breadcrumb ol {
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+body.blog-page .blog-breadcrumb li {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+body.blog-page .blog-breadcrumb li + li::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  margin: 0 9px 0 8px;
+  border-top: 1.5px solid rgba(90, 117, 154, 0.52);
+  border-right: 1.5px solid rgba(90, 117, 154, 0.52);
+  transform: rotate(45deg);
 }
 
 body.blog-page .blog-breadcrumb a {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 7px;
+  border-radius: 999px;
   color: #1e62ad;
   text-decoration: none;
+  transition: color 0.18s ease, background 0.18s ease;
+}
+
+body.blog-page .blog-breadcrumb a:hover {
+  color: #0d4f9e;
+  background: rgba(221, 237, 255, 0.78);
+}
+
+body.blog-page .blog-breadcrumb-current {
+  display: block;
+  min-width: 0;
+  max-width: min(520px, 52vw);
+  padding: 4px 7px 4px 2px;
+  overflow: hidden;
+  color: #526f91;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 body.blog-page .blog-article-header h1 {
@@ -797,6 +854,15 @@ body.blog-page .blog-footer {
     padding: 30px 24px;
   }
 
+  body.blog-page .blog-breadcrumb {
+    padding: 5px 6px;
+    font-size: 0.78rem;
+  }
+
+  body.blog-page .blog-breadcrumb-current {
+    max-width: min(360px, 42vw);
+  }
+
   body.blog-page .blog-cta {
     width: calc(100% - 32px);
   }
@@ -826,6 +892,19 @@ body.blog-page .blog-footer {
 
   body.blog-page .blog-article-header {
     padding: 28px 20px;
+  }
+
+  body.blog-page .blog-breadcrumb li + li::before {
+    margin: 0 6px;
+  }
+
+  body.blog-page .blog-breadcrumb a {
+    padding-inline: 5px;
+  }
+
+  body.blog-page .blog-breadcrumb-current {
+    max-width: 34vw;
+    padding-right: 5px;
   }
 
   body.blog-page .blog-hero-brand {

@@ -81,6 +81,10 @@ function assertBlogFooter(html) {
   assert.doesNotMatch(footer, /href="\/blog"|FREE TRACKERS|href="\/about"/);
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 test('blog hub and articles are static, linked, and SEO-ready', () => {
   const hub = readProjectFile('web/blog/index.html');
   const publicHub = readProjectFile('public/blog/index.html');
@@ -103,6 +107,7 @@ test('blog hub and articles are static, linked, and SEO-ready', () => {
   assertBlogFooter(hub);
 
   for (const [slug, title, imageSrc, imageAlt] of articles) {
+    const articleTitle = title.replace(/ \| Applictus$/, '');
     assert.ok(fs.existsSync(path.join(rootDir, 'public', imageSrc.replace(/^\//, ''))));
     assert.match(hub, new RegExp(`href="/blog/${slug}"`));
     assert.match(
@@ -118,8 +123,16 @@ test('blog hub and articles are static, linked, and SEO-ready', () => {
     assert.match(article, new RegExp(`<title>${title.replace(/[|]/g, '\\|')}<\\/title>`));
     assert.match(article, /<meta name="description" content="[^"]+"/);
     assert.match(article, /<link rel="canonical" href="https:\/\/applictus\.com\/blog\//);
+    assert.match(article, /<nav class="blog-breadcrumb" aria-label="Breadcrumb">\s*<ol>/);
     assert.match(article, /<a href="\/">Home<\/a>/);
     assert.match(article, /<a href="\/blog">Blog<\/a>/);
+    assert.match(
+      article,
+      new RegExp(
+        `<li><span class="blog-breadcrumb-current" aria-current="page">${escapeRegExp(articleTitle)}<\\/span><\\/li>`
+      )
+    );
+    assert.doesNotMatch(article, /<span aria-hidden="true">\/<\/span>/);
     assert.match(article, /class="blog-article-hero-inner"/);
     assert.match(article, /class="blog-article-hero-copy"/);
     assert.match(article, /class="blog-article-hero-image"/);
@@ -161,6 +174,8 @@ test('blog hub and articles are static, linked, and SEO-ready', () => {
     '.blog-hero-topics',
     '.blog-card-thumb',
     '.blog-card-content',
+    '.blog-breadcrumb',
+    '.blog-breadcrumb-current',
     '.blog-article-hero-inner',
     '.blog-article-hero-image',
     '.blog-related',
