@@ -3189,14 +3189,50 @@ p {
   }
 
   .profile-card {
-    grid-template-columns: 1fr;
-    gap: 14px;
+    grid-template-columns: 84px minmax(0, 1fr);
+    column-gap: 14px;
+    row-gap: 12px;
+    align-items: center;
   }
 
   .profile-avatar {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: start;
     width: 84px;
     height: 84px;
     border-radius: 18px;
+  }
+
+  .profile-meta {
+    display: contents;
+  }
+
+  .profile-name {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: end;
+  }
+
+  .profile-badge {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+    max-width: 100%;
+    min-width: 0;
+    white-space: normal;
+    line-height: 1.18;
+  }
+
+  .profile-summary {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    margin-top: 2px;
+  }
+
+  .profile-education {
+    grid-column: 1 / -1;
+    grid-row: 4;
   }
 
   .about-trust-callout,

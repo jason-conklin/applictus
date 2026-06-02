@@ -473,9 +473,6 @@ function nav() {
 
 function footer() {
   const links = [
-    ['Blog', '/blog'],
-    ['Free Trackers', '/blog/best-free-job-application-trackers-2026'],
-    ['About', '/about'],
     ['Contact', '/contact'],
     ['Privacy', '/privacy'],
     ['Terms', '/terms']

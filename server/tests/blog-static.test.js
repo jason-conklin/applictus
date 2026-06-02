@@ -69,6 +69,18 @@ function assertBlogTopNavigation(html) {
   assert.doesNotMatch(nav, /href="\/privacy"|href="\/terms"/);
 }
 
+function extractFooterLinks(html) {
+  return html.match(/<nav class="app-footer-links"[^>]*>([\s\S]*?)<\/nav>/)?.[1] || '';
+}
+
+function assertBlogFooter(html) {
+  const footer = extractFooterLinks(html);
+  assert.match(footer, /<a class="app-footer-link" href="\/contact">CONTACT<\/a>/);
+  assert.match(footer, /<a class="app-footer-link" href="\/privacy">PRIVACY<\/a>/);
+  assert.match(footer, /<a class="app-footer-link" href="\/terms">TERMS<\/a>/);
+  assert.doesNotMatch(footer, /href="\/blog"|FREE TRACKERS|href="\/about"/);
+}
+
 test('blog hub and articles are static, linked, and SEO-ready', () => {
   const hub = readProjectFile('web/blog/index.html');
   const publicHub = readProjectFile('public/blog/index.html');
@@ -88,6 +100,7 @@ test('blog hub and articles are static, linked, and SEO-ready', () => {
   assert.match(hub, /Compare the best free job application trackers and learn what features to look for when organizing your 2026 job search\./);
   assert.doesNotMatch(hub, />Free Job Application Tracker</);
   assertBlogTopNavigation(hub);
+  assertBlogFooter(hub);
 
   for (const [slug, title, imageSrc, imageAlt] of articles) {
     assert.ok(fs.existsSync(path.join(rootDir, 'public', imageSrc.replace(/^\//, ''))));
@@ -101,6 +114,7 @@ test('blog hub and articles are static, linked, and SEO-ready', () => {
     const article = readProjectFile(sourcePath);
     assert.equal(readProjectFile(publicPath), article);
     assertBlogTopNavigation(article);
+    assertBlogFooter(article);
     assert.match(article, new RegExp(`<title>${title.replace(/[|]/g, '\\|')}<\\/title>`));
     assert.match(article, /<meta name="description" content="[^"]+"/);
     assert.match(article, /<link rel="canonical" href="https:\/\/applictus\.com\/blog\//);
