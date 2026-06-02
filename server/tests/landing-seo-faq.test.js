@@ -35,6 +35,36 @@ function assertTrimmedFooterLinks(html) {
   assert.doesNotMatch(footer, /href="\/blog"|FREE TRACKERS|href="\/about"/);
 }
 
+function assertPlatformCarousel(html) {
+  const platformLogos = [
+    ['/linkedin-logo.png', 'LinkedIn', 1280, 320],
+    ['/indeed-logo.png', 'Indeed', 960, 259],
+    ['/workday-logo.png', 'Workday', 1280, 513],
+    ['/greenhouse-logo.png', 'Greenhouse', 2208, 652],
+    ['/glassdoor-logo.png', 'Glassdoor', 960, 288],
+    ['/zip-logo.png', 'ZipRecruiter', 840, 224],
+    ['/monster-logo.png', 'Monster', 1200, 405],
+    ['/Dice_Logo.png', 'Dice', 1942, 1017],
+    ['/Built_In_Logo.png', 'Built In', 1017, 532],
+    ['/showbiz-logo.png', 'ShowbizJobs', 994, 522]
+  ];
+  const groups = [...html.matchAll(/<div class="home-hero-platforms__group"[^>]*>([\s\S]*?)<\/div>/g)].map(
+    (match) => match[1]
+  );
+  assert.equal(groups.length, 2);
+  for (const [src, alt, width, height] of platformLogos) {
+    assert.ok(fs.existsSync(path.join(rootDir, 'public', src.slice(1))));
+    assert.match(
+      groups[0],
+      new RegExp(`src="${src}" alt="${alt}" width="${width}" height="${height}" loading="lazy"`)
+    );
+    assert.match(
+      groups[1],
+      new RegExp(`src="${src}" alt="" width="${width}" height="${height}" loading="lazy"`)
+    );
+  }
+}
+
 test('landing page metadata and FAQ content are SEO-ready', () => {
   const sourceHtml = readProjectFile('web/home.html');
   const publicHtml = readProjectFile('public/index.html');
@@ -52,6 +82,7 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
   assertTopNavigation(webAppShellHtml);
   assertTopNavigation(publicAppShellHtml);
   assertTrimmedFooterLinks(sourceHtml);
+  assertPlatformCarousel(sourceHtml);
 
   const metaDescription = sourceHtml.match(/<meta\s+name="description"\s+content="([^"]+)"/i)?.[1] || '';
   for (const keyword of [
@@ -89,7 +120,7 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
   }
   assert.match(
     sourceHtml,
-    /href="\/blog\/best-free-job-application-trackers-2026">free job application tracker options<\/a>/
+    /Applictus offers a free plan so you can start organizing your job search without paying upfront\./
   );
 
   assert.match(sourceCss, /\.home-panel-faq/);
