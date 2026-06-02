@@ -387,7 +387,7 @@ body.blog-page .blog-card-link {
 }
 
 body.blog-page .blog-card-link::after {
-  content: "->";
+  content: "🠊";
   transform: translateY(1px);
   transition: transform 0.18s ease;
 }
