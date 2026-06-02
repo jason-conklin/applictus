@@ -106,6 +106,12 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
     assert.match(shellHtml, /Built for modern job searches/);
     assert.match(shellHtml, /<section class="about-section about-mission">/);
     assert.match(shellHtml, /<section class="about-section about-team-section">/);
+    assert.match(shellHtml, /<div class="profile-badges" aria-label="Jason Conklin roles">/);
+    assert.match(shellHtml, /<span class="profile-badge">Co-Founder<\/span>/);
+    assert.match(shellHtml, /<span class="profile-badge">Product \+ Engineering<\/span>/);
+    assert.match(shellHtml, /<div class="profile-badges" aria-label="Shane Conklin roles">/);
+    assert.match(shellHtml, /<span class="profile-badge">Marketing \+ Strategy<\/span>/);
+    assert.doesNotMatch(shellHtml, /Co-Founder, Product \+ Engineering|Co-Founder, Marketing \+ Strategy|Founder, Product \+ Engineering|Product \+ Operations/);
     assert.match(shellHtml, /<section class="about-section about-principles-section">/);
     assert.match(shellHtml, /<section class="about-trust-callout">/);
     assert.match(shellHtml, /<section class="about-cta-card">/);
@@ -115,6 +121,7 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
 
   assert.match(sourceCss, /\.about-page/);
   assert.match(sourceCss, /\.about-hero-points/);
+  assert.match(sourceCss, /\.profile-badges/);
   assert.match(sourceCss, /\.about-trust-callout/);
   assert.match(sourceCss, /\.about-cta-card/);
   assert.doesNotMatch(sourceCss, /about-hero-visual|about-logo-tile|about-signal-card/);
