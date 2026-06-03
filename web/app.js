@@ -356,6 +356,8 @@ const ADMIN_EMAIL_ALLOWLIST = new Set([
   'wesleywright.lew@gmail.com'
 ]);
 const ADMIN_METRIC_LABELS = {
+  unique_visitors: 'Unique visitors',
+  page_views: 'Page views',
   tracked_emails: 'Tracked emails',
   tracked_updates: 'Tracked updates',
   inbound_received: 'Inbound received',
@@ -651,10 +653,24 @@ function ensureAdminElements() {
   if (adminEls) return adminEls;
   adminEls = {
     section: document.getElementById('admin-analytics-section'),
+    kpiVisitors30d: document.getElementById('admin-kpi-visitors-30d'),
+    kpiSignups30d: document.getElementById('admin-kpi-signups-30d'),
+    kpiForwardingComplete30d: document.getElementById('admin-kpi-forwarding-complete-30d'),
+    kpiActiveUsers30d: document.getElementById('admin-kpi-active-users-30d'),
+    kpiPaidConversions30d: document.getElementById('admin-kpi-paid-conversions-30d'),
     kpiTotalUsers: document.getElementById('admin-kpi-total-users'),
     kpiProUsers: document.getElementById('admin-kpi-pro-users'),
     kpiFreeUsers: document.getElementById('admin-kpi-free-users'),
     kpiTotalApps: document.getElementById('admin-kpi-total-apps'),
+    kpiActiveUsers7d: document.getElementById('admin-kpi-active-users-7d'),
+    kpiProductActiveUsers30d: document.getElementById('admin-kpi-product-active-users-30d'),
+    kpiApplications30d: document.getElementById('admin-kpi-applications-30d'),
+    kpiUpdates30d: document.getElementById('admin-kpi-updates-30d'),
+    kpiAverageAppsPerActive: document.getElementById('admin-kpi-avg-apps-per-active'),
+    kpiForwardingRate: document.getElementById('admin-kpi-forwarding-rate'),
+    kpiVisitorPaidRate: document.getElementById('admin-kpi-visitor-paid-rate'),
+    kpiSignupPaidRate: document.getElementById('admin-kpi-signup-paid-rate'),
+    kpiMrr: document.getElementById('admin-kpi-mrr'),
     kpiMonthEmails: document.getElementById('admin-kpi-month-emails'),
     kpiTodayEmails: document.getElementById('admin-kpi-today-emails'),
     kpiWeekEmails: document.getElementById('admin-kpi-week-emails'),
@@ -672,6 +688,8 @@ function ensureAdminElements() {
     chartSvg: adminChartSvgStatic || document.getElementById('analytics-chart'),
     chartHint: adminChartHintStatic || document.getElementById('analytics-chart-hint'),
     statusText: adminStatusStatic || document.getElementById('admin-analytics-status'),
+    funnel: document.getElementById('admin-growth-funnel'),
+    trafficSourcesList: document.getElementById('admin-traffic-sources-list'),
     noisyRecipientsList: document.getElementById('admin-noisy-recipients-list'),
     noisyRecipientsCount: document.getElementById('admin-noisy-recipients-count'),
     userList: document.getElementById('admin-users-list'),
@@ -6059,7 +6077,7 @@ function renderPlanUsage(user = sessionUser) {
 
 let adminAnalyticsLoaded = false;
 let adminTrendState = {
-  metric: 'tracked_emails',
+  metric: 'unique_visitors',
   range: '30d',
   points: []
 };
@@ -6136,29 +6154,131 @@ function isAdminClient(user = sessionUser) {
   return ADMIN_EMAIL_ALLOWLIST.has(email);
 }
 
+function formatAdminNumber(value, options = {}) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '—';
+  return number.toLocaleString(undefined, options);
+}
+
+function formatAdminRate(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '—';
+  return `${(number * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
+}
+
+function formatAdminCurrency(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '—';
+  return number.toLocaleString(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: number >= 1000 ? 0 : 2
+  });
+}
+
 function renderAdminKpis(summary) {
   if (!summary) return;
   const els = ensureAdminElements();
-  const setVal = (el, value) => {
-    if (el) el.textContent = Number.isFinite(value) ? value.toLocaleString() : '—';
+  const setVal = (el, value, formatter = formatAdminNumber) => {
+    if (el) el.textContent = formatter(value);
   };
+  const funnel = summary.growth_funnel || {};
+  const product = summary.product_usage || {};
+  const revenue = summary.revenue || {};
+  const traffic = summary.traffic_acquisition || {};
+  const system = summary.system_ingestion_health || {};
+  setVal(els.kpiVisitors30d, funnel.unique_visitors_30d);
+  setVal(els.kpiSignups30d, funnel.signups_30d);
+  setVal(els.kpiForwardingComplete30d, funnel.forwarding_setup_completions_30d);
+  setVal(els.kpiActiveUsers30d, funnel.active_users_30d);
+  setVal(els.kpiPaidConversions30d, funnel.paid_conversions_30d);
   setVal(els.kpiTotalUsers, summary.total_users);
-  setVal(els.kpiProUsers, summary.pro_users);
-  setVal(els.kpiFreeUsers, summary.free_users);
-  setVal(els.kpiTotalApps, summary.total_applications);
-  setVal(els.kpiMonthEmails, summary.tracked_emails_month);
-  setVal(els.kpiTodayEmails, summary.tracked_emails_today);
-  setVal(els.kpiWeekEmails, summary.tracked_emails_week);
-  setVal(els.kpiInboundReceived, summary.inbound_received_month);
-  setVal(els.kpiInboundRelevant, summary.inbound_relevant_month);
-  setVal(els.kpiInboundDroppedIrrelevant, summary.inbound_dropped_irrelevant_month);
-  setVal(els.kpiInboundDroppedOverCap, summary.inbound_dropped_over_cap_month);
-  setVal(els.kpiInboundUnknown, summary.inbound_abuse?.unknown_recipient_count);
-  setVal(els.kpiInboundOverCap, summary.inbound_abuse?.over_cap_count);
-  setVal(els.kpiInboundDisabled, summary.inbound_abuse?.disabled_address_count);
-  setVal(els.kpiInboundDisabledTotal, summary.inbound_abuse?.disabled_or_rotated_address_total);
+  setVal(els.kpiProUsers, revenue.paid_users ?? summary.pro_users);
+  setVal(els.kpiFreeUsers, revenue.free_users ?? summary.free_users);
+  setVal(els.kpiVisitorPaidRate, revenue.visitor_to_paid_conversion_rate_30d, formatAdminRate);
+  setVal(els.kpiSignupPaidRate, revenue.signup_to_paid_conversion_rate_30d, formatAdminRate);
+  setVal(els.kpiMrr, revenue.mrr, formatAdminCurrency);
+  setVal(els.kpiTotalApps, product.applications_tracked_total ?? summary.total_applications);
+  setVal(els.kpiActiveUsers7d, product.active_users_7d);
+  setVal(els.kpiProductActiveUsers30d, product.active_users_30d);
+  setVal(els.kpiApplications30d, product.applications_tracked_30d);
+  setVal(els.kpiUpdates30d, product.updates_processed_30d);
+  setVal(els.kpiAverageAppsPerActive, product.average_applications_per_active_user, (value) =>
+    formatAdminNumber(value, { maximumFractionDigits: 2 })
+  );
+  setVal(els.kpiForwardingRate, product.forwarding_completion_rate_30d, formatAdminRate);
+  setVal(els.kpiMonthEmails, system.tracked_emails_month ?? summary.tracked_emails_month);
+  setVal(els.kpiTodayEmails, system.tracked_emails_today ?? summary.tracked_emails_today);
+  setVal(els.kpiWeekEmails, system.tracked_emails_week ?? summary.tracked_emails_week);
+  setVal(els.kpiInboundReceived, system.inbound_received_month ?? summary.inbound_received_month);
+  setVal(els.kpiInboundRelevant, system.inbound_relevant_month ?? summary.inbound_relevant_month);
+  setVal(els.kpiInboundDroppedIrrelevant, system.inbound_dropped_irrelevant_month ?? summary.inbound_dropped_irrelevant_month);
+  setVal(els.kpiInboundDroppedOverCap, system.inbound_dropped_over_cap_month ?? summary.inbound_dropped_over_cap_month);
+  const inboundAbuse = system.inbound_abuse || summary.inbound_abuse || {};
+  setVal(els.kpiInboundUnknown, inboundAbuse.unknown_recipient_count);
+  setVal(els.kpiInboundOverCap, inboundAbuse.over_cap_count);
+  setVal(els.kpiInboundDisabled, inboundAbuse.disabled_address_count);
+  setVal(els.kpiInboundDisabledTotal, inboundAbuse.disabled_or_rotated_address_total);
   setVal(els.kpiNewUsers, summary.new_users_month);
-  renderAdminNoisyRecipients(summary.inbound_abuse?.top_noisy_recipients_month || []);
+  renderAdminFunnel(funnel.stages || []);
+  renderAdminTrafficSources(traffic.traffic_sources_30d || []);
+  renderAdminNoisyRecipients(inboundAbuse.top_noisy_recipients_month || []);
+}
+
+function renderAdminFunnel(stages = []) {
+  const els = ensureAdminElements();
+  if (!els.funnel) return;
+  if (!Array.isArray(stages) || !stages.length) {
+    els.funnel.innerHTML = '<div class="muted small">No funnel data yet.</div>';
+    return;
+  }
+  const maxValue = Math.max(...stages.map((stage) => Number(stage.value || 0)), 1);
+  els.funnel.innerHTML = stages
+    .map((stage, index) => {
+      const value = Number(stage.value || 0);
+      const width = Math.max(8, Math.round((value / maxValue) * 100));
+      const rate = index === 0 ? 'Entry' : formatAdminRate(stage.conversion_rate);
+      return `
+        <div class="admin-funnel-row">
+          <div class="admin-funnel-meta">
+            <span>${escapeHtml(stage.label || stage.key || 'Stage')}</span>
+            <strong>${formatAdminNumber(value)}</strong>
+          </div>
+          <div class="admin-funnel-track" aria-hidden="true">
+            <span style="width: ${width}%"></span>
+          </div>
+          <div class="admin-funnel-rate">${escapeHtml(rate)}</div>
+        </div>
+      `;
+    })
+    .join('');
+}
+
+function renderAdminTrafficSources(rows = []) {
+  const els = ensureAdminElements();
+  if (!els.trafficSourcesList) return;
+  const sources = Array.isArray(rows) ? rows : [];
+  if (!sources.length) {
+    els.trafficSourcesList.innerHTML = '<div class="muted small">No traffic source data yet.</div>';
+    return;
+  }
+  const maxVisitors = Math.max(...sources.map((row) => Number(row.visitors || 0)), 1);
+  els.trafficSourcesList.innerHTML = sources
+    .map((row) => {
+      const visitors = Number(row.visitors || 0);
+      const width = Math.max(4, Math.round((visitors / maxVisitors) * 100));
+      return `
+        <div class="admin-source-row">
+          <div class="admin-source-row__top">
+            <span>${escapeHtml(row.label || row.source || 'Other')}</span>
+            <strong>${formatAdminNumber(visitors)}</strong>
+          </div>
+          <div class="admin-source-row__bar" aria-hidden="true"><span style="width: ${width}%"></span></div>
+          <div class="muted small">${formatAdminNumber(row.page_views || 0)} page views</div>
+        </div>
+      `;
+    })
+    .join('');
 }
 
 function renderAdminNoisyRecipients(rows = []) {

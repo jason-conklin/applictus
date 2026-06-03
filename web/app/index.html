@@ -2500,110 +2500,263 @@
               </div>
               <div>
                 <h3>Admin Analytics</h3>
-                <p class="muted small">Internal visibility into growth, usage, and ingestion health.</p>
+                <p class="muted small">Growth, product, revenue, and ingestion health for Applictus.</p>
               </div>
             </div>
             <span class="pill pill--subtle">Internal</span>
           </div>
           <div class="admin-analytics-body">
-            <div class="analytics-kpi-grid">
-              <div class="analytics-kpi-card">
-                <div class="kpi-label">Total registered users</div>
-                <div class="kpi-value" id="admin-kpi-total-users">—</div>
-              </div>
-              <div class="analytics-kpi-card">
-                <div class="kpi-label">Pro / paid users</div>
-                <div class="kpi-value" id="admin-kpi-pro-users">—</div>
-              </div>
-              <div class="analytics-kpi-card">
-                <div class="kpi-label">Free users</div>
-                <div class="kpi-value" id="admin-kpi-free-users">—</div>
-              </div>
-              <div class="analytics-kpi-card">
-                <div class="kpi-label">Total tracked applications</div>
-                <div class="kpi-value" id="admin-kpi-total-apps">—</div>
-              </div>
-              <div class="analytics-kpi-card">
-                <div class="kpi-label">Tracked updates this month</div>
-                <div class="kpi-value" id="admin-kpi-month-emails">—</div>
-              </div>
-              <div class="analytics-kpi-card">
-                <div class="kpi-label">Emails tracked today</div>
-                <div class="kpi-value" id="admin-kpi-today-emails">—</div>
-              </div>
-              <div class="analytics-kpi-card">
-                <div class="kpi-label">Emails tracked this week</div>
-                <div class="kpi-value" id="admin-kpi-week-emails">—</div>
-              </div>
-              <div class="analytics-kpi-card">
-                <div class="kpi-label">Inbound received this month</div>
-                <div class="kpi-value" id="admin-kpi-inbound-received">—</div>
-              </div>
-              <div class="analytics-kpi-card">
-                <div class="kpi-label">Relevant inbound this month</div>
-                <div class="kpi-value" id="admin-kpi-inbound-relevant">—</div>
-              </div>
-              <div class="analytics-kpi-card">
-                <div class="kpi-label">Dropped as irrelevant</div>
-                <div class="kpi-value" id="admin-kpi-inbound-dropped-irrelevant">—</div>
-              </div>
-              <div class="analytics-kpi-card">
-                <div class="kpi-label">Dropped by raw cap</div>
-                <div class="kpi-value" id="admin-kpi-inbound-dropped-over-cap">—</div>
-              </div>
-              <div class="analytics-kpi-card">
-                <div class="kpi-label">New users this month</div>
-                <div class="kpi-value" id="admin-kpi-new-users">—</div>
-              </div>
-            </div>
-            <div class="analytics-chart-card">
-              <div class="analytics-chart-header">
+            <section class="admin-analytics-block admin-analytics-block--funnel">
+              <div class="admin-section-head">
                 <div>
-                  <div class="chart-title">Trend</div>
-                  <div class="muted small">Single metric view to spot ingestion and growth changes.</div>
-                  <div class="muted small" id="admin-analytics-status"></div>
+                  <div class="admin-section-kicker">Growth Funnel</div>
+                  <h4>Acquisition to paid conversion</h4>
+                  <p class="muted small">30-day funnel from public traffic through setup, activation, and paid conversion.</p>
                 </div>
-                <div class="chart-controls">
-                  <label class="sr-only" for="analytics-metric-select">Metric</label>
-                  <select id="analytics-metric-select" class="chart-select">
-                    <option value="tracked_emails">Tracked emails</option>
-                    <option value="tracked_updates">Tracked updates</option>
-                    <option value="inbound_received">Inbound received</option>
-                    <option value="inbound_relevant">Relevant inbound</option>
-                    <option value="inbound_dropped_irrelevant">Dropped as irrelevant</option>
-                    <option value="inbound_dropped_over_cap">Dropped by raw cap</option>
-                    <option value="tracked_applications">Tracked applications</option>
-                    <option value="registered_users">Registered users</option>
-                    <option value="pro_users">Pro users</option>
-                    <option value="new_users">New users</option>
-                  </select>
-                  <label class="sr-only" for="analytics-range-select">Range</label>
-                  <select id="analytics-range-select" class="chart-select">
-                    <option value="7d">Last 7 days</option>
-                    <option value="14d">Last 14 days</option>
-                    <option value="30d">Last 30 days</option>
-                    <option value="90d">Last 90 days</option>
-                    <option value="12m">Last 12 months</option>
-                  </select>
+                <div class="muted small" id="admin-analytics-status"></div>
+              </div>
+              <div class="analytics-kpi-grid analytics-kpi-grid--five">
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Unique visitors 30d</div>
+                  <div class="kpi-value" id="admin-kpi-visitors-30d">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Signups 30d</div>
+                  <div class="kpi-value" id="admin-kpi-signups-30d">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Forwarding setup complete</div>
+                  <div class="kpi-value" id="admin-kpi-forwarding-complete-30d">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Active users 30d</div>
+                  <div class="kpi-value" id="admin-kpi-active-users-30d">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Paid conversions 30d</div>
+                  <div class="kpi-value" id="admin-kpi-paid-conversions-30d">—</div>
                 </div>
               </div>
-              <div class="analytics-chart-body">
-                <svg id="analytics-chart" role="img" aria-label="Admin analytics trend chart"></svg>
-                <div class="muted small chart-hint" id="analytics-chart-hint">Loading trend…</div>
+              <div class="admin-funnel-card">
+                <div class="admin-funnel" id="admin-growth-funnel">
+                  <div class="muted small">Loading funnel…</div>
+                </div>
               </div>
-            </div>
-            <div class="analytics-users-card">
-              <div class="analytics-users-header">
+            </section>
+
+            <section class="admin-analytics-block">
+              <div class="admin-section-head">
                 <div>
-                  <div class="chart-title">Registered users</div>
-                  <div class="muted small">Recent accounts for quick internal verification.</div>
+                  <div class="admin-section-kicker">Traffic & Acquisition</div>
+                  <h4>Visitor trends and source mix</h4>
+                  <p class="muted small">Track organic discovery, direct traffic, social referrals, paid search, and future UTM campaigns.</p>
                 </div>
-                <div class="muted small" id="admin-users-count">—</div>
               </div>
-              <ul class="admin-users-list" id="admin-users-list">
-                <li class="muted small">Loading users…</li>
-              </ul>
-            </div>
+              <div class="admin-analytics-two-col">
+                <div class="analytics-chart-card">
+                  <div class="analytics-chart-header">
+                    <div>
+                      <div class="chart-title">Visitor trend</div>
+                      <div class="muted small">Daily traffic and conversion-adjacent metrics.</div>
+                    </div>
+                    <div class="chart-controls">
+                      <label class="sr-only" for="analytics-metric-select">Metric</label>
+                      <select id="analytics-metric-select" class="chart-select">
+                        <option value="unique_visitors">Unique visitors</option>
+                        <option value="page_views">Page views</option>
+                        <option value="new_users">Signups</option>
+                        <option value="tracked_applications">Applications tracked</option>
+                        <option value="tracked_updates">Updates processed</option>
+                        <option value="pro_users">Paid users</option>
+                        <option value="inbound_received">Inbound received</option>
+                        <option value="inbound_dropped_irrelevant">Dropped as irrelevant</option>
+                      </select>
+                      <label class="sr-only" for="analytics-range-select">Range</label>
+                      <select id="analytics-range-select" class="chart-select">
+                        <option value="7d">Last 7 days</option>
+                        <option value="14d">Last 14 days</option>
+                        <option value="30d">Last 30 days</option>
+                        <option value="90d">Last 90 days</option>
+                        <option value="12m">Last 12 months</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="analytics-chart-body">
+                    <svg id="analytics-chart" role="img" aria-label="Admin analytics trend chart"></svg>
+                    <div class="muted small chart-hint" id="analytics-chart-hint">Loading trend…</div>
+                  </div>
+                </div>
+                <div class="analytics-users-card admin-source-card">
+                  <div class="analytics-users-header">
+                    <div>
+                      <div class="chart-title">Traffic sources</div>
+                      <div class="muted small">30-day visitor mix by referrer and UTM source.</div>
+                    </div>
+                  </div>
+                  <div class="admin-source-list" id="admin-traffic-sources-list">
+                    <div class="muted small">Loading sources…</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="admin-analytics-block">
+              <div class="admin-section-head">
+                <div>
+                  <div class="admin-section-kicker">Product Usage</div>
+                  <h4>Activation and tracking volume</h4>
+                  <p class="muted small">Usage metrics that show whether users are reaching a useful application timeline.</p>
+                </div>
+              </div>
+              <div class="analytics-kpi-grid">
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Active users 7d</div>
+                  <div class="kpi-value" id="admin-kpi-active-users-7d">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Active users 30d</div>
+                  <div class="kpi-value" id="admin-kpi-product-active-users-30d">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Applications tracked 30d</div>
+                  <div class="kpi-value" id="admin-kpi-applications-30d">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Applications tracked total</div>
+                  <div class="kpi-value" id="admin-kpi-total-apps">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Updates processed 30d</div>
+                  <div class="kpi-value" id="admin-kpi-updates-30d">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Avg apps / active user</div>
+                  <div class="kpi-value" id="admin-kpi-avg-apps-per-active">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Forwarding completion rate</div>
+                  <div class="kpi-value" id="admin-kpi-forwarding-rate">—</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="admin-analytics-block">
+              <div class="admin-section-head">
+                <div>
+                  <div class="admin-section-kicker">Revenue</div>
+                  <h4>Plan mix and conversion</h4>
+                  <p class="muted small">Paid adoption, conversion rates, and estimated recurring revenue.</p>
+                </div>
+              </div>
+              <div class="analytics-kpi-grid analytics-kpi-grid--five">
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Free users</div>
+                  <div class="kpi-value" id="admin-kpi-free-users">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Paid users</div>
+                  <div class="kpi-value" id="admin-kpi-pro-users">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Visitor → paid rate</div>
+                  <div class="kpi-value" id="admin-kpi-visitor-paid-rate">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Signup → paid rate</div>
+                  <div class="kpi-value" id="admin-kpi-signup-paid-rate">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">MRR</div>
+                  <div class="kpi-value" id="admin-kpi-mrr">—</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="admin-analytics-block admin-analytics-block--system">
+              <div class="admin-section-head">
+                <div>
+                  <div class="admin-section-kicker">System & Ingestion Health</div>
+                  <h4>Email processing and operational diagnostics</h4>
+                  <p class="muted small">Forwarding volume, dropped messages, noisy recipients, disabled addresses, and recent account diagnostics.</p>
+                </div>
+              </div>
+              <div class="analytics-kpi-grid">
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Total registered users</div>
+                  <div class="kpi-value" id="admin-kpi-total-users">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Tracked updates this month</div>
+                  <div class="kpi-value" id="admin-kpi-month-emails">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Emails tracked today</div>
+                  <div class="kpi-value" id="admin-kpi-today-emails">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Emails tracked this week</div>
+                  <div class="kpi-value" id="admin-kpi-week-emails">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Inbound received this month</div>
+                  <div class="kpi-value" id="admin-kpi-inbound-received">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Relevant inbound this month</div>
+                  <div class="kpi-value" id="admin-kpi-inbound-relevant">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Dropped as irrelevant</div>
+                  <div class="kpi-value" id="admin-kpi-inbound-dropped-irrelevant">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Dropped by raw cap</div>
+                  <div class="kpi-value" id="admin-kpi-inbound-dropped-over-cap">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Unknown recipients this month</div>
+                  <div class="kpi-value" id="admin-kpi-inbound-unknown">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Processing cap drops</div>
+                  <div class="kpi-value" id="admin-kpi-inbound-over-cap">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Disabled-address drops</div>
+                  <div class="kpi-value" id="admin-kpi-inbound-disabled">—</div>
+                </div>
+                <div class="analytics-kpi-card">
+                  <div class="kpi-label">Disabled / rotated addresses</div>
+                  <div class="kpi-value" id="admin-kpi-inbound-disabled-total">—</div>
+                </div>
+              </div>
+              <div class="admin-analytics-two-col">
+                <div class="analytics-users-card">
+                  <div class="analytics-users-header">
+                    <div>
+                      <div class="chart-title">Noisy inbound recipients</div>
+                      <div class="muted small">Top recipient addresses by webhook traffic this month.</div>
+                    </div>
+                    <div class="muted small" id="admin-noisy-recipients-count">—</div>
+                  </div>
+                  <ul class="admin-users-list" id="admin-noisy-recipients-list">
+                    <li class="muted small">Loading recipients…</li>
+                  </ul>
+                </div>
+                <div class="analytics-users-card">
+                  <div class="analytics-users-header">
+                    <div>
+                      <div class="chart-title">Registered users</div>
+                      <div class="muted small">Recent accounts for quick internal verification.</div>
+                    </div>
+                    <div class="muted small" id="admin-users-count">—</div>
+                  </div>
+                  <ul class="admin-users-list" id="admin-users-list">
+                    <li class="muted small">Loading users…</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
           </div>
         </div>
       </section>
@@ -4050,6 +4203,7 @@
       </div>
     </div>
 
+    <script src="/analytics.js?v=1" defer></script>
     <script type="module" src="/app.js?v=50"></script>
   </body>
 </html>

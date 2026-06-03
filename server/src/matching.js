@@ -32,6 +32,7 @@ const {
   normalizeFieldConfidenceForStorage,
   normalizeFieldConfidenceForComparison
 } = require('./safeFieldUpdate');
+const { recordFirstApplicationDetected } = require('./analyticsEvents');
 
 const AUTO_CREATE_TYPES = new Set([
   'confirmation',
@@ -1818,6 +1819,12 @@ async function createApplicationFromEvent(db, userId, identity, event) {
       )
       .run(...normalizeBindParams(insertParams, dialect))
   );
+
+  await recordFirstApplicationDetected(db, userId, {
+    occurredAt: createdAt,
+    applicationId: id,
+    source: 'auto_ingest'
+  });
 
   return await awaitMaybe(db.prepare('SELECT * FROM job_applications WHERE id = ?').get(id));
 }

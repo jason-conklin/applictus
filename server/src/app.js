@@ -87,6 +87,12 @@ const {
   computeJobSearchPlanExpiration,
   isJobSearchPlanActive
 } = require('./stripeBilling');
+const {
+  ANALYTICS_EVENT_NAMES,
+  normalizeTrafficSourceLabel,
+  recordAnalyticsEvent,
+  recordFirstApplicationDetected
+} = require('./analyticsEvents');
 
 function isProd() {
   return process.env.NODE_ENV === 'production';
@@ -1250,7 +1256,17 @@ async function pgHasColumns(dbInstance, table, columns = []) {
 
 async function getAdminSchemaCapabilities(dbInstance) {
   if (!dbInstance.isAsync) {
-    return { hasPlanTier: true, hasPlanUsage: true, hasInboundUsage: true, hasInboundWebhookEvents: true };
+    return {
+      hasPlanTier: true,
+      hasPlanUsage: true,
+      hasInboundUsage: true,
+      hasInboundWebhookEvents: true,
+      hasInboundAddresses: true,
+      hasInboundForwardingCompletionFields: true,
+      hasInboundMessages: true,
+      hasAnalyticsEvents: true,
+      hasBillingFields: true
+    };
   }
   const hasPlanTier = await pgHasColumns(dbInstance, 'users', ['plan_tier']);
   const hasPlanUsage = await pgHasColumns(dbInstance, 'users', ['tracked_email_count_current_month', 'tracked_email_month_bucket']);
@@ -1262,7 +1278,28 @@ async function getAdminSchemaCapabilities(dbInstance) {
     'inbound_email_dropped_over_cap_count_current_month'
   ]);
   const hasInboundWebhookEvents = await pgHasTable(dbInstance, 'inbound_webhook_events');
-  return { hasPlanTier, hasPlanUsage, hasInboundUsage, hasInboundWebhookEvents };
+  const hasInboundAddresses = await pgHasTable(dbInstance, 'inbound_addresses');
+  const hasInboundForwardingCompletionFields =
+    hasInboundAddresses &&
+    (await pgHasColumns(dbInstance, 'inbound_addresses', [
+      'forwarding_active_at',
+      'setup_test_received_at',
+      'last_received_at'
+    ]));
+  const hasInboundMessages = await pgHasTable(dbInstance, 'inbound_messages');
+  const hasAnalyticsEvents = await pgHasTable(dbInstance, 'analytics_events');
+  const hasBillingFields = await pgHasColumns(dbInstance, 'users', ['billing_plan', 'billing_last_event_at']);
+  return {
+    hasPlanTier,
+    hasPlanUsage,
+    hasInboundUsage,
+    hasInboundWebhookEvents,
+    hasInboundAddresses,
+    hasInboundForwardingCompletionFields,
+    hasInboundMessages,
+    hasAnalyticsEvents,
+    hasBillingFields
+  };
 }
 
 async function pgHasTable(dbInstance, table) {
@@ -2853,6 +2890,15 @@ const contactIpLimiter = createRateLimiter({
     return ip ? `ip:${ip}` : null;
   }
 });
+const analyticsEventLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 180,
+  keyGenerator: (req) => {
+    const visitor = String(req.body?.visitor_id || req.body?.visitorId || '').trim();
+    const ip = getClientIp(req);
+    return visitor || ip ? `analytics:${visitor || ip}` : null;
+  }
+});
 
 app.use(async (req, res, next) => {
   try {
@@ -2905,6 +2951,39 @@ app.use(async (req, res, next) => {
       return res.status(500).json({ error: 'AUTH_SESSION_FAILED' });
     }
     return next();
+  }
+});
+
+app.post('/api/analytics/event', analyticsEventLimiter, async (req, res) => {
+  const eventName = String(req.body?.event_name || req.body?.eventName || '').trim().toLowerCase();
+  if (eventName !== ANALYTICS_EVENT_NAMES.PAGE_VIEW) {
+    return res.status(400).json({ error: 'UNSUPPORTED_ANALYTICS_EVENT' });
+  }
+  try {
+    await recordAnalyticsEvent(db, {
+      eventName: ANALYTICS_EVENT_NAMES.PAGE_VIEW,
+      userId: req.user?.id || null,
+      visitorId: req.body?.visitor_id || req.body?.visitorId || null,
+      sessionId: req.body?.session_id || req.body?.sessionId || null,
+      path: req.body?.path || '/',
+      referrer: req.body?.referrer || req.get('referer') || null,
+      utmSource: req.body?.utm_source || null,
+      utmMedium: req.body?.utm_medium || null,
+      utmCampaign: req.body?.utm_campaign || null,
+      utmTerm: req.body?.utm_term || null,
+      utmContent: req.body?.utm_content || null,
+      metadata: {
+        title: req.body?.title || null,
+        user_agent_family: req.get('user-agent') ? String(req.get('user-agent')).slice(0, 80) : null
+      }
+    });
+    return res.json({ ok: true });
+  } catch (err) {
+    logWarn('analytics.event.endpoint_failed', {
+      code: err?.code || null,
+      detail: err?.message ? String(err.message).slice(0, 180) : String(err)
+    });
+    return res.status(202).json({ ok: false });
   }
 });
 
@@ -3265,6 +3344,18 @@ app.post('/api/inbound/postmark', async (req, res) => {
         lastInboundAt: receivedAtIso,
         lastSubjectPreview: subject || null
       });
+      await recordAnalyticsEvent(db, {
+        eventName: ANALYTICS_EVENT_NAMES.FORWARDING_COMPLETE,
+        userId: mappedAddress.user_id,
+        path: '/app',
+        source: 'product',
+        occurredAt: receivedAtIso,
+        idempotencyKey: `forwarding_complete:${mappedAddress.user_id}`,
+        metadata: {
+          inbound_address_id: mappedAddress.id,
+          trigger: 'setup_test_email'
+        }
+      });
       await recordInboundWebhookEvent({
         provider,
         recipientEmail,
@@ -3452,6 +3543,20 @@ app.post('/api/inbound/postmark', async (req, res) => {
       lastInboundAt: inboundReceivedAt,
       lastSubjectPreview: subject || null
     });
+    if (!gmailVerification.detected) {
+      await recordAnalyticsEvent(db, {
+        eventName: ANALYTICS_EVENT_NAMES.FORWARDING_COMPLETE,
+        userId: mappedAddress.user_id,
+        path: '/app',
+        source: 'product',
+        occurredAt: inboundReceivedAt,
+        idempotencyKey: `forwarding_complete:${mappedAddress.user_id}`,
+        metadata: {
+          inbound_address_id: mappedAddress.id,
+          trigger: 'first_forwarded_email'
+        }
+      });
+    }
 
     const inboundMessageId = crypto.randomUUID();
     const createdAt = nowIso();
@@ -3690,6 +3795,18 @@ app.post('/api/auth/signup', authIpLimiter, authEmailLimiter, async (req, res) =
       // eslint-disable-next-line no-console
       console.debug('[auth] created user id:', user.id);
     }
+
+    await recordAnalyticsEvent(db, {
+      eventName: ANALYTICS_EVENT_NAMES.SIGNUP,
+      userId: user.id,
+      path: '/app',
+      source: 'product',
+      idempotencyKey: `signup:${user.id}`,
+      metadata: {
+        auth_provider: user.auth_provider || 'password',
+        inbox_mode: resolveInboxModeForUser(user)
+      }
+    });
 
     return res.json({
       ok: true,
@@ -4650,6 +4767,21 @@ app.post('/api/billing/webhook', async (req, res) => {
           eventId,
           eventIso
         });
+        await recordAnalyticsEvent(db, {
+          eventName: ANALYTICS_EVENT_NAMES.SUBSCRIPTION_STARTED,
+          userId: user.id,
+          path: '/app',
+          source: 'billing',
+          occurredAt: eventIso,
+          idempotencyKey: `subscription_started:${eventId || session.id || user.id}`,
+          metadata: {
+            plan_key: planKey,
+            billing_type: BILLING_TYPES.SUBSCRIPTION,
+            checkout_session_id: session.id || null,
+            stripe_customer_id: session.customer || null,
+            stripe_subscription_id: session.subscription || null
+          }
+        });
         logInfo('billing.webhook.checkout_applied', {
           eventId,
           sessionId: session.id || null,
@@ -4668,6 +4800,21 @@ app.post('/api/billing/webhook', async (req, res) => {
           eventId,
           eventIso,
           expiresAt
+        });
+        await recordAnalyticsEvent(db, {
+          eventName: ANALYTICS_EVENT_NAMES.SUBSCRIPTION_STARTED,
+          userId: user.id,
+          path: '/app',
+          source: 'billing',
+          occurredAt: eventIso,
+          idempotencyKey: `subscription_started:${eventId || session.id || user.id}`,
+          metadata: {
+            plan_key: planKey,
+            billing_type: BILLING_TYPES.ONE_TIME,
+            checkout_session_id: session.id || null,
+            stripe_customer_id: session.customer || null,
+            expires_at: expiresAt
+          }
         });
         logInfo('billing.webhook.checkout_applied', {
           eventId,
@@ -4737,6 +4884,21 @@ app.post('/api/billing/webhook', async (req, res) => {
         eventId,
         eventIso,
         expiresAt
+      });
+      await recordAnalyticsEvent(db, {
+        eventName: ANALYTICS_EVENT_NAMES.SUBSCRIPTION_STARTED,
+        userId: user.id,
+        path: '/app',
+        source: 'billing',
+        occurredAt: eventIso,
+        idempotencyKey: `subscription_started:${eventId || paymentIntent.id || user.id}`,
+        metadata: {
+          plan_key: planKey,
+          billing_type: BILLING_TYPES.ONE_TIME,
+          payment_intent_id: paymentIntent.id || null,
+          stripe_customer_id: paymentIntent.customer || null,
+          expires_at: expiresAt
+        }
       });
       logInfo('billing.webhook.payment_intent_applied', {
         eventId,
@@ -5026,6 +5188,126 @@ async function buildAdminInboundAbuseSummary(dbInstance, { hasInboundWebhookEven
   };
 }
 
+function daysAgoIso(days) {
+  const normalizedDays = Math.max(1, Math.floor(Number(days) || 1));
+  return new Date(Date.now() - (normalizedDays - 1) * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function toRate(numerator, denominator) {
+  const top = Number(numerator || 0);
+  const bottom = Number(denominator || 0);
+  if (!Number.isFinite(top) || !Number.isFinite(bottom) || bottom <= 0) return 0;
+  return Number((top / bottom).toFixed(4));
+}
+
+async function countUniquePageViewVisitors(dbInstance, cutoffIso, { hasAnalyticsEvents = true } = {}) {
+  if (!hasAnalyticsEvents) return 0;
+  return readCount(
+    dbInstance,
+    `SELECT COUNT(DISTINCT COALESCE(visitor_id, session_id, user_id, id)) AS count
+       FROM analytics_events
+      WHERE event_name = ?
+        AND occurred_at >= ?`,
+    [ANALYTICS_EVENT_NAMES.PAGE_VIEW, cutoffIso]
+  );
+}
+
+async function countActiveUsersForWindow(dbInstance, cutoffIso, { hasInboundMessages = true } = {}) {
+  const sources = [
+    `SELECT user_id FROM email_events WHERE user_id IS NOT NULL AND created_at >= ?`,
+    `SELECT user_id FROM job_applications WHERE user_id IS NOT NULL AND (created_at >= ? OR updated_at >= ?)`
+  ];
+  const params = [cutoffIso, cutoffIso, cutoffIso];
+  if (hasInboundMessages) {
+    sources.push(`SELECT user_id FROM inbound_messages WHERE user_id IS NOT NULL AND (created_at >= ? OR received_at >= ?)`);
+    params.push(cutoffIso, cutoffIso);
+  }
+  return readCount(
+    dbInstance,
+    `SELECT COUNT(DISTINCT user_id) AS count FROM (${sources.join(' UNION ')}) active_users`,
+    params
+  );
+}
+
+async function countForwardingCompletions(
+  dbInstance,
+  cutoffIso,
+  { hasInboundAddresses = true, hasInboundForwardingCompletionFields = true } = {}
+) {
+  if (!hasInboundAddresses || !hasInboundForwardingCompletionFields) return 0;
+  return readCount(
+    dbInstance,
+    `SELECT COUNT(DISTINCT user_id) AS count
+       FROM inbound_addresses
+      WHERE user_id IS NOT NULL
+        AND COALESCE(forwarding_active_at, setup_test_received_at, last_received_at) >= ?`,
+    [cutoffIso]
+  );
+}
+
+async function countPaidConversions(dbInstance, cutoffIso, { hasPlanTier = true, hasBillingFields = true, hasAnalyticsEvents = true } = {}) {
+  const eventCount = hasAnalyticsEvents
+    ? await readCount(
+        dbInstance,
+        `SELECT COUNT(DISTINCT COALESCE(user_id, visitor_id, id)) AS count
+           FROM analytics_events
+          WHERE event_name = ?
+            AND occurred_at >= ?`,
+        [ANALYTICS_EVENT_NAMES.SUBSCRIPTION_STARTED, cutoffIso]
+      )
+    : 0;
+  const userCount =
+    hasPlanTier && hasBillingFields
+      ? await readCount(
+          dbInstance,
+          `SELECT COUNT(*) AS count
+             FROM users
+            WHERE lower(COALESCE(plan_tier,'free')) = 'pro'
+              AND billing_last_event_at >= ?`,
+          [cutoffIso]
+        )
+      : 0;
+  return Math.max(eventCount, userCount);
+}
+
+async function buildTrafficSourceBreakdown(dbInstance, cutoffIso, { hasAnalyticsEvents = true } = {}) {
+  if (!hasAnalyticsEvents) return [];
+  const rows = await runPrepared(
+    dbInstance,
+    `SELECT COALESCE(NULLIF(source, ''), 'other') AS source,
+            COUNT(*) AS page_views,
+            COUNT(DISTINCT COALESCE(visitor_id, session_id, user_id, id)) AS visitors
+       FROM analytics_events
+      WHERE event_name = ?
+        AND occurred_at >= ?
+      GROUP BY COALESCE(NULLIF(source, ''), 'other')
+      ORDER BY page_views DESC, visitors DESC`,
+    [ANALYTICS_EVENT_NAMES.PAGE_VIEW, cutoffIso],
+    'all'
+  );
+  const normalized = new Map();
+  for (const row of rows || []) {
+    const key = String(row.source || 'other').toLowerCase();
+    normalized.set(key, {
+      source: key,
+      label: normalizeTrafficSourceLabel(key),
+      page_views: Number(row.page_views || 0),
+      visitors: Number(row.visitors || 0)
+    });
+  }
+  for (const key of ['direct', 'google_search', 'linkedin', 'reddit', 'twitter', 'google_ads', 'other']) {
+    if (!normalized.has(key)) {
+      normalized.set(key, {
+        source: key,
+        label: normalizeTrafficSourceLabel(key),
+        page_views: 0,
+        visitors: 0
+      });
+    }
+  }
+  return ['direct', 'google_search', 'linkedin', 'reddit', 'twitter', 'google_ads', 'other'].map((key) => normalized.get(key));
+}
+
 async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
   const isPg = !!dbInstance.isAsync;
   const filters = getDateFilters(isPg);
@@ -5035,7 +5317,12 @@ async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
     hasPlanTier = true,
     hasPlanUsage = true,
     hasInboundUsage = true,
-    hasInboundWebhookEvents = true
+    hasInboundWebhookEvents = true,
+    hasInboundAddresses = true,
+    hasInboundForwardingCompletionFields = true,
+    hasInboundMessages = true,
+    hasAnalyticsEvents = true,
+    hasBillingFields = true
   } =
     caps || (await getAdminSchemaCapabilities(dbInstance));
   if (!hasPlanTier || !hasPlanUsage || !hasInboundUsage) {
@@ -5056,6 +5343,21 @@ async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
       )
     : totalUsers;
   const totalApplications = await readCount(dbInstance, 'SELECT COUNT(*) AS count FROM job_applications');
+  const cutoff7d = daysAgoIso(7);
+  const cutoff30d = daysAgoIso(30);
+  const uniqueVisitors30d = await countUniquePageViewVisitors(dbInstance, cutoff30d, { hasAnalyticsEvents });
+  const signups30d = await readCount(dbInstance, 'SELECT COUNT(*) AS count FROM users WHERE created_at >= ?', [cutoff30d]);
+  const activeUsers7d = await countActiveUsersForWindow(dbInstance, cutoff7d, { hasInboundMessages });
+  const activeUsers30d = await countActiveUsersForWindow(dbInstance, cutoff30d, { hasInboundMessages });
+  const forwardingCompletions30d = await countForwardingCompletions(dbInstance, cutoff30d, {
+    hasInboundAddresses,
+    hasInboundForwardingCompletionFields
+  });
+  const paidConversions30d = await countPaidConversions(dbInstance, cutoff30d, {
+    hasPlanTier,
+    hasBillingFields,
+    hasAnalyticsEvents
+  });
 
   const trackedMonth = await readCount(
     dbInstance,
@@ -5074,6 +5376,16 @@ async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
     dbInstance,
     `SELECT COUNT(*) AS count FROM users WHERE ${filters.monthBucket}`,
     [bucket]
+  );
+  const applications30d = await readCount(
+    dbInstance,
+    'SELECT COUNT(*) AS count FROM job_applications WHERE created_at >= ?',
+    [cutoff30d]
+  );
+  const updatesProcessed30d = await readCount(
+    dbInstance,
+    'SELECT COUNT(*) AS count FROM email_events WHERE ingest_decision IS NOT NULL AND created_at >= ?',
+    [cutoff30d]
   );
   const inboundReceivedMonth = hasInboundUsage
     ? await readCount(
@@ -5145,8 +5457,84 @@ async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
   const inboundRelevanceRatioMonth =
     inboundReceivedMonth > 0 ? Number((inboundRelevantMonth / inboundReceivedMonth).toFixed(4)) : 0;
   const inboundAbuse = await buildAdminInboundAbuseSummary(dbInstance, { hasInboundWebhookEvents });
+  const trafficSources30d = await buildTrafficSourceBreakdown(dbInstance, cutoff30d, { hasAnalyticsEvents });
+  const monthlyPaidUsers =
+    hasPlanTier && hasBillingFields
+      ? await readCount(
+          dbInstance,
+          `SELECT COUNT(*) AS count
+             FROM users
+            WHERE lower(COALESCE(plan_tier,'free')) = 'pro'
+              AND lower(COALESCE(plan_status,'active')) = 'active'
+              AND lower(COALESCE(billing_plan,'')) = ?`,
+          [BILLING_OPTIONS.PRO_MONTHLY]
+        )
+      : 0;
+  const monthlyPriceCents = Math.max(0, Number(process.env.ANALYTICS_PRO_MONTHLY_PRICE_CENTS || 999) || 999);
+  const mrrCents = monthlyPaidUsers * monthlyPriceCents;
+  const growthFunnel = {
+    unique_visitors_30d: uniqueVisitors30d,
+    signups_30d: signups30d,
+    forwarding_setup_completions_30d: forwardingCompletions30d,
+    active_users_30d: activeUsers30d,
+    paid_conversions_30d: paidConversions30d,
+    stages: [
+      { key: 'unique_visitors', label: 'Unique visitors', value: uniqueVisitors30d },
+      { key: 'signups', label: 'Signups', value: signups30d, conversion_rate: toRate(signups30d, uniqueVisitors30d) },
+      {
+        key: 'forwarding_complete',
+        label: 'Forwarding setup completions',
+        value: forwardingCompletions30d,
+        conversion_rate: toRate(forwardingCompletions30d, signups30d)
+      },
+      { key: 'active_users', label: 'Active users', value: activeUsers30d, conversion_rate: toRate(activeUsers30d, forwardingCompletions30d) },
+      { key: 'paid_conversions', label: 'Paid conversions', value: paidConversions30d, conversion_rate: toRate(paidConversions30d, activeUsers30d) }
+    ]
+  };
+  const productUsage = {
+    active_users_7d: activeUsers7d,
+    active_users_30d: activeUsers30d,
+    applications_tracked_30d: applications30d,
+    applications_tracked_total: totalApplications,
+    updates_processed_30d: updatesProcessed30d,
+    average_applications_per_active_user: activeUsers30d > 0 ? Number((applications30d / activeUsers30d).toFixed(2)) : 0,
+    forwarding_completion_rate_30d: toRate(forwardingCompletions30d, signups30d)
+  };
+  const revenue = {
+    free_users: freeUsers,
+    paid_users: proUsers,
+    monthly_paid_users: monthlyPaidUsers,
+    visitor_to_paid_conversion_rate_30d: toRate(paidConversions30d, uniqueVisitors30d),
+    signup_to_paid_conversion_rate_30d: toRate(paidConversions30d, signups30d),
+    mrr_cents: mrrCents,
+    mrr: Number((mrrCents / 100).toFixed(2))
+  };
+  const trafficAcquisition = {
+    unique_visitors_30d: uniqueVisitors30d,
+    traffic_sources_30d: trafficSources30d,
+    supports_utm_attribution: true
+  };
+  const systemIngestionHealth = {
+    tracked_emails_month: trackedMonth,
+    tracked_emails_today: trackedToday,
+    tracked_emails_week: trackedWeek,
+    inbound_received_month: inboundReceivedMonth,
+    inbound_relevant_month: inboundRelevantMonth,
+    inbound_dropped_month: inboundDroppedMonth,
+    inbound_dropped_irrelevant_month: inboundDroppedIrrelevantMonth,
+    inbound_dropped_over_cap_month: inboundDroppedOverCapMonth,
+    inbound_relevance_ratio_month: inboundRelevanceRatioMonth,
+    users_near_inbound_cap_month: usersNearInboundCapMonth,
+    users_over_inbound_cap_month: usersOverInboundCapMonth,
+    inbound_abuse: inboundAbuse
+  };
 
   return {
+    growth_funnel: growthFunnel,
+    traffic_acquisition: trafficAcquisition,
+    product_usage: productUsage,
+    revenue,
+    system_ingestion_health: systemIngestionHealth,
     total_users: totalUsers,
     pro_users: proUsers,
     free_users: freeUsers,
@@ -5168,7 +5556,7 @@ async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
   };
 }
 
-function buildTrendQuery({ metric, range, isPg, hasPlanTier = true }) {
+function buildTrendQuery({ metric, range, isPg, hasPlanTier = true, hasAnalyticsEvents = true }) {
   const rangeKey = range || '30d';
   const metricKey = metric || 'tracked_emails';
   const pgCreatedAt = "COALESCE(created_at, (now() at time zone 'utc'))";
@@ -5197,6 +5585,28 @@ function buildTrendQuery({ metric, range, isPg, hasPlanTier = true }) {
       : `WHERE ${filters.daysCutoff(rangeConfig.days)}`;
 
   switch (metricKey) {
+    case 'unique_visitors':
+      if (!hasAnalyticsEvents) {
+        return { sql: null, bucketType: rangeConfig.bucket, empty: true };
+      }
+      table = 'analytics_events';
+      where += ` AND event_name = '${ANALYTICS_EVENT_NAMES.PAGE_VIEW}'`;
+      return {
+        sql: `SELECT ${bucketExpr} AS bucket,
+                     COUNT(DISTINCT COALESCE(visitor_id, session_id, user_id, id)) AS value
+                FROM ${table}
+                ${where}
+               GROUP BY 1
+               ORDER BY 1`,
+        bucketType: rangeConfig.bucket
+      };
+    case 'page_views':
+      if (!hasAnalyticsEvents) {
+        return { sql: null, bucketType: rangeConfig.bucket, empty: true };
+      }
+      table = 'analytics_events';
+      where += ` AND event_name = '${ANALYTICS_EVENT_NAMES.PAGE_VIEW}'`;
+      break;
     case 'registered_users':
       table = 'users';
       break;
@@ -5314,7 +5724,13 @@ app.get('/api/admin/analytics/trends', requireAuth, async (req, res) => {
       });
     }
     const caps = await getAdminSchemaCapabilities(db);
-    const { sql, bucketType, empty } = buildTrendQuery({ metric, range, isPg: !!db.isAsync, hasPlanTier: caps.hasPlanTier });
+    const { sql, bucketType, empty } = buildTrendQuery({
+      metric,
+      range,
+      isPg: !!db.isAsync,
+      hasPlanTier: caps.hasPlanTier,
+      hasAnalyticsEvents: caps.hasAnalyticsEvents
+    });
     if (empty && metric === 'pro_users') {
       return res.status(500).json({ error: 'ANALYTICS_SCHEMA_MISSING', detail: 'plan_tier missing' });
     }
@@ -6275,7 +6691,7 @@ app.post('/api/email/events/:id/attach', requireAuth, (req, res) => {
   return res.json({ ok: true });
 });
 
-app.post('/api/email/events/:id/create-application', requireAuth, (req, res) => {
+app.post('/api/email/events/:id/create-application', requireAuth, async (req, res) => {
   const companyName = String(req.body.company_name || '').trim();
   const jobTitle = String(req.body.job_title || '').trim();
   const jobLocation = req.body.job_location ? String(req.body.job_location).trim() : null;
@@ -6358,6 +6774,12 @@ app.post('/api/email/events/:id/create-application', requireAuth, (req, res) => 
     createdAt,
     createdAt
   );
+
+  await recordFirstApplicationDetected(db, req.user.id, {
+    occurredAt: createdAt,
+    applicationId: id,
+    source: 'event_link'
+  });
 
   db.prepare('UPDATE email_events SET application_id = ? WHERE id = ?').run(id, event.id);
 
@@ -6644,7 +7066,7 @@ app.get('/api/applications/:id', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/applications', requireAuth, (req, res) => {
+app.post('/api/applications', requireAuth, async (req, res) => {
   const companyName = String(req.body.company_name || req.body.company || '').trim();
   const jobTitle = String(req.body.job_title || req.body.role || '').trim();
   const rawStatus = req.body.current_status || req.body.status || '';
@@ -6713,6 +7135,12 @@ app.post('/api/applications', requireAuth, (req, res) => {
     timestamp,
     timestamp
   );
+
+  await recordFirstApplicationDetected(db, req.user.id, {
+    occurredAt: timestamp,
+    applicationId: id,
+    source: 'manual_create'
+  });
 
   createUserAction(db, {
     userId: req.user.id,

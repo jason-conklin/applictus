@@ -9502,14 +9502,76 @@ button.inbound-diagnostics-row:hover {
 
 #admin-analytics-section .admin-analytics-body {
   display: grid;
-  gap: 14px;
+  gap: 16px;
   padding-top: 14px;
+}
+
+#admin-analytics-section .admin-analytics-block {
+  border: 1px solid rgba(19, 53, 102, 0.12);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(74, 144, 226, 0.1) 0%, transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(245, 249, 255, 0.9) 100%);
+  box-shadow:
+    0 12px 24px rgba(14, 34, 74, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  padding: 14px;
+}
+
+#admin-analytics-section .admin-analytics-block--funnel {
+  background:
+    radial-gradient(circle at 14% 0%, rgba(48, 112, 204, 0.16) 0%, transparent 34%),
+    linear-gradient(180deg, #ffffff 0%, #f3f8ff 100%);
+}
+
+#admin-analytics-section .admin-analytics-block--system {
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.96) 0%, rgba(255, 255, 255, 0.92) 100%);
+}
+
+#admin-analytics-section .admin-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+#admin-analytics-section .admin-section-kicker {
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #1f66c2;
+}
+
+#admin-analytics-section .admin-section-head h4 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.18;
+  color: #102f5d;
+}
+
+#admin-analytics-section .admin-section-head p {
+  margin: 5px 0 0;
+  max-width: 68ch;
 }
 
 #admin-analytics-section .analytics-kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+}
+
+#admin-analytics-section .analytics-kpi-grid--five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+#admin-analytics-section .admin-analytics-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.75fr);
+  gap: 12px;
+  align-items: stretch;
 }
 
 #admin-analytics-section .analytics-kpi-card {
@@ -9612,6 +9674,103 @@ button.inbound-diagnostics-row:hover {
 #admin-analytics-section .chart-hint {
   margin-top: 8px;
   color: rgba(26, 55, 98, 0.62);
+}
+
+#admin-analytics-section .admin-funnel-card {
+  margin-top: 12px;
+  border: 1px solid rgba(20, 66, 130, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  padding: 13px;
+}
+
+#admin-analytics-section .admin-funnel {
+  display: grid;
+  gap: 10px;
+}
+
+#admin-analytics-section .admin-funnel-row {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.8fr) minmax(180px, 1fr) minmax(62px, auto);
+  align-items: center;
+  gap: 10px;
+}
+
+#admin-analytics-section .admin-funnel-meta,
+#admin-analytics-section .admin-source-row__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  color: rgba(20, 48, 91, 0.8);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+#admin-analytics-section .admin-funnel-meta span,
+#admin-analytics-section .admin-source-row__top span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#admin-analytics-section .admin-funnel-meta strong,
+#admin-analytics-section .admin-source-row__top strong {
+  color: #12325f;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+#admin-analytics-section .admin-funnel-track,
+#admin-analytics-section .admin-source-row__bar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(33, 90, 170, 0.1);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(15, 35, 80, 0.08);
+}
+
+#admin-analytics-section .admin-funnel-track span,
+#admin-analytics-section .admin-source-row__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #1f66c2 0%, #5aa7ff 100%);
+  box-shadow: 0 5px 10px rgba(31, 102, 194, 0.2);
+}
+
+#admin-analytics-section .admin-funnel-rate {
+  justify-self: end;
+  border-radius: 999px;
+  background: rgba(238, 246, 255, 0.92);
+  border: 1px solid rgba(31, 102, 194, 0.14);
+  color: #1a559f;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1;
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+
+#admin-analytics-section .admin-source-card {
+  min-height: 100%;
+}
+
+#admin-analytics-section .admin-source-list {
+  display: grid;
+  gap: 10px;
+}
+
+#admin-analytics-section .admin-source-row {
+  border: 1px solid rgba(19, 53, 102, 0.12);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(248, 251, 255, 0.94) 100%);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
 }
 
 #admin-analytics-section .analytics-users-header {
@@ -10664,6 +10823,23 @@ button.inbound-diagnostics-row:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  #admin-analytics-section .analytics-kpi-grid--five {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #admin-analytics-section .admin-analytics-two-col {
+    grid-template-columns: 1fr;
+  }
+
+  #admin-analytics-section .admin-funnel-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  #admin-analytics-section .admin-funnel-rate {
+    justify-self: start;
+  }
+
   #admin-analytics-section .analytics-chart-header,
   #admin-analytics-section .analytics-users-header {
     flex-direction: column;
@@ -10761,6 +10937,24 @@ button.inbound-diagnostics-row:hover {
 
   #admin-analytics-section .analytics-kpi-grid {
     grid-template-columns: 1fr;
+  }
+
+  #admin-analytics-section .analytics-kpi-grid--five {
+    grid-template-columns: 1fr;
+  }
+
+  #admin-analytics-section .admin-analytics-block {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  #admin-analytics-section .admin-section-head {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  #admin-analytics-section .admin-funnel-card {
+    padding: 11px;
   }
 }
 
