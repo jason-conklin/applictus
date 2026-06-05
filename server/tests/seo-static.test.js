@@ -162,6 +162,22 @@ test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) =
   assert.match(testingHtml, /Assessment Received/);
   assert.match(testingHtml, /Offer Received/);
   assert.match(testingHtml, /Rejected/);
+  assert.match(testingHtml, /Tracks emails from all job platforms/);
+  assert.match(testingHtml, /data-platform-marquee/);
+  assert.match(testingHtml, /data-platform-track/);
+  assert.match(testingHtml, /@keyframes testingPlatformMarquee/);
+  for (const logo of [
+    'linkedin-logo.png',
+    'indeed-logo.png',
+    'workday-logo.png',
+    'greenhouse-logo.png',
+    'glassdoor-logo.png',
+    'Dice_Logo.png',
+    'Built_In_Logo.png',
+    'showbiz-logo.png'
+  ]) {
+    assert.match(testingHtml, new RegExp(logo.replace('.', '\\.')));
+  }
   assert.match(testingHtml, /application-motifs/);
   assert.match(testingHtml, /Hidden experiment/);
   assert.doesNotMatch(testingHtml, /Track the signal in your job search/);
