@@ -148,9 +148,25 @@ test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) =
   assert.match(testingHtml, /Application<\/span>\s*<span class="testing-brand-accent--status">Status<\/span>\s*<span>Tracker/);
   assert.match(testingHtml, /@keyframes testingBrandIcon/);
   assert.match(testingHtml, /class="holo-card/);
+  assert.match(testingHtml, /Application updates/);
+  assert.match(testingHtml, /Forwarded emails become application activity/);
+  assert.match(testingHtml, /Application timeline/);
+  assert.match(testingHtml, /Privacy first/);
+  assert.match(testingHtml, /Inbox to timeline/);
+  assert.match(testingHtml, /LinkedIn/);
+  assert.match(testingHtml, /Indeed/);
+  assert.match(testingHtml, /Workday/);
+  assert.match(testingHtml, /Greenhouse/);
+  assert.match(testingHtml, /Application activity/);
+  assert.match(testingHtml, /Interview Requested/);
+  assert.match(testingHtml, /Assessment Received/);
+  assert.match(testingHtml, /Offer Received/);
+  assert.match(testingHtml, /Rejected/);
+  assert.match(testingHtml, /application-motifs/);
   assert.match(testingHtml, /Hidden experiment/);
   assert.doesNotMatch(testingHtml, /Track the signal in your job search/);
   assert.doesNotMatch(testingHtml, /living holographic\s+command center/);
+  assert.doesNotMatch(testingHtml, /Inbox signal|Timeline core|Privacy field|Signal matrix/i);
   assert.doesNotMatch(testingHtml, /class="home-nav"|class="app-footer/);
 
   for (const path of blogPaths) {

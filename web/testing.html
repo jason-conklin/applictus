@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex, nofollow" />
     <meta
       name="description"
-      content="A hidden experimental Applictus concept page with immersive holographic interfaces and cinematic WebGL motion."
+      content="A hidden Applictus concept page showing forwarded job emails becoming an organized application timeline."
     />
     <title>Applictus Experimental Interface</title>
     <link rel="icon" href="/Applictus_logo.png" type="image/png" />
@@ -22,16 +22,17 @@
     <style>
       :root {
         color-scheme: dark;
-        --cyan: #55e8ff;
-        --blue: #2874ff;
-        --violet: #9a66ff;
-        --magenta: #ff4fd8;
+        --cyan: #58e6ff;
+        --blue: #2f7cff;
+        --blue-soft: #7fb6ff;
+        --navy: #071631;
         --green: #5dffba;
+        --gold: #ffd983;
         --text: #f6fbff;
         --muted: rgba(224, 238, 255, 0.72);
         --glass: rgba(10, 18, 38, 0.5);
         --glass-strong: rgba(15, 29, 61, 0.62);
-        --border: rgba(129, 222, 255, 0.22);
+        --border: rgba(129, 222, 255, 0.16);
       }
 
       * {
@@ -58,9 +59,9 @@
         inset: 0;
         z-index: 0;
         background:
-          radial-gradient(circle at 50% 24%, rgba(75, 141, 255, 0.22), transparent 28%),
-          radial-gradient(circle at 18% 22%, rgba(93, 255, 186, 0.13), transparent 30%),
-          radial-gradient(circle at 82% 18%, rgba(255, 79, 216, 0.15), transparent 30%),
+          radial-gradient(circle at 50% 24%, rgba(56, 132, 255, 0.26), transparent 30%),
+          radial-gradient(circle at 18% 22%, rgba(88, 230, 255, 0.11), transparent 30%),
+          radial-gradient(circle at 82% 18%, rgba(139, 186, 255, 0.13), transparent 32%),
           linear-gradient(180deg, #051124 0%, #030712 52%, #02030a 100%);
       }
 
@@ -104,7 +105,7 @@
         opacity: 0.84;
         background:
           radial-gradient(circle at calc(45% + var(--mx, 0px)) calc(45% + var(--my, 0px)), rgba(86, 232, 255, 0.18), transparent 23%),
-          conic-gradient(from 225deg at 50% 50%, transparent, rgba(46, 116, 255, 0.22), transparent, rgba(255, 79, 216, 0.16), transparent);
+          conic-gradient(from 225deg at 50% 50%, transparent, rgba(46, 116, 255, 0.24), transparent, rgba(141, 197, 255, 0.12), transparent);
         filter: blur(22px) saturate(1.24);
         animation: nebulaDrift 18s ease-in-out infinite alternate;
       }
@@ -156,6 +157,136 @@
         top: 46%;
         transform: translate(-50%, -50%) rotateX(64deg) rotateZ(34deg);
         animation: orbitalSpin 12s linear infinite reverse;
+      }
+
+      .application-motifs {
+        position: absolute;
+        inset: 0;
+        z-index: 4;
+        pointer-events: none;
+        opacity: 0.52;
+      }
+
+      .motif-mail,
+      .timeline-trace,
+      .status-spark {
+        position: absolute;
+        filter: drop-shadow(0 0 18px rgba(88, 230, 255, 0.18));
+      }
+
+      .motif-mail {
+        width: 46px;
+        height: 30px;
+        border: 1px solid rgba(140, 205, 255, 0.28);
+        border-radius: 8px;
+        background: linear-gradient(145deg, rgba(27, 65, 132, 0.18), rgba(4, 12, 29, 0.08));
+      }
+
+      .motif-mail::before,
+      .motif-mail::after {
+        content: "";
+        position: absolute;
+        top: 7px;
+        width: 25px;
+        height: 1px;
+        background: rgba(150, 218, 255, 0.34);
+      }
+
+      .motif-mail::before {
+        left: 1px;
+        rotate: 31deg;
+        transform-origin: left center;
+      }
+
+      .motif-mail::after {
+        right: 1px;
+        rotate: -31deg;
+        transform-origin: right center;
+      }
+
+      .motif-mail--one {
+        left: 14%;
+        top: 33%;
+        animation: motifDrift 9s ease-in-out infinite;
+      }
+
+      .motif-mail--two {
+        right: 16%;
+        top: 57%;
+        scale: 0.78;
+        animation: motifDrift 11s ease-in-out -3s infinite reverse;
+      }
+
+      .timeline-trace {
+        display: grid;
+        gap: 12px;
+        width: 7px;
+      }
+
+      .timeline-trace::before {
+        content: "";
+        position: absolute;
+        left: 3px;
+        top: 5px;
+        bottom: 5px;
+        width: 1px;
+        background: linear-gradient(180deg, transparent, rgba(118, 204, 255, 0.4), transparent);
+      }
+
+      .timeline-trace i {
+        position: relative;
+        display: block;
+        width: 7px;
+        height: 7px;
+        border: 1px solid rgba(153, 220, 255, 0.55);
+        border-radius: 50%;
+        background: rgba(16, 48, 99, 0.45);
+      }
+
+      .timeline-trace--one {
+        left: 25%;
+        bottom: 18%;
+        animation: motifDrift 10s ease-in-out -1.5s infinite;
+      }
+
+      .timeline-trace--two {
+        right: 28%;
+        top: 20%;
+        scale: 0.82;
+        animation: motifDrift 12s ease-in-out -5s infinite reverse;
+      }
+
+      .status-spark {
+        width: 54px;
+        height: 18px;
+        border: 1px solid rgba(126, 190, 255, 0.25);
+        border-radius: 999px;
+        background: rgba(44, 116, 255, 0.12);
+      }
+
+      .status-spark::before {
+        content: "";
+        position: absolute;
+        left: 8px;
+        top: 50%;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--cyan);
+        box-shadow: 0 0 14px rgba(88, 230, 255, 0.48);
+        transform: translateY(-50%);
+      }
+
+      .status-spark--one {
+        left: 9%;
+        bottom: 31%;
+        animation: motifDrift 8s ease-in-out -2s infinite;
+      }
+
+      .status-spark--two {
+        right: 9%;
+        top: 34%;
+        animation: motifDrift 9.5s ease-in-out -4s infinite reverse;
       }
 
       .experience {
@@ -222,10 +353,10 @@
         gap: 9px;
         min-height: 36px;
         padding: 0 13px;
-        border: 1px solid rgba(93, 255, 186, 0.28);
+        border: 1px solid rgba(111, 185, 255, 0.3);
         border-radius: 999px;
-        color: rgba(235, 255, 249, 0.92);
-        background: rgba(30, 255, 188, 0.08);
+        color: rgba(231, 244, 255, 0.92);
+        background: rgba(47, 124, 255, 0.12);
         font-size: 0.72rem;
         font-weight: 800;
         letter-spacing: 0.12em;
@@ -238,8 +369,8 @@
         width: 8px;
         height: 8px;
         border-radius: 50%;
-        background: var(--green);
-        box-shadow: 0 0 16px var(--green);
+        background: var(--cyan);
+        box-shadow: 0 0 16px var(--cyan);
       }
 
       .hero {
@@ -301,7 +432,7 @@
         display: inline-block;
         color: transparent;
         background:
-          linear-gradient(112deg, #ffffff 0%, #c5f8ff 18%, #69e6ff 36%, #7895ff 55%, #ff69dd 82%, #ffffff 100%);
+          linear-gradient(112deg, #ffffff 0%, #d8f8ff 20%, #74e5ff 38%, #8fbaff 68%, #ffffff 100%);
         background-clip: text;
         -webkit-background-clip: text;
         filter: drop-shadow(0 0 22px rgba(85, 232, 255, 0.12));
@@ -458,13 +589,13 @@
       }
 
       .testing-brand-accent--application {
-        color: #65ffad;
-        text-shadow: 0 0 18px rgba(101, 255, 173, 0.28);
+        color: #d7f8ff;
+        text-shadow: 0 0 18px rgba(88, 230, 255, 0.24);
       }
 
       .testing-brand-accent--status {
-        color: #ff585e;
-        text-shadow: 0 0 18px rgba(255, 88, 94, 0.28);
+        color: #7fb6ff;
+        text-shadow: 0 0 18px rgba(47, 124, 255, 0.28);
       }
 
       .hero-copy {
@@ -517,7 +648,7 @@
       .btn-primary {
         border: 1px solid rgba(96, 231, 255, 0.54);
         color: #031020;
-        background: linear-gradient(135deg, #72f0ff, #79a4ff 48%, #ff7de5);
+        background: linear-gradient(135deg, #72f0ff, #8dbbff 52%, #ffffff);
         box-shadow:
           0 0 28px rgba(101, 226, 255, 0.32),
           0 20px 58px rgba(36, 99, 255, 0.28);
@@ -535,20 +666,22 @@
       .holo-card {
         position: absolute;
         z-index: 7;
-        width: clamp(210px, 19vw, 300px);
+        width: clamp(220px, 19vw, 310px);
         border: 1px solid var(--border);
         border-radius: 24px;
         background:
-          linear-gradient(145deg, rgba(21, 42, 84, 0.64), rgba(6, 13, 30, 0.42)),
-          radial-gradient(circle at 22% 18%, rgba(85, 232, 255, 0.18), transparent 36%);
+          linear-gradient(145deg, rgba(19, 45, 94, 0.48), rgba(5, 12, 29, 0.34)),
+          radial-gradient(circle at 22% 18%, rgba(88, 230, 255, 0.11), transparent 38%);
         box-shadow:
-          0 26px 80px rgba(0, 0, 0, 0.34),
-          inset 0 1px 0 rgba(255, 255, 255, 0.12),
+          0 24px 74px rgba(0, 0, 0, 0.28),
+          inset 0 1px 0 rgba(255, 255, 255, 0.09),
           0 0 0 1px rgba(255, 255, 255, 0.03);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
+        opacity: 0.74;
         transform: translate3d(var(--card-x, 0px), var(--card-y, 0px), 0) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
         transition:
+          opacity 240ms ease,
           border-color 240ms ease,
           box-shadow 240ms ease,
           transform 160ms ease;
@@ -556,11 +689,12 @@
       }
 
       .holo-card:hover {
-        border-color: rgba(92, 237, 255, 0.5);
+        opacity: 0.92;
+        border-color: rgba(92, 237, 255, 0.36);
         box-shadow:
-          0 32px 94px rgba(0, 0, 0, 0.42),
-          0 0 42px rgba(85, 232, 255, 0.16),
-          inset 0 1px 0 rgba(255, 255, 255, 0.16);
+          0 30px 88px rgba(0, 0, 0, 0.36),
+          0 0 32px rgba(85, 232, 255, 0.12),
+          inset 0 1px 0 rgba(255, 255, 255, 0.12);
       }
 
       .holo-card::before {
@@ -570,7 +704,7 @@
         border-radius: inherit;
         pointer-events: none;
         background: linear-gradient(120deg, transparent 12%, rgba(255, 255, 255, 0.16), transparent 38%);
-        opacity: 0.62;
+        opacity: 0.32;
         transform: translateX(-54%);
       }
 
@@ -584,7 +718,7 @@
         align-items: center;
         justify-content: space-between;
         gap: 10px;
-        color: rgba(220, 242, 255, 0.68);
+        color: rgba(220, 242, 255, 0.62);
         font-size: 0.68rem;
         font-weight: 850;
         letter-spacing: 0.14em;
@@ -603,14 +737,14 @@
       .card-title {
         margin: 14px 0 0;
         color: #f7fbff;
-        font-size: 1.12rem;
+        font-size: 1.05rem;
         font-weight: 850;
         line-height: 1.18;
       }
 
       .card-copy {
         margin: 9px 0 0;
-        color: rgba(224, 238, 255, 0.68);
+        color: rgba(224, 238, 255, 0.64);
         font-size: 0.87rem;
         line-height: 1.55;
       }
@@ -625,9 +759,102 @@
         display: block;
         height: 7px;
         border-radius: 999px;
-        background: linear-gradient(90deg, rgba(85, 232, 255, 0.88), rgba(154, 102, 255, 0.3), transparent);
+        background: linear-gradient(90deg, rgba(85, 232, 255, 0.72), rgba(93, 149, 255, 0.24), transparent);
         transform-origin: left;
         animation: dataPulse 2.8s ease-in-out infinite;
+      }
+
+      .mini-event-list {
+        display: grid;
+        gap: 7px;
+        margin-top: 15px;
+      }
+
+      .mini-event {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 8px;
+        min-height: 24px;
+        color: rgba(239, 248, 255, 0.78);
+        font-size: 0.72rem;
+        font-weight: 760;
+      }
+
+      .mini-event::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--cyan);
+        box-shadow: 0 0 12px rgba(88, 230, 255, 0.42);
+      }
+
+      .mini-event span {
+        justify-self: end;
+        padding: 3px 7px;
+        border: 1px solid rgba(128, 190, 255, 0.18);
+        border-radius: 999px;
+        color: rgba(218, 238, 255, 0.68);
+        background: rgba(41, 106, 220, 0.1);
+        font-size: 0.58rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      .flow-map {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 12px;
+        margin-top: 16px;
+      }
+
+      .flow-sources {
+        display: grid;
+        gap: 6px;
+      }
+
+      .flow-source,
+      .flow-target {
+        border: 1px solid rgba(128, 190, 255, 0.18);
+        border-radius: 10px;
+        color: rgba(238, 248, 255, 0.82);
+        background: rgba(9, 24, 55, 0.36);
+        font-size: 0.68rem;
+        font-weight: 780;
+      }
+
+      .flow-source {
+        padding: 6px 8px;
+      }
+
+      .flow-arrow {
+        position: relative;
+        width: 32px;
+        height: 1px;
+        background: linear-gradient(90deg, rgba(88, 230, 255, 0.18), rgba(88, 230, 255, 0.72));
+        box-shadow: 0 0 14px rgba(88, 230, 255, 0.2);
+      }
+
+      .flow-arrow::after {
+        content: "";
+        position: absolute;
+        margin: -4px 0 0 27px;
+        width: 8px;
+        height: 8px;
+        border-top: 1px solid rgba(88, 230, 255, 0.72);
+        border-right: 1px solid rgba(88, 230, 255, 0.72);
+        rotate: 45deg;
+      }
+
+      .flow-target {
+        display: grid;
+        place-items: center;
+        min-height: 74px;
+        padding: 10px;
+        text-align: center;
+        box-shadow: inset 0 0 24px rgba(47, 124, 255, 0.08);
       }
 
       .data-lines span:nth-child(2) {
@@ -658,18 +885,25 @@
         animation-delay: -4.5s;
       }
 
+      .holo-card--flow {
+        right: clamp(330px, 32vw, 470px);
+        bottom: 7%;
+        animation-delay: -3.4s;
+      }
+
       .command-deck {
         position: absolute;
         left: clamp(12px, 5vw, 92px);
         bottom: 9%;
         z-index: 8;
         width: clamp(250px, 27vw, 390px);
-        border: 1px solid rgba(130, 222, 255, 0.18);
+        border: 1px solid rgba(130, 222, 255, 0.15);
         border-radius: 26px;
-        background: linear-gradient(160deg, rgba(14, 30, 68, 0.58), rgba(5, 10, 24, 0.42));
-        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.32);
+        background: linear-gradient(160deg, rgba(14, 34, 77, 0.5), rgba(5, 10, 24, 0.36));
+        box-shadow: 0 26px 82px rgba(0, 0, 0, 0.28);
         backdrop-filter: blur(18px);
         -webkit-backdrop-filter: blur(18px);
+        opacity: 0.78;
       }
 
       .command-header {
@@ -687,48 +921,59 @@
 
       .command-screen {
         display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 10px;
+        gap: 12px;
         padding: 15px 17px 17px;
       }
 
-      .command-row {
-        display: grid;
-        gap: 7px;
-      }
-
-      .command-row span {
-        display: block;
-        height: 8px;
-        border-radius: 999px;
-        background: rgba(184, 219, 255, 0.14);
-      }
-
-      .command-row strong {
+      .activity-summary {
         color: rgba(246, 251, 255, 0.94);
         font-size: 1.02rem;
+        font-weight: 850;
         line-height: 1.2;
       }
 
-      .radar {
-        position: relative;
-        width: 74px;
-        height: 74px;
-        border: 1px solid rgba(85, 232, 255, 0.24);
-        border-radius: 50%;
-        background:
-          radial-gradient(circle, rgba(85, 232, 255, 0.22) 0 3px, transparent 4px),
-          repeating-radial-gradient(circle, rgba(85, 232, 255, 0.14) 0 1px, transparent 1px 18px);
-        overflow: hidden;
+      .activity-list {
+        display: grid;
+        gap: 8px;
       }
 
-      .radar::after {
+      .activity-item {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        align-items: center;
+        gap: 9px;
+        min-height: 30px;
+        padding: 7px 9px;
+        border: 1px solid rgba(128, 190, 255, 0.13);
+        border-radius: 13px;
+        color: rgba(231, 243, 255, 0.8);
+        background: rgba(11, 28, 61, 0.28);
+        font-size: 0.78rem;
+        font-weight: 780;
+      }
+
+      .activity-item::before {
         content: "";
-        position: absolute;
-        inset: 50% 50% 0 0;
-        transform-origin: 100% 0;
-        background: linear-gradient(45deg, rgba(85, 232, 255, 0.42), transparent 68%);
-        animation: radarSweep 2.8s linear infinite;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--cyan);
+        box-shadow: 0 0 14px rgba(88, 230, 255, 0.42);
+      }
+
+      .activity-item--offer::before {
+        background: var(--green);
+        box-shadow: 0 0 14px rgba(93, 255, 186, 0.34);
+      }
+
+      .activity-item--assessment::before {
+        background: var(--gold);
+        box-shadow: 0 0 14px rgba(255, 217, 131, 0.32);
+      }
+
+      .activity-item--rejected::before {
+        background: #ff7a82;
+        box-shadow: 0 0 14px rgba(255, 122, 130, 0.26);
       }
 
       .scanline {
@@ -789,6 +1034,18 @@
         }
       }
 
+      @keyframes motifDrift {
+        0%,
+        100% {
+          translate: 0 0;
+          opacity: 0.42;
+        }
+        50% {
+          translate: 0 -10px;
+          opacity: 0.76;
+        }
+      }
+
       @keyframes cardFloat {
         0%,
         100% {
@@ -820,15 +1077,6 @@
         50% {
           transform: scaleX(1);
           opacity: 0.96;
-        }
-      }
-
-      @keyframes radarSweep {
-        0% {
-          transform: rotate(0deg);
-        }
-        100% {
-          transform: rotate(360deg);
         }
       }
 
@@ -1028,6 +1276,7 @@
         }
 
         .holo-card--bottom,
+        .holo-card--flow,
         .command-deck {
           display: none;
         }
@@ -1145,7 +1394,8 @@
         }
 
         .card-copy,
-        .data-lines {
+        .data-lines,
+        .mini-event-list {
           display: none;
         }
 
@@ -1212,6 +1462,14 @@
       <div class="depth-grid" aria-hidden="true"></div>
       <div class="orbital-ring orbital-ring--one" aria-hidden="true"></div>
       <div class="orbital-ring orbital-ring--two" aria-hidden="true"></div>
+      <div class="application-motifs" aria-hidden="true">
+        <span class="motif-mail motif-mail--one"></span>
+        <span class="motif-mail motif-mail--two"></span>
+        <span class="timeline-trace timeline-trace--one"><i></i><i></i><i></i></span>
+        <span class="timeline-trace timeline-trace--two"><i></i><i></i><i></i></span>
+        <span class="status-spark status-spark--one"></span>
+        <span class="status-spark status-spark--two"></span>
+      </div>
 
       <section class="experience" aria-labelledby="testing-title">
         <div class="topbar">
@@ -1258,22 +1516,21 @@
 
           <article class="holo-card holo-card--left" data-tilt data-depth="0.54">
             <div class="card-inner">
-              <div class="card-label">Inbox signal <span class="pulse" aria-hidden="true"></span></div>
-              <h2 class="card-title">Email updates become motion.</h2>
-              <p class="card-copy">Forwarded job messages resolve into structured status events.</p>
-              <div class="data-lines" aria-hidden="true">
-                <span></span>
-                <span></span>
-                <span></span>
+              <div class="card-label">Application updates <span class="pulse" aria-hidden="true"></span></div>
+              <h2 class="card-title">Forwarded emails become application activity.</h2>
+              <p class="card-copy">Applictus turns job-related messages into structured updates automatically.</p>
+              <div class="mini-event-list" aria-hidden="true">
+                <div class="mini-event">LinkedIn confirmation <span>Applied</span></div>
+                <div class="mini-event">Recruiter reply <span>Next step</span></div>
               </div>
             </div>
           </article>
 
           <article class="holo-card holo-card--right" data-tilt data-depth="0.42">
             <div class="card-inner">
-              <div class="card-label">Timeline core <span class="pulse" aria-hidden="true"></span></div>
-              <h2 class="card-title">Every opportunity gets a trajectory.</h2>
-              <p class="card-copy">Applications, assessments, interviews, offers, and rejections stay visible.</p>
+              <div class="card-label">Application timeline <span class="pulse" aria-hidden="true"></span></div>
+              <h2 class="card-title">Interviews, assessments, offers, and rejections stay organized.</h2>
+              <p class="card-copy">Each hiring update lands in one timeline so the next step stays clear.</p>
               <div class="data-lines" aria-hidden="true">
                 <span></span>
                 <span></span>
@@ -1284,9 +1541,9 @@
 
           <article class="holo-card holo-card--bottom" data-tilt data-depth="0.36">
             <div class="card-inner">
-              <div class="card-label">Privacy field <span class="pulse" aria-hidden="true"></span></div>
-              <h2 class="card-title">No full Gmail inbox access.</h2>
-              <p class="card-copy">A controlled forwarding flow keeps the boundary clear.</p>
+              <div class="card-label">Privacy first <span class="pulse" aria-hidden="true"></span></div>
+              <h2 class="card-title">Processes forwarded job updates, not your entire inbox.</h2>
+              <p class="card-copy">You control what gets forwarded, and you can disable forwarding anytime.</p>
               <div class="data-lines" aria-hidden="true">
                 <span></span>
                 <span></span>
@@ -1295,19 +1552,36 @@
             </div>
           </article>
 
-          <aside class="command-deck" data-depth="0.5" aria-label="Experimental system status">
+          <article class="holo-card holo-card--flow" data-tilt data-depth="0.5">
+            <div class="card-inner">
+              <div class="card-label">Inbox to timeline <span class="pulse" aria-hidden="true"></span></div>
+              <h2 class="card-title">Job platforms flow into one Applictus timeline.</h2>
+              <div class="flow-map" aria-hidden="true">
+                <div class="flow-sources">
+                  <span class="flow-source">LinkedIn</span>
+                  <span class="flow-source">Indeed</span>
+                  <span class="flow-source">Workday</span>
+                  <span class="flow-source">Greenhouse</span>
+                </div>
+                <span class="flow-arrow"></span>
+                <span class="flow-target">Applictus Timeline</span>
+              </div>
+            </div>
+          </article>
+
+          <aside class="command-deck" data-depth="0.5" aria-label="Application activity preview">
             <div class="command-header">
-              <span>Signal matrix</span>
+              <span>Application activity</span>
               <span>Live</span>
             </div>
             <div class="command-screen">
-              <div class="command-row">
-                <strong>12 updates parsed</strong>
-                <span style="width: 92%"></span>
-                <span style="width: 68%"></span>
-                <span style="width: 78%"></span>
+              <div class="activity-summary">Recent hiring updates</div>
+              <div class="activity-list">
+                <div class="activity-item">Interview Requested</div>
+                <div class="activity-item activity-item--assessment">Assessment Received</div>
+                <div class="activity-item activity-item--offer">Offer Received</div>
+                <div class="activity-item activity-item--rejected">Rejected</div>
               </div>
-              <div class="radar" aria-hidden="true"></div>
             </div>
           </aside>
         </div>
@@ -1376,11 +1650,11 @@
             float core = smoothstep(0.5, 0.0, d);
             float spark = smoothstep(0.19, 0.0, d);
             vec3 cyan = vec3(0.33, 0.92, 1.0);
-            vec3 violet = vec3(0.58, 0.42, 1.0);
-            vec3 magenta = vec3(1.0, 0.31, 0.85);
-            vec3 color = mix(cyan, violet, smoothstep(0.18, 0.74, v_seed));
-            color = mix(color, magenta, smoothstep(0.74, 1.0, v_seed) * 0.72);
-            color += spark * vec3(0.8, 0.95, 1.0);
+            vec3 blue = vec3(0.17, 0.47, 1.0);
+            vec3 ice = vec3(0.78, 0.94, 1.0);
+            vec3 color = mix(cyan, blue, smoothstep(0.18, 0.72, v_seed));
+            color = mix(color, ice, smoothstep(0.72, 1.0, v_seed) * 0.52);
+            color += spark * vec3(0.72, 0.92, 1.0);
             gl_FragColor = vec4(color, core * 0.78 * min(v_depth, 1.55));
           }
         `;
