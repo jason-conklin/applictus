@@ -158,6 +158,11 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
   assertTopNavigation(publicAppShellHtml);
   assertTrimmedFooterLinks(sourceHtml);
   assertPlatformCarousel(sourceHtml);
+  assert.match(sourceHtml, /hero-brand-lockup hero-brand-lockup--wordmark-a/);
+  assert.match(sourceHtml, /<h1 class="hero-brand-wordmark" aria-label="Applictus">\s*<span aria-hidden="true">pplictus<\/span>\s*<\/h1>/);
+  assert.match(sourceHtml, /APPLICATION STATUS TRACKER|Application status tracker/);
+  assert.doesNotMatch(sourceHtml, /Simplify your job search and never miss an opportunity/);
+  assert.doesNotMatch(sourceHtml, /Automatically track confirmations, interviews, and rejections from your inbox/);
 
   const metaDescription = sourceHtml.match(/<meta\s+name="description"\s+content="([^"]+)"/i)?.[1] || '';
   for (const keyword of [

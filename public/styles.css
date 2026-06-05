@@ -12210,13 +12210,78 @@ body.home-page .hero-brand-accent--status {
   color: #ef2e32;
 }
 
+body.home-page .hero-brand-lockup--wordmark-a {
+  --hero-logo-size: clamp(128px, 13.8vw, 218px);
+  --hero-wordmark-size: clamp(4.8rem, 9.8vw, 9rem);
+  --hero-brand-intro-offset: clamp(178px, 18.5vw, 328px);
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  align-items: center;
+  gap: clamp(10px, 1.3vw, 18px);
+  width: min(100%, 1080px);
+}
+
+body.home-page .hero-brand-lockup--wordmark-a .hero-brand-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+}
+
+body.home-page .hero-brand-lockup--wordmark-a .hero-brand-icon {
+  flex: 0 0 var(--hero-logo-size);
+  top: 0.025em;
+  margin-right: clamp(2px, 0.45vw, 8px);
+}
+
+body.home-page .hero-brand-lockup--wordmark-a .hero-brand-icon::before {
+  inset: -18%;
+  opacity: 0.62;
+}
+
+body.home-page .hero-brand-lockup--wordmark-a .hero-brand-icon::after {
+  bottom: -11%;
+  opacity: 0.58;
+}
+
+body.home-page .hero-brand-lockup--wordmark-a .hero-brand-copy {
+  justify-items: center;
+  width: 100%;
+  max-width: 100%;
+  transform: none;
+}
+
+body.home-page .hero-brand-lockup--wordmark-a .hero-brand-wordmark {
+  margin: 0;
+  padding: 0 0 0.08em;
+  color: #08183a;
+  font-size: var(--hero-wordmark-size);
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: 0;
+  text-align: left;
+}
+
+body.home-page .hero-brand-lockup--wordmark-a .hero-brand-divider {
+  display: none;
+}
+
+body.home-page .hero-brand-lockup--wordmark-a .hero-brand-subtitle {
+  justify-content: center;
+  margin: clamp(6px, 0.82vw, 12px) 0 0;
+  font-size: clamp(1.1rem, 1.72vw, 1.62rem);
+}
+
 body.home-page .home-billboard-cta {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
   gap: 18px;
-  margin-top: clamp(4px, 0.6vh, 8px);
+  margin-top: clamp(12px, 1.6vh, 22px);
 }
 
 body.home-page .home-billboard-cta .btn-primary {
@@ -13761,6 +13826,112 @@ body.home-page.animate-ready.home-loaded .home-hero-platforms__note {
 
   body.home-page .home-hero-platforms__logo img {
     max-width: 96px;
+  }
+}
+
+@media (max-width: 1280px) and (min-width: 981px) {
+  body.home-page .hero-brand-lockup.hero-brand-lockup--wordmark-a {
+    --hero-logo-size: clamp(118px, 12.6vw, 190px);
+    --hero-wordmark-size: clamp(4.1rem, 8.5vw, 7.6rem);
+    --hero-brand-intro-offset: clamp(154px, 17vw, 270px);
+    grid-template-columns: 1fr;
+    gap: clamp(8px, 1.1vw, 14px);
+    width: min(100%, 920px);
+  }
+}
+
+@media (max-height: 860px) and (min-width: 981px) {
+  body.home-page .hero-brand-lockup.hero-brand-lockup--wordmark-a {
+    --hero-logo-size: clamp(104px, 11.4vw, 158px);
+    --hero-wordmark-size: clamp(3.5rem, 7.4vw, 6.1rem);
+    --hero-brand-intro-offset: clamp(132px, 15vw, 226px);
+    grid-template-columns: 1fr;
+    width: min(100%, 780px);
+  }
+
+  body.home-page .hero-brand-lockup--wordmark-a .hero-brand-subtitle {
+    font-size: clamp(0.82rem, 1.18vw, 1.06rem);
+    margin-top: 6px;
+  }
+
+  body.home-page .home-billboard-cta {
+    margin-top: clamp(8px, 1vh, 14px);
+  }
+}
+
+@media (max-width: 980px) {
+  body.home-page .hero-brand-lockup.hero-brand-lockup--wordmark-a {
+    --hero-logo-size: clamp(92px, 18vw, 146px);
+    --hero-wordmark-size: clamp(3.15rem, 10.8vw, 5.3rem);
+    --hero-brand-intro-offset: clamp(112px, 20vw, 208px);
+    grid-template-columns: 1fr;
+    justify-items: center;
+    width: min(100%, 760px);
+    max-width: 100%;
+  }
+
+  body.home-page .hero-brand-lockup--wordmark-a .hero-brand-primary {
+    max-width: 100%;
+  }
+
+  body.home-page .hero-brand-lockup--wordmark-a .hero-brand-copy {
+    max-width: 100%;
+  }
+
+  body.home-page .hero-brand-lockup--wordmark-a .hero-brand-subtitle {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 680px) {
+  body.home-page .hero-brand-lockup.hero-brand-lockup--wordmark-a {
+    --hero-logo-size: clamp(58px, 18vw, 86px);
+    --hero-wordmark-size: clamp(2.18rem, 11.6vw, 3.72rem);
+    --hero-brand-intro-offset: clamp(88px, 28vw, 138px);
+    grid-template-columns: 1fr;
+    gap: clamp(6px, 1.9vw, 10px);
+    width: min(100%, 430px);
+    max-width: calc(100vw - 20px);
+  }
+
+  body.home-page .hero-brand-lockup--wordmark-a .hero-brand-icon {
+    flex-basis: var(--hero-logo-size);
+    margin-right: clamp(1px, 0.8vw, 5px);
+  }
+
+  body.home-page .hero-brand-lockup--wordmark-a .hero-brand-copy {
+    max-width: 100%;
+  }
+
+  body.home-page .hero-brand-lockup--wordmark-a .hero-brand-wordmark {
+    font-size: var(--hero-wordmark-size);
+    text-align: left;
+  }
+
+  body.home-page .hero-brand-lockup--wordmark-a .hero-brand-subtitle {
+    margin-top: 4px;
+    font-size: clamp(0.54rem, 2.35vw, 0.8rem);
+    letter-spacing: 0.105em;
+  }
+
+  body.home-page .home-billboard-cta {
+    margin-top: clamp(8px, 1.4vh, 12px);
+  }
+}
+
+@media (max-width: 420px) {
+  body.home-page .hero-brand-lockup.hero-brand-lockup--wordmark-a {
+    --hero-logo-size: clamp(54px, 17.5vw, 70px);
+    --hero-wordmark-size: clamp(2rem, 11vw, 2.92rem);
+    --hero-brand-intro-offset: clamp(78px, 27vw, 116px);
+    width: min(100%, 390px);
+    max-width: calc(100vw - 18px);
+  }
+
+  body.home-page .hero-brand-lockup--wordmark-a .hero-brand-subtitle {
+    gap: clamp(4px, 1.7vw, 8px);
+    font-size: clamp(0.48rem, 2.18vw, 0.67rem);
+    letter-spacing: 0.088em;
   }
 }
 
