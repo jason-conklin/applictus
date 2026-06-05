@@ -97,6 +97,7 @@ test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) =
     assert.equal(sitemap.includes(excluded), false);
   }
   assert.equal(sitemap.includes('https://applictus.com/free-job-application-tracker'), false);
+  assert.equal(sitemap.includes('https://applictus.com/testing'), false);
 
   const robotsResponse = await fetch(`${baseUrl}/robots.txt`, { redirect: 'manual' });
   assert.equal(robotsResponse.status, 200);
@@ -116,6 +117,25 @@ test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) =
   const bannerResponse = await fetch(`${baseUrl}/applictus-banner.png`, { redirect: 'manual' });
   assert.equal(bannerResponse.status, 200);
   assert.match(bannerResponse.headers.get('content-type') || '', /image\/png/);
+
+  const testingResponse = await fetch(`${baseUrl}/testing`, { redirect: 'manual' });
+  assert.equal(testingResponse.status, 200);
+  assert.match(testingResponse.headers.get('content-type') || '', /text\/html/);
+  const testingHtml = await testingResponse.text();
+  assert.match(testingHtml, /<meta name="robots" content="noindex, nofollow" \/>/);
+  assert.match(testingHtml, /id="testing-cosmos"/);
+  assert.match(testingHtml, /getContext\('webgl'/);
+  assert.match(testingHtml, /testing-brand-lockup/);
+  assert.match(testingHtml, /testing-brand-logo--frame1/);
+  assert.match(testingHtml, /testing-brand-logo-blue--diagonal/);
+  assert.match(testingHtml, /<span aria-hidden="true">pplictus<\/span>/);
+  assert.match(testingHtml, /Application<\/span>\s*<span class="testing-brand-accent--status">Status<\/span>\s*<span>Tracker/);
+  assert.match(testingHtml, /@keyframes testingBrandIcon/);
+  assert.match(testingHtml, /class="holo-card/);
+  assert.match(testingHtml, /Hidden experiment/);
+  assert.doesNotMatch(testingHtml, /Track the signal in your job search/);
+  assert.doesNotMatch(testingHtml, /living holographic\s+command center/);
+  assert.doesNotMatch(testingHtml, /class="home-nav"|class="app-footer/);
 
   for (const path of blogPaths) {
     const response = await fetch(`${baseUrl}${path}`, { redirect: 'manual' });

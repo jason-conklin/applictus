@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta
+      name="description"
+      content="A hidden experimental Applictus concept page with immersive holographic interfaces and cinematic WebGL motion."
+    />
+    <title>Applictus Experimental Interface</title>
+    <link rel="icon" href="/Applictus_logo.png" type="image/png" />
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18215087830"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'AW-18215087830');
+    </script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --cyan: #55e8ff;
+        --blue: #2874ff;
+        --violet: #9a66ff;
+        --magenta: #ff4fd8;
+        --green: #5dffba;
+        --text: #f6fbff;
+        --muted: rgba(224, 238, 255, 0.72);
+        --glass: rgba(10, 18, 38, 0.5);
+        --glass-strong: rgba(15, 29, 61, 0.62);
+        --border: rgba(129, 222, 255, 0.22);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        min-width: 320px;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #030712;
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        background:
+          radial-gradient(circle at 50% 24%, rgba(75, 141, 255, 0.22), transparent 28%),
+          radial-gradient(circle at 18% 22%, rgba(93, 255, 186, 0.13), transparent 30%),
+          radial-gradient(circle at 82% 18%, rgba(255, 79, 216, 0.15), transparent 30%),
+          linear-gradient(180deg, #051124 0%, #030712 52%, #02030a 100%);
+      }
+
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: 2;
+        pointer-events: none;
+        background:
+          linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+        background-size: 82px 82px;
+        mask-image: radial-gradient(circle at 50% 40%, black 0%, transparent 70%);
+        opacity: 0.42;
+      }
+
+      .testing-page {
+        position: relative;
+        isolation: isolate;
+        width: 100%;
+        height: 100dvh;
+        min-height: 620px;
+        overflow: hidden;
+      }
+
+      .testing-canvas {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .nebula {
+        position: absolute;
+        inset: -12%;
+        z-index: 3;
+        pointer-events: none;
+        opacity: 0.84;
+        background:
+          radial-gradient(circle at calc(45% + var(--mx, 0px)) calc(45% + var(--my, 0px)), rgba(86, 232, 255, 0.18), transparent 23%),
+          conic-gradient(from 225deg at 50% 50%, transparent, rgba(46, 116, 255, 0.22), transparent, rgba(255, 79, 216, 0.16), transparent);
+        filter: blur(22px) saturate(1.24);
+        animation: nebulaDrift 18s ease-in-out infinite alternate;
+      }
+
+      .depth-grid {
+        position: absolute;
+        left: 50%;
+        bottom: -34%;
+        z-index: 4;
+        width: min(1180px, 118vw);
+        height: min(720px, 76vh);
+        transform: translateX(-50%) rotateX(68deg) rotateZ(0deg);
+        transform-origin: 50% 100%;
+        border-radius: 50%;
+        opacity: 0.44;
+        pointer-events: none;
+        background:
+          linear-gradient(rgba(85, 232, 255, 0.18) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(85, 232, 255, 0.18) 1px, transparent 1px);
+        background-size: 58px 58px;
+        mask-image: radial-gradient(ellipse at center, black 0%, black 38%, transparent 72%);
+        animation: gridCruise 10s linear infinite;
+      }
+
+      .orbital-ring {
+        position: absolute;
+        z-index: 4;
+        pointer-events: none;
+        border: 1px solid rgba(100, 220, 255, 0.2);
+        border-radius: 50%;
+        box-shadow:
+          inset 0 0 42px rgba(59, 128, 255, 0.1),
+          0 0 52px rgba(93, 232, 255, 0.08);
+      }
+
+      .orbital-ring--one {
+        width: min(850px, 78vw);
+        height: min(850px, 78vw);
+        left: 50%;
+        top: 48%;
+        transform: translate(-50%, -50%) rotateX(72deg) rotateZ(-18deg);
+        animation: orbitalSpin 16s linear infinite;
+      }
+
+      .orbital-ring--two {
+        width: min(560px, 56vw);
+        height: min(560px, 56vw);
+        left: 50%;
+        top: 46%;
+        transform: translate(-50%, -50%) rotateX(64deg) rotateZ(34deg);
+        animation: orbitalSpin 12s linear infinite reverse;
+      }
+
+      .experience {
+        position: relative;
+        z-index: 5;
+        display: grid;
+        grid-template-rows: auto 1fr;
+        width: min(1440px, calc(100vw - 44px));
+        height: 100%;
+        min-height: 620px;
+        margin: 0 auto;
+        padding: clamp(22px, 3vw, 42px) 0 clamp(18px, 2.2vw, 34px);
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 10px 12px 10px 10px;
+        border: 1px solid rgba(120, 221, 255, 0.18);
+        border-radius: 22px;
+        background: linear-gradient(135deg, rgba(13, 26, 57, 0.6), rgba(8, 16, 35, 0.32));
+        box-shadow: 0 22px 64px rgba(0, 0, 0, 0.28);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .brand img {
+        width: 36px;
+        height: 36px;
+        object-fit: contain;
+        filter: drop-shadow(0 0 16px rgba(86, 232, 255, 0.28));
+      }
+
+      .brand strong {
+        display: block;
+        font-size: 1rem;
+        line-height: 1;
+        letter-spacing: 0.01em;
+      }
+
+      .brand small {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 0.66rem;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        min-height: 36px;
+        padding: 0 13px;
+        border: 1px solid rgba(93, 255, 186, 0.28);
+        border-radius: 999px;
+        color: rgba(235, 255, 249, 0.92);
+        background: rgba(30, 255, 188, 0.08);
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .status-chip::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--green);
+        box-shadow: 0 0 16px var(--green);
+      }
+
+      .hero {
+        position: relative;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        align-items: center;
+        justify-items: center;
+        height: 100%;
+        padding: clamp(18px, 3vw, 42px) 0 0;
+      }
+
+      .hero-core {
+        position: relative;
+        z-index: 8;
+        display: grid;
+        justify-items: center;
+        width: min(930px, 100%);
+        text-align: center;
+      }
+
+      .signal-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 38px;
+        padding: 0 15px;
+        border: 1px solid rgba(116, 220, 255, 0.22);
+        border-radius: 999px;
+        color: rgba(231, 246, 255, 0.82);
+        background: rgba(9, 23, 50, 0.48);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .signal-label span {
+        width: 38px;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--cyan));
+        box-shadow: 0 0 12px rgba(85, 232, 255, 0.7);
+      }
+
+      h1 {
+        width: min(980px, 100%);
+        margin: clamp(18px, 2.4vw, 28px) 0 0;
+        font-size: clamp(3rem, 9vw, 8.8rem);
+        font-weight: 850;
+        line-height: 0.88;
+        letter-spacing: -0.04em;
+        text-wrap: balance;
+      }
+
+      .holo-text {
+        display: inline-block;
+        color: transparent;
+        background:
+          linear-gradient(112deg, #ffffff 0%, #c5f8ff 18%, #69e6ff 36%, #7895ff 55%, #ff69dd 82%, #ffffff 100%);
+        background-clip: text;
+        -webkit-background-clip: text;
+        filter: drop-shadow(0 0 22px rgba(85, 232, 255, 0.12));
+      }
+
+      .testing-brand-lockup {
+        --testing-logo-size: clamp(118px, 12.8vw, 208px);
+        --testing-wordmark-size: clamp(4.1rem, 9.1vw, 8.35rem);
+        --testing-intro-offset: clamp(152px, 17vw, 306px);
+        display: grid;
+        justify-items: center;
+        width: min(100%, 1040px);
+      }
+
+      .testing-brand-primary {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: max-content;
+        max-width: 100%;
+        min-width: 0;
+      }
+
+      .testing-brand-icon {
+        position: relative;
+        display: grid;
+        flex: 0 0 var(--testing-logo-size);
+        place-items: center;
+        width: var(--testing-logo-size);
+        height: var(--testing-logo-size);
+        margin-right: clamp(2px, 0.45vw, 8px);
+        background: transparent;
+        filter: none;
+        transform-origin: center;
+        animation: testingBrandIcon 3500ms cubic-bezier(0.16, 1, 0.3, 1) 260ms both;
+      }
+
+      .testing-brand-logo-stage {
+        position: relative;
+        display: block;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        filter: none;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-user-drag: none;
+        pointer-events: none;
+      }
+
+      .testing-brand-logo,
+      .testing-brand-logo-blue {
+        position: absolute;
+        inset: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        background: transparent;
+        pointer-events: none;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-user-drag: none;
+      }
+
+      .testing-brand-logo--frame,
+      .testing-brand-logo-blue {
+        opacity: 0;
+        transform: translate3d(0, 0, 0);
+        will-change: opacity, transform, clip-path;
+      }
+
+      .testing-brand-logo--frame {
+        transform-origin: 50% 100%;
+      }
+
+      .testing-brand-logo--complete {
+        z-index: 8;
+        opacity: 1;
+        transform-origin: center;
+        will-change: opacity, transform, filter;
+        animation: testingLogoCompleteLock 180ms cubic-bezier(0.22, 1, 0.36, 1) 2920ms both;
+      }
+
+      .testing-brand-logo--frame1 {
+        z-index: 1;
+        animation: testingLogoRevealUp 900ms cubic-bezier(0.22, 1, 0.36, 1) 320ms both;
+      }
+
+      .testing-brand-logo--frame2 {
+        z-index: 2;
+        animation: testingLogoRevealYellow 880ms cubic-bezier(0.22, 1, 0.36, 1) 680ms both;
+      }
+
+      .testing-brand-logo--frame3 {
+        z-index: 3;
+        animation: testingLogoRevealGreen 900ms cubic-bezier(0.22, 1, 0.36, 1) 1140ms both;
+      }
+
+      .testing-brand-logo-blue {
+        z-index: 5;
+      }
+
+      .testing-brand-logo-blue--diagonal {
+        transform-origin: 62% 8%;
+        animation: testingLogoRevealDown 1350ms cubic-bezier(0.22, 1, 0.36, 1) 1540ms both;
+      }
+
+      .testing-brand-logo-blue--crossbar {
+        transform-origin: 38% 62%;
+        animation: testingLogoRevealRight 1250ms cubic-bezier(0.22, 1, 0.36, 1) 1640ms both;
+      }
+
+      .testing-brand-logo-blue--leg {
+        transform-origin: 78% 54%;
+        animation: testingLogoRevealLeg 1050ms cubic-bezier(0.22, 1, 0.36, 1) 1680ms both;
+      }
+
+      .testing-brand-wordmark {
+        margin: 0;
+        padding: 0 0 0.08em;
+        color: rgba(246, 251, 255, 0.96);
+        font-size: var(--testing-wordmark-size);
+        font-weight: 850;
+        line-height: 0.9;
+        letter-spacing: 0;
+        text-align: left;
+        text-shadow:
+          0 0 24px rgba(85, 232, 255, 0.18),
+          0 18px 58px rgba(23, 70, 170, 0.22);
+        clip-path: inset(0 100% 0 0);
+        opacity: 0;
+        animation: testingWordmarkReveal 980ms cubic-bezier(0.18, 0.86, 0.24, 1) 3020ms both;
+      }
+
+      .testing-brand-subtitle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: clamp(11px, 1.35vw, 22px);
+        margin: clamp(7px, 0.9vw, 14px) 0 0;
+        color: rgba(235, 246, 255, 0.82);
+        font-size: clamp(1rem, 1.5vw, 1.45rem);
+        font-weight: 800;
+        letter-spacing: 0.18em;
+        line-height: 1.35;
+        text-transform: uppercase;
+        white-space: nowrap;
+        opacity: 0;
+        transform: translate3d(0, 12px, 0);
+        animation: testingSubtitleReveal 700ms cubic-bezier(0.18, 0.86, 0.24, 1) 3480ms both;
+      }
+
+      .testing-brand-accent--application {
+        color: #65ffad;
+        text-shadow: 0 0 18px rgba(101, 255, 173, 0.28);
+      }
+
+      .testing-brand-accent--status {
+        color: #ff585e;
+        text-shadow: 0 0 18px rgba(255, 88, 94, 0.28);
+      }
+
+      .hero-copy {
+        width: min(710px, 100%);
+        margin: clamp(18px, 2vw, 28px) 0 0;
+        color: rgba(229, 239, 255, 0.78);
+        font-size: clamp(1rem, 1.55vw, 1.32rem);
+        line-height: 1.65;
+        text-wrap: balance;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 14px;
+        margin-top: clamp(24px, 3vw, 38px);
+      }
+
+      .btn {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 52px;
+        min-width: 176px;
+        padding: 0 22px;
+        overflow: hidden;
+        border-radius: 999px;
+        font-size: 0.94rem;
+        font-weight: 850;
+        text-decoration: none;
+        isolation: isolate;
+      }
+
+      .btn::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.42) 48%, transparent 68%);
+        transform: translateX(-125%);
+        transition: transform 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+
+      .btn:hover::after {
+        transform: translateX(125%);
+      }
+
+      .btn-primary {
+        border: 1px solid rgba(96, 231, 255, 0.54);
+        color: #031020;
+        background: linear-gradient(135deg, #72f0ff, #79a4ff 48%, #ff7de5);
+        box-shadow:
+          0 0 28px rgba(101, 226, 255, 0.32),
+          0 20px 58px rgba(36, 99, 255, 0.28);
+      }
+
+      .btn-secondary {
+        border: 1px solid rgba(157, 194, 255, 0.28);
+        color: rgba(242, 248, 255, 0.94);
+        background: rgba(8, 22, 48, 0.56);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+      }
+
+      .holo-card {
+        position: absolute;
+        z-index: 7;
+        width: clamp(210px, 19vw, 300px);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        background:
+          linear-gradient(145deg, rgba(21, 42, 84, 0.64), rgba(6, 13, 30, 0.42)),
+          radial-gradient(circle at 22% 18%, rgba(85, 232, 255, 0.18), transparent 36%);
+        box-shadow:
+          0 26px 80px rgba(0, 0, 0, 0.34),
+          inset 0 1px 0 rgba(255, 255, 255, 0.12),
+          0 0 0 1px rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        transform: translate3d(var(--card-x, 0px), var(--card-y, 0px), 0) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+        transition:
+          border-color 240ms ease,
+          box-shadow 240ms ease,
+          transform 160ms ease;
+        animation: cardFloat 7s ease-in-out infinite;
+      }
+
+      .holo-card:hover {
+        border-color: rgba(92, 237, 255, 0.5);
+        box-shadow:
+          0 32px 94px rgba(0, 0, 0, 0.42),
+          0 0 42px rgba(85, 232, 255, 0.16),
+          inset 0 1px 0 rgba(255, 255, 255, 0.16);
+      }
+
+      .holo-card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        background: linear-gradient(120deg, transparent 12%, rgba(255, 255, 255, 0.16), transparent 38%);
+        opacity: 0.62;
+        transform: translateX(-54%);
+      }
+
+      .card-inner {
+        position: relative;
+        padding: 18px;
+      }
+
+      .card-label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        color: rgba(220, 242, 255, 0.68);
+        font-size: 0.68rem;
+        font-weight: 850;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .pulse {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--cyan);
+        box-shadow: 0 0 18px var(--cyan);
+        animation: pulse 1.7s ease-in-out infinite;
+      }
+
+      .card-title {
+        margin: 14px 0 0;
+        color: #f7fbff;
+        font-size: 1.12rem;
+        font-weight: 850;
+        line-height: 1.18;
+      }
+
+      .card-copy {
+        margin: 9px 0 0;
+        color: rgba(224, 238, 255, 0.68);
+        font-size: 0.87rem;
+        line-height: 1.55;
+      }
+
+      .data-lines {
+        display: grid;
+        gap: 8px;
+        margin-top: 16px;
+      }
+
+      .data-lines span {
+        display: block;
+        height: 7px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(85, 232, 255, 0.88), rgba(154, 102, 255, 0.3), transparent);
+        transform-origin: left;
+        animation: dataPulse 2.8s ease-in-out infinite;
+      }
+
+      .data-lines span:nth-child(2) {
+        width: 74%;
+        animation-delay: 220ms;
+      }
+
+      .data-lines span:nth-child(3) {
+        width: 52%;
+        animation-delay: 420ms;
+      }
+
+      .holo-card--left {
+        left: clamp(12px, 4vw, 76px);
+        top: 28%;
+        animation-delay: -1s;
+      }
+
+      .holo-card--right {
+        right: clamp(12px, 4vw, 76px);
+        top: 24%;
+        animation-delay: -2.5s;
+      }
+
+      .holo-card--bottom {
+        right: clamp(36px, 12vw, 210px);
+        bottom: 10%;
+        animation-delay: -4.5s;
+      }
+
+      .command-deck {
+        position: absolute;
+        left: clamp(12px, 5vw, 92px);
+        bottom: 9%;
+        z-index: 8;
+        width: clamp(250px, 27vw, 390px);
+        border: 1px solid rgba(130, 222, 255, 0.18);
+        border-radius: 26px;
+        background: linear-gradient(160deg, rgba(14, 30, 68, 0.58), rgba(5, 10, 24, 0.42));
+        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.32);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+      }
+
+      .command-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 15px 17px 0;
+        color: rgba(225, 240, 255, 0.7);
+        font-size: 0.68rem;
+        font-weight: 850;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+
+      .command-screen {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        padding: 15px 17px 17px;
+      }
+
+      .command-row {
+        display: grid;
+        gap: 7px;
+      }
+
+      .command-row span {
+        display: block;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(184, 219, 255, 0.14);
+      }
+
+      .command-row strong {
+        color: rgba(246, 251, 255, 0.94);
+        font-size: 1.02rem;
+        line-height: 1.2;
+      }
+
+      .radar {
+        position: relative;
+        width: 74px;
+        height: 74px;
+        border: 1px solid rgba(85, 232, 255, 0.24);
+        border-radius: 50%;
+        background:
+          radial-gradient(circle, rgba(85, 232, 255, 0.22) 0 3px, transparent 4px),
+          repeating-radial-gradient(circle, rgba(85, 232, 255, 0.14) 0 1px, transparent 1px 18px);
+        overflow: hidden;
+      }
+
+      .radar::after {
+        content: "";
+        position: absolute;
+        inset: 50% 50% 0 0;
+        transform-origin: 100% 0;
+        background: linear-gradient(45deg, rgba(85, 232, 255, 0.42), transparent 68%);
+        animation: radarSweep 2.8s linear infinite;
+      }
+
+      .scanline {
+        position: absolute;
+        inset: 0;
+        z-index: 9;
+        pointer-events: none;
+        opacity: 0.13;
+        background: repeating-linear-gradient(180deg, transparent 0 5px, rgba(255, 255, 255, 0.34) 6px);
+        mix-blend-mode: overlay;
+      }
+
+      .vignette {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        pointer-events: none;
+        background:
+          radial-gradient(circle at center, transparent 0%, transparent 55%, rgba(0, 0, 0, 0.52) 100%),
+          linear-gradient(180deg, rgba(0, 0, 0, 0.18), transparent 20%, rgba(0, 0, 0, 0.24));
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      @keyframes nebulaDrift {
+        0% {
+          transform: rotate(0deg) scale(1);
+        }
+        100% {
+          transform: rotate(8deg) scale(1.05);
+        }
+      }
+
+      @keyframes gridCruise {
+        0% {
+          background-position: 0 0, 0 0;
+        }
+        100% {
+          background-position: 0 58px, 58px 0;
+        }
+      }
+
+      @keyframes orbitalSpin {
+        0% {
+          rotate: 0deg;
+        }
+        100% {
+          rotate: 360deg;
+        }
+      }
+
+      @keyframes cardFloat {
+        0%,
+        100% {
+          translate: 0 0;
+        }
+        50% {
+          translate: 0 -14px;
+        }
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 0.58;
+          scale: 0.9;
+        }
+        50% {
+          opacity: 1;
+          scale: 1.2;
+        }
+      }
+
+      @keyframes dataPulse {
+        0%,
+        100% {
+          transform: scaleX(0.62);
+          opacity: 0.42;
+        }
+        50% {
+          transform: scaleX(1);
+          opacity: 0.96;
+        }
+      }
+
+      @keyframes radarSweep {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      @keyframes testingBrandIcon {
+        0% {
+          opacity: 0;
+          filter: blur(9px);
+          transform: translateX(var(--testing-intro-offset)) scale(0.94);
+        }
+        10% {
+          opacity: 1;
+          filter: blur(0);
+          transform: translateX(var(--testing-intro-offset)) scale(0.99);
+        }
+        68% {
+          opacity: 1;
+          filter: blur(0);
+          transform: translateX(var(--testing-intro-offset)) scale(1.045);
+        }
+        78% {
+          opacity: 1;
+          filter: blur(0);
+          transform: translateX(var(--testing-intro-offset)) scale(1.02);
+        }
+        100% {
+          opacity: 1;
+          filter: blur(0);
+          transform: translateX(0) scale(1);
+        }
+      }
+
+      @keyframes testingLogoRevealUp {
+        0% {
+          opacity: 1;
+          clip-path: inset(100% 0 0 0);
+          filter: blur(1.8px);
+          transform: translate3d(0, 8px, 0) scaleY(0.98);
+        }
+        100% {
+          opacity: 1;
+          clip-path: inset(0 0 0 0);
+          filter: blur(0);
+          transform: translate3d(0, 0, 0) scaleY(1);
+        }
+      }
+
+      @keyframes testingLogoRevealYellow {
+        0% {
+          opacity: 0;
+          clip-path: inset(61.5% 0 38.5% 0);
+          filter: blur(1.4px);
+          transform: translate3d(0, 0, 0) scaleY(1);
+        }
+        6% {
+          opacity: 1;
+          clip-path: inset(61.5% 0 38.5% 0);
+          filter: blur(1.4px);
+          transform: translate3d(0, 0, 0) scaleY(1);
+        }
+        100% {
+          opacity: 1;
+          clip-path: inset(41% 0 38.5% 0);
+          filter: blur(0);
+          transform: translate3d(0, 0, 0) scaleY(1);
+        }
+      }
+
+      @keyframes testingLogoRevealGreen {
+        0% {
+          opacity: 1;
+          clip-path: inset(59% 0 59% 0);
+          filter: blur(1.4px);
+          transform: translate3d(0, 0, 0) scaleY(1);
+        }
+        100% {
+          opacity: 1;
+          clip-path: inset(9.5% 0 59% 0);
+          filter: blur(0);
+          transform: translate3d(0, 0, 0) scaleY(1);
+        }
+      }
+
+      @keyframes testingLogoRevealDown {
+        0% {
+          opacity: 1;
+          clip-path: inset(0 0 100% 0);
+          filter: blur(1.4px);
+          transform: translate3d(0, -8px, 0) scaleY(0.96);
+        }
+        100% {
+          opacity: 1;
+          clip-path: inset(0 0 0 0);
+          filter: blur(0);
+          transform: translate3d(0, 0, 0) scaleY(1);
+        }
+      }
+
+      @keyframes testingLogoRevealRight {
+        0% {
+          opacity: 1;
+          clip-path: inset(0 100% 0 0);
+          filter: blur(1.2px);
+          transform: translate3d(0, 0, 0) scaleX(1);
+        }
+        100% {
+          opacity: 1;
+          clip-path: inset(0 0 0 0);
+          filter: blur(0);
+          transform: translate3d(0, 0, 0) scaleX(1);
+        }
+      }
+
+      @keyframes testingLogoRevealLeg {
+        0% {
+          opacity: 1;
+          clip-path: inset(42% 0 50% 0);
+          filter: blur(1.3px);
+          transform: translate3d(0, -8px, 0) scaleY(0.72);
+        }
+        100% {
+          opacity: 1;
+          clip-path: inset(0 0 0 0);
+          filter: blur(0);
+          transform: translate3d(0, 0, 0) scaleY(1);
+        }
+      }
+
+      @keyframes testingLogoCompleteLock {
+        0% {
+          opacity: 0;
+          filter: saturate(1.04);
+          transform: scale(1.018);
+        }
+        92% {
+          opacity: 1;
+          filter: saturate(1.04);
+          transform: scale(1.018);
+        }
+        100% {
+          opacity: 1;
+          filter: saturate(1);
+          transform: scale(1);
+        }
+      }
+
+      @keyframes testingWordmarkReveal {
+        0% {
+          opacity: 0;
+          clip-path: inset(0 100% 0 0);
+          transform: translateX(-18px);
+        }
+        100% {
+          opacity: 1;
+          clip-path: inset(0 0 0 0);
+          transform: translateX(0);
+        }
+      }
+
+      @keyframes testingSubtitleReveal {
+        0% {
+          opacity: 0;
+          transform: translate3d(0, 12px, 0);
+          filter: blur(5px);
+        }
+        100% {
+          opacity: 1;
+          transform: translate3d(0, 0, 0);
+          filter: blur(0);
+        }
+      }
+
+      @media (max-width: 1040px) {
+        .experience {
+          width: min(100vw - 28px, 860px);
+        }
+
+        .testing-brand-lockup {
+          --testing-logo-size: clamp(96px, 18vw, 150px);
+          --testing-wordmark-size: clamp(3.25rem, 10.4vw, 5.8rem);
+          --testing-intro-offset: clamp(116px, 21vw, 214px);
+          max-width: 100%;
+        }
+
+        .holo-card {
+          width: clamp(190px, 26vw, 250px);
+        }
+
+        .holo-card--left {
+          top: auto;
+          bottom: 17%;
+          left: 4%;
+        }
+
+        .holo-card--right {
+          top: 19%;
+          right: 2%;
+        }
+
+        .holo-card--bottom,
+        .command-deck {
+          display: none;
+        }
+      }
+
+      @media (max-width: 720px) {
+        html,
+        body {
+          overflow: hidden;
+        }
+
+        .testing-page,
+        .experience {
+          min-height: 600px;
+        }
+
+        .experience {
+          width: min(100vw - 22px, 480px);
+          padding-top: 14px;
+          padding-bottom: 14px;
+        }
+
+        .topbar {
+          border-radius: 18px;
+        }
+
+        .brand img {
+          width: 32px;
+          height: 32px;
+        }
+
+        .brand small {
+          display: none;
+        }
+
+        .status-chip {
+          min-height: 32px;
+          padding: 0 10px;
+          font-size: 0.58rem;
+          letter-spacing: 0.09em;
+        }
+
+        .hero {
+          align-items: start;
+          padding-top: clamp(42px, 11vh, 96px);
+        }
+
+        h1 {
+          font-size: clamp(2.55rem, 15vw, 4.8rem);
+          line-height: 0.9;
+        }
+
+        .testing-brand-lockup {
+          --testing-logo-size: clamp(58px, 18vw, 86px);
+          --testing-wordmark-size: clamp(2.2rem, 11.6vw, 3.78rem);
+          --testing-intro-offset: clamp(88px, 28vw, 138px);
+          width: min(100%, 430px);
+          max-width: calc(100vw - 20px);
+        }
+
+        .testing-brand-icon {
+          margin-right: clamp(1px, 0.8vw, 5px);
+        }
+
+        .testing-brand-subtitle {
+          gap: clamp(5px, 1.8vw, 10px);
+          margin-top: 4px;
+          font-size: clamp(0.53rem, 2.35vw, 0.8rem);
+          letter-spacing: 0.105em;
+        }
+
+        .hero-copy {
+          font-size: 0.98rem;
+          line-height: 1.55;
+        }
+
+        .hero-actions {
+          display: grid;
+          width: min(100%, 340px);
+        }
+
+        .btn {
+          width: 100%;
+        }
+
+        .signal-label {
+          min-height: 34px;
+          padding: 0 12px;
+          font-size: 0.62rem;
+          letter-spacing: 0.1em;
+        }
+
+        .signal-label span {
+          width: 24px;
+        }
+
+        .holo-card {
+          width: min(220px, 72vw);
+          opacity: 0.82;
+        }
+
+        .holo-card--left {
+          left: -24px;
+          bottom: 6%;
+        }
+
+        .holo-card--right {
+          right: -32px;
+          top: auto;
+          bottom: 17%;
+        }
+
+        .card-inner {
+          padding: 14px;
+        }
+
+        .card-copy,
+        .data-lines {
+          display: none;
+        }
+
+        .orbital-ring--one {
+          width: 112vw;
+          height: 112vw;
+        }
+
+        .orbital-ring--two {
+          width: 74vw;
+          height: 74vw;
+        }
+      }
+
+      @media (max-width: 420px) {
+        .holo-card--left,
+        .holo-card--right {
+          display: none;
+        }
+
+        .hero {
+          padding-top: clamp(50px, 13vh, 112px);
+        }
+
+        h1 {
+          font-size: clamp(2.45rem, 18vw, 4.1rem);
+        }
+
+        .testing-brand-lockup {
+          --testing-logo-size: clamp(54px, 17.5vw, 70px);
+          --testing-wordmark-size: clamp(2rem, 11vw, 2.95rem);
+          --testing-intro-offset: clamp(78px, 27vw, 116px);
+          width: min(100%, 390px);
+          max-width: calc(100vw - 18px);
+        }
+
+        .testing-brand-subtitle {
+          gap: clamp(4px, 1.7vw, 8px);
+          font-size: clamp(0.48rem, 2.18vw, 0.67rem);
+          letter-spacing: 0.088em;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 1ms !important;
+          animation-iteration-count: 1 !important;
+          scroll-behavior: auto !important;
+          transition-duration: 1ms !important;
+        }
+
+        .testing-canvas {
+          opacity: 0.55;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="testing-page" aria-label="Applictus experimental testing page">
+      <canvas class="testing-canvas" id="testing-cosmos" aria-hidden="true"></canvas>
+      <div class="nebula" aria-hidden="true"></div>
+      <div class="depth-grid" aria-hidden="true"></div>
+      <div class="orbital-ring orbital-ring--one" aria-hidden="true"></div>
+      <div class="orbital-ring orbital-ring--two" aria-hidden="true"></div>
+
+      <section class="experience" aria-labelledby="testing-title">
+        <div class="topbar">
+          <a class="brand" href="/" aria-label="Applictus home">
+            <img src="/Applictus_logo.png" alt="" />
+            <span>
+              <strong>Applictus</strong>
+              <small>Application Status Tracker</small>
+            </span>
+          </a>
+          <span class="status-chip">Hidden experiment</span>
+        </div>
+
+        <div class="hero">
+          <div class="hero-core" data-depth="0.28">
+            <div class="testing-brand-lockup" aria-label="Applictus application status tracker">
+              <div class="testing-brand-primary">
+                <div class="testing-brand-icon" aria-hidden="true">
+                  <span class="testing-brand-logo-stage">
+                    <img class="testing-brand-logo testing-brand-logo--frame testing-brand-logo--frame1" src="/applictus-animation-frame1.png" alt="" draggable="false" />
+                    <img class="testing-brand-logo testing-brand-logo--frame testing-brand-logo--frame2" src="/applictus-animation-frame2.png" alt="" draggable="false" />
+                    <img class="testing-brand-logo testing-brand-logo--frame testing-brand-logo--frame3" src="/applictus-animation-frame3.png" alt="" draggable="false" />
+                    <img class="testing-brand-logo-blue testing-brand-logo-blue--diagonal" src="/applictus-animation-frame4.png" alt="" draggable="false" />
+                    <img class="testing-brand-logo-blue testing-brand-logo-blue--crossbar" src="/applictus-animation-frame5.png" alt="" draggable="false" />
+                    <img class="testing-brand-logo-blue testing-brand-logo-blue--leg" src="/applictus-animation-frame6.png" alt="" draggable="false" />
+                    <img class="testing-brand-logo testing-brand-logo--complete" src="/Applictus_logo.png" alt="" draggable="false" />
+                  </span>
+                </div>
+                <h1 id="testing-title" class="testing-brand-wordmark" aria-label="Applictus">
+                  <span aria-hidden="true">pplictus</span>
+                </h1>
+              </div>
+              <div class="testing-brand-subtitle" aria-label="Application status tracker">
+                <span class="testing-brand-accent--application">Application</span>
+                <span class="testing-brand-accent--status">Status</span>
+                <span>Tracker</span>
+              </div>
+            </div>
+            <div class="hero-actions">
+              <a class="btn btn-primary" href="/app">Enter Applictus</a>
+              <a class="btn btn-secondary" href="/">Return to current site</a>
+            </div>
+          </div>
+
+          <article class="holo-card holo-card--left" data-tilt data-depth="0.54">
+            <div class="card-inner">
+              <div class="card-label">Inbox signal <span class="pulse" aria-hidden="true"></span></div>
+              <h2 class="card-title">Email updates become motion.</h2>
+              <p class="card-copy">Forwarded job messages resolve into structured status events.</p>
+              <div class="data-lines" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+          </article>
+
+          <article class="holo-card holo-card--right" data-tilt data-depth="0.42">
+            <div class="card-inner">
+              <div class="card-label">Timeline core <span class="pulse" aria-hidden="true"></span></div>
+              <h2 class="card-title">Every opportunity gets a trajectory.</h2>
+              <p class="card-copy">Applications, assessments, interviews, offers, and rejections stay visible.</p>
+              <div class="data-lines" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+          </article>
+
+          <article class="holo-card holo-card--bottom" data-tilt data-depth="0.36">
+            <div class="card-inner">
+              <div class="card-label">Privacy field <span class="pulse" aria-hidden="true"></span></div>
+              <h2 class="card-title">No full Gmail inbox access.</h2>
+              <p class="card-copy">A controlled forwarding flow keeps the boundary clear.</p>
+              <div class="data-lines" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+          </article>
+
+          <aside class="command-deck" data-depth="0.5" aria-label="Experimental system status">
+            <div class="command-header">
+              <span>Signal matrix</span>
+              <span>Live</span>
+            </div>
+            <div class="command-screen">
+              <div class="command-row">
+                <strong>12 updates parsed</strong>
+                <span style="width: 92%"></span>
+                <span style="width: 68%"></span>
+                <span style="width: 78%"></span>
+              </div>
+              <div class="radar" aria-hidden="true"></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <div class="scanline" aria-hidden="true"></div>
+      <div class="vignette" aria-hidden="true"></div>
+      <p class="sr-only">This hidden Applictus testing page is only reachable by direct URL.</p>
+    </main>
+
+    <script>
+      (() => {
+        const canvas = document.getElementById('testing-cosmos');
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const root = document.documentElement;
+        const pointer = { x: 0, y: 0, targetX: 0, targetY: 0 };
+        let animationFrame = 0;
+
+        const gl = canvas.getContext('webgl', {
+          alpha: true,
+          antialias: true,
+          depth: false,
+          stencil: false,
+          powerPreference: 'high-performance'
+        });
+
+        const vertexSource = `
+          attribute vec3 a_position;
+          attribute float a_size;
+          attribute float a_seed;
+          uniform float u_time;
+          uniform vec2 u_pointer;
+          uniform vec2 u_resolution;
+          varying float v_seed;
+          varying float v_depth;
+
+          void main() {
+            vec3 p = a_position;
+            float t = u_time * 0.00018;
+            float radius = length(p.xy);
+            float angle = atan(p.y, p.x);
+            float spiral = sin(radius * 5.6 - t * 7.4 + a_seed * 6.2831);
+
+            angle += t * (0.8 + a_seed * 0.8) + u_pointer.x * 0.12;
+            p.x = cos(angle) * radius + u_pointer.x * 0.11 * (0.25 + a_seed);
+            p.y = sin(angle) * radius + u_pointer.y * 0.09 * (0.25 + a_seed);
+            p.z += spiral * 0.12 + u_pointer.y * 0.08;
+
+            float perspective = 1.15 / (1.8 - p.z * 0.44);
+            vec2 projected = p.xy * perspective;
+            gl_Position = vec4(projected, p.z * 0.08, 1.0);
+            gl_PointSize = a_size * perspective * (1.0 + sin(u_time * 0.002 + a_seed * 20.0) * 0.18);
+            v_seed = a_seed;
+            v_depth = perspective;
+          }
+        `;
+
+        const fragmentSource = `
+          precision mediump float;
+          varying float v_seed;
+          varying float v_depth;
+
+          void main() {
+            vec2 uv = gl_PointCoord - 0.5;
+            float d = length(uv);
+            float core = smoothstep(0.5, 0.0, d);
+            float spark = smoothstep(0.19, 0.0, d);
+            vec3 cyan = vec3(0.33, 0.92, 1.0);
+            vec3 violet = vec3(0.58, 0.42, 1.0);
+            vec3 magenta = vec3(1.0, 0.31, 0.85);
+            vec3 color = mix(cyan, violet, smoothstep(0.18, 0.74, v_seed));
+            color = mix(color, magenta, smoothstep(0.74, 1.0, v_seed) * 0.72);
+            color += spark * vec3(0.8, 0.95, 1.0);
+            gl_FragColor = vec4(color, core * 0.78 * min(v_depth, 1.55));
+          }
+        `;
+
+        function createShader(type, source) {
+          const shader = gl.createShader(type);
+          gl.shaderSource(shader, source);
+          gl.compileShader(shader);
+          if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            throw new Error(gl.getShaderInfoLog(shader) || 'Shader compile failed');
+          }
+          return shader;
+        }
+
+        function createProgram() {
+          const program = gl.createProgram();
+          gl.attachShader(program, createShader(gl.VERTEX_SHADER, vertexSource));
+          gl.attachShader(program, createShader(gl.FRAGMENT_SHADER, fragmentSource));
+          gl.linkProgram(program);
+          if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            throw new Error(gl.getProgramInfoLog(program) || 'Program link failed');
+          }
+          return program;
+        }
+
+        function makeParticles(count) {
+          const values = new Float32Array(count * 5);
+          for (let i = 0; i < count; i += 1) {
+            const r = Math.pow(Math.random(), 0.58) * 1.15;
+            const a = Math.random() * Math.PI * 2;
+            const z = Math.random() * 1.4 - 0.7;
+            const idx = i * 5;
+            values[idx] = Math.cos(a) * r;
+            values[idx + 1] = Math.sin(a) * r * 0.58;
+            values[idx + 2] = z;
+            values[idx + 3] = 2.0 + Math.random() * 5.5;
+            values[idx + 4] = Math.random();
+          }
+          return values;
+        }
+
+        function fallbackCanvas() {
+          const ctx = canvas.getContext('2d');
+          const particles = Array.from({ length: 140 }, () => ({
+            x: Math.random(),
+            y: Math.random(),
+            vx: (Math.random() - 0.5) * 0.0008,
+            vy: (Math.random() - 0.5) * 0.0008,
+            s: 1 + Math.random() * 2.8
+          }));
+
+          const resize = () => {
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            canvas.width = Math.floor(window.innerWidth * dpr);
+            canvas.height = Math.floor(window.innerHeight * dpr);
+            canvas.style.width = `${window.innerWidth}px`;
+            canvas.style.height = `${window.innerHeight}px`;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          };
+
+          const draw = () => {
+            ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+            ctx.globalCompositeOperation = 'lighter';
+            for (const p of particles) {
+              p.x = (p.x + p.vx + 1) % 1;
+              p.y = (p.y + p.vy + 1) % 1;
+              const x = p.x * window.innerWidth + pointer.x * 22;
+              const y = p.y * window.innerHeight + pointer.y * 16;
+              const g = ctx.createRadialGradient(x, y, 0, x, y, p.s * 9);
+              g.addColorStop(0, 'rgba(100,232,255,0.85)');
+              g.addColorStop(1, 'rgba(100,232,255,0)');
+              ctx.fillStyle = g;
+              ctx.beginPath();
+              ctx.arc(x, y, p.s * 9, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            if (!reducedMotion) {
+              animationFrame = window.requestAnimationFrame(draw);
+            }
+          };
+
+          resize();
+          draw();
+          window.addEventListener('resize', resize);
+        }
+
+        function initWebGl() {
+          if (!gl) {
+            fallbackCanvas();
+            return;
+          }
+
+          let program;
+          try {
+            program = createProgram();
+          } catch (error) {
+            fallbackCanvas();
+            return;
+          }
+
+          const count = reducedMotion ? 900 : 2400;
+          const data = makeParticles(count);
+          const stride = 5 * Float32Array.BYTES_PER_ELEMENT;
+          const buffer = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+          gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+
+          const position = gl.getAttribLocation(program, 'a_position');
+          const size = gl.getAttribLocation(program, 'a_size');
+          const seed = gl.getAttribLocation(program, 'a_seed');
+          const time = gl.getUniformLocation(program, 'u_time');
+          const pointerUniform = gl.getUniformLocation(program, 'u_pointer');
+          const resolution = gl.getUniformLocation(program, 'u_resolution');
+
+          const resize = () => {
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            canvas.width = Math.floor(window.innerWidth * dpr);
+            canvas.height = Math.floor(window.innerHeight * dpr);
+            canvas.style.width = `${window.innerWidth}px`;
+            canvas.style.height = `${window.innerHeight}px`;
+            gl.viewport(0, 0, canvas.width, canvas.height);
+          };
+
+          const render = (now) => {
+            pointer.x += (pointer.targetX - pointer.x) * 0.06;
+            pointer.y += (pointer.targetY - pointer.y) * 0.06;
+
+            gl.clearColor(0, 0, 0, 0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+            gl.useProgram(program);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.enableVertexAttribArray(position);
+            gl.vertexAttribPointer(position, 3, gl.FLOAT, false, stride, 0);
+            gl.enableVertexAttribArray(size);
+            gl.vertexAttribPointer(size, 1, gl.FLOAT, false, stride, 3 * Float32Array.BYTES_PER_ELEMENT);
+            gl.enableVertexAttribArray(seed);
+            gl.vertexAttribPointer(seed, 1, gl.FLOAT, false, stride, 4 * Float32Array.BYTES_PER_ELEMENT);
+
+            gl.uniform1f(time, now);
+            gl.uniform2f(pointerUniform, pointer.x, pointer.y);
+            gl.uniform2f(resolution, canvas.width, canvas.height);
+            gl.drawArrays(gl.POINTS, 0, count);
+
+            if (!reducedMotion) {
+              animationFrame = window.requestAnimationFrame(render);
+            }
+          };
+
+          resize();
+          render(0);
+          window.addEventListener('resize', resize);
+        }
+
+        function updatePointer(clientX, clientY) {
+          const x = clientX / window.innerWidth - 0.5;
+          const y = clientY / window.innerHeight - 0.5;
+          pointer.targetX = x;
+          pointer.targetY = -y;
+          root.style.setProperty('--mx', `${x * 80}px`);
+          root.style.setProperty('--my', `${y * 70}px`);
+
+          document.querySelectorAll('[data-depth]').forEach((node) => {
+            const depth = Number(node.getAttribute('data-depth') || 0.2);
+            node.style.setProperty('--card-x', `${x * depth * 32}px`);
+            node.style.setProperty('--card-y', `${y * depth * 26}px`);
+          });
+        }
+
+        function setupTilt() {
+          document.querySelectorAll('[data-tilt]').forEach((card) => {
+            card.addEventListener('pointermove', (event) => {
+              const rect = card.getBoundingClientRect();
+              const x = (event.clientX - rect.left) / rect.width - 0.5;
+              const y = (event.clientY - rect.top) / rect.height - 0.5;
+              card.style.setProperty('--ry', `${x * 8}deg`);
+              card.style.setProperty('--rx', `${-y * 8}deg`);
+            });
+            card.addEventListener('pointerleave', () => {
+              card.style.setProperty('--ry', '0deg');
+              card.style.setProperty('--rx', '0deg');
+            });
+          });
+        }
+
+        window.addEventListener('pointermove', (event) => {
+          updatePointer(event.clientX, event.clientY);
+        });
+
+        window.addEventListener('blur', () => {
+          if (animationFrame) {
+            window.cancelAnimationFrame(animationFrame);
+            animationFrame = 0;
+          }
+        });
+
+        window.addEventListener('focus', () => {
+          if (!animationFrame && !reducedMotion) {
+            initWebGl();
+          }
+        });
+
+        updatePointer(window.innerWidth / 2, window.innerHeight / 2);
+        setupTilt();
+        initWebGl();
+      })();
+    </script>
+  </body>
+</html>

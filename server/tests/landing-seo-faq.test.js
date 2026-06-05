@@ -196,9 +196,15 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
   assertPlatformCarousel(sourceHtml);
   assert.match(sourceHtml, /hero-brand-lockup hero-brand-lockup--wordmark-a/);
   assert.match(sourceHtml, /<h1 class="hero-brand-wordmark" aria-label="Applictus">\s*<span aria-hidden="true">pplictus<\/span>\s*<\/h1>/);
+  assert.equal((sourceHtml.match(/>pplictus<\/span>/g) || []).length, 1);
   assert.match(sourceHtml, /APPLICATION STATUS TRACKER|Application status tracker/);
   assert.doesNotMatch(sourceHtml, /Simplify your job search and never miss an opportunity/);
   assert.doesNotMatch(sourceHtml, /Automatically track confirmations, interviews, and rejections from your inbox/);
+  assert.match(
+    sourceCss,
+    /hero-brand-lockup--wordmark-a \.hero-brand-wordmark \{[\s\S]*text-shadow: none;/
+  );
+  assert.match(sourceCss, /landingHeroWordmarkLayerClean/);
 
   const permissionsIndex = sourceHtml.indexOf('Secure sign-in with minimal permissions');
   const faqIndex = sourceHtml.indexOf('Frequently asked questions');

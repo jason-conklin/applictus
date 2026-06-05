@@ -210,6 +210,9 @@ app.get('/blog/:slug', (req, res, next) => {
   }
   return res.sendFile(path.join(PUBLIC_DIR, 'blog', slug, 'index.html'));
 });
+app.get(['/testing', '/testing/'], (_req, res) => {
+  return res.sendFile(path.join(PUBLIC_DIR, 'testing.html'));
+});
 if (!isProd()) {
   app.use('/public', express.static(PUBLIC_DIR));
   app.use(express.static(PUBLIC_DIR));
