@@ -4,9 +4,44 @@ const fs = require('fs');
 const path = require('path');
 
 const rootDir = path.join(__dirname, '..', '..');
+const HOME_TITLE = 'Applictus | Automatic Job Application Tracker';
+const HOME_SOCIAL_DESCRIPTION =
+  'Automatically track job applications, interviews, offers, and rejections from job-related emails.';
+const HOME_SOCIAL_IMAGE = 'https://applictus.com/applictus-banner.png';
+const HOME_URL = 'https://applictus.com/';
 
 function readProjectFile(relativePath) {
   return fs.readFileSync(path.join(rootDir, relativePath), 'utf8');
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function assertMetaTag(html, attrName, attrValue, content) {
+  assert.match(
+    html,
+    new RegExp(
+      `<meta\\s+${attrName}="${escapeRegExp(attrValue)}"\\s+content="${escapeRegExp(content)}"\\s*\\/>`
+    )
+  );
+}
+
+function assertHomepageSocialMetadata(html) {
+  assert.match(html, new RegExp(`<title>${escapeRegExp(HOME_TITLE)}<\\/title>`));
+  assertMetaTag(html, 'name', 'description', HOME_SOCIAL_DESCRIPTION);
+  assert.match(html, new RegExp(`<link rel="canonical" href="${escapeRegExp(HOME_URL)}" \\/>`));
+  assertMetaTag(html, 'property', 'og:title', HOME_TITLE);
+  assertMetaTag(html, 'property', 'og:description', HOME_SOCIAL_DESCRIPTION);
+  assertMetaTag(html, 'property', 'og:image', HOME_SOCIAL_IMAGE);
+  assertMetaTag(html, 'property', 'og:url', HOME_URL);
+  assertMetaTag(html, 'property', 'og:type', 'website');
+  assertMetaTag(html, 'name', 'twitter:card', 'summary_large_image');
+  assertMetaTag(html, 'name', 'twitter:title', HOME_TITLE);
+  assertMetaTag(html, 'name', 'twitter:description', HOME_SOCIAL_DESCRIPTION);
+  assertMetaTag(html, 'name', 'twitter:image', HOME_SOCIAL_IMAGE);
+  assert.equal((html.match(/property="og:image"/g) || []).length, 1);
+  assert.equal((html.match(/name="twitter:image"/g) || []).length, 1);
 }
 
 function assertTopNavigation(html) {
@@ -151,7 +186,8 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
 
   assert.equal(publicHtml, sourceHtml);
   assert.equal(publicCss, sourceCss);
-  assert.match(sourceHtml, /<title>Applictus \| Automatic Job Application Tracker<\/title>/);
+  assertHomepageSocialMetadata(sourceHtml);
+  assert.ok(fs.existsSync(path.join(rootDir, 'public', 'applictus-banner.png')));
   assertTopNavigation(sourceHtml);
   assertTopNavigation(appShellHtml);
   assertTopNavigation(webAppShellHtml);
@@ -163,16 +199,6 @@ test('landing page metadata and FAQ content are SEO-ready', () => {
   assert.match(sourceHtml, /APPLICATION STATUS TRACKER|Application status tracker/);
   assert.doesNotMatch(sourceHtml, /Simplify your job search and never miss an opportunity/);
   assert.doesNotMatch(sourceHtml, /Automatically track confirmations, interviews, and rejections from your inbox/);
-
-  const metaDescription = sourceHtml.match(/<meta\s+name="description"\s+content="([^"]+)"/i)?.[1] || '';
-  for (const keyword of [
-    'job application tracker',
-    'interview tracker',
-    'job search',
-    'application timeline'
-  ]) {
-    assert.match(metaDescription.toLowerCase(), new RegExp(keyword));
-  }
 
   const permissionsIndex = sourceHtml.indexOf('Secure sign-in with minimal permissions');
   const faqIndex = sourceHtml.indexOf('Frequently asked questions');

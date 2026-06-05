@@ -29,6 +29,7 @@ const blogPaths = publicUrls
   .map((url) => new URL(url).pathname);
 
 const googleTagPaths = publicUrls.map((url) => new URL(url).pathname);
+const socialImageUrl = 'https://applictus.com/applictus-banner.png';
 
 function assertGoogleAdsTag(html, path) {
   const head = html.match(/<head>([\s\S]*?)<\/head>/)?.[1] || '';
@@ -57,6 +58,22 @@ function assertBlogTopNavigation(html) {
   assert.match(nav, /<a class="btn btn--secondary btn--sm" href="\/app">Login<\/a>/);
   assert.match(nav, /<a class="btn btn--primary btn--sm" href="\/app">Sign up<\/a>/);
   assert.doesNotMatch(nav, /href="\/privacy"|href="\/terms"/);
+}
+
+function assertSocialPreviewImage(html, path) {
+  const head = html.match(/<head>([\s\S]*?)<\/head>/)?.[1] || '';
+  assert.match(
+    head,
+    new RegExp(`<meta\\s+property="og:image"\\s+content="${socialImageUrl}"\\s*\\/>`),
+    `${path} should use the Applictus banner as its Open Graph image`
+  );
+  assert.match(
+    head,
+    new RegExp(`<meta\\s+name="twitter:image"\\s+content="${socialImageUrl}"\\s*\\/>`),
+    `${path} should use the Applictus banner as its Twitter image`
+  );
+  assert.equal((head.match(/property="og:image"/g) || []).length, 1);
+  assert.equal((head.match(/name="twitter:image"/g) || []).length, 1);
 }
 
 test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) => {
@@ -94,6 +111,11 @@ test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) =
       'Sitemap: https://applictus.com/sitemap.xml'
     ].join('\n')
   );
+  assert.equal(robots.includes('Disallow: /applictus-banner.png'), false);
+
+  const bannerResponse = await fetch(`${baseUrl}/applictus-banner.png`, { redirect: 'manual' });
+  assert.equal(bannerResponse.status, 200);
+  assert.match(bannerResponse.headers.get('content-type') || '', /image\/png/);
 
   for (const path of blogPaths) {
     const response = await fetch(`${baseUrl}${path}`, { redirect: 'manual' });
@@ -102,6 +124,7 @@ test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) =
     const html = await response.text();
     assert.match(html, /<body class="home home-page blog-page/);
     assertBlogTopNavigation(html);
+    assertSocialPreviewImage(html, path);
   }
 
   for (const path of googleTagPaths) {
@@ -113,6 +136,7 @@ test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) =
     assert.match(csp, /connect-src[^;]*https:\/\/www\.googletagmanager\.com/);
     const html = await response.text();
     assertGoogleAdsTag(html, path);
+    assertSocialPreviewImage(html, path);
   }
 
   const legacyFreeTrackerResponse = await fetch(`${baseUrl}/free-job-application-tracker`, {

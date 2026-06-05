@@ -9,6 +9,8 @@ const publicBlogDir = path.join(publicDir, 'blog');
 
 const SITE_URL = 'https://applictus.com';
 const CSS_VERSION = '86';
+const SOCIAL_IMAGE_URL = `${SITE_URL}/applictus-banner.png`;
+const GOOGLE_ADS_ID = 'AW-18215087830';
 
 const articles = [
   {
@@ -571,16 +573,48 @@ function renderArticleBody(article) {
     .join('\n');
 }
 
+function BlogBreadcrumb({ currentTitle, parentLabel = 'Blog' }) {
+  return `
+                <nav class="blog-breadcrumb" aria-label="Breadcrumb">
+                  <ol>
+                    <li><a href="/">Home</a></li>
+                    <li><span class="blog-breadcrumb-separator" aria-hidden="true">→</span></li>
+                    <li><a href="/blog">${escapeHtml(parentLabel)}</a></li>
+                    <li><span class="blog-breadcrumb-separator" aria-hidden="true">→</span></li>
+                    <li><span class="blog-breadcrumb-current" aria-current="page">${escapeHtml(currentTitle)}</span></li>
+                  </ol>
+                </nav>`;
+}
+
 function BlogPageLayout({ title, description, canonicalPath, content }) {
+  const canonicalUrl = `${SITE_URL}${canonicalPath}`;
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="${escapeHtml(description)}" />
-    <link rel="canonical" href="${SITE_URL}${canonicalPath}" />
+    <link rel="canonical" href="${canonicalUrl}" />
     <title>${escapeHtml(title)}</title>
+    <meta property="og:title" content="${escapeHtml(title)}" />
+    <meta property="og:description" content="${escapeHtml(description)}" />
+    <meta property="og:image" content="${SOCIAL_IMAGE_URL}" />
+    <meta property="og:url" content="${canonicalUrl}" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${escapeHtml(title)}" />
+    <meta name="twitter:description" content="${escapeHtml(description)}" />
+    <meta name="twitter:image" content="${SOCIAL_IMAGE_URL}" />
     <link rel="icon" href="/Applictus_logo.png" type="image/png" />
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ADS_ID}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', '${GOOGLE_ADS_ID}');
+    </script>
     <link rel="stylesheet" href="/styles.css?v=${CSS_VERSION}" />
   </head>
   <body class="home home-page blog-page animated-bg-mode animated-bg-auth">
@@ -591,6 +625,7 @@ ${content}
       </main>
 ${footer()}
     </div>
+    <script src="/analytics.js?v=1" defer></script>
   </body>
 </html>
 `;
@@ -639,11 +674,7 @@ function renderArticle(article) {
           <header class="blog-article-header">
             <div class="blog-article-hero-inner">
               <div class="blog-article-hero-copy">
-                <nav class="blog-breadcrumb" aria-label="Breadcrumb">
-                  <a href="/">Home</a>
-                  <span aria-hidden="true">/</span>
-                  <a href="/blog">Blog</a>
-                </nav>
+${BlogBreadcrumb({ currentTitle: article.h1 })}
                 <div class="blog-article-meta">
                   <span>${escapeHtml(article.category)}</span>
                   <span>${escapeHtml(article.readTime)}</span>
@@ -700,11 +731,7 @@ function renderResourcePage(resource) {
         <article class="blog-article blog-resource-page page-wrap">
           <header class="blog-article-header blog-resource-hero">
             <div class="blog-article-hero-copy">
-              <nav class="blog-breadcrumb" aria-label="Breadcrumb">
-                <a href="/">Home</a>
-                <span aria-hidden="true">/</span>
-                <a href="/blog">Resources</a>
-              </nav>
+${BlogBreadcrumb({ currentTitle: resource.h1, parentLabel: 'Resources' })}
               <div class="blog-article-meta">
                 <span>${escapeHtml(resource.category)}</span>
                 <span>${escapeHtml(resource.readTime)}</span>
