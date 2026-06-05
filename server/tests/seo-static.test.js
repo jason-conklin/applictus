@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 process.env.NODE_ENV = 'test';
 process.env.JOBTRACK_DB_PATH = ':memory:';
@@ -30,6 +32,7 @@ const blogPaths = publicUrls
 
 const googleTagPaths = publicUrls.map((url) => new URL(url).pathname);
 const socialImageUrl = 'https://applictus.com/applictus-banner.png';
+const rootDir = path.join(__dirname, '..', '..');
 
 function assertGoogleAdsTag(html, path) {
   const head = html.match(/<head>([\s\S]*?)<\/head>/)?.[1] || '';
@@ -75,6 +78,19 @@ function assertSocialPreviewImage(html, path) {
   assert.equal((head.match(/property="og:image"/g) || []).length, 1);
   assert.equal((head.match(/name="twitter:image"/g) || []).length, 1);
 }
+
+test('vercel routes expose hidden testing page before homepage fallback', () => {
+  const config = JSON.parse(fs.readFileSync(path.join(rootDir, 'vercel.json'), 'utf8'));
+  const routes = Array.isArray(config.routes) ? config.routes : [];
+  const testingRouteIndex = routes.findIndex(
+    (route) => route.src === '/testing' && route.dest === '/testing.html'
+  );
+  const fallbackIndex = routes.findIndex((route) => route.src === '/(.*)' && route.dest === '/index.html');
+
+  assert.notEqual(testingRouteIndex, -1, 'Vercel should rewrite /testing to /testing.html');
+  assert.notEqual(fallbackIndex, -1, 'Vercel should keep the homepage fallback route');
+  assert.ok(testingRouteIndex < fallbackIndex, '/testing route must come before the homepage fallback');
+});
 
 test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) => {
   const server = await startServer(0, { log: false, host: '127.0.0.1' });

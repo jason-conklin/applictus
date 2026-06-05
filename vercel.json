@@ -5,6 +5,7 @@
     { "src": "/sitemap.xml", "dest": "/sitemap.xml" },
     { "src": "/robots.txt", "dest": "/robots.txt" },
     { "src": "/animation", "dest": "/animation.html" },
+    { "src": "/testing", "dest": "/testing.html" },
     { "src": "/blog", "dest": "/blog/index.html" },
     { "src": "/blog/(.*)", "dest": "/blog/$1/index.html" },
     { "src": "/app", "dest": "/app/index.html" },
