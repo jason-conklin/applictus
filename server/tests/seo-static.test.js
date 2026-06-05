@@ -28,6 +28,28 @@ const blogPaths = publicUrls
   .filter((url) => url.includes('/blog'))
   .map((url) => new URL(url).pathname);
 
+const googleTagPaths = publicUrls.map((url) => new URL(url).pathname);
+
+function assertGoogleAdsTag(html, path) {
+  const head = html.match(/<head>([\s\S]*?)<\/head>/)?.[1] || '';
+  assert.match(
+    head,
+    /<script async src="https:\/\/www\.googletagmanager\.com\/gtag\/js\?id=AW-18215087830"><\/script>/,
+    `${path} should load the Google Ads gtag script in the head`
+  );
+  assert.match(head, /gtag\('config', 'AW-18215087830'\);/, `${path} should initialize AW-18215087830`);
+  assert.equal(
+    (html.match(/googletagmanager\.com\/gtag\/js\?id=AW-18215087830/g) || []).length,
+    1,
+    `${path} should include the Google Ads script once`
+  );
+  assert.equal(
+    (html.match(/gtag\('config', 'AW-18215087830'\);/g) || []).length,
+    1,
+    `${path} should configure AW-18215087830 once`
+  );
+}
+
 function assertBlogTopNavigation(html) {
   const nav = html.match(/<div class="home-nav-actions">([\s\S]*?)<\/div>/)?.[1] || '';
   assert.match(nav, /<a class="home-link" href="\/about">About<\/a>/);
@@ -80,6 +102,17 @@ test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) =
     const html = await response.text();
     assert.match(html, /<body class="home home-page blog-page/);
     assertBlogTopNavigation(html);
+  }
+
+  for (const path of googleTagPaths) {
+    const response = await fetch(`${baseUrl}${path}`, { redirect: 'manual' });
+    assert.equal(response.status, 200, `${path} should load for Google tag verification`);
+    const csp = response.headers.get('content-security-policy') || '';
+    assert.match(csp, /script-src[^;]*https:\/\/www\.googletagmanager\.com/);
+    assert.match(csp, /script-src[^;]*'unsafe-inline'/);
+    assert.match(csp, /connect-src[^;]*https:\/\/www\.googletagmanager\.com/);
+    const html = await response.text();
+    assertGoogleAdsTag(html, path);
   }
 
   const legacyFreeTrackerResponse = await fetch(`${baseUrl}/free-job-application-tracker`, {
