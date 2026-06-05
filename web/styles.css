@@ -12232,19 +12232,38 @@ body.home-page .hero-brand-lockup--wordmark-a .hero-brand-primary {
 }
 
 body.home-page .hero-brand-lockup--wordmark-a .hero-brand-icon {
+  background: transparent;
+  box-shadow: none;
   flex: 0 0 var(--hero-logo-size);
+  filter: none;
   top: 0.025em;
   margin-right: clamp(2px, 0.45vw, 8px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 body.home-page .hero-brand-lockup--wordmark-a .hero-brand-icon::before {
-  inset: -18%;
-  opacity: 0.62;
+  display: none;
+  content: none;
 }
 
 body.home-page .hero-brand-lockup--wordmark-a .hero-brand-icon::after {
-  bottom: -11%;
-  opacity: 0.58;
+  display: none;
+  content: none;
+}
+
+body.home-page .hero-brand-lockup--wordmark-a .hero-brand-logo-stage {
+  background: transparent;
+  box-shadow: none;
+  filter: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+body.home-page .hero-brand-lockup--wordmark-a .hero-brand-logo,
+body.home-page .hero-brand-lockup--wordmark-a .hero-brand-logo-blue {
+  background: transparent;
+  box-shadow: none;
 }
 
 body.home-page .hero-brand-lockup--wordmark-a .hero-brand-copy {
