@@ -145,7 +145,9 @@ test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) =
   assert.match(testingHtml, /testing-brand-logo--frame1/);
   assert.match(testingHtml, /testing-brand-logo-blue--diagonal/);
   assert.match(testingHtml, /<span aria-hidden="true">pplictus<\/span>/);
-  assert.match(testingHtml, /Application<\/span>\s*<span class="testing-brand-accent--status">Status<\/span>\s*<span>Tracker/);
+  assert.match(testingHtml, /<span class="testing-brand-accent--application">Applic<\/span><span>ation<\/span>/);
+  assert.match(testingHtml, /<span>Sta<\/span><span class="testing-brand-accent--status">tus<\/span>/);
+  assert.match(testingHtml, /<span>Tracker<\/span>/);
   assert.match(testingHtml, /@keyframes testingBrandIcon/);
   assert.match(testingHtml, /class="holo-card/);
   assert.match(testingHtml, /Application updates/);
