@@ -79,17 +79,29 @@ function assertSocialPreviewImage(html, path) {
   assert.equal((head.match(/name="twitter:image"/g) || []).length, 1);
 }
 
-test('vercel routes expose hidden testing page before homepage fallback', () => {
+test('vercel routes expose hidden testing pages before homepage fallback', () => {
   const config = JSON.parse(fs.readFileSync(path.join(rootDir, 'vercel.json'), 'utf8'));
   const routes = Array.isArray(config.routes) ? config.routes : [];
   const testingRouteIndex = routes.findIndex(
     (route) => route.src === '/testing' && route.dest === '/testing.html'
   );
+  const testingLightRouteIndex = routes.findIndex(
+    (route) => route.src === '/testing-light' && route.dest === '/testing-light.html'
+  );
   const fallbackIndex = routes.findIndex((route) => route.src === '/(.*)' && route.dest === '/index.html');
 
   assert.notEqual(testingRouteIndex, -1, 'Vercel should rewrite /testing to /testing.html');
+  assert.notEqual(
+    testingLightRouteIndex,
+    -1,
+    'Vercel should rewrite /testing-light to /testing-light.html'
+  );
   assert.notEqual(fallbackIndex, -1, 'Vercel should keep the homepage fallback route');
   assert.ok(testingRouteIndex < fallbackIndex, '/testing route must come before the homepage fallback');
+  assert.ok(
+    testingLightRouteIndex < fallbackIndex,
+    '/testing-light route must come before the homepage fallback'
+  );
 });
 
 test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) => {
@@ -114,6 +126,7 @@ test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) =
   }
   assert.equal(sitemap.includes('https://applictus.com/free-job-application-tracker'), false);
   assert.equal(sitemap.includes('https://applictus.com/testing'), false);
+  assert.equal(sitemap.includes('https://applictus.com/testing-light'), false);
 
   const robotsResponse = await fetch(`${baseUrl}/robots.txt`, { redirect: 'manual' });
   assert.equal(robotsResponse.status, 200);
@@ -191,6 +204,31 @@ test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) =
   assert.doesNotMatch(testingHtml, /living holographic\s+command center/);
   assert.doesNotMatch(testingHtml, /Inbox signal|Timeline core|Privacy field|Signal matrix/i);
   assert.doesNotMatch(testingHtml, /class="home-nav"|class="app-footer/);
+
+  const testingLightResponse = await fetch(`${baseUrl}/testing-light`, { redirect: 'manual' });
+  assert.equal(testingLightResponse.status, 200);
+  assert.match(testingLightResponse.headers.get('content-type') || '', /text\/html/);
+  const testingLightHtml = await testingLightResponse.text();
+  assert.match(testingLightHtml, /<title>Applictus Light Experimental Interface<\/title>/);
+  assert.match(testingLightHtml, /<meta name="robots" content="noindex, nofollow" \/>/);
+  assert.match(testingLightHtml, /id="testing-cosmos"/);
+  assert.match(testingLightHtml, /getContext\('webgl'/);
+  assert.match(testingLightHtml, /color-scheme: light/);
+  assert.match(testingLightHtml, /#f4f8ff/);
+  assert.match(testingLightHtml, /#eaf3ff/);
+  assert.match(testingLightHtml, /#dcebff/);
+  assert.match(testingLightHtml, /<nav class="testing-nav-actions" aria-label="Public pages">/);
+  assert.match(testingLightHtml, /testing-brand-lockup/);
+  assert.match(testingLightHtml, /<span aria-hidden="true">pplictus<\/span>/);
+  assert.match(testingLightHtml, /Application updates/);
+  assert.match(testingLightHtml, /Inbox to timeline/);
+  assert.match(testingLightHtml, /Application timeline/);
+  assert.match(testingLightHtml, /Application activity/);
+  assert.match(testingLightHtml, /Tracks emails from all job platforms/);
+  assert.match(testingLightHtml, /data-platform-track/);
+  assert.match(testingLightHtml, /rgba\(255, 255, 255, 0\.78\)/);
+  assert.doesNotMatch(testingLightHtml, /#030712|#02030a|Privacy first|Hidden experiment/i);
+  assert.doesNotMatch(testingLightHtml, /class="home-nav"|class="app-footer/);
 
   for (const path of blogPaths) {
     const response = await fetch(`${baseUrl}${path}`, { redirect: 'manual' });
