@@ -767,7 +767,7 @@
       .holo-card {
         position: absolute;
         z-index: 6;
-        width: clamp(198px, 17.5vw, 276px);
+        width: clamp(194px, 16.8vw, 264px);
         border: 1px solid var(--border);
         border-radius: 24px;
         background:
@@ -969,37 +969,38 @@
       }
 
       .holo-card--left {
-        left: clamp(-18px, 2.2vw, 36px);
-        top: clamp(138px, 21vh, 188px);
+        left: clamp(-12px, 2.4vw, 40px);
+        top: clamp(126px, 20vh, 172px);
         animation-delay: -1s;
       }
 
       .holo-card--right {
-        right: clamp(-18px, 2.2vw, 36px);
-        top: clamp(128px, 19vh, 174px);
+        right: clamp(-12px, 2.4vw, 40px);
+        top: clamp(116px, 17vh, 146px);
         animation-delay: -2.5s;
       }
 
       .holo-card--bottom {
-        right: clamp(-22px, 3vw, 52px);
-        bottom: clamp(20px, 4.5vh, 48px);
+        right: clamp(-8px, 1.4vw, 18px);
+        top: clamp(520px, 75vh, 640px);
+        width: clamp(178px, 14.6vw, 232px);
         opacity: 0.48;
         animation-delay: -4.5s;
       }
 
       .holo-card--flow {
-        left: clamp(-18px, 2.4vw, 46px);
-        bottom: clamp(26px, 5.2vh, 58px);
+        left: clamp(-8px, 3vw, 52px);
+        top: clamp(510px, 73vh, 626px);
         opacity: 0.5;
         animation-delay: -3.4s;
       }
 
       .command-deck {
         position: absolute;
-        right: clamp(-22px, 3vw, 52px);
-        top: clamp(254px, 43vh, 356px);
+        right: clamp(-8px, 1vw, 16px);
+        top: clamp(304px, 45vh, 418px);
         z-index: 6;
-        width: clamp(208px, 17.5vw, 276px);
+        width: clamp(178px, 14.8vw, 234px);
         border: 1px solid rgba(130, 222, 255, 0.15);
         border-radius: 26px;
         background: linear-gradient(160deg, rgba(14, 34, 77, 0.5), rgba(5, 10, 24, 0.36));
@@ -1391,6 +1392,41 @@
 
         .holo-card--bottom,
         .holo-card--flow,
+        .command-deck {
+          display: none;
+        }
+      }
+
+      @media (max-width: 1200px) and (min-width: 1041px) {
+        .holo-card--bottom,
+        .holo-card--flow,
+        .command-deck {
+          display: none;
+        }
+
+        .holo-card--left {
+          left: -42px;
+          opacity: 0.42;
+        }
+
+        .holo-card--right {
+          right: -42px;
+          opacity: 0.5;
+        }
+      }
+
+      @media (max-height: 820px) and (min-width: 1041px) {
+        .holo-card--bottom,
+        .holo-card--flow {
+          display: none;
+        }
+
+        .command-deck {
+          top: clamp(300px, 47vh, 382px);
+        }
+      }
+
+      @media (max-height: 700px) and (min-width: 1041px) {
         .command-deck {
           display: none;
         }
