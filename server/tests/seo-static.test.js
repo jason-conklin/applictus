@@ -141,6 +141,12 @@ test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) =
   assert.match(testingHtml, /<meta name="robots" content="noindex, nofollow" \/>/);
   assert.match(testingHtml, /id="testing-cosmos"/);
   assert.match(testingHtml, /getContext\('webgl'/);
+  assert.match(testingHtml, /<nav class="testing-nav-actions" aria-label="Public pages">/);
+  assert.match(testingHtml, /href="\/about">About<\/a>/);
+  assert.match(testingHtml, /href="\/blog">Blog<\/a>/);
+  assert.match(testingHtml, /testing-nav-button--login" href="\/app">Login<\/a>/);
+  assert.match(testingHtml, /testing-nav-button--signup" href="\/app">Sign up<\/a>/);
+  assert.doesNotMatch(testingHtml, /Hidden experiment/);
   assert.match(testingHtml, /testing-brand-lockup/);
   assert.match(testingHtml, /testing-brand-logo--frame1/);
   assert.match(testingHtml, /testing-brand-logo-blue--diagonal/);
@@ -181,7 +187,6 @@ test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) =
     assert.match(testingHtml, new RegExp(logo.replace('.', '\\.')));
   }
   assert.match(testingHtml, /application-motifs/);
-  assert.match(testingHtml, /Hidden experiment/);
   assert.doesNotMatch(testingHtml, /Track the signal in your job search/);
   assert.doesNotMatch(testingHtml, /living holographic\s+command center/);
   assert.doesNotMatch(testingHtml, /Inbox signal|Timeline core|Privacy field|Signal matrix/i);
