@@ -767,7 +767,7 @@
       .holo-card {
         position: absolute;
         z-index: 6;
-        width: clamp(194px, 16.8vw, 264px);
+        width: clamp(168px, 14.3vw, 224px);
         border: 1px solid var(--border);
         border-radius: 24px;
         background:
@@ -779,7 +779,7 @@
           0 0 0 1px rgba(255, 255, 255, 0.03);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
-        opacity: 0.68;
+        opacity: 0.56;
         transform: translate3d(var(--card-x, 0px), var(--card-y, 0px), 0) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
         transition:
           opacity 240ms ease,
@@ -790,7 +790,7 @@
       }
 
       .holo-card:hover {
-        opacity: 0.92;
+        opacity: 0.82;
         border-color: rgba(92, 237, 255, 0.36);
         box-shadow:
           0 30px 88px rgba(0, 0, 0, 0.36),
@@ -811,7 +811,7 @@
 
       .card-inner {
         position: relative;
-        padding: 18px;
+        padding: 16px;
       }
 
       .card-label {
@@ -836,9 +836,9 @@
       }
 
       .card-title {
-        margin: 14px 0 0;
+        margin: 12px 0 0;
         color: #f7fbff;
-        font-size: 1.05rem;
+        font-size: 0.96rem;
         font-weight: 850;
         line-height: 1.18;
       }
@@ -846,7 +846,7 @@
       .card-copy {
         margin: 9px 0 0;
         color: rgba(224, 238, 255, 0.64);
-        font-size: 0.87rem;
+        font-size: 0.8rem;
         line-height: 1.55;
       }
 
@@ -969,45 +969,37 @@
       }
 
       .holo-card--left {
-        left: clamp(-12px, 2.4vw, 40px);
-        top: clamp(126px, 20vh, 172px);
+        left: clamp(8px, 3.8vw, 72px);
+        top: clamp(126px, 19vh, 168px);
         animation-delay: -1s;
       }
 
       .holo-card--right {
-        right: clamp(-12px, 2.4vw, 40px);
-        top: clamp(116px, 17vh, 146px);
+        right: clamp(8px, 3.8vw, 72px);
+        top: clamp(126px, 19vh, 168px);
         animation-delay: -2.5s;
       }
 
-      .holo-card--bottom {
-        right: clamp(-8px, 1.4vw, 18px);
-        top: clamp(520px, 75vh, 640px);
-        width: clamp(178px, 14.6vw, 232px);
-        opacity: 0.48;
-        animation-delay: -4.5s;
-      }
-
       .holo-card--flow {
-        left: clamp(-8px, 3vw, 52px);
-        top: clamp(510px, 73vh, 626px);
-        opacity: 0.5;
+        left: clamp(18px, 4.4vw, 86px);
+        top: clamp(420px, 57vh, 500px);
+        opacity: 0.46;
         animation-delay: -3.4s;
       }
 
       .command-deck {
         position: absolute;
-        right: clamp(-8px, 1vw, 16px);
-        top: clamp(304px, 45vh, 418px);
+        right: clamp(18px, 4.4vw, 86px);
+        top: clamp(420px, 57vh, 500px);
         z-index: 6;
-        width: clamp(178px, 14.8vw, 234px);
+        width: clamp(168px, 14.3vw, 224px);
         border: 1px solid rgba(130, 222, 255, 0.15);
         border-radius: 26px;
         background: linear-gradient(160deg, rgba(14, 34, 77, 0.5), rgba(5, 10, 24, 0.36));
         box-shadow: 0 26px 82px rgba(0, 0, 0, 0.28);
         backdrop-filter: blur(18px);
         -webkit-backdrop-filter: blur(18px);
-        opacity: 0.44;
+        opacity: 0.46;
       }
 
       .command-header {
@@ -1390,7 +1382,6 @@
           opacity: 0.48;
         }
 
-        .holo-card--bottom,
         .holo-card--flow,
         .command-deck {
           display: none;
@@ -1398,7 +1389,6 @@
       }
 
       @media (max-width: 1200px) and (min-width: 1041px) {
-        .holo-card--bottom,
         .holo-card--flow,
         .command-deck {
           display: none;
@@ -1415,18 +1405,11 @@
         }
       }
 
-      @media (max-height: 820px) and (min-width: 1041px) {
-        .holo-card--bottom,
+      @media (max-height: 620px) and (min-width: 1041px) {
         .holo-card--flow {
           display: none;
         }
 
-        .command-deck {
-          top: clamp(300px, 47vh, 382px);
-        }
-      }
-
-      @media (max-height: 700px) and (min-width: 1041px) {
         .command-deck {
           display: none;
         }
@@ -1727,19 +1710,6 @@
               <div class="card-label">Application timeline <span class="pulse" aria-hidden="true"></span></div>
               <h2 class="card-title">Interviews, assessments, offers, and rejections stay organized.</h2>
               <p class="card-copy">Each hiring update lands in one timeline so the next step stays clear.</p>
-              <div class="data-lines" aria-hidden="true">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-            </div>
-          </article>
-
-          <article class="holo-card holo-card--bottom" data-tilt data-depth="0.36">
-            <div class="card-inner">
-              <div class="card-label">Privacy first <span class="pulse" aria-hidden="true"></span></div>
-              <h2 class="card-title">Processes forwarded job updates, not your entire inbox.</h2>
-              <p class="card-copy">You control what gets forwarded, and you can disable forwarding anytime.</p>
               <div class="data-lines" aria-hidden="true">
                 <span></span>
                 <span></span>

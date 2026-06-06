@@ -151,8 +151,8 @@ test('sitemap.xml and robots.txt are served as crawlable SEO files', async (t) =
   assert.match(testingHtml, /Application updates/);
   assert.match(testingHtml, /Forwarded emails become application activity/);
   assert.match(testingHtml, /Application timeline/);
-  assert.match(testingHtml, /Privacy first/);
   assert.match(testingHtml, /Inbox to timeline/);
+  assert.doesNotMatch(testingHtml, /Privacy first|Processes forwarded job updates, not your entire inbox|holo-card--bottom/i);
   assert.match(testingHtml, /LinkedIn/);
   assert.match(testingHtml, /Indeed/);
   assert.match(testingHtml, /Workday/);
