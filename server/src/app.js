@@ -89,6 +89,9 @@ const {
 } = require('./stripeBilling');
 const {
   ANALYTICS_EVENT_NAMES,
+  TRAFFIC_SOURCE_ORDER,
+  classifyTrafficSource,
+  extractTrafficSourceHostname,
   normalizeTrafficSourceLabel,
   recordAnalyticsEvent,
   recordFirstApplicationDetected
@@ -2978,6 +2981,10 @@ app.post('/api/analytics/event', analyticsEventLimiter, async (req, res) => {
       utmCampaign: req.body?.utm_campaign || null,
       utmTerm: req.body?.utm_term || null,
       utmContent: req.body?.utm_content || null,
+      gclid: req.body?.gclid || null,
+      gbraid: req.body?.gbraid || null,
+      wbraid: req.body?.wbraid || null,
+      gadSource: req.body?.gad_source || null,
       metadata: {
         title: req.body?.title || null,
         user_agent_family: req.get('user-agent') ? String(req.get('user-agent')).slice(0, 80) : null
@@ -5277,41 +5284,123 @@ async function countPaidConversions(dbInstance, cutoffIso, { hasPlanTier = true,
 }
 
 async function buildTrafficSourceBreakdown(dbInstance, cutoffIso, { hasAnalyticsEvents = true } = {}) {
-  if (!hasAnalyticsEvents) return [];
+  const emptySources = TRAFFIC_SOURCE_ORDER.map((key) => ({
+    source: key,
+    label: normalizeTrafficSourceLabel(key),
+    page_views: 0,
+    visitors: 0
+  }));
+  if (!hasAnalyticsEvents) return { sources: emptySources, other_breakdown: [] };
   const rows = await runPrepared(
     dbInstance,
-    `SELECT COALESCE(NULLIF(source, ''), 'other') AS source,
-            COUNT(*) AS page_views,
-            COUNT(DISTINCT COALESCE(visitor_id, session_id, user_id, id)) AS visitors
+    `SELECT id,
+            COALESCE(NULLIF(source, ''), 'other') AS source,
+            visitor_id,
+            session_id,
+            user_id,
+            path,
+            referrer,
+            utm_source,
+            utm_medium,
+            metadata_json
        FROM analytics_events
       WHERE event_name = ?
-        AND occurred_at >= ?
-      GROUP BY COALESCE(NULLIF(source, ''), 'other')
-      ORDER BY page_views DESC, visitors DESC`,
+        AND occurred_at >= ?`,
     [ANALYTICS_EVENT_NAMES.PAGE_VIEW, cutoffIso],
     'all'
   );
-  const normalized = new Map();
-  for (const row of rows || []) {
-    const key = String(row.source || 'other').toLowerCase();
-    normalized.set(key, {
-      source: key,
-      label: normalizeTrafficSourceLabel(key),
-      page_views: Number(row.page_views || 0),
-      visitors: Number(row.visitors || 0)
-    });
-  }
-  for (const key of ['direct', 'google_search', 'linkedin', 'reddit', 'twitter', 'google_ads', 'other']) {
-    if (!normalized.has(key)) {
-      normalized.set(key, {
+
+  const normalized = new Map(
+    TRAFFIC_SOURCE_ORDER.map((key) => [
+      key,
+      {
         source: key,
         label: normalizeTrafficSourceLabel(key),
         page_views: 0,
-        visitors: 0
-      });
+        visitors: 0,
+        visitorKeys: new Set()
+      }
+    ])
+  );
+  const otherBreakdown = new Map();
+
+  for (const row of rows || []) {
+    let metadata = null;
+    if (row.metadata_json) {
+      try {
+        metadata = JSON.parse(row.metadata_json);
+      } catch (_) {
+        metadata = null;
+      }
+    }
+    const key = classifyTrafficSource({
+      referrer: row.referrer,
+      utmSource: row.utm_source,
+      utmMedium: row.utm_medium,
+      path: row.path,
+      gclid: metadata?.gclid,
+      gbraid: metadata?.gbraid,
+      wbraid: metadata?.wbraid,
+      gadSource: metadata?.gad_source,
+      storedSource: row.source
+    });
+    const bucket = normalized.get(key) || normalized.get('other');
+    const visitorKey = String(row.visitor_id || row.session_id || row.user_id || row.id || '').trim();
+    bucket.page_views += 1;
+    if (visitorKey) bucket.visitorKeys.add(visitorKey);
+
+    if (bucket.source === 'other') {
+      const referrerDomain = extractTrafficSourceHostname(row.referrer);
+      const utmSource = String(row.utm_source || '').trim();
+      const utmMedium = String(row.utm_medium || '').trim();
+      const breakdownKey = `${referrerDomain || '(no referrer)'}|${utmSource || '(no utm_source)'}|${
+        utmMedium || '(no utm_medium)'
+      }`;
+      if (!otherBreakdown.has(breakdownKey)) {
+        const labelParts = [];
+        if (referrerDomain) labelParts.push(referrerDomain);
+        if (utmSource) labelParts.push(`utm_source=${utmSource}`);
+        if (utmMedium) labelParts.push(`utm_medium=${utmMedium}`);
+        otherBreakdown.set(breakdownKey, {
+          label: labelParts.join(' · ') || 'Unknown source',
+          referrer_domain: referrerDomain || null,
+          utm_source: utmSource || null,
+          utm_medium: utmMedium || null,
+          page_views: 0,
+          visitors: 0,
+          visitorKeys: new Set()
+        });
+      }
+      const breakdown = otherBreakdown.get(breakdownKey);
+      breakdown.page_views += 1;
+      if (visitorKey) breakdown.visitorKeys.add(visitorKey);
     }
   }
-  return ['direct', 'google_search', 'linkedin', 'reddit', 'twitter', 'google_ads', 'other'].map((key) => normalized.get(key));
+
+  // page_views is the count of page_view analytics events. visitors is a deduped visitor/session/user count,
+  // falling back to event id when anonymous identifiers are unavailable.
+  const sources = TRAFFIC_SOURCE_ORDER.map((key) => {
+    const bucket = normalized.get(key);
+    return {
+      source: bucket.source,
+      label: bucket.label,
+      page_views: bucket.page_views,
+      visitors: bucket.visitorKeys.size
+    };
+  });
+  const other_breakdown = Array.from(otherBreakdown.values())
+    .map((row) => ({
+      label: row.label,
+      referrer_domain: row.referrer_domain,
+      utm_source: row.utm_source,
+      utm_medium: row.utm_medium,
+      page_views: row.page_views,
+      visitors: row.visitorKeys.size
+    }))
+    .sort((a, b) => b.page_views - a.page_views || b.visitors - a.visitors || a.label.localeCompare(b.label))
+    .slice(0, 8);
+
+  return { sources, other_breakdown };
 }
 
 async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
@@ -5463,7 +5552,9 @@ async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
   const inboundRelevanceRatioMonth =
     inboundReceivedMonth > 0 ? Number((inboundRelevantMonth / inboundReceivedMonth).toFixed(4)) : 0;
   const inboundAbuse = await buildAdminInboundAbuseSummary(dbInstance, { hasInboundWebhookEvents });
-  const trafficSources30d = await buildTrafficSourceBreakdown(dbInstance, cutoff30d, { hasAnalyticsEvents });
+  const trafficSourceBreakdown = await buildTrafficSourceBreakdown(dbInstance, cutoff30d, { hasAnalyticsEvents });
+  const trafficSources30d = trafficSourceBreakdown.sources || [];
+  const trafficSourceOtherBreakdown30d = trafficSourceBreakdown.other_breakdown || [];
   const monthlyPaidUsers =
     hasPlanTier && hasBillingFields
       ? await readCount(
@@ -5518,6 +5609,7 @@ async function buildAdminAnalyticsSummary(dbInstance, caps = null) {
   const trafficAcquisition = {
     unique_visitors_30d: uniqueVisitors30d,
     traffic_sources_30d: trafficSources30d,
+    other_breakdown_30d: trafficSourceOtherBreakdown30d,
     supports_utm_attribution: true
   };
   const systemIngestionHealth = {

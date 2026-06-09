@@ -9773,6 +9773,46 @@ button.inbound-diagnostics-row:hover {
   gap: 8px;
 }
 
+#admin-analytics-section .admin-source-other-breakdown {
+  border: 1px solid rgba(31, 102, 194, 0.14);
+  border-radius: 12px;
+  background: rgba(244, 249, 255, 0.8);
+  padding: 10px 12px;
+}
+
+#admin-analytics-section .admin-source-other-breakdown summary {
+  cursor: pointer;
+  color: #1b5ca8;
+  font-size: 12px;
+  font-weight: 800;
+  list-style-position: inside;
+}
+
+#admin-analytics-section .admin-source-other-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+#admin-analytics-section .admin-source-other-row {
+  display: grid;
+  gap: 3px;
+  border-top: 1px solid rgba(31, 102, 194, 0.1);
+  color: rgba(20, 48, 91, 0.82);
+  font-size: 12px;
+  padding-top: 8px;
+}
+
+#admin-analytics-section .admin-source-other-row span {
+  overflow-wrap: anywhere;
+  font-weight: 750;
+}
+
+#admin-analytics-section .admin-source-other-row small {
+  color: rgba(67, 88, 119, 0.78);
+  font-weight: 650;
+}
+
 #admin-analytics-section .analytics-users-header {
   margin-bottom: 10px;
 }

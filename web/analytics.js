@@ -39,7 +39,11 @@
       utm_medium: params.get('utm_medium') || '',
       utm_campaign: params.get('utm_campaign') || '',
       utm_term: params.get('utm_term') || '',
-      utm_content: params.get('utm_content') || ''
+      utm_content: params.get('utm_content') || '',
+      gclid: params.get('gclid') || '',
+      gbraid: params.get('gbraid') || '',
+      wbraid: params.get('wbraid') || '',
+      gad_source: params.get('gad_source') || ''
     };
   }
 

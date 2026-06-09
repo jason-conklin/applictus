@@ -6221,7 +6221,7 @@ function renderAdminKpis(summary) {
   setVal(els.kpiInboundDisabledTotal, inboundAbuse.disabled_or_rotated_address_total);
   setVal(els.kpiNewUsers, summary.new_users_month);
   renderAdminFunnel(funnel.stages || []);
-  renderAdminTrafficSources(traffic.traffic_sources_30d || []);
+  renderAdminTrafficSources(traffic.traffic_sources_30d || [], traffic.other_breakdown_30d || []);
   renderAdminNoisyRecipients(inboundAbuse.top_noisy_recipients_month || []);
 }
 
@@ -6254,7 +6254,7 @@ function renderAdminFunnel(stages = []) {
     .join('');
 }
 
-function renderAdminTrafficSources(rows = []) {
+function renderAdminTrafficSources(rows = [], otherBreakdownRows = []) {
   const els = ensureAdminElements();
   if (!els.trafficSourcesList) return;
   const sources = Array.isArray(rows) ? rows : [];
@@ -6263,22 +6263,46 @@ function renderAdminTrafficSources(rows = []) {
     return;
   }
   const maxVisitors = Math.max(...sources.map((row) => Number(row.visitors || 0)), 1);
-  els.trafficSourcesList.innerHTML = sources
+  const sourceMarkup = sources
     .map((row) => {
       const visitors = Number(row.visitors || 0);
+      const pageViews = Number(row.page_views || 0);
       const width = Math.max(4, Math.round((visitors / maxVisitors) * 100));
       return `
         <div class="admin-source-row">
           <div class="admin-source-row__top">
             <span>${escapeHtml(row.label || row.source || 'Other')}</span>
-            <strong>${formatAdminNumber(visitors)}</strong>
+            <strong>${formatAdminNumber(visitors)} visitors</strong>
           </div>
           <div class="admin-source-row__bar" aria-hidden="true"><span style="width: ${width}%"></span></div>
-          <div class="muted small">${formatAdminNumber(row.page_views || 0)} page views</div>
+          <div class="muted small">${formatAdminNumber(pageViews)} page views</div>
         </div>
       `;
     })
     .join('');
+  const breakdown = Array.isArray(otherBreakdownRows) ? otherBreakdownRows : [];
+  const breakdownMarkup = breakdown.length
+    ? `
+      <details class="admin-source-other-breakdown">
+        <summary>Other breakdown</summary>
+        <div class="admin-source-other-list">
+          ${breakdown
+            .map((row) => {
+              const visitors = Number(row.visitors || 0);
+              const pageViews = Number(row.page_views || 0);
+              return `
+                <div class="admin-source-other-row">
+                  <span>${escapeHtml(row.label || row.referrer_domain || row.utm_source || 'Unknown source')}</span>
+                  <small>${formatAdminNumber(visitors)} visitors · ${formatAdminNumber(pageViews)} page views</small>
+                </div>
+              `;
+            })
+            .join('')}
+        </div>
+      </details>
+    `
+    : '';
+  els.trafficSourcesList.innerHTML = `${sourceMarkup}${breakdownMarkup}`;
 }
 
 function renderAdminNoisyRecipients(rows = []) {

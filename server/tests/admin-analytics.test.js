@@ -112,6 +112,28 @@ async function postPublicEvent(baseUrl, payload) {
   };
 }
 
+test('traffic source classifier recognizes social, search, paid, direct, and unknown traffic', () => {
+  const { classifyTrafficSource } = require('../src/analyticsEvents');
+  const cases = [
+    ['direct', { referrer: '' }, 'direct'],
+    ['google organic referrer', { referrer: 'https://www.google.com/search?q=applictus' }, 'google_search'],
+    ['google ads click id', { path: '/?gclid=test-click-id' }, 'google_ads'],
+    ['google paid utm', { utmSource: 'google', utmMedium: 'cpc' }, 'google_ads'],
+    ['instagram referrer', { referrer: 'https://l.instagram.com/?u=https%3A%2F%2Fapplictus.com' }, 'instagram'],
+    ['instagram utm alias', { utmSource: 'ig' }, 'instagram'],
+    ['tiktok referrer', { referrer: 'https://vm.tiktok.com/ZMabc/' }, 'tiktok'],
+    ['youtube referrer', { referrer: 'https://youtu.be/demo' }, 'youtube'],
+    ['linkedin referrer', { referrer: 'https://www.linkedin.com/feed/' }, 'linkedin'],
+    ['reddit referrer', { referrer: 'https://www.reddit.com/r/jobs/' }, 'reddit'],
+    ['x shortlink referrer', { referrer: 'https://t.co/demo' }, 'twitter'],
+    ['unknown referrer', { referrer: 'https://newsletter.example.com/post' }, 'other']
+  ];
+
+  for (const [label, input, expected] of cases) {
+    assert.equal(classifyTrafficSource(input), expected, label);
+  }
+});
+
 test('admin analytics summary combines growth, product, revenue, traffic, and ingestion health', async (t) => {
   const { baseUrl, db, stop } = await startServerWithEnv({
     NODE_ENV: 'test',
@@ -127,25 +149,90 @@ test('admin analytics summary combines growth, product, revenue, traffic, and in
     return;
   }
 
-  const directEvent = await postPublicEvent(baseUrl, {
-    event_name: 'page_view',
-    visitor_id: 'visitor-direct',
-    session_id: 'session-direct',
-    path: '/',
-    referrer: ''
-  });
-  assert.equal(directEvent.status, 200);
+  const trafficEvents = [
+    {
+      visitor_id: 'visitor-direct',
+      session_id: 'session-direct',
+      path: '/',
+      referrer: ''
+    },
+    {
+      visitor_id: 'visitor-google',
+      session_id: 'session-google',
+      path: '/blog/job-application-tracker?utm_source=google&utm_medium=organic',
+      referrer: 'https://www.google.com/search?q=applictus',
+      utm_source: 'google',
+      utm_medium: 'organic'
+    },
+    {
+      visitor_id: 'visitor-google-ads',
+      session_id: 'session-google-ads',
+      path: '/?gclid=test-click-id&utm_source=google&utm_medium=cpc',
+      referrer: '',
+      utm_source: 'google',
+      utm_medium: 'cpc',
+      gclid: 'test-click-id'
+    },
+    {
+      visitor_id: 'visitor-instagram',
+      session_id: 'session-instagram',
+      path: '/?utm_source=ig',
+      referrer: 'https://l.instagram.com/?u=https%3A%2F%2Fapplictus.com',
+      utm_source: 'ig'
+    },
+    {
+      visitor_id: 'visitor-instagram',
+      session_id: 'session-instagram',
+      path: '/blog',
+      referrer: 'https://www.instagram.com/'
+    },
+    {
+      visitor_id: 'visitor-tiktok',
+      session_id: 'session-tiktok',
+      path: '/',
+      referrer: 'https://vm.tiktok.com/ZMabc/'
+    },
+    {
+      visitor_id: 'visitor-youtube',
+      session_id: 'session-youtube',
+      path: '/',
+      referrer: 'https://m.youtube.com/watch?v=applictus'
+    },
+    {
+      visitor_id: 'visitor-linkedin',
+      session_id: 'session-linkedin',
+      path: '/',
+      referrer: 'https://www.linkedin.com/feed/'
+    },
+    {
+      visitor_id: 'visitor-reddit',
+      session_id: 'session-reddit',
+      path: '/',
+      referrer: 'https://www.reddit.com/r/jobs/'
+    },
+    {
+      visitor_id: 'visitor-twitter',
+      session_id: 'session-twitter',
+      path: '/',
+      referrer: 'https://t.co/demo'
+    },
+    {
+      visitor_id: 'visitor-other',
+      session_id: 'session-other',
+      path: '/?utm_source=partner_unknown&utm_medium=bio',
+      referrer: 'https://newsletter.example.com/post',
+      utm_source: 'partner_unknown',
+      utm_medium: 'bio'
+    }
+  ];
 
-  const googleEvent = await postPublicEvent(baseUrl, {
-    event_name: 'page_view',
-    visitor_id: 'visitor-google',
-    session_id: 'session-google',
-    path: '/blog/job-application-tracker?utm_source=google&utm_medium=organic',
-    referrer: 'https://www.google.com/search?q=applictus',
-    utm_source: 'google',
-    utm_medium: 'organic'
-  });
-  assert.equal(googleEvent.status, 200);
+  for (const event of trafficEvents) {
+    const result = await postPublicEvent(baseUrl, {
+      event_name: 'page_view',
+      ...event
+    });
+    assert.equal(result.status, 200);
+  }
 
   const invalidEvent = await postPublicEvent(baseUrl, {
     event_name: 'subscription_started',
@@ -252,9 +339,27 @@ test('admin analytics summary combines growth, product, revenue, traffic, and in
   assert.ok(summary.revenue.mrr_cents >= 999);
   assert.ok(summary.revenue.signup_to_paid_conversion_rate_30d > 0);
   assert.equal(summary.traffic_acquisition.supports_utm_attribution, true);
+  const trafficBySource = Object.fromEntries(
+    summary.traffic_acquisition.traffic_sources_30d.map((source) => [source.source, source])
+  );
+  assert.ok(trafficBySource.direct.visitors >= 1);
+  assert.ok(trafficBySource.google_search.visitors >= 1);
+  assert.ok(trafficBySource.google_ads.visitors >= 1);
+  assert.equal(trafficBySource.instagram.visitors, 1);
+  assert.equal(trafficBySource.instagram.page_views, 2);
+  assert.equal(trafficBySource.tiktok.visitors, 1);
+  assert.equal(trafficBySource.youtube.visitors, 1);
+  assert.equal(trafficBySource.linkedin.visitors, 1);
+  assert.equal(trafficBySource.reddit.visitors, 1);
+  assert.equal(trafficBySource.twitter.visitors, 1);
+  assert.equal(trafficBySource.other.visitors, 1);
   assert.ok(
-    summary.traffic_acquisition.traffic_sources_30d.some(
-      (source) => source.source === 'google_search' && source.visitors >= 1
+    summary.traffic_acquisition.other_breakdown_30d.some(
+      (row) =>
+        row.referrer_domain === 'newsletter.example.com' &&
+        row.utm_source === 'partner_unknown' &&
+        row.visitors === 1 &&
+        row.page_views === 1
     )
   );
   assert.equal(summary.system_ingestion_health.tracked_emails_month, summary.tracked_emails_month);
