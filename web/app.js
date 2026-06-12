@@ -6076,12 +6076,15 @@ function renderPlanUsage(user = sessionUser) {
 }
 
 let adminAnalyticsLoaded = false;
+let adminAnalyticsLoadPromise = null;
+let adminAnalyticsLastLoadedAt = 0;
 let adminTrendState = {
   metric: 'unique_visitors',
   range: '30d',
   points: []
 };
 const ADMIN_FETCH_TIMEOUT_MS = 8000;
+const ADMIN_CLIENT_REFRESH_MS = 5 * 60 * 1000;
 
 async function adminFetchJson(path) {
   const url = apiUrl(path);
@@ -6492,14 +6495,20 @@ function updateAdminAnalyticsVisibility() {
   els.section.style.display = isAdmin ? '' : 'none';
   els.section.setAttribute('aria-hidden', isAdmin ? 'false' : 'true');
   if (isAdmin) {
-    void (async () => {
+    const hasFreshLoad = adminAnalyticsLoaded && Date.now() - adminAnalyticsLastLoadedAt < ADMIN_CLIENT_REFRESH_MS;
+    if (hasFreshLoad || adminAnalyticsLoadPromise) return;
+    adminAnalyticsLoadPromise = (async () => {
       const authed = await ensureAdminSession();
       if (!authed) return;
       const okSummary = await loadAdminAnalyticsSummary();
       const okTrend = await loadAdminTrend();
       const okUsers = await loadAdminUsers();
       adminAnalyticsLoaded = okSummary && okTrend && okUsers;
-    })();
+      if (adminAnalyticsLoaded) adminAnalyticsLastLoadedAt = Date.now();
+    })().finally(() => {
+      adminAnalyticsLoadPromise = null;
+    });
+    void adminAnalyticsLoadPromise;
   }
 }
 
@@ -13633,20 +13642,6 @@ emailDisconnect?.addEventListener('click', async () => {
     return;
   }
   await disconnectGmailConnection(emailDisconnect);
-});
-
-adminMetricSelect?.addEventListener('change', async () => {
-  const els = ensureAdminElements();
-  const metric = (els.metricSelect || adminMetricSelect)?.value || adminTrendState.metric;
-  adminTrendState.metric = metric;
-  await loadAdminTrend(metric, (els.rangeSelect || adminRangeSelect)?.value || '30d');
-});
-
-adminRangeSelect?.addEventListener('change', async () => {
-  const els = ensureAdminElements();
-  const range = (els.rangeSelect || adminRangeSelect)?.value || adminTrendState.range;
-  adminTrendState.range = range;
-  await loadAdminTrend((els.metricSelect || adminMetricSelect)?.value || adminTrendState.metric, range);
 });
 
 // If admin elements exist at load time, bootstrap listeners for them as well

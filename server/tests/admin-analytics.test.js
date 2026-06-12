@@ -149,6 +149,9 @@ test('admin analytics summary combines growth, product, revenue, traffic, and in
     return;
   }
 
+  const anonymousSummary = await fetch(`${baseUrl}/api/admin/analytics/summary`);
+  assert.equal(anonymousSummary.status, 401);
+
   const trafficEvents = [
     {
       visitor_id: 'visitor-direct',
@@ -223,8 +226,24 @@ test('admin analytics summary combines growth, product, revenue, traffic, and in
       referrer: 'https://newsletter.example.com/post',
       utm_source: 'partner_unknown',
       utm_medium: 'bio'
+    },
+    {
+      visitor_id: 'visitor-other',
+      session_id: 'session-other',
+      path: '/pricing?utm_source=partner_unknown&utm_medium=bio',
+      referrer: 'https://newsletter.example.com/post',
+      utm_source: 'partner_unknown',
+      utm_medium: 'bio'
     }
   ];
+  for (let i = 0; i < 12; i += 1) {
+    trafficEvents.push({
+      visitor_id: `visitor-other-${i}`,
+      session_id: `session-other-${i}`,
+      path: '/',
+      referrer: `https://unknown-${i}.example.com/post`
+    });
+  }
 
   for (const event of trafficEvents) {
     const result = await postPublicEvent(baseUrl, {
@@ -241,6 +260,15 @@ test('admin analytics summary combines growth, product, revenue, traffic, and in
   });
   assert.equal(invalidEvent.status, 400);
   assert.equal(invalidEvent.body.error, 'UNSUPPORTED_ANALYTICS_EVENT');
+
+  const largeEvent = await postPublicEvent(baseUrl, {
+    event_name: 'page_view',
+    visitor_id: 'visitor-large',
+    session_id: 'session-large',
+    path: `/${'x'.repeat(5000)}`
+  });
+  assert.equal(largeEvent.status, 413);
+  assert.equal(largeEvent.body.error, 'ANALYTICS_PAYLOAD_TOO_LARGE');
 
   const adminRequest = await createClient(baseUrl);
   const adminSignup = await adminRequest('/api/auth/signup', {
@@ -342,6 +370,7 @@ test('admin analytics summary combines growth, product, revenue, traffic, and in
   const trafficBySource = Object.fromEntries(
     summary.traffic_acquisition.traffic_sources_30d.map((source) => [source.source, source])
   );
+  assert.equal(summary.traffic_acquisition.traffic_sources_30d.length, 10);
   assert.ok(trafficBySource.direct.visitors >= 1);
   assert.ok(trafficBySource.google_search.visitors >= 1);
   assert.ok(trafficBySource.google_ads.visitors >= 1);
@@ -352,14 +381,15 @@ test('admin analytics summary combines growth, product, revenue, traffic, and in
   assert.equal(trafficBySource.linkedin.visitors, 1);
   assert.equal(trafficBySource.reddit.visitors, 1);
   assert.equal(trafficBySource.twitter.visitors, 1);
-  assert.equal(trafficBySource.other.visitors, 1);
+  assert.equal(trafficBySource.other.visitors, 13);
+  assert.ok(summary.traffic_acquisition.other_breakdown_30d.length <= 8);
   assert.ok(
     summary.traffic_acquisition.other_breakdown_30d.some(
       (row) =>
         row.referrer_domain === 'newsletter.example.com' &&
         row.utm_source === 'partner_unknown' &&
         row.visitors === 1 &&
-        row.page_views === 1
+        row.page_views === 2
     )
   );
   assert.equal(summary.system_ingestion_health.tracked_emails_month, summary.tracked_emails_month);

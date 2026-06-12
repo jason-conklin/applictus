@@ -18,6 +18,7 @@ test('admin analytics UI and analytics client are wired into served assets', () 
   const sourceCss = readProjectFile('web/styles.css');
   const publicCss = readProjectFile('public/styles.css');
   const analyticsJs = readProjectFile('web/analytics.js');
+  const serverApp = readProjectFile('server/src/app.js');
 
   assert.equal(publicJs, sourceJs);
   assert.equal(publicCss, sourceCss);
@@ -61,6 +62,11 @@ test('admin analytics UI and analytics client are wired into served assets', () 
   assert.match(analyticsJs, /utm_source/);
   assert.match(analyticsJs, /gclid/);
   assert.match(analyticsJs, /visitor_id/);
+
+  assert.match(serverApp, /ADMIN_TRAFFIC_OTHER_BREAKDOWN_LIMIT = 8/);
+  assert.match(serverApp, /GROUP BY classified_source/);
+  assert.match(serverApp, /payload_bytes/);
+  assert.doesNotMatch(serverApp, /SELECT id,\s+COALESCE\(NULLIF\(source, ''\), 'other'\) AS source[\s\S]*metadata_json[\s\S]*FROM analytics_events/);
 
   for (const relativePath of [
     'web/home.html',

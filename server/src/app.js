@@ -90,7 +90,6 @@ const {
 const {
   ANALYTICS_EVENT_NAMES,
   TRAFFIC_SOURCE_ORDER,
-  classifyTrafficSource,
   extractTrafficSourceHostname,
   normalizeTrafficSourceLabel,
   recordAnalyticsEvent,
@@ -117,7 +116,12 @@ const ALLOWED_ORIGINS = new Set(
 );
 
 // Lightweight in-memory cache to dampen short-burst analytics reads.
-const ADMIN_CACHE_TTL_MS = 60_000;
+const ADMIN_CACHE_TTL_MS = Math.max(
+  60_000,
+  Math.min(300_000, Number(process.env.ADMIN_ANALYTICS_CACHE_TTL_MS || 300_000) || 300_000)
+);
+const ADMIN_TRAFFIC_OTHER_BREAKDOWN_LIMIT = 8;
+const ANALYTICS_EVENT_PAYLOAD_MAX_BYTES = 4096;
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
 const BLOG_SLUGS = new Set([
   'best-free-job-application-trackers-2026',
@@ -131,12 +135,26 @@ const BLOG_SLUGS = new Set([
 ]);
 const adminAnalyticsCache = {
   summary: { data: null, ts: 0 },
-  trends: new Map() // key: `${metric}:${range}` -> { data, ts }
+  trends: new Map(), // key: `${metric}:${range}` -> { data, ts }
+  users: new Map() // key: `limit:${limit}` -> { data, ts }
 };
 
 function resetAdminCache() {
   adminAnalyticsCache.summary = { data: null, ts: 0 };
   adminAnalyticsCache.trends = new Map();
+  adminAnalyticsCache.users = new Map();
+}
+
+function estimateJsonBytes(value) {
+  try {
+    return Buffer.byteLength(JSON.stringify(value), 'utf8');
+  } catch (_) {
+    return 0;
+  }
+}
+
+function setPrivateCacheHeaders(res) {
+  res.set('Cache-Control', `private, max-age=${Math.floor(ADMIN_CACHE_TTL_MS / 1000)}`);
 }
 
 // Stack choice: Express + SQLite keeps the backend lightweight and easy to ship locally.
@@ -2964,6 +2982,15 @@ app.use(async (req, res, next) => {
 });
 
 app.post('/api/analytics/event', analyticsEventLimiter, async (req, res) => {
+  const payloadBytes = estimateJsonBytes(req.body || {});
+  if (payloadBytes > ANALYTICS_EVENT_PAYLOAD_MAX_BYTES) {
+    logWarn('analytics.event.payload_rejected', {
+      payload_bytes: payloadBytes,
+      max_bytes: ANALYTICS_EVENT_PAYLOAD_MAX_BYTES,
+      ip: getClientIp(req) || null
+    });
+    return res.status(413).json({ error: 'ANALYTICS_PAYLOAD_TOO_LARGE' });
+  }
   const eventName = String(req.body?.event_name || req.body?.eventName || '').trim().toLowerCase();
   if (eventName !== ANALYTICS_EVENT_NAMES.PAGE_VIEW) {
     return res.status(400).json({ error: 'UNSUPPORTED_ANALYTICS_EVENT' });
@@ -5283,6 +5310,57 @@ async function countPaidConversions(dbInstance, cutoffIso, { hasPlanTier = true,
   return Math.max(eventCount, userCount);
 }
 
+function buildTrafficSourceCaseExpression() {
+  const storedSource = "LOWER(COALESCE(source, ''))";
+  const utmSource = "LOWER(COALESCE(utm_source, ''))";
+  const utmMedium = "LOWER(COALESCE(utm_medium, ''))";
+  const paidMedium = `REPLACE(${utmMedium}, '-', '_') IN ('cpc', 'ppc', 'paid', 'paid_search', 'search', 'sem', 'display', 'ad', 'ads')`;
+  const pathValue = "LOWER(COALESCE(path, ''))";
+  const referrerValue = "LOWER(COALESCE(referrer, ''))";
+  const metadataValue = "LOWER(COALESCE(metadata_json, ''))";
+  const knownSourceList =
+    "'direct', 'google_search', 'google_ads', 'instagram', 'tiktok', 'youtube', 'linkedin', 'reddit', 'twitter'";
+
+  return `CASE
+    WHEN (${pathValue} LIKE '%gclid=%'
+       OR ${pathValue} LIKE '%gbraid=%'
+       OR ${pathValue} LIKE '%wbraid=%'
+       OR ${pathValue} LIKE '%gad_source=%'
+       OR ${metadataValue} LIKE '%"gclid"%'
+       OR ${metadataValue} LIKE '%"gbraid"%'
+       OR ${metadataValue} LIKE '%"wbraid"%'
+       OR ${metadataValue} LIKE '%"gad_source"%') THEN 'google_ads'
+    WHEN ${utmSource} <> '' THEN
+      CASE
+        WHEN (${utmSource} LIKE '%google%' AND ${paidMedium}) THEN 'google_ads'
+        WHEN (${utmSource} IN ('instagram', 'ig') OR ${utmSource} LIKE '%instagram%') THEN 'instagram'
+        WHEN (${utmSource} IN ('tiktok', 'tik_tok') OR ${utmSource} LIKE '%tiktok%') THEN 'tiktok'
+        WHEN (${utmSource} IN ('youtube', 'yt') OR ${utmSource} LIKE '%youtube%') THEN 'youtube'
+        WHEN (${utmSource} IN ('linkedin', 'linked_in', 'lnkd_in') OR ${utmSource} LIKE '%linkedin%') THEN 'linkedin'
+        WHEN (${utmSource} LIKE '%reddit%') THEN 'reddit'
+        WHEN (${utmSource} IN ('x', 'twitter', 'x_twitter', 't.co', 't_co') OR ${utmSource} LIKE '%twitter%') THEN 'twitter'
+        WHEN (${utmSource} LIKE '%google%') THEN 'google_search'
+        WHEN (${utmSource} = 'direct') THEN 'direct'
+        ELSE 'other'
+      END
+    WHEN ${referrerValue} <> '' THEN
+      CASE
+        WHEN (${referrerValue} LIKE '%google.%') THEN 'google_search'
+        WHEN (${referrerValue} LIKE '%instagram.com%') THEN 'instagram'
+        WHEN (${referrerValue} LIKE '%tiktok.com%') THEN 'tiktok'
+        WHEN (${referrerValue} LIKE '%youtube.com%' OR ${referrerValue} LIKE '%youtu.be%') THEN 'youtube'
+        WHEN (${referrerValue} LIKE '%linkedin.com%' OR ${referrerValue} LIKE '%lnkd.in%') THEN 'linkedin'
+        WHEN (${referrerValue} LIKE '%reddit.com%') THEN 'reddit'
+        WHEN (${referrerValue} LIKE '%twitter.com%' OR ${referrerValue} LIKE '%x.com%' OR ${referrerValue} LIKE '%t.co%') THEN 'twitter'
+        WHEN (${referrerValue} LIKE '%applictus.com%') THEN 'direct'
+        WHEN (${storedSource} IN (${knownSourceList}) AND ${storedSource} <> 'other') THEN ${storedSource}
+        ELSE 'other'
+      END
+    WHEN (${storedSource} IN (${knownSourceList}) AND ${storedSource} <> 'other') THEN ${storedSource}
+    ELSE 'direct'
+  END`;
+}
+
 async function buildTrafficSourceBreakdown(dbInstance, cutoffIso, { hasAnalyticsEvents = true } = {}) {
   const emptySources = TRAFFIC_SOURCE_ORDER.map((key) => ({
     source: key,
@@ -5291,114 +5369,86 @@ async function buildTrafficSourceBreakdown(dbInstance, cutoffIso, { hasAnalytics
     visitors: 0
   }));
   if (!hasAnalyticsEvents) return { sources: emptySources, other_breakdown: [] };
-  const rows = await runPrepared(
+  const sourceCase = buildTrafficSourceCaseExpression();
+  const sourceRows = await runPrepared(
     dbInstance,
-    `SELECT id,
-            COALESCE(NULLIF(source, ''), 'other') AS source,
-            visitor_id,
-            session_id,
-            user_id,
-            path,
-            referrer,
-            utm_source,
-            utm_medium,
-            metadata_json
-       FROM analytics_events
-      WHERE event_name = ?
-        AND occurred_at >= ?`,
+    `SELECT classified_source AS source,
+            COUNT(*) AS page_views,
+            COUNT(DISTINCT COALESCE(visitor_id, session_id, user_id, id)) AS visitors
+       FROM (
+         SELECT ${sourceCase} AS classified_source,
+                visitor_id,
+                session_id,
+                user_id,
+                id
+           FROM analytics_events
+          WHERE event_name = ?
+            AND occurred_at >= ?
+       ) classified
+      GROUP BY classified_source`,
     [ANALYTICS_EVENT_NAMES.PAGE_VIEW, cutoffIso],
     'all'
   );
-
-  const normalized = new Map(
-    TRAFFIC_SOURCE_ORDER.map((key) => [
-      key,
-      {
-        source: key,
-        label: normalizeTrafficSourceLabel(key),
-        page_views: 0,
-        visitors: 0,
-        visitorKeys: new Set()
-      }
-    ])
-  );
-  const otherBreakdown = new Map();
-
-  for (const row of rows || []) {
-    let metadata = null;
-    if (row.metadata_json) {
-      try {
-        metadata = JSON.parse(row.metadata_json);
-      } catch (_) {
-        metadata = null;
-      }
-    }
-    const key = classifyTrafficSource({
-      referrer: row.referrer,
-      utmSource: row.utm_source,
-      utmMedium: row.utm_medium,
-      path: row.path,
-      gclid: metadata?.gclid,
-      gbraid: metadata?.gbraid,
-      wbraid: metadata?.wbraid,
-      gadSource: metadata?.gad_source,
-      storedSource: row.source
+  const sourceTotals = new Map();
+  for (const row of sourceRows || []) {
+    const key = String(row.source || 'other').toLowerCase();
+    sourceTotals.set(key, {
+      page_views: Number(row.page_views || 0),
+      visitors: Number(row.visitors || 0)
     });
-    const bucket = normalized.get(key) || normalized.get('other');
-    const visitorKey = String(row.visitor_id || row.session_id || row.user_id || row.id || '').trim();
-    bucket.page_views += 1;
-    if (visitorKey) bucket.visitorKeys.add(visitorKey);
-
-    if (bucket.source === 'other') {
-      const referrerDomain = extractTrafficSourceHostname(row.referrer);
-      const utmSource = String(row.utm_source || '').trim();
-      const utmMedium = String(row.utm_medium || '').trim();
-      const breakdownKey = `${referrerDomain || '(no referrer)'}|${utmSource || '(no utm_source)'}|${
-        utmMedium || '(no utm_medium)'
-      }`;
-      if (!otherBreakdown.has(breakdownKey)) {
-        const labelParts = [];
-        if (referrerDomain) labelParts.push(referrerDomain);
-        if (utmSource) labelParts.push(`utm_source=${utmSource}`);
-        if (utmMedium) labelParts.push(`utm_medium=${utmMedium}`);
-        otherBreakdown.set(breakdownKey, {
-          label: labelParts.join(' · ') || 'Unknown source',
-          referrer_domain: referrerDomain || null,
-          utm_source: utmSource || null,
-          utm_medium: utmMedium || null,
-          page_views: 0,
-          visitors: 0,
-          visitorKeys: new Set()
-        });
-      }
-      const breakdown = otherBreakdown.get(breakdownKey);
-      breakdown.page_views += 1;
-      if (visitorKey) breakdown.visitorKeys.add(visitorKey);
-    }
   }
+  const otherRows = await runPrepared(
+    dbInstance,
+    `SELECT MIN(COALESCE(referrer, '')) AS referrer_sample,
+            MIN(COALESCE(utm_source, '')) AS utm_source,
+            MIN(COALESCE(utm_medium, '')) AS utm_medium,
+            COUNT(*) AS page_views,
+            COUNT(DISTINCT COALESCE(visitor_id, session_id, user_id, id)) AS visitors
+       FROM (
+         SELECT ${sourceCase} AS classified_source,
+                visitor_id,
+                session_id,
+                user_id,
+                id,
+                referrer,
+                utm_source,
+                utm_medium
+           FROM analytics_events
+          WHERE event_name = ?
+            AND occurred_at >= ?
+       ) classified
+      WHERE classified_source = 'other'
+      GROUP BY LOWER(COALESCE(referrer, '')), LOWER(COALESCE(utm_source, '')), LOWER(COALESCE(utm_medium, ''))
+      ORDER BY page_views DESC, visitors DESC
+      LIMIT ?`,
+    [ANALYTICS_EVENT_NAMES.PAGE_VIEW, cutoffIso, ADMIN_TRAFFIC_OTHER_BREAKDOWN_LIMIT],
+    'all'
+  );
 
-  // page_views is the count of page_view analytics events. visitors is a deduped visitor/session/user count,
-  // falling back to event id when anonymous identifiers are unavailable.
-  const sources = TRAFFIC_SOURCE_ORDER.map((key) => {
-    const bucket = normalized.get(key);
-    return {
-      source: bucket.source,
-      label: bucket.label,
-      page_views: bucket.page_views,
-      visitors: bucket.visitorKeys.size
-    };
-  });
-  const other_breakdown = Array.from(otherBreakdown.values())
+  const sources = TRAFFIC_SOURCE_ORDER.map((key) => ({
+    source: key,
+    label: normalizeTrafficSourceLabel(key),
+    page_views: sourceTotals.get(key)?.page_views || 0,
+    visitors: sourceTotals.get(key)?.visitors || 0
+  }));
+  const other_breakdown = (otherRows || [])
     .map((row) => ({
-      label: row.label,
-      referrer_domain: row.referrer_domain,
-      utm_source: row.utm_source,
-      utm_medium: row.utm_medium,
-      page_views: row.page_views,
-      visitors: row.visitorKeys.size
+      referrer_domain: extractTrafficSourceHostname(row.referrer_sample) || null,
+      utm_source: String(row.utm_source || '').trim() || null,
+      utm_medium: String(row.utm_medium || '').trim() || null,
+      page_views: Number(row.page_views || 0),
+      visitors: Number(row.visitors || 0)
     }))
-    .sort((a, b) => b.page_views - a.page_views || b.visitors - a.visitors || a.label.localeCompare(b.label))
-    .slice(0, 8);
+    .map((row) => {
+      const labelParts = [];
+      if (row.referrer_domain) labelParts.push(row.referrer_domain);
+      if (row.utm_source) labelParts.push(`utm_source=${row.utm_source}`);
+      if (row.utm_medium) labelParts.push(`utm_medium=${row.utm_medium}`);
+      return {
+        ...row,
+        label: labelParts.join(' · ') || 'Unknown source'
+      };
+    });
 
   return { sources, other_breakdown };
 }
@@ -5759,8 +5809,15 @@ app.get('/api/admin/analytics/summary', requireAuth, async (req, res) => {
     }
     const cacheAge = Date.now() - adminAnalyticsCache.summary.ts;
     if (adminAnalyticsCache.summary.data && cacheAge < ADMIN_CACHE_TTL_MS) {
-      logInfo('admin.analytics.summary.cache_hit', { age_ms: cacheAge });
-      return res.json({ ...adminAnalyticsCache.summary.data, cache: 'hit' });
+      const payload = { ...adminAnalyticsCache.summary.data, cache: 'hit' };
+      logInfo('admin.analytics.summary.cache_hit', {
+        age_ms: cacheAge,
+        payload_bytes: estimateJsonBytes(payload),
+        traffic_source_rows: payload.traffic_acquisition?.traffic_sources_30d?.length || 0,
+        other_breakdown_rows: payload.traffic_acquisition?.other_breakdown_30d?.length || 0
+      });
+      setPrivateCacheHeaders(res);
+      return res.json(payload);
     }
     logInfo('admin.analytics.summary.request', { userId: req.user?.id || null, email: req.user?.email || null });
     const hasUsers = await pgHasTable(db, 'users');
@@ -5778,6 +5835,14 @@ app.get('/api/admin/analytics/summary', requireAuth, async (req, res) => {
     const summary = await buildAdminAnalyticsSummary(db, caps);
     summary.schema_capabilities = caps;
     adminAnalyticsCache.summary = { data: summary, ts: Date.now() };
+    logInfo('admin.analytics.summary.response', {
+      cache: 'miss',
+      payload_bytes: estimateJsonBytes(summary),
+      traffic_source_rows: summary.traffic_acquisition?.traffic_sources_30d?.length || 0,
+      other_breakdown_rows: summary.traffic_acquisition?.other_breakdown_30d?.length || 0,
+      cache_ttl_ms: ADMIN_CACHE_TTL_MS
+    });
+    setPrivateCacheHeaders(res);
     return res.json(summary);
   } catch (err) {
     logError('admin.analytics.summary.failed', {
@@ -5800,8 +5865,16 @@ app.get('/api/admin/analytics/trends', requireAuth, async (req, res) => {
     const cached = adminAnalyticsCache.trends.get(cacheKey);
     const cacheAge = cached ? Date.now() - cached.ts : Infinity;
     if (cached && cacheAge < ADMIN_CACHE_TTL_MS) {
-      logInfo('admin.analytics.trends.cache_hit', { metric, range, age_ms: cacheAge });
-      return res.json({ ...cached.data, cache: 'hit' });
+      const payload = { ...cached.data, cache: 'hit' };
+      logInfo('admin.analytics.trends.cache_hit', {
+        metric,
+        range,
+        age_ms: cacheAge,
+        points: payload.points?.length || 0,
+        payload_bytes: estimateJsonBytes(payload)
+      });
+      setPrivateCacheHeaders(res);
+      return res.json(payload);
     }
 
     logInfo('admin.analytics.trends.request', {
@@ -5841,6 +5914,15 @@ app.get('/api/admin/analytics/trends', requireAuth, async (req, res) => {
       schema_capabilities: caps
     };
     adminAnalyticsCache.trends.set(cacheKey, { data: payload, ts: Date.now() });
+    logInfo('admin.analytics.trends.response', {
+      metric,
+      range,
+      cache: 'miss',
+      points: payload.points.length,
+      payload_bytes: estimateJsonBytes(payload),
+      cache_ttl_ms: ADMIN_CACHE_TTL_MS
+    });
+    setPrivateCacheHeaders(res);
     return res.json(payload);
   } catch (err) {
     logError('admin.analytics.trends.failed', {
@@ -5858,6 +5940,20 @@ app.get('/api/admin/analytics/users', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'ADMIN_ONLY' });
     }
     const limit = Math.min(200, Math.max(10, Number(req.query.limit) || 100));
+    const cacheKey = `limit:${limit}`;
+    const cached = adminAnalyticsCache.users.get(cacheKey);
+    const cacheAge = cached ? Date.now() - cached.ts : Infinity;
+    if (cached && cacheAge < ADMIN_CACHE_TTL_MS) {
+      const payload = { ...cached.data, cache: 'hit' };
+      logInfo('admin.analytics.users.cache_hit', {
+        limit,
+        age_ms: cacheAge,
+        users: payload.users?.length || 0,
+        payload_bytes: estimateJsonBytes(payload)
+      });
+      setPrivateCacheHeaders(res);
+      return res.json(payload);
+    }
     const hasInboxMode = db.isAsync ? await pgHasColumns(db, 'users', ['inbox_mode']) : true;
     const fields = hasInboxMode
       ? 'id, email, name, plan_tier, plan_status, inbox_mode, created_at'
@@ -5866,7 +5962,16 @@ app.get('/api/admin/analytics/users', requireAuth, async (req, res) => {
       ? `SELECT ${fields} FROM users ORDER BY created_at DESC NULLS LAST LIMIT $1`
       : `SELECT ${fields} FROM users ORDER BY created_at DESC LIMIT ?`;
     const rows = await runPrepared(db, sql, [limit], 'all');
-    return res.json({ users: rows || [] });
+    const payload = { users: rows || [] };
+    adminAnalyticsCache.users.set(cacheKey, { data: payload, ts: Date.now() });
+    logInfo('admin.analytics.users.response', {
+      limit,
+      users: payload.users.length,
+      payload_bytes: estimateJsonBytes(payload),
+      cache_ttl_ms: ADMIN_CACHE_TTL_MS
+    });
+    setPrivateCacheHeaders(res);
+    return res.json(payload);
   } catch (err) {
     logError('admin.analytics.users.failed', {
       userId: req.user?.id || null,
