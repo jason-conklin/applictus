@@ -167,6 +167,41 @@ The following items were sent to Visual Computer Solutions. Good luck!`
   assert.equal(identity.jobTitle, 'Mobile Developer');
 });
 
+test('extractThreadIdentity skips Indeed company-logo label and extracts real company', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Indeed Application: Summer Technology Camp Teacher',
+    sender: 'Indeed Apply <indeedapply@indeed.com>',
+    bodyText: `Application submitted
+
+Summer Technology Camp Teacher
+company logo
+Black Rocket Productions - Union NJ
+
+The following items were sent to Black Rocket Productions. Good luck!`
+  });
+
+  assert.equal(identity.providerHint, 'indeed_apply');
+  assert.equal(identity.companyName, 'Black Rocket Productions');
+  assert.equal(identity.jobTitle, 'Summer Technology Camp Teacher');
+});
+
+test('extractThreadIdentity uses Indeed company/location line when sent-to sentence is missing', () => {
+  const identity = extractThreadIdentity({
+    subject: 'Indeed Application: Operations Coordinator Co-Op',
+    sender: 'Indeed Apply <indeedapply@indeed.com>',
+    bodyText: `Application submitted
+
+Operations Coordinator Co-Op
+company logo
+Gemco - Middlesex, NJ, 08846
+Next steps`
+  });
+
+  assert.equal(identity.providerHint, 'indeed_apply');
+  assert.equal(identity.companyName, 'Gemco');
+  assert.equal(identity.jobTitle, 'Operations Coordinator Co-Op');
+});
+
 test('extractThreadIdentity does not default Indeed Apply company to sender brand when missing', () => {
   const identity = extractThreadIdentity({
     subject: 'Indeed Application: Mobile Developer',

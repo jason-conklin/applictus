@@ -1595,6 +1595,10 @@ const INDEED_APPLY_COMPANY_DENYLIST = new Set([
 
 const INDEED_APPLY_IGNORED_LINE_PATTERNS = [
   /^application submitted\b/i,
+  /^company logo\b/i,
+  /^star rating\b/i,
+  /^\d+\s+(?:reviews?|ratings?)\b/i,
+  /^\d+(?:\.\d+)?\s+stars?\b/i,
   /^next steps?\b/i,
   /^good luck\b/i,
   /^indeed\b/i,
@@ -2515,6 +2519,27 @@ function normalizeIndeedApplyCompany(value) {
   return candidate;
 }
 
+function isSameIndeedApplyIdentityValue(left, right) {
+  const leftText = normalize(left).toLowerCase();
+  const rightText = normalize(right).toLowerCase();
+  return Boolean(leftText && rightText && leftText === rightText);
+}
+
+function extractIndeedApplySentToCompany(text) {
+  const compact = normalize(text);
+  if (!compact) {
+    return null;
+  }
+  const sentToMatch =
+    compact.match(/\bthe following items were sent to\s+(.+?)(?:\.\s*good luck!?|[.!?]|$)/i) ||
+    compact.match(/\bthis information was sent to\s+(.+?)(?:\.\s*good luck!?|[.!?]|$)/i) ||
+    compact.match(/\bsent to\s+(.+?)(?:\.\s*good luck!?|[.!?]|$)/i);
+  if (!sentToMatch || !sentToMatch[1]) {
+    return null;
+  }
+  return normalizeIndeedApplyCompany(sentToMatch[1]);
+}
+
 function extractIndeedApplyIdentity({ subject, snippet, bodyText, sender }) {
   if (!isIndeedApplyApplicationSubmittedEmail({ subject, sender, snippet, bodyText })) {
     return null;
@@ -2551,30 +2576,29 @@ function extractIndeedApplyIdentity({ subject, snippet, bodyText, sender }) {
 
   let companyName = null;
   let companySource = 'none';
-  const companyScanStart = roleLineIndex >= 0 ? roleLineIndex + 1 : scanStart;
-  const companyScanEnd = Math.min(lines.length, companyScanStart + 8);
-  for (let i = companyScanStart; i < companyScanEnd; i += 1) {
-    const companyCandidate = normalizeIndeedApplyCompany(lines[i]);
-    if (!companyCandidate) {
-      continue;
-    }
-    companyName = companyCandidate;
-    companySource = 'body_adjacent';
-    break;
+  const sentenceCompany = extractIndeedApplySentToCompany(combinedText);
+  if (sentenceCompany && !isSameIndeedApplyIdentityValue(sentenceCompany, jobTitle)) {
+    companyName = sentenceCompany;
+    companySource = 'sent_to_sentence';
   }
 
   if (!companyName) {
-    const sentToMatch =
-      combinedText.match(/the following items were sent to\s+(.+?)\.\s*good luck!?/i) ||
-      combinedText.match(/\bsent to\s+(.+?)\.\s*good luck!?/i) ||
-      combinedText.match(/\bsent to\s+(.+?)(?:[.!?]|$)/i);
-    if (sentToMatch && sentToMatch[1]) {
-      const sentenceCompany = normalizeIndeedApplyCompany(sentToMatch[1]);
-      if (sentenceCompany) {
-        companyName = sentenceCompany;
-        companySource = 'sent_to_sentence';
+    const companyScanStart = roleLineIndex >= 0 ? roleLineIndex + 1 : scanStart;
+    const companyScanEnd = Math.min(lines.length, companyScanStart + 8);
+    for (let i = companyScanStart; i < companyScanEnd; i += 1) {
+      const companyCandidate = normalizeIndeedApplyCompany(lines[i]);
+      if (!companyCandidate || isSameIndeedApplyIdentityValue(companyCandidate, jobTitle)) {
+        continue;
       }
+      companyName = companyCandidate;
+      companySource = 'body_adjacent';
+      break;
     }
+  }
+
+  if (companyName && isSameIndeedApplyIdentityValue(companyName, jobTitle)) {
+    companyName = null;
+    companySource = 'none';
   }
 
   if (!companyName && !jobTitle) {

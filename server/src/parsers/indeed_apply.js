@@ -52,6 +52,20 @@ function extractCompanyFromSentItemsLine(line) {
   return cleanLine(sentToMatch[1]);
 }
 
+function extractCompanyFromSentItemsText(text) {
+  const compact = cleanLine(text);
+  if (!compact) {
+    return null;
+  }
+  const sentToMatch =
+    compact.match(/\bthe following items were sent to\s+(.+?)(?:\.\s*good luck!?|[.!?]|$)/i) ||
+    compact.match(/\bthis information was sent to\s+(.+?)(?:\.\s*good luck!?|[.!?]|$)/i);
+  if (!sentToMatch || !sentToMatch[1]) {
+    return null;
+  }
+  return cleanLine(sentToMatch[1]);
+}
+
 function extractCompanyFromLine(line, expectedCompany) {
   const text = cleanLine(line);
   if (!text) {
@@ -65,12 +79,31 @@ function extractCompanyFromLine(line, expectedCompany) {
   return cleanLine(split[0] || null) || null;
 }
 
+function sameNormalized(left, right) {
+  const leftText = cleanLine(left).toLowerCase();
+  const rightText = cleanLine(right).toLowerCase();
+  return Boolean(leftText && rightText && leftText === rightText);
+}
+
+function findRoleLineIndex(bodyLines, submittedIdx, roleRaw) {
+  if (!roleRaw || submittedIdx < 0) {
+    return -1;
+  }
+  for (let i = submittedIdx + 1; i < Math.min(bodyLines.length, submittedIdx + 12); i += 1) {
+    if (sameNormalized(bodyLines[i], roleRaw)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 function parse({ subject, text }) {
   const notes = [];
   const candidates = { company: [], role: [] };
   const rejectedCandidates = [];
   const ignoredSections = [];
   const subjectText = String(subject || '').trim();
+  const textBody = String(text || '');
   const bodyLines = lines(text);
 
   let roleRaw = null;
@@ -92,7 +125,7 @@ function parse({ subject, text }) {
   const submittedIdx = bodyLines.findIndex((line) => /application submitted/i.test(line));
   if (submittedIdx >= 0) {
     ignoredSections.push('application_submitted_block');
-    let roleLineIndex = -1;
+    let roleLineIndex = findRoleLineIndex(bodyLines, submittedIdx, roleRaw);
 
     if (!roleRaw) {
       for (let i = submittedIdx + 1; i < Math.min(bodyLines.length, submittedIdx + 8); i += 1) {
@@ -123,18 +156,11 @@ function parse({ subject, text }) {
     }
 
     if (!companyRaw) {
-      for (let i = submittedIdx + 1; i < Math.min(bodyLines.length, submittedIdx + 10); i += 1) {
-        const candidateLine = bodyLines[i];
-        if (!candidateLine) {
-          continue;
-        }
-        const sentItemsCompany = extractCompanyFromSentItemsLine(candidateLine);
-        if (sentItemsCompany) {
-          companyRaw = sentItemsCompany;
-          companySource = 'sent_items_sentence';
-          candidates.company.push(sentItemsCompany);
-          break;
-        }
+      const sentItemsCompany = extractCompanyFromSentItemsText(textBody);
+      if (sentItemsCompany && !sameNormalized(sentItemsCompany, roleRaw)) {
+        companyRaw = sentItemsCompany;
+        companySource = 'sent_items_sentence';
+        candidates.company.push(sentItemsCompany);
       }
     }
 
@@ -148,14 +174,11 @@ function parse({ subject, text }) {
         if (/^[•*-]\s*(?:application|resume)\b/i.test(candidateLine)) {
           continue;
         }
-        if (
-          roleRaw &&
-          cleanLine(candidateLine).toLowerCase() === cleanLine(roleRaw).toLowerCase()
-        ) {
+        if (sameNormalized(candidateLine, roleRaw)) {
           continue;
         }
         const companyLine = extractCompanyFromLine(candidateLine, companyRaw);
-        if (companyLine) {
+        if (companyLine && !sameNormalized(companyLine, roleRaw)) {
           companyRaw = companyLine;
           companySource = 'submitted_block';
           candidates.company.push(companyLine);
@@ -166,14 +189,11 @@ function parse({ subject, text }) {
   }
 
   if (!companyRaw) {
-    for (const line of bodyLines) {
-      const sentItemsCompany = extractCompanyFromSentItemsLine(line);
-      if (sentItemsCompany) {
-        companyRaw = sentItemsCompany;
-        companySource = 'sent_items_sentence';
-        candidates.company.push(sentItemsCompany);
-        break;
-      }
+    const sentItemsCompany = extractCompanyFromSentItemsText(textBody);
+    if (sentItemsCompany && !sameNormalized(sentItemsCompany, roleRaw)) {
+      companyRaw = sentItemsCompany;
+      companySource = 'sent_items_sentence';
+      candidates.company.push(sentItemsCompany);
     }
   }
 
@@ -189,7 +209,7 @@ function parse({ subject, text }) {
       }
       if (/\b(inc\.?|llc|corp\.?|technologies|solutions|systems|labs|group|company)\b/i.test(line)) {
         const maybeCompany = extractCompanyFromLine(line, companyRaw);
-        if (maybeCompany) {
+        if (maybeCompany && !sameNormalized(maybeCompany, roleRaw)) {
           companyRaw = maybeCompany;
           companySource = 'company_location_line';
           candidates.company.push(maybeCompany);
@@ -197,7 +217,7 @@ function parse({ subject, text }) {
         }
       }
       const parsedCompanyLocation = parseCompanyLocationLine(line, { expectedCompany: companyRaw });
-      if (parsedCompanyLocation?.company) {
+      if (parsedCompanyLocation?.company && !sameNormalized(parsedCompanyLocation.company, roleRaw)) {
         companyRaw = parsedCompanyLocation.company;
         companySource = 'company_location_line';
         candidates.company.push(companyRaw);
@@ -213,12 +233,14 @@ function parse({ subject, text }) {
     role: roleRaw,
     defaultStatus: 'applied'
   });
-  const company = normalizeCompany(companyRaw, { notes });
+  let company = normalizeCompany(companyRaw, { notes });
   const role = normalizeRole(roleRaw, { notes });
   const status = statusSignal.status || 'applied';
   if (company && role && company.toLowerCase() === role.toLowerCase()) {
-    notes.push('role_rejected:matches_company');
-    rejectedCandidates.push({ field: 'role', value: role, reason: 'matches_company' });
+    notes.push('company_rejected:matches_role');
+    rejectedCandidates.push({ field: 'company', value: company, reason: 'matches_role' });
+    company = null;
+    companySource = null;
   }
 
   return {

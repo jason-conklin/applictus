@@ -3,6 +3,15 @@ const assert = require('node:assert/strict');
 
 const { parseJobEmail } = require('../src/parseJobEmail');
 
+async function parseIndeedApplication({ role, bodyLines, subjectRole = role }) {
+  return parseJobEmail({
+    fromEmail: 'Indeed Apply <indeedapply@indeed.com>',
+    fromDomain: 'indeed.com',
+    subject: `Indeed Application: ${subjectRole}`,
+    text: bodyLines.join('\n')
+  });
+}
+
 test('indeed parser extracts CubX Inc and full stack role', async () => {
   const parsed = await parseJobEmail({
     fromEmail: 'indeedapply@indeed.com',
@@ -125,4 +134,107 @@ test('indeed parser extracts company from sent-items sentence in confirmation te
   assert.equal(parsed.company, 'Acme Financial Group');
   assert.equal(parsed.role, 'Business Analyst');
   assert.equal(parsed.parserDebug?.company_source, 'sent_items_sentence');
+});
+
+test('indeed parser extracts Black Rocket Productions from Apply confirmation', async () => {
+  const parsed = await parseIndeedApplication({
+    role: 'Summer Technology Camp Teacher',
+    bodyLines: [
+      'Application submitted',
+      'Summer Technology Camp Teacher',
+      'company logo',
+      'Black Rocket Productions - Union NJ',
+      'The following items were sent to Black Rocket Productions. Good luck!'
+    ]
+  });
+
+  assert.equal(parsed.providerId, 'indeed_apply');
+  assert.equal(parsed.status, 'applied');
+  assert.equal(parsed.company, 'Black Rocket Productions');
+  assert.equal(parsed.role, 'Summer Technology Camp Teacher');
+  assert.equal(parsed.parserDebug?.company_source, 'sent_items_sentence');
+});
+
+test('indeed parser extracts Gemco from Apply confirmation', async () => {
+  const parsed = await parseIndeedApplication({
+    role: 'Operations Coordinator Co-Op',
+    bodyLines: [
+      'Application submitted',
+      'Operations Coordinator Co-Op',
+      'company logo',
+      'Gemco - Middlesex, NJ, 08846',
+      'The following items were sent to Gemco. Good luck!'
+    ]
+  });
+
+  assert.equal(parsed.providerId, 'indeed_apply');
+  assert.equal(parsed.status, 'applied');
+  assert.equal(parsed.company, 'Gemco');
+  assert.equal(parsed.role, 'Operations Coordinator Co-Op');
+  assert.equal(parsed.parserDebug?.company_source, 'sent_items_sentence');
+});
+
+test('indeed parser handles company names with commas and hyphens', async () => {
+  const commaCompany = await parseIndeedApplication({
+    role: 'Data Analyst',
+    bodyLines: [
+      'Application submitted',
+      'Data Analyst',
+      'company logo',
+      'Smith, Johnson & Co. - New York, NY',
+      'The following items were sent to Smith, Johnson & Co. Good luck!'
+    ]
+  });
+  const hyphenCompany = await parseIndeedApplication({
+    role: 'Camp Counselor',
+    bodyLines: [
+      'Application submitted',
+      'Camp Counselor',
+      'company logo',
+      'Bright-Star Learning - Austin, TX',
+      'The following items were sent to Bright-Star Learning. Good luck!'
+    ]
+  });
+
+  assert.equal(commaCompany.company, 'Smith, Johnson & Co');
+  assert.equal(commaCompany.role, 'Data Analyst');
+  assert.equal(hyphenCompany.company, 'Bright-Star Learning');
+  assert.equal(hyphenCompany.role, 'Camp Counselor');
+});
+
+test('indeed parser falls back to company/location line when sent-items sentence is missing', async () => {
+  const parsed = await parseIndeedApplication({
+    role: 'Summer Technology Camp Teacher',
+    bodyLines: [
+      'Application submitted',
+      'Summer Technology Camp Teacher',
+      'company logo',
+      'Black Rocket Productions - Union NJ',
+      'Next steps',
+      'The employer or job advertiser may reach out to you about your application.'
+    ]
+  });
+
+  assert.equal(parsed.providerId, 'indeed_apply');
+  assert.equal(parsed.status, 'applied');
+  assert.equal(parsed.company, 'Black Rocket Productions');
+  assert.equal(parsed.role, 'Summer Technology Camp Teacher');
+  assert.equal(parsed.parserDebug?.company_source, 'submitted_block');
+});
+
+test('indeed parser does not allow role to become company', async () => {
+  const parsed = await parseIndeedApplication({
+    role: 'Summer Technology Camp Teacher',
+    bodyLines: [
+      'Application submitted',
+      'Summer Technology Camp Teacher',
+      'Next steps',
+      'The employer or job advertiser may reach out to you about your application.'
+    ]
+  });
+
+  assert.equal(parsed.providerId, 'indeed_apply');
+  assert.equal(parsed.status, 'applied');
+  assert.equal(parsed.role, 'Summer Technology Camp Teacher');
+  assert.notEqual(parsed.company, 'Summer Technology Camp Teacher');
 });
