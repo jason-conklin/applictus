@@ -35,6 +35,30 @@ test('iCIMS-style rejection detected with company', async () => {
   assert.equal(parsed.company, 'Lord Abbett');
 });
 
+test('direct recruiter company-domain rejection parses company, role, and rejected status', async () => {
+  const parsed = await parseJobEmail({
+    fromEmail: 'Mercedes Hanton <mercedes.hanton@upbound.io>',
+    fromDomain: 'upbound.io',
+    subject: 'Upbound - Global Account Manager [REMOTE]',
+    text: [
+      'Hi Shane,',
+      '',
+      'Thank you for taking some time to interview with the team and allowing us to explore a deeper fit for the Global Account Manager [REMOTE] position.',
+      'It was certainly a very tough decision for the team to make, but unfortunately they have decided to push forward with other candidates at this time.',
+      '',
+      "We hope to stay close and would absolutely encourage you to keep an eye out for other positions on our job's page that might be a better match."
+    ].join('\n')
+  });
+
+  assert.equal(parsed.providerId, 'generic');
+  assert.equal(parsed.status, 'rejected');
+  assert.equal(parsed.actionNeeded, false);
+  assert.equal(parsed.company, 'Upbound');
+  assert.equal(parsed.role, 'Global Account Manager [REMOTE]');
+  assert.ok(parsed.confidence.status >= 90);
+  assert.ok(parsed.parserDebug?.status_signal?.rejection_matches.includes('push forward with other candidates'));
+});
+
 test('Workday polite rejection phrasing is classified as rejected', async () => {
   const parsed = await parseJobEmail({
     fromEmail: 'arch@myworkday.com',

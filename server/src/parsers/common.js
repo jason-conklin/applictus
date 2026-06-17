@@ -17,8 +17,18 @@ const REJECTION_SIGNAL_PATTERNS = [
   { pattern: /\bnot selected\b/i, label: 'not selected', strength: 'strong' },
   { pattern: /\bunfortunately\b/i, label: 'unfortunately', strength: 'strong' },
   { pattern: /\bpursue other candidates\b/i, label: 'pursue other candidates', strength: 'strong' },
+  { pattern: /\bmove forward with other candidates\b/i, label: 'move forward with other candidates', strength: 'strong' },
+  { pattern: /\bpush forward with other candidates\b/i, label: 'push forward with other candidates', strength: 'strong' },
+  { pattern: /\bproceed with other candidates\b/i, label: 'proceed with other candidates', strength: 'strong' },
+  { pattern: /\bdecided not to (?:move forward|proceed)\b/i, label: 'decided not to proceed', strength: 'strong' },
   { pattern: /\bunable to move forward\b/i, label: 'unable to move forward', strength: 'strong' },
   { pattern: /\bwe have carefully reviewed your application\b/i, label: 'we have carefully reviewed your application', strength: 'soft' },
+  {
+    pattern: /\bthank you for (?:taking (?:some )?time to )?interview(?:ing)?(?: with (?:the|our) team)?\b/i,
+    label: 'thank you for interviewing',
+    strength: 'soft'
+  },
+  { pattern: /\btough decision\b/i, label: 'tough decision', strength: 'soft' },
   { pattern: /\bwe wish you all the best\b/i, label: 'we wish you all the best', strength: 'soft' },
   {
     pattern: /\bhope you consider\b.{0,120}\bfuture career opportunities\b/i,

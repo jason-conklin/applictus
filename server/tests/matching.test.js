@@ -519,6 +519,28 @@ test('extractThreadIdentity uses sender alias mapping for platform sender', () =
   assert.ok(identity.companyConfidence >= 0.85);
 });
 
+test('extractThreadIdentity parses direct recruiter company-role rejection subject', () => {
+  const bodyText = [
+    'Hi Shane,',
+    '',
+    'Thank you for taking some time to interview with the team and allowing us to explore a deeper fit for the Global Account Manager [REMOTE] position.',
+    'It was certainly a very tough decision for the team to make, but unfortunately they have decided to push forward with other candidates at this time.',
+    '',
+    "We hope to stay close and would absolutely encourage you to keep an eye out for other positions on our job's page that might be a better match."
+  ].join('\n');
+
+  const identity = extractThreadIdentity({
+    subject: 'Upbound - Global Account Manager [REMOTE]',
+    sender: 'Mercedes Hanton <mercedes.hanton@upbound.io>',
+    bodyText
+  });
+
+  assert.equal(identity.companyName, 'Upbound');
+  assert.equal(identity.jobTitle, 'Global Account Manager [REMOTE]');
+  assert.equal(identity.senderDomain, 'upbound.io');
+  assert.ok(identity.matchConfidence >= 0.9);
+});
+
 test('shouldAutoCreate requires high confidence and allowed type', () => {
   const identity = extractThreadIdentity({
     subject: 'Application for Product Designer at Acme',

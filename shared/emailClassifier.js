@@ -132,6 +132,27 @@ const RELEVANCE_KEEP_SIGNALS = [
   { pattern: /\bnot selected\b/i, label: 'not_selected' },
   { pattern: /\bpursue other candidates\b/i, label: 'pursue_other_candidates' },
   {
+    pattern: /(?=.*\b(?:application|candidacy|interview|role|hiring|recruit|job'?s?\s+page|careers?\s+page)\b)\bpush forward with other candidates\b/i,
+    label: 'push_forward_other_candidates'
+  },
+  {
+    pattern: /(?=.*\b(?:application|candidacy|interview|role|hiring|recruit|job'?s?\s+page|careers?\s+page)\b)\bproceed with other candidates\b/i,
+    label: 'proceed_other_candidates'
+  },
+  {
+    pattern: /(?=.*\b(?:application|candidacy|interview|role|hiring|recruit|job'?s?\s+page|careers?\s+page)\b)\bmove forward with other candidates\b/i,
+    label: 'move_forward_other_candidates'
+  },
+  {
+    pattern: /(?=.*\b(?:application|candidacy|interview|role|hiring|recruit|job'?s?\s+page|careers?\s+page)\b)\bdecided not to (?:move forward|proceed)\b/i,
+    label: 'decided_not_to_proceed'
+  },
+  { pattern: /\bthank you for (?:taking (?:some )?time to )?interview(?:ing)?\b/i, label: 'thank_you_interviewing' },
+  {
+    pattern: /(?=.*\b(?:application|candidacy|interview|role|hiring|recruit|job'?s?\s+page|careers?\s+page)\b)\btough decision\b/i,
+    label: 'tough_decision'
+  },
+  {
     pattern: /\banother (?:applicant|candidate) (?:has been|was) (?:selected|chosen)(?: for (?:this|the) (?:position|role))?\b/i,
     label: 'another_applicant_selected'
   },
@@ -401,8 +422,13 @@ const STRONG_REJECTION_SIGNALS = [
   { pattern: /not move forward with your application/i, label: 'not move forward with your application' },
   { pattern: /decided to pursue other candidates/i, label: 'decided to pursue other candidates' },
   { pattern: /moving forward with other candidates/i, label: 'moving forward with other candidates' },
+  { pattern: /push forward with other candidates/i, label: 'push forward with other candidates' },
+  { pattern: /proceed with other candidates/i, label: 'proceed with other candidates' },
+  { pattern: /move forward with other candidates/i, label: 'move forward with other candidates' },
   { pattern: /we will not be moving forward/i, label: 'we will not be moving forward' },
   { pattern: /we(?:'| )?ve decided to pursue other candidates/i, label: "we've decided to pursue other candidates" },
+  { pattern: /\bdecided not to (?:move forward|proceed)\b/i, label: 'decided not to proceed' },
+  { pattern: /\bafter your interview\b.{0,100}\bdecided not to (?:move forward|proceed)\b/i, label: 'after interview decided not to proceed' },
   {
     pattern: /after careful consideration[, ]+(?:we )?(?:are )?(?:not|unable|declined|declining|will not)/i,
     label: 'after careful consideration'
@@ -458,6 +484,18 @@ const SOFT_REJECTION_SIGNALS = [
   {
     pattern: /\bwe appreciate your interest\b.{0,160}\b(?:best wishes|success) in your employment search\b/i,
     label: 'appreciate interest and wish success'
+  },
+  {
+    pattern: /\bthank you for (?:taking (?:some )?time to )?interview(?:ing)?(?: with (?:the|our) team)?\b/i,
+    label: 'thank you for interviewing'
+  },
+  {
+    pattern: /\btough decision\b/i,
+    label: 'tough decision'
+  },
+  {
+    pattern: /\bkeep an eye out for other positions\b/i,
+    label: 'keep an eye out for other positions'
   }
 ];
 
@@ -711,10 +749,17 @@ const RULES = [
     /after careful consideration/i,
     /after reviewing your application,? we(?:'| have)?(?:\s+)?decided to move forward/i,
     /we (?:have )?decided to move forward with other candidates/i,
+    /we (?:have )?decided to push forward with other candidates/i,
+    /we (?:have )?decided to proceed with other candidates/i,
+    /decided to push forward with other candidates/i,
+    /decided to proceed with other candidates/i,
     /we(?:'| have)?(?:\s+)?decided to pursue other candidates/i,
     /we (?:have )?decided to pursue other candidates/i,
     /decided to pursue other candidates/i,
+    /decided not to (?:move forward|proceed)/i,
     /pursue other candidates/i,
+    /push forward with other candidates/i,
+    /proceed with other candidates/i,
     /we (?:have )?chosen other candidates/i,
     /we (?:have )?chosen other applicants/i,
     /another (?:applicant|candidate) (?:has been|was) (?:selected|chosen)(?: for (?:this|the) (?:position|role))?/i,
@@ -853,6 +898,9 @@ const STRONG_REJECTION_RULE = {
     /we (?:will not|won't) be moving forward/i,
     /we are not moving forward with your (?:application|candidacy)/i,
     /move forward with other candidates/i,
+    /push forward with other candidates/i,
+    /proceed with other candidates/i,
+    /decided not to (?:move forward|proceed)/i,
     /we (?:have )?decided to pursue other candidates/i,
     /another (?:applicant|candidate) (?:has been|was) (?:selected|chosen)(?: for (?:this|the) (?:position|role))?/i,
     /the recruitment has (?:now )?been completed(?: and another (?:applicant|candidate) (?:has been|was) (?:selected|chosen))?/i,
@@ -933,10 +981,13 @@ function hasStrongJobLifecycleEvidence(text) {
     /\bshare your availability\b/i.test(sourceText) ||
     /\boffer (?:letter|extended|received)\b/i.test(sourceText) ||
     /\bnot selected\b/i.test(sourceText) ||
+    /\b(?:move|push|proceed)(?:ing)? forward with other candidates\b/i.test(sourceText) ||
+    /\bdecided not to (?:move forward|proceed)\b/i.test(sourceText) ||
     /\banother (?:applicant|candidate) (?:has been|was) (?:selected|chosen)\b/i.test(sourceText) ||
     /\bthe recruitment has (?:now )?been completed\b/i.test(sourceText) ||
     /\bthe selection process has concluded\b/i.test(sourceText) ||
-    /\b(?:will not|not) be moving forward with your application\b/i.test(sourceText)
+    /\b(?:will not|not) be moving forward with your application\b/i.test(sourceText) ||
+    /\bthank you for (?:taking (?:some )?time to )?interview(?:ing)?\b/i.test(sourceText)
   );
 }
 
@@ -1288,6 +1339,12 @@ function isLinkedInSocialNotification(text, sender = '') {
 
 function hasJobContext(text) {
   return /\b(application|apply|applied|position|role|job|candidate|candidacy|hiring|recruit|recruiter|recruiting|interview|screen|screening)\b/i.test(
+    text
+  );
+}
+
+function hasHiringDecisionContext(text) {
+  return /\b(application|apply|applied|role|job(?:'s)?\s+page|careers?\s+page|candidacy|hiring|recruit|recruiter|recruiting|interview|screen|screening|assessment|offer)\b/i.test(
     text
   );
 }
@@ -1805,6 +1862,7 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
   const minConfidence = 0.6;
   const rules = [PROFILE_SUBMITTED_RULE, ...RULES];
   const jobContext = hasJobContext(text) || hasSubjectRolePattern(normalize(subject));
+  const hiringDecisionContext = hasHiringDecisionContext(textSource) || hasSubjectRolePattern(normalize(subject));
 
   // Conditional "not selected" disclaimers in receipts should not be treated as rejection.
   if (
@@ -1826,8 +1884,8 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
   const softRejectionMatches = collectSignalMatches(SOFT_REJECTION_SIGNALS, textSource);
   const appliedCourtesyMatches = collectSignalMatches(APPLIED_COURTESY_SIGNALS, textSource);
   const decisiveRejection =
-    strongRejectionMatches.length > 0 ||
-    (softRejectionMatches.length >= 2 && /application|candidate|candidacy|position|role/i.test(text));
+    (strongRejectionMatches.length > 0 && hiringDecisionContext) ||
+    (softRejectionMatches.length >= 2 && hiringDecisionContext);
   if (decisiveRejection) {
     const primaryMatch =
       strongRejectionMatches[0] ||
@@ -1855,7 +1913,7 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
     };
   }
 
-  const strongRejection = findRuleMatch([STRONG_REJECTION_RULE], text, 0.95, jobContext);
+  const strongRejection = findRuleMatch([STRONG_REJECTION_RULE], text, 0.95, hiringDecisionContext);
   if (strongRejection) {
     return {
       isJobRelated: true,
@@ -1927,7 +1985,7 @@ function classifyEmail({ subject, snippet, sender, body, headers, authenticatedU
 
   const confirmationRules = rules.filter((rule) => rule.detectedType === 'confirmation');
   const rejectionRules = rules.filter((rule) => rule.detectedType === 'rejection');
-  const rejectionMatch = findRuleMatch(rejectionRules, text, 0.9, jobContext);
+  const rejectionMatch = findRuleMatch(rejectionRules, text, 0.9, hiringDecisionContext);
   if (rejectionMatch) {
     const matchedPattern = rejectionMatch.matched;
     const isNotSelected = matchedPattern && /not selected/i.test(String(matchedPattern));

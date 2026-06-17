@@ -73,7 +73,66 @@ function toProviderInput(payload = {}) {
   };
 }
 
-function parseGeneric({ subject, text }) {
+function companyFromSenderDomain(domain) {
+  const value = String(domain || '').toLowerCase().trim();
+  if (!value) {
+    return null;
+  }
+  const parts = value.split('.').filter(Boolean);
+  if (parts.length < 2) {
+    return null;
+  }
+  const base = parts[parts.length - 2];
+  if (!base || /^(gmail|yahoo|outlook|hotmail|icloud|protonmail|aol|msn|live|googlemail)$/.test(base)) {
+    return null;
+  }
+  return base
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+    .trim() || null;
+}
+
+function hasDirectRecruiterHiringOutcomeLanguage(text) {
+  return /\b(?:interview|interviewing|position|role|candidate|candidates|candidacy|hiring|recruit|recruiter|application|job'?s?\s+page|careers?\s+page|offer|assessment|unfortunately|not selected|not moving forward|move forward with other candidates|push forward with other candidates|proceed with other candidates|pursue other candidates|tough decision|better match)\b/i.test(
+    String(text || '')
+  );
+}
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function looksRoleLikeDirectSubject(value) {
+  return /\b(?:intern|engineer|developer|analyst|manager|specialist|designer|scientist|associate|coordinator|architect|administrator|consultant|technician|officer|lead|director|representative|trader|trading|operations|marketing|sales|support|account|finance|product|data)\b/i.test(
+    String(value || '')
+  );
+}
+
+function looksCompanyLikeDirectSubject(value, body) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return false;
+  }
+  if (/\b(?:inc|llc|ltd|corp|corporation|company|group|systems?|solutions?|technologies?|ventures|labs?|partners|holdings|bank|insurance|capital|pharma|biotech|university|hospital)\b/i.test(text)) {
+    return true;
+  }
+  const words = text.split(/\s+/).filter(Boolean);
+  const titleCasePhrase =
+    words.length >= 2 &&
+    words.length <= 4 &&
+    words.every((word) => /^[A-Z][A-Za-z0-9&.'-]*$/.test(word));
+  if (titleCasePhrase && !looksRoleLikeDirectSubject(text)) {
+    return true;
+  }
+  if (body && new RegExp(`\\b(?:joining|join)\\s+(?:the\\s+)?${escapeRegExp(text)}\\s+(?:team|hiring team|recruiting team)\\b`, 'i').test(body)) {
+    return true;
+  }
+  return false;
+}
+
+function parseGeneric({ subject, text, fromDomain }) {
   const notes = [];
   const candidates = { company: [], role: [] };
   let companyRaw;
@@ -105,6 +164,68 @@ function parseGeneric({ subject, text }) {
 
   const subj = String(subject || '');
   const body = String(text || '');
+  const hasHiringOutcomeLanguage = hasDirectRecruiterHiringOutcomeLanguage(`${subj}\n${body}`);
+
+  const applyRoleAtCompanyMatch = (match, roleIndex, companyIndex, roleNote, companyNote) => {
+    if (!match) {
+      return;
+    }
+    if (!roleRaw && match[roleIndex]) {
+      roleRaw = match[roleIndex].trim().replace(/[.!,;:]+$/g, '');
+      candidates.role.push(roleRaw);
+      notes.push(roleNote);
+    }
+    if (!companyRaw && match[companyIndex]) {
+      const candidate = match[companyIndex].trim().replace(/[.!,;:]+$/g, '');
+      if (!isGenericCompanyPhrase(candidate)) {
+        companyRaw = candidate;
+        candidates.company.push(companyRaw);
+        notes.push(companyNote);
+      }
+    }
+  };
+
+  if (!companyRaw || !roleRaw) {
+    const subjectCompanyRoleDash = subj.match(
+      /^([A-Z][A-Za-z0-9&.' -]{1,80})\s+[-–—]\s+([A-Z][A-Za-z0-9/&.'+()[\]\- ]{2,140})$/i
+    );
+    if (subjectCompanyRoleDash && hasHiringOutcomeLanguage) {
+      const left = subjectCompanyRoleDash[1].trim();
+      const right = subjectCompanyRoleDash[2].trim().replace(/[.!,;:]+$/g, '');
+      const roleCompanyOrientation =
+        looksRoleLikeDirectSubject(left) && looksCompanyLikeDirectSubject(right, body);
+      if (!companyRaw) {
+        companyRaw = roleCompanyOrientation ? right : left;
+        candidates.company.push(companyRaw);
+        notes.push(
+          roleCompanyOrientation
+            ? 'company_phrase:subject_role_company_dash'
+            : 'company_phrase:subject_company_role_dash'
+        );
+      }
+      if (!roleRaw) {
+        roleRaw = roleCompanyOrientation ? left : right;
+        candidates.role.push(roleRaw);
+        notes.push(
+          roleCompanyOrientation
+            ? 'role_phrase:subject_role_company_dash'
+            : 'role_phrase:subject_company_role_dash'
+        );
+      }
+    }
+  }
+
+  if (!companyRaw || !roleRaw) {
+    applyRoleAtCompanyMatch(
+      subj.match(
+        /\binterview\s+for\s+(?:the\s+)?([\p{L}0-9][\p{L}\p{M}0-9/&.'+()[\]\- ]{2,120}?)\s+at\s+([\p{L}0-9][\p{L}\p{M}0-9&.'\- ]{1,100}?)(?=\s*(?:[.!?,]|$))/iu
+      ),
+      1,
+      2,
+      'role_phrase:subject_interview_for_role_at_company',
+      'company_phrase:subject_interview_for_role_at_company'
+    );
+  }
 
   const thankYouToMatch = subj.match(/thank you for your application to\s+(.+)$/i);
   if (thankYouToMatch && thankYouToMatch[1]) {
@@ -242,6 +363,18 @@ function parseGeneric({ subject, text }) {
     }
   }
 
+  if (!companyRaw || !roleRaw) {
+    applyRoleAtCompanyMatch(
+      body.match(
+        /\b(?:interview|schedule|scheduling|invite|inviting|invitation)[^\n.]{0,140}\bfor\s+(?:the\s+)?([\p{L}0-9][\p{L}\p{M}0-9/&.'+()[\]\- ]{2,120}?)\s+(?:role|position)\s+at\s+([\p{L}0-9][\p{L}\p{M}0-9&.'\- ]{1,100}?)(?=\s*(?:[.!?,]|\n|$))/iu
+      ),
+      1,
+      2,
+      'role_phrase:body_interview_for_role_at_company',
+      'company_phrase:body_interview_for_role_at_company'
+    );
+  }
+
   if (!roleRaw) {
     const roleOfMatch = body.match(/(?:thank you for applying for the role of|role of)\s+(.+?)(?:[\n.]|$)/i);
     if (roleOfMatch && roleOfMatch[1]) {
@@ -346,6 +479,15 @@ function parseGeneric({ subject, text }) {
         notes.push('company_phrase:signature_company_line');
         break;
       }
+    }
+  }
+
+  if (!companyRaw && hasHiringOutcomeLanguage) {
+    const domainCompany = companyFromSenderDomain(fromDomain);
+    if (domainCompany && !isGenericCompanyPhrase(domainCompany)) {
+      companyRaw = domainCompany;
+      candidates.company.push(companyRaw);
+      notes.push('company_phrase:sender_domain');
     }
   }
 

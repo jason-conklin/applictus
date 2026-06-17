@@ -1205,6 +1205,76 @@ test('Lever next-step assessment email updates existing applied application to I
   db.close();
 });
 
+test('direct recruiter rejection updates existing applied application to REJECTED', async () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const userId = insertUser(db);
+
+  const sender = 'Mercedes Hanton <mercedes.hanton@upbound.io>';
+  const subject = 'Upbound - Global Account Manager [REMOTE]';
+  const body = [
+    'Hi Shane,',
+    '',
+    'Thank you for taking some time to interview with the team and allowing us to explore a deeper fit for the Global Account Manager [REMOTE] position.',
+    'It was certainly a very tough decision for the team to make, but unfortunately they have decided to push forward with other candidates at this time.',
+    '',
+    "We hope to stay close and would absolutely encourage you to keep an eye out for other positions on our job's page that might be a better match."
+  ].join('\n');
+  const appId = insertApplication(db, {
+    userId,
+    company: 'Upbound',
+    role: 'Global Account Manager [REMOTE]',
+    status: ApplicationStatus.APPLIED
+  });
+
+  const classification = classifyEmail({ subject, sender, snippet: body, body });
+  assert.equal(classification.detectedType, 'rejection');
+  assert.equal(Boolean(classification.actionNeeded), false);
+
+  const identity = extractThreadIdentity({ subject, sender, snippet: body, bodyText: body });
+  assert.equal(identity.companyName, 'Upbound');
+  assert.equal(identity.jobTitle, 'Global Account Manager [REMOTE]');
+
+  const eventId = insertEmailEvent(db, {
+    userId,
+    messageId: 'msg-upbound-direct-rejection-1',
+    sender,
+    subject,
+    detectedType: classification.detectedType,
+    confidenceScore: classification.confidenceScore,
+    classificationConfidence: classification.confidenceScore,
+    snippet: body
+  });
+
+  const match = await matchAndAssignEvent({
+    db,
+    userId,
+    event: {
+      id: eventId,
+      sender,
+      subject,
+      snippet: body,
+      detected_type: classification.detectedType,
+      confidence_score: classification.confidenceScore,
+      classification_confidence: classification.confidenceScore,
+      role_title: identity.jobTitle,
+      role_confidence: identity.roleConfidence,
+      role_source: 'identity',
+      created_at: new Date().toISOString()
+    },
+    identity
+  });
+  assert.equal(match.action, 'matched_existing');
+  assert.equal(match.applicationId, appId);
+
+  const updated = db.prepare('SELECT current_status FROM job_applications WHERE id = ?').get(appId);
+  assert.equal(updated.current_status, ApplicationStatus.REJECTED);
+  const inference = runStatusInferenceForApplication(db, userId, appId);
+  assert.equal(inference.applied, false);
+  assert.equal(inference.blocked, 'same_status');
+  db.close();
+});
+
 test('Lever next-step assessment email does not downgrade existing rejected application', async () => {
   const db = new Database(':memory:');
   runMigrations(db);

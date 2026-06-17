@@ -218,7 +218,7 @@ const ROLE_COMPANY_PATTERNS = [
   },
   {
     name: 'company_dash_role',
-    regex: /^([A-Z][A-Za-z0-9&.'\- ]{2,80})\s+[-–—]\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})$/i,
+    regex: /^([A-Z][A-Za-z0-9&.'\- ]{2,80})\s+[-–—]\s+([A-Z][A-Za-z0-9/&.'()[\]\- ]{2,120})$/i,
     roleIndex: 2,
     companyIndex: 1,
     confidence: 0.93
@@ -375,7 +375,7 @@ const COMPANY_ONLY_PATTERNS = [
   },
   {
     name: 'subject_company_dash_role',
-    regex: /^([A-Z][A-Za-z0-9&.'\- ]{2,80})\s+[-–—]\s+([A-Z][A-Za-z0-9/&.'\- ]{2,80})$/i,
+    regex: /^([A-Z][A-Za-z0-9&.'\- ]{2,80})\s+[-–—]\s+([A-Z][A-Za-z0-9/&.'()[\]\- ]{2,120})$/i,
     confidence: 0.93
   }
 ];
@@ -956,7 +956,11 @@ function cleanEntity(value) {
 }
 
 function cleanRoleEntity(value) {
-  return normalize(value).replace(/\s+\[.*\]$/, '').trim();
+  let text = normalize(value);
+  if (/\[(?:remote|hybrid|on[- ]?site|onsite)\]/i.test(text)) {
+    return text.trim();
+  }
+  return text.replace(/\s+\[[^\]]*\]$/, '').trim();
 }
 
 const ROLE_PREFIX_PATTERNS = [
@@ -1335,6 +1339,9 @@ function extractCompanyFromBodyText(bodyText) {
   const scan = lines.slice(-20);
   for (let i = scan.length - 1; i >= 0; i -= 1) {
     const line = scan[i];
+    if (/^(?:hi|hello|dear|hey)\b/i.test(line)) {
+      continue;
+    }
     if (isSignatureNoise(line)) {
       const stripped = stripSignatureNoise(line);
       if (!stripped) {
