@@ -1697,31 +1697,6 @@ body.home-page .home-main {
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 52%, #eef4ff 100%);
 }
 
-.home-scope-label {
-  margin: 14px 0 0;
-  color: #36547f;
-  font-size: 0.84rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 700;
-}
-
-.home-scope-badge {
-  margin: 8px 0 0;
-}
-
-.home-scope-badge code {
-  display: inline-block;
-  padding: 8px 11px;
-  border-radius: 10px;
-  background: rgba(20, 60, 117, 0.1);
-  border: 1px solid rgba(20, 60, 117, 0.18);
-  color: #123964;
-  font-size: 0.86rem;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-}
-
 .home-check-list {
   margin: 14px 0 0;
   padding: 0;
@@ -11720,28 +11695,6 @@ body.home-page .home-panel-permissions {
   backdrop-filter: blur(10px);
 }
 
-body.home-page .home-scope-label {
-  margin: 16px 0 0;
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #36527d;
-  font-weight: 700;
-}
-
-body.home-page .home-scope-badge {
-  margin: 8px 0 0;
-}
-
-body.home-page .home-scope-badge code {
-  display: inline-block;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: rgba(18, 58, 112, 0.08);
-  border: 1px solid rgba(18, 58, 112, 0.16);
-  font-size: 0.84rem;
-}
-
 body.home-page .home-check-list {
   margin-top: 14px;
   gap: 10px;
@@ -15468,7 +15421,7 @@ body.home-page .security-trust-lead {
   max-width: 52ch;
 }
 
-body.home-page .security-scope-wrap {
+body.home-page .security-signin-card {
   margin-top: 2px;
   width: fit-content;
   max-width: 100%;
@@ -15481,22 +15434,20 @@ body.home-page .security-scope-wrap {
     0 9px 18px rgba(11, 41, 86, 0.08);
 }
 
-body.home-page .security-scope-wrap .home-scope-label {
+body.home-page .security-signin-title {
   margin: 0;
-  font-size: 0.64rem;
-  letter-spacing: 0.08em;
+  color: #163d70;
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0;
 }
 
-body.home-page .security-scope-wrap .home-scope-badge {
-  margin: 5px 0 0;
-}
-
-body.home-page .security-scope-wrap .home-scope-badge code {
-  padding: 7px 10px;
-  border-radius: 9px;
-  font-size: 0.8rem;
-  background: rgba(18, 58, 112, 0.1);
-  border-color: rgba(18, 58, 112, 0.2);
+body.home-page .security-signin-copy {
+  margin: 4px 0 0;
+  max-width: 31ch;
+  color: #476891;
+  font-size: 0.84rem;
+  line-height: 1.42;
 }
 
 body.home-page .security-trust-list {
@@ -16472,18 +16423,18 @@ body.home-page .home-faq-answer a:hover {
     line-height: 1.52;
   }
 
-  body.home-page .security-scope-wrap {
+  body.home-page .security-signin-card {
     width: 100%;
     padding: 10px 11px;
   }
 
-  body.home-page .security-scope-wrap .home-scope-label {
-    font-size: 0.62rem;
+  body.home-page .security-signin-title {
+    font-size: 0.82rem;
   }
 
-  body.home-page .security-scope-wrap .home-scope-badge code {
-    font-size: 0.76rem;
-    padding: 6px 8px;
+  body.home-page .security-signin-copy {
+    max-width: 100%;
+    font-size: 0.78rem;
   }
 
   body.home-page .security-trust-item {
