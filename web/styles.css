@@ -1204,6 +1204,7 @@ body.app-page-bg .noise {
 body.home-page {
   min-height: 100vh;
   color: #102747;
+  overflow-x: clip;
   --auth-particle-opacity-mult: 0.46;
   --auth-scanline-opacity: 0.045;
   --animated-bg-base-opacity: 0.76;
@@ -15659,6 +15660,184 @@ body.home-page .home-faq-answer a:hover {
   text-underline-offset: 3px;
 }
 
+/* =========================
+   Homepage Section Bands
+   ========================= */
+
+body.home-page .landing-sections {
+  position: relative;
+  z-index: 4;
+  padding: 0;
+  background: #ffffff;
+}
+
+body.home-page .home-main {
+  padding-bottom: 0;
+}
+
+body.home-page .landing-section {
+  position: relative;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  padding: clamp(70px, 7.5vw, 104px) 0;
+  scroll-margin-top: 128px;
+  overflow: hidden;
+}
+
+body.home-page .landing-section + .landing-section {
+  border-top: 1px solid rgba(25, 67, 126, 0.08);
+}
+
+body.home-page .landing-section__inner {
+  position: relative;
+  z-index: 1;
+}
+
+body.home-page .landing-section-light {
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+body.home-page .landing-section-blue {
+  background:
+    linear-gradient(180deg, #eef5ff 0%, #e7f1ff 100%);
+}
+
+body.home-page .landing-section-white {
+  background: #ffffff;
+}
+
+body.home-page .landing-section-faq {
+  background:
+    linear-gradient(180deg, #f7fbff 0%, #edf5ff 100%);
+}
+
+body.home-page .landing-section-cta {
+  background:
+    radial-gradient(circle at 18% 20%, rgba(127, 176, 255, 0.34), transparent 34%),
+    linear-gradient(135deg, #123f7e 0%, #1e5db9 58%, #3a7ddb 100%);
+  color: #f7fbff;
+}
+
+body.home-page .landing-section .surface-card,
+body.home-page .landing-section .home-panel {
+  border-radius: 22px !important;
+  border: 1px solid rgba(25, 67, 126, 0.13) !important;
+  background: #ffffff !important;
+  box-shadow:
+    0 18px 42px rgba(12, 43, 89, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+body.home-page .landing-section-product .surface-card {
+  padding: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.home-page .landing-section-product .info-section__grid {
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  align-items: center;
+}
+
+body.home-page .landing-section-product .product-preview {
+  border-radius: 22px;
+  border-color: rgba(25, 67, 126, 0.16);
+  background: #ffffff;
+  box-shadow:
+    0 26px 60px rgba(13, 46, 96, 0.16),
+    0 8px 20px rgba(13, 46, 96, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+body.home-page .landing-section-setup .surface-card {
+  padding: clamp(30px, 3.4vw, 44px);
+}
+
+body.home-page .landing-section-setup .info-section--how .info-section__right {
+  border-radius: 18px;
+  background: #f8fbff;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+body.home-page .landing-section-setup .setup-video-preview {
+  border-radius: 16px;
+}
+
+body.home-page .landing-section-setup .info-after-setup {
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+body.home-page .landing-section-security .home-panel-permissions {
+  padding: clamp(26px, 3vw, 34px) !important;
+}
+
+body.home-page .landing-section-security .security-signin-card,
+body.home-page .landing-section-security .security-trust-item {
+  border-radius: 12px;
+  box-shadow: none;
+  background: #f8fbff;
+}
+
+body.home-page .landing-section-faq .home-panel-faq {
+  margin-top: 0;
+  padding: clamp(28px, 3.4vw, 40px) !important;
+  isolation: auto;
+  overflow: visible;
+}
+
+body.home-page .landing-section-faq .home-panel-faq::before {
+  content: none !important;
+}
+
+body.home-page .landing-section-faq .home-faq-label {
+  background: #eef5ff;
+  box-shadow: none;
+}
+
+body.home-page .landing-section-faq .home-faq-item {
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+body.home-page .landing-section-faq .home-faq-item:hover,
+body.home-page .landing-section-faq .home-faq-item[open] {
+  background: #f8fbff;
+  box-shadow: 0 10px 22px rgba(12, 43, 89, 0.07);
+}
+
+body.home-page .landing-section-cta .home-panel-cta {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 !important;
+  text-align: center;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.home-page .landing-section-cta .home-panel-cta p {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+body.home-page .landing-section-cta .home-cta-row {
+  justify-content: center;
+}
+
 @supports selector(details::details-content) {
   body.home-page .home-faq-item::details-content {
     block-size: 0;
@@ -16441,6 +16620,60 @@ body.home-page .home-faq-answer a:hover {
     padding: 11px;
     border-radius: 12px;
     font-size: 0.88rem;
+  }
+}
+
+@media (max-width: 980px) {
+  body.home-page .landing-section {
+    padding: clamp(56px, 9vw, 74px) 0;
+    scroll-margin-top: 118px;
+  }
+
+  body.home-page .landing-section-product .info-section__grid {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  body.home-page .landing-section-product .info-section__left {
+    max-width: 680px;
+  }
+
+  body.home-page .landing-section-setup .surface-card,
+  body.home-page .landing-section-security .home-panel-permissions,
+  body.home-page .landing-section-faq .home-panel-faq {
+    border-radius: 20px !important;
+  }
+
+  body.home-page .landing-section-cta .home-panel-cta {
+    max-width: 680px;
+  }
+}
+
+@media (max-width: 640px) {
+  body.home-page .landing-section {
+    padding: 48px 0;
+    scroll-margin-top: 104px;
+  }
+
+  body.home-page .landing-section .surface-card,
+  body.home-page .landing-section .home-panel {
+    border-radius: 18px !important;
+  }
+
+  body.home-page .landing-section-setup .surface-card,
+  body.home-page .landing-section-security .home-panel-permissions,
+  body.home-page .landing-section-faq .home-panel-faq {
+    padding: 18px !important;
+  }
+
+  body.home-page .landing-section-cta .home-cta-row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  body.home-page .landing-section-cta .home-cta-row .btn {
+    width: 100%;
   }
 }
 
