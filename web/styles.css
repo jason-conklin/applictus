@@ -15363,27 +15363,28 @@ body.home-page .home-panel-permissions {
 
 body.home-page .security-trust-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.06fr) minmax(0, 0.94fr);
-  gap: clamp(18px, 2.5vw, 30px);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(24px, 3.2vw, 42px);
   align-items: start;
 }
 
 body.home-page .security-trust-main {
   display: grid;
   align-content: start;
-  gap: 12px;
+  gap: 10px;
 }
 
 body.home-page .security-trust-main .home-panel-head {
   margin: 0;
-  gap: 14px;
-  align-items: center;
+  gap: 12px;
+  align-items: start;
 }
 
 body.home-page .security-trust-main .home-panel-badge {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
+  width: 50px;
+  height: 50px;
+  margin-top: 2px;
+  border-radius: 13px;
   border-color: rgba(31, 79, 150, 0.14);
   background: linear-gradient(180deg, rgba(242, 248, 255, 0.96), rgba(233, 244, 255, 0.92));
   color: #285794;
@@ -15393,8 +15394,8 @@ body.home-page .security-trust-main .home-panel-badge {
 }
 
 body.home-page .security-trust-main .home-panel-badge svg {
-  width: 27px;
-  height: 27px;
+  width: 24px;
+  height: 24px;
 }
 
 body.home-page .security-trust-main .home-panel-copy {
@@ -15423,16 +15424,16 @@ body.home-page .security-trust-lead {
 }
 
 body.home-page .security-signin-card {
-  margin-top: 2px;
-  width: fit-content;
+  margin-top: 0;
+  width: min(420px, 100%);
   max-width: 100%;
-  padding: 11px 13px;
-  border-radius: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
   border: 1px solid rgba(23, 64, 120, 0.16);
   background: linear-gradient(180deg, rgba(246, 251, 255, 0.96), rgba(238, 246, 255, 0.92));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    0 9px 18px rgba(11, 41, 86, 0.08);
+    0 10px 20px rgba(11, 41, 86, 0.075);
 }
 
 body.home-page .security-signin-title {
@@ -15445,7 +15446,7 @@ body.home-page .security-signin-title {
 
 body.home-page .security-signin-copy {
   margin: 4px 0 0;
-  max-width: 31ch;
+  max-width: 39ch;
   color: #476891;
   font-size: 0.84rem;
   line-height: 1.42;
@@ -15453,7 +15454,7 @@ body.home-page .security-signin-copy {
 
 body.home-page .security-trust-list {
   margin: 0;
-  gap: 11px;
+  gap: 8px;
   align-content: start;
 }
 
@@ -15462,8 +15463,9 @@ body.home-page .security-trust-item {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: flex-start;
   gap: 10px;
-  padding: 12px 13px;
-  border-radius: 14px;
+  min-height: 58px;
+  padding: 11px 13px;
+  border-radius: 12px;
   border: 1px solid rgba(21, 62, 120, 0.15);
   background: linear-gradient(180deg, #ffffff, #f6fbff);
   box-shadow:
@@ -15855,12 +15857,12 @@ body.home-page .landing-section-setup .info-after-setup {
 }
 
 body.home-page .landing-section-security .home-panel-permissions {
-  max-width: 1180px;
+  max-width: 1120px;
   margin-inline: auto;
 }
 
 body.home-page .landing-section-security .security-trust-grid {
-  gap: clamp(32px, 5vw, 76px);
+  gap: clamp(34px, 5vw, 64px);
 }
 
 body.home-page .landing-section-security .security-signin-card,
@@ -16042,14 +16044,14 @@ body.home-page .landing-section-cta .home-cta-row {
   }
 
   body.home-page .security-trust-main .home-panel-badge {
-    width: 52px;
-    height: 52px;
-    border-radius: 13px;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
   }
 
   body.home-page .security-trust-main .home-panel-badge svg {
-    width: 25px;
-    height: 25px;
+    width: 23px;
+    height: 23px;
   }
 
   body.home-page .security-trust-list {
@@ -16063,6 +16065,20 @@ body.home-page .landing-section-cta .home-cta-row {
 
   body.home-page .home-faq-head {
     max-width: 66ch;
+  }
+
+  body.home-page .landing-section-faq .home-faq-layout {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  body.home-page .landing-section-faq .home-faq-head,
+  body.home-page .landing-section-faq .home-faq-list,
+  body.home-page .landing-section-faq .home-faq-item {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    box-sizing: border-box;
   }
 }
 
@@ -16106,6 +16122,26 @@ body.home-page .landing-section-cta .home-cta-row {
 
   body.home-page .home-faq-answer p {
     font-size: 0.93rem;
+  }
+
+  body.home-page .landing-section-faq .home-panel-faq {
+    width: 100%;
+    min-width: 0;
+    padding: 0 !important;
+    overflow: visible;
+  }
+
+  body.home-page .landing-section-faq .home-faq-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  body.home-page .landing-section-faq .home-faq-question {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow-wrap: break-word;
   }
 
   body.home-page .info-section--what .info-section__right {
@@ -16669,18 +16705,18 @@ body.home-page .landing-section-cta .home-cta-row {
   }
 
   body.home-page .security-trust-main .home-panel-head {
-    gap: 12px;
+    gap: 11px;
   }
 
   body.home-page .security-trust-main .home-panel-badge {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
+    width: 44px;
+    height: 44px;
+    border-radius: 11px;
   }
 
   body.home-page .security-trust-main .home-panel-badge svg {
-    width: 23px;
-    height: 23px;
+    width: 21px;
+    height: 21px;
   }
 
   body.home-page .security-trust-main .home-panel-copy p {
@@ -16694,7 +16730,7 @@ body.home-page .landing-section-cta .home-cta-row {
 
   body.home-page .security-signin-card {
     width: 100%;
-    padding: 10px 11px;
+    padding: 12px 13px;
   }
 
   body.home-page .security-signin-title {
@@ -16754,6 +16790,14 @@ body.home-page .landing-section-cta .home-cta-row {
 
   body.home-page .landing-section__inner {
     padding-inline: 20px;
+  }
+
+  body.home-page .landing-section-faq .home-faq-layout {
+    gap: 16px;
+  }
+
+  body.home-page .landing-section-faq .home-faq-list {
+    gap: 10px;
   }
 
   body.home-page .landing-section .surface-card,
