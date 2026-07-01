@@ -15376,14 +15376,14 @@ body.home-page .security-trust-main {
 
 body.home-page .security-trust-main .home-panel-head {
   margin: 0;
-  gap: 10px;
+  gap: 14px;
   align-items: center;
 }
 
 body.home-page .security-trust-main .home-panel-badge {
-  width: 42px;
-  height: 42px;
-  border-radius: 11px;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
   border-color: rgba(31, 79, 150, 0.14);
   background: linear-gradient(180deg, rgba(242, 248, 255, 0.96), rgba(233, 244, 255, 0.92));
   color: #285794;
@@ -15393,8 +15393,8 @@ body.home-page .security-trust-main .home-panel-badge {
 }
 
 body.home-page .security-trust-main .home-panel-badge svg {
-  width: 20px;
-  height: 20px;
+  width: 27px;
+  height: 27px;
 }
 
 body.home-page .security-trust-main .home-panel-copy {
@@ -16042,14 +16042,14 @@ body.home-page .landing-section-cta .home-cta-row {
   }
 
   body.home-page .security-trust-main .home-panel-badge {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
+    width: 52px;
+    height: 52px;
+    border-radius: 13px;
   }
 
   body.home-page .security-trust-main .home-panel-badge svg {
-    width: 19px;
-    height: 19px;
+    width: 25px;
+    height: 25px;
   }
 
   body.home-page .security-trust-list {
@@ -16669,18 +16669,18 @@ body.home-page .landing-section-cta .home-cta-row {
   }
 
   body.home-page .security-trust-main .home-panel-head {
-    gap: 9px;
+    gap: 12px;
   }
 
   body.home-page .security-trust-main .home-panel-badge {
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
   }
 
   body.home-page .security-trust-main .home-panel-badge svg {
-    width: 18px;
-    height: 18px;
+    width: 23px;
+    height: 23px;
   }
 
   body.home-page .security-trust-main .home-panel-copy p {
